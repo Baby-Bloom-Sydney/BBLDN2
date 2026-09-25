@@ -6,6 +6,7 @@ import { parseOCGEmail } from '@/lib/verification/parse-ocg-email';
 import { sendEmail } from '@/lib/email/resend';
 import { getUserEmailInfo } from '@/lib/email/helpers';
 import { emailFooter } from "@/lib/email/brand";
+import { SITE_URL } from "@/lib/constants";
 
 // ── OCG Result Status Categories ──
 // These MUST match the exact strings from the OCG portal email
@@ -410,7 +411,7 @@ async function sendOCGResultEmails(
   const userInfo = await getUserEmailInfo(userId);
   if (!userInfo) return;
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app-babybloom.vercel.app';
+  const appUrl = SITE_URL;
   const baseStyle = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
   const btnStyle = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;
 

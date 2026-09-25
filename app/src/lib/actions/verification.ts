@@ -22,6 +22,7 @@ import { getUserEmailInfo } from '@/lib/email/helpers';
 import { CONNECTION_STAGE } from '@/lib/position/constants';
 import { createInboxMessage } from './connection-helpers';
 import { emailHeader, emailFooter } from "@/lib/email/brand";
+import { SITE_URL } from "@/lib/constants";
 
 // ── Shared auth helper ──
 
@@ -210,7 +211,7 @@ async function promotePendingConnections(
   // 5. Promote stage 9 → 10 for active positions
   const nannyEmailInfo = await getUserEmailInfo(userId);
   const nannyName = nannyEmailInfo ? nannyEmailInfo.firstName : 'A nanny';
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app-babybloom.vercel.app';
+  const appUrl = SITE_URL;
   const baseStyle = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
   const btnStyle = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;
 
@@ -537,7 +538,7 @@ export async function submitIdentityForManualReview(): Promise<{ success: boolea
   // VER-004: Submitted for Manual Review email
   const userInfo = await getUserEmailInfo(user.id);
   if (userInfo) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app-babybloom.vercel.app';
+    const appUrl = SITE_URL;
     sendEmail({
       to: userInfo.email,
       subject: "We're reviewing your documents",

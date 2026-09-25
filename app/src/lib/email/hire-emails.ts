@@ -1,11 +1,11 @@
 import { createAdminClient } from '@/lib/supabase/admin';
-import { APP_LOCALE } from '@/lib/constants';
+import { APP_LOCALE, SITE_URL } from '@/lib/constants';
 import { sendEmail } from './resend';
 import { generateClientHirePDF, generateProfessionalHirePDF } from '@/lib/pdf/generate-hire-pdf';
 import { buildClientHireConfirmationEmail } from './templates/client-hire-confirmation';
 import { buildProfessionalHireConfirmationEmail } from './templates/professional-hire-confirmation';
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app-babybloom.vercel.app';
+const appUrl = SITE_URL;
 
 interface HireEmailParams {
   placementId: string;

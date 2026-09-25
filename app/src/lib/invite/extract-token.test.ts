@@ -2,13 +2,14 @@
  * Pure URL → token extraction with origin validation.
  *
  * Hostname must match `NEXT_PUBLIC_INVITE_BASE_URL` (defaults to
- * babybloomsydney.com.au). Pasting a prod URL into staging — or a
+ * `SITE_URL`). Pasting a prod URL into staging — or a
  * lookalike-domain phishing URL — must reject. Token shape must match
  * the XXXX-XXXX format from `lib/invite/flags` / `child-invites.ts`.
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
 import { extractInviteToken } from "./extract-token";
+import { SITE_DOMAIN, SITE_URL } from "@/lib/constants";
 
 beforeEach(() => {
   delete process.env.NEXT_PUBLIC_INVITE_BASE_URL;
@@ -17,19 +18,19 @@ beforeEach(() => {
 describe("extractInviteToken", () => {
   it("extracts token from a valid invite URL on the default origin", () => {
     expect(
-      extractInviteToken("https://babybloomsydney.com.au/invite/ABCD-2345"),
+      extractInviteToken(`${SITE_URL}/invite/ABCD-2345`),
     ).toBe("ABCD-2345");
   });
 
   it("trims surrounding whitespace before parsing", () => {
     expect(
-      extractInviteToken("  https://babybloomsydney.com.au/invite/ABCD-2345\n"),
+      extractInviteToken(`  ${SITE_URL}/invite/ABCD-2345\n`),
     ).toBe("ABCD-2345");
   });
 
   it("accepts trailing slash on the path", () => {
     expect(
-      extractInviteToken("https://babybloomsydney.com.au/invite/ABCD-2345/"),
+      extractInviteToken(`${SITE_URL}/invite/ABCD-2345/`),
     ).toBe("ABCD-2345");
   });
 
@@ -42,28 +43,28 @@ describe("extractInviteToken", () => {
 
   it("rejects a URL on a lookalike domain", () => {
     expect(
-      extractInviteToken("https://babybloomsydney.com/invite/ABCD-2345"),
+      extractInviteToken(`https://${SITE_DOMAIN}.example.net/invite/ABCD-2345`),
     ).toBeNull();
   });
 
   it("rejects a token with the wrong format (lowercase, wrong length)", () => {
     expect(
-      extractInviteToken("https://babybloomsydney.com.au/invite/abcd-2345"),
+      extractInviteToken(`${SITE_URL}/invite/abcd-2345`),
     ).toBeNull();
     expect(
-      extractInviteToken("https://babybloomsydney.com.au/invite/ABCDEFGH"),
+      extractInviteToken(`${SITE_URL}/invite/ABCDEFGH`),
     ).toBeNull();
     expect(
-      extractInviteToken("https://babybloomsydney.com.au/invite/ABCD-2"),
+      extractInviteToken(`${SITE_URL}/invite/ABCD-2`),
     ).toBeNull();
   });
 
   it("rejects a token containing the banned glyphs (I, L, O, 0, 1)", () => {
     expect(
-      extractInviteToken("https://babybloomsydney.com.au/invite/IIII-IIII"),
+      extractInviteToken(`${SITE_URL}/invite/IIII-IIII`),
     ).toBeNull();
     expect(
-      extractInviteToken("https://babybloomsydney.com.au/invite/0000-0000"),
+      extractInviteToken(`${SITE_URL}/invite/0000-0000`),
     ).toBeNull();
   });
 
@@ -75,17 +76,17 @@ describe("extractInviteToken", () => {
 
   it("rejects a URL pointing to the wrong path", () => {
     expect(
-      extractInviteToken("https://babybloomsydney.com.au/invites/ABCD-2345"),
+      extractInviteToken(`${SITE_URL}/invites/ABCD-2345`),
     ).toBeNull();
     expect(
-      extractInviteToken("https://babybloomsydney.com.au/login"),
+      extractInviteToken(`${SITE_URL}/login`),
     ).toBeNull();
   });
 
   it("rejects a URL with extra path segments after the token", () => {
     expect(
       extractInviteToken(
-        "https://babybloomsydney.com.au/invite/ABCD-2345/extra",
+        `${SITE_URL}/invite/ABCD-2345/extra`,
       ),
     ).toBeNull();
   });
@@ -95,7 +96,7 @@ describe("extractInviteToken", () => {
     // A misconfigured deploy must fail closed — every URL becomes
     // unreachable rather than the function throwing.
     expect(
-      extractInviteToken("https://babybloomsydney.com.au/invite/ABCD-2345"),
+      extractInviteToken(`${SITE_URL}/invite/ABCD-2345`),
     ).toBeNull();
   });
 });

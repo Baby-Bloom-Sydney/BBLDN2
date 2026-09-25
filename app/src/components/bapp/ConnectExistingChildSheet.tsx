@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { extractInviteToken } from "@/lib/invite/extract-token";
+import { SITE_URL } from "@/lib/constants";
 
 interface ConnectExistingChildSheetProps {
   open: boolean;
@@ -78,7 +79,7 @@ export function ConnectExistingChildSheet({
               autoComplete="off"
               autoCorrect="off"
               spellCheck={false}
-              placeholder="https://babybloomsydney.com.au/invite/..."
+              placeholder={`${SITE_URL}/invite/...`}
               value={url}
               onChange={(e) => {
                 setUrl(e.target.value);

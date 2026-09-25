@@ -14,6 +14,7 @@ import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createPortalSession as createStripePortalSession } from "@/lib/stripe/portal";
+import { SITE_URL } from "@/lib/constants";
 
 export interface CreatePortalSessionResult {
   success: boolean;
@@ -123,7 +124,7 @@ function resolveOrigin(): string {
   if (envOrigin && envOrigin.length > 0) {
     return envOrigin.replace(/\/$/, "");
   }
-  return "https://babybloomsydney.com.au";
+  return SITE_URL;
 }
 
 function getErrorMessage(err: unknown): string {

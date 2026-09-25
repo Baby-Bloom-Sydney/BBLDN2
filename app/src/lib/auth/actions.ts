@@ -12,6 +12,7 @@ import { buildWelcomeInviteParentEmail } from "@/lib/email/templates/welcome-inv
 import { capitalizeName } from "@/lib/utils";
 import { signupViaInvite } from "@/lib/actions/bapp/child-invites";
 import { isUkMobile, normaliseUkMobile } from "@/lib/uk-contact";
+import { SITE_URL } from "@/lib/constants";
 
 const INVITE_TOKEN_REGEX = /^[A-HJKMN-Z2-9]{4}-[A-HJKMN-Z2-9]{4}$/;
 
@@ -338,7 +339,7 @@ export async function signUp(formData: FormData): Promise<ActionResult> {
     //              existing dashboards/queries) and
     //   `welcome-invite-parent` (new).
     const appUrl =
-      process.env.NEXT_PUBLIC_APP_URL || "https://app-babybloom.vercel.app";
+      SITE_URL;
 
     if (role === "nanny") {
       const { subject, html } = buildWelcomeNannyEmail({ firstName, appUrl });

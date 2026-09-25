@@ -49,6 +49,7 @@ vi.mock("./ChildDetailsEditor", () => ({
 
 import { BAppLayout } from "./BAppLayout";
 import type { ChildClient } from "@/types/bapp";
+import { SITE_URL } from "@/lib/constants";
 
 const child: ChildClient = {
   id: "child-1",
@@ -164,7 +165,7 @@ describe("BAppLayout — lapsed state, nanny role (AC-S4.3)", () => {
       familyHasAccess: false,
       lapseReason: "subscription_lapsed",
       parentFirstName: "Sarah",
-      nannyShareUrl: "https://babybloomsydney.com.au/subscribe-for/AAAA-1111",
+      nannyShareUrl: `${SITE_URL}/subscribe-for/AAAA-1111`,
       nannyShareText: "Hi Sarah — share text",
     });
     const fab = screen.getByRole("button", { name: /open menu/i });

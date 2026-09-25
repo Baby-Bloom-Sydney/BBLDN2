@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { APP_LOCALE, APP_TZ } from "@/lib/constants";
+import { APP_LOCALE, APP_TZ, SITE_URL } from "@/lib/constants";
 import { revalidatePath } from "next/cache";
 import { getParentId } from "./parent";
 import {
@@ -29,7 +29,7 @@ import { emailHeader } from "@/lib/email/brand";
 // ── Email helpers ──
 
 const appUrl =
-  process.env.NEXT_PUBLIC_APP_URL || "https://app-babybloom.vercel.app";
+  SITE_URL;
 const baseStyle = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
 const btnStyle = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;
 

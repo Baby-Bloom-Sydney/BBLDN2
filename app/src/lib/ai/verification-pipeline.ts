@@ -19,6 +19,7 @@ import { syncNannyVerificationState } from '@/lib/actions/verification';
 import { verifyPassport } from './verify-passport';
 import { verifyWWCC } from './verify-wwcc';
 import { emailFooter } from "@/lib/email/brand";
+import { SITE_URL } from "@/lib/constants";
 
 /** Race a promise against a timeout. Throws on timeout. */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -388,7 +389,7 @@ export async function runCrossCheckPhase(verificationId: string): Promise<void> 
   // VER-001: Provisionally Verified email
   const userInfo = await getUserEmailInfo(claimed.user_id);
   if (userInfo) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app-babybloom.vercel.app';
+    const appUrl = SITE_URL;
     sendEmail({
       to: userInfo.email,
       subject: "You're verified! Welcome to Baby Bloom 🎉",

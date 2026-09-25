@@ -22,8 +22,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { ConnectExistingChildSheet } from "./ConnectExistingChildSheet";
+import { SITE_URL } from "@/lib/constants";
 
-const VALID_URL = "https://babybloomsydney.com.au/invite/ABCD-2345";
+const VALID_URL = `${SITE_URL}/invite/ABCD-2345`;
 
 function renderOpen(role: "nanny" | "parent" = "parent") {
   return render(

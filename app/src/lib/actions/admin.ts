@@ -25,6 +25,7 @@ import { createInboxMessage } from '@/lib/actions/connection-helpers';
 import { openai } from '@/lib/ai/client';
 import { V2_SYSTEM_PROMPT, buildV2Prompt, parseAIProfileSections, generateV2Checklist } from '@/lib/ai/nanny-profile-prompts';
 import { emailHeader, emailFooter } from "@/lib/email/brand";
+import { SITE_URL } from "@/lib/constants";
 
 // ── Helper: require admin role ──
 
@@ -443,7 +444,7 @@ export async function adminVerifyParentIdentity(
   // PVER-004 email + PVINB-004 inbox
   const userInfo = await getUserEmailInfo(verification.user_id);
   if (userInfo) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app-babybloom.vercel.app';
+    const appUrl = SITE_URL;
     sendEmail({
       to: userInfo.email,
       subject: "You're verified on Baby Bloom!",
@@ -515,7 +516,7 @@ export async function adminRejectParentIdentity(
   setTimeout(async () => {
     const userInfo = await getUserEmailInfo(verification.user_id);
     if (userInfo) {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app-babybloom.vercel.app';
+      const appUrl = SITE_URL;
       sendEmail({
         to: userInfo.email,
         subject: 'Your ID verification needs resubmission',

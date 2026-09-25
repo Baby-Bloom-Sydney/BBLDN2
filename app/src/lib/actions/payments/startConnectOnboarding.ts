@@ -21,6 +21,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createExpressAccount, createAccountLink } from "@/lib/stripe/connect";
 import { PAYMENTS_ENABLED } from "@/lib/payments/flags";
+import { SITE_URL } from "@/lib/constants";
 
 export type StartConnectOnboardingResult =
   | { success: true; data: { url: string } }
@@ -89,7 +90,7 @@ export async function startConnectOnboarding(): Promise<StartConnectOnboardingRe
     // onboarding form. Account Links are single-use; mint a fresh
     // one every time the nanny re-enters the flow.
     const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL ?? "https://babybloomsydney.com.au";
+      SITE_URL;
     const link = await createAccountLink({
       accountId,
       refreshUrl: `${baseUrl}/nanny/payouts/onboarding`,

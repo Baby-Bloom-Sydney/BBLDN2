@@ -4,6 +4,7 @@ import { sendEmail } from '@/lib/email/resend';
 import { getUserEmailInfo } from '@/lib/email/helpers';
 import { createInboxMessage } from '@/lib/actions/connection-helpers';
 import { emailFooter } from "@/lib/email/brand";
+import { SITE_URL } from "@/lib/constants";
 
 /**
  * Cron endpoint: checks for verification failures older than 10 minutes
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createAdminClient();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app-babybloom.vercel.app';
+  const appUrl = SITE_URL;
   const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   const baseStyle = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
   const btnStyle = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;

@@ -34,6 +34,7 @@ import {
 } from "./position-funnel";
 import { dispatchActionTriggeredInBackground } from "@/lib/chat/proactive/action-triggered";
 import { emailHeader } from "@/lib/email/brand";
+import { SITE_URL } from "@/lib/constants";
 
 // ── Types ──
 
@@ -405,7 +406,7 @@ export async function createConnectionRequest(
         : "A family";
       const parentSuburb = parentProfile?.suburb || "";
       const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL || "https://app-babybloom.vercel.app";
+        SITE_URL;
       const baseStyle = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
       const btnStyle = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;
 
@@ -606,7 +607,7 @@ export async function acceptConnectionRequest(
     const parentEmailInfo = await getUserEmailInfo(parentData.user_id);
     if (parentEmailInfo) {
       const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL || "https://app-babybloom.vercel.app";
+        SITE_URL;
       const baseStyle = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
       const btnStyle = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;
 
@@ -820,7 +821,7 @@ export async function scheduleConnectionTime(
     const parentEmailInfo = await getUserEmailInfo(parentUserData.user_id);
     if (parentEmailInfo) {
       const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL || "https://app-babybloom.vercel.app";
+        SITE_URL;
       const baseStyle = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
       const btnStyle = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;
 
@@ -864,7 +865,7 @@ export async function scheduleConnectionTime(
       ? `${parentProfile.firstName} ${parentProfile.lastName}`
       : "the family";
     const appUrl =
-      process.env.NEXT_PUBLIC_APP_URL || "https://app-babybloom.vercel.app";
+      SITE_URL;
     const baseStyle = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
     const btnStyle = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;
 
@@ -1012,7 +1013,7 @@ export async function declineConnectionRequest(
     const parentEmailInfo = await getUserEmailInfo(parentData.user_id);
     if (parentEmailInfo) {
       const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL || "https://app-babybloom.vercel.app";
+        SITE_URL;
       const baseStyle = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
       const btnStyle = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;
 

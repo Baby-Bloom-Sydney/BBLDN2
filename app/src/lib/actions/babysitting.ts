@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { APP_LOCALE, APP_TZ } from "@/lib/constants";
+import { APP_LOCALE, APP_TZ, SITE_URL } from "@/lib/constants";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { getParentId } from "./parent";
@@ -111,7 +111,7 @@ export interface NannyBabysittingJob {
 // ── Email styles (shared) ──
 
 const APP_URL =
-  process.env.NEXT_PUBLIC_APP_URL || "https://app-babybloom.vercel.app";
+  SITE_URL;
 const BASE_STYLE = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
 const BTN_STYLE = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;
 

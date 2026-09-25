@@ -3,9 +3,10 @@
 // Uses SYSTEM_PARENT_ID as the parent_id for all admin/AI positions.
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { SITE_URL } from "@/lib/constants";
 
 const appUrl =
-  process.env.NEXT_PUBLIC_APP_URL || "https://app-babybloom.vercel.app";
+  SITE_URL;
 
 const VALID_SCHEDULE_TYPES = ["Fixed", "Flexible"] as const;
 const VALID_PLACEMENT_LENGTHS = ["Ongoing", "Temporarily"] as const;

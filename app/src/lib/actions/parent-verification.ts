@@ -15,7 +15,7 @@ import { createInboxMessage } from '@/lib/actions/connection-helpers';
 import { ParentVerificationData } from '@/types/parent';
 import { capitalizeName } from '@/lib/utils';
 import { emailHeader } from "@/lib/email/brand";
-import { SITE_NAME } from "@/lib/constants";
+import { SITE_NAME, SITE_URL } from "@/lib/constants";
 
 // ── Shared auth helper ──
 
@@ -190,7 +190,7 @@ export async function submitParentIdentityForManualReview(): Promise<{ success: 
   // PVER-001: Email - Documents submitted for manual review
   const userInfo = await getUserEmailInfo(user.id);
   if (userInfo) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app-babybloom.vercel.app';
+    const appUrl = SITE_URL;
     sendEmail({
       to: userInfo.email,
       subject: "We're reviewing your identity documents",

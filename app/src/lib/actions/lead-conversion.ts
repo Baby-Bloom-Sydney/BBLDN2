@@ -13,9 +13,10 @@ import { autofireMatchmaking } from "./autofire-matchmaking";
 import { sendEmail } from "@/lib/email/resend";
 import { buildWelcomeAdvParentEmail } from "@/lib/email/templates/welcome-adv-parent";
 import { buildWelcomeParentEmail } from "@/lib/email/templates/welcome-parent";
+import { SITE_URL } from "@/lib/constants";
 
 const APP_URL =
-  process.env.NEXT_PUBLIC_APP_URL || "https://app-babybloom.vercel.app";
+  SITE_URL;
 
 /**
  * Sign up a new parent AND convert their lead into real position records.

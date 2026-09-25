@@ -17,7 +17,7 @@ import {
   NannyLeadSignals,
 } from "@/types/nanny-leads";
 import { emailFooter } from "@/lib/email/brand";
-import { BRAND, SITE_NAME } from "@/lib/constants";
+import { BRAND, SITE_NAME, SITE_URL } from "@/lib/constants";
 
 interface ActionResult {
   success: boolean;
@@ -494,7 +494,7 @@ export async function convertLeadToAccount(
 
       // 12. Send welcome email (ACC-001, fire-and-forget)
       const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL || "https://app-babybloom.vercel.app";
+        SITE_URL;
       const firstName = capitalizeName(lead.first_name);
       sendEmail({
         to: finalEmail,
