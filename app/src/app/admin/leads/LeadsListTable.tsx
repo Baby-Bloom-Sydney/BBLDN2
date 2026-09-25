@@ -15,7 +15,7 @@ import { UserAvatar } from "@/components/dashboard/UserAvatar";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { Users, Phone, History, MessageCirclePlus } from "lucide-react";
 import type { LeadRow } from "@/lib/leads/types";
-import { formatSydneyDateTime } from "@/lib/leads/format";
+import { formatLeadDateTime } from "@/lib/leads/format";
 import { LeadStatusPill } from "./LeadStatusPill";
 import { VerificationMiniChip } from "./VerificationMiniChip";
 import { LeadRecentLogsModal } from "./LeadRecentLogsModal";
@@ -166,7 +166,7 @@ export function LeadsListTable({
                   title={row.contact_state?.last_contact_at ?? "Never"}
                 >
                   {row.contact_state?.last_contact_at ? (
-                    formatSydneyDateTime(row.contact_state.last_contact_at)
+                    formatLeadDateTime(row.contact_state.last_contact_at)
                   ) : (
                     <em className="text-slate-400">Never</em>
                   )}

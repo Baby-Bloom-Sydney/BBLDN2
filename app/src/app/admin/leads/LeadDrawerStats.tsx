@@ -23,7 +23,7 @@ interface LeadDrawerStatsProps {
   onLocalPatch: (next: LeadDetail) => void;
 }
 
-import { formatSydneyDateTime, formatSydneyDate } from "@/lib/leads/format";
+import { formatLeadDateTime, formatLeadDate } from "@/lib/leads/format";
 
 interface StatProps {
   label: string;
@@ -57,7 +57,7 @@ export function LeadDrawerStats({
     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
       <Stat
         label="Signed up"
-        value={formatSydneyDateTime(detail.nanny?.created_at)}
+        value={formatLeadDateTime(detail.nanny?.created_at)}
       />
       <Stat
         label="Level"
@@ -118,9 +118,9 @@ export function LeadDrawerStats({
       />
       <Stat
         label="Last contact"
-        value={formatSydneyDateTime(cs?.last_contact_at)}
+        value={formatLeadDateTime(cs?.last_contact_at)}
       />
-      <Stat label="Next action" value={formatSydneyDate(cs?.next_action_at)} />
+      <Stat label="Next action" value={formatLeadDate(cs?.next_action_at)} />
     </div>
   );
 }

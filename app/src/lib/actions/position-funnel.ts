@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { APP_LOCALE } from "@/lib/constants";
+import { APP_LOCALE, APP_TZ } from "@/lib/constants";
 import { revalidatePath } from "next/cache";
 import { getParentId } from "./parent";
 import {
@@ -4007,10 +4007,10 @@ export async function scheduleIntroTime(
   requestId: string,
   isoTime: string,
 ): Promise<{ success: boolean; error: string | null }> {
-  // Parse ISO time back to Sydney date/hour/minute
+  // Parse ISO time back to a local date/hour/minute
   const dt = new Date(isoTime);
   const parts = new Intl.DateTimeFormat(APP_LOCALE, {
-    timeZone: "Australia/Sydney",
+    timeZone: APP_TZ,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

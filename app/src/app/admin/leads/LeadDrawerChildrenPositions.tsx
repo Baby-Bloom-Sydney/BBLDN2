@@ -13,9 +13,9 @@ interface LeadDrawerChildrenPositionsProps {
   detail: LeadDetail;
 }
 
-import { formatSydneyDate } from "@/lib/leads/format";
+import { formatLeadDate } from "@/lib/leads/format";
 
-const fmt = formatSydneyDate;
+const fmt = formatLeadDate;
 
 function ageLabel(
   ageMonths: number | null | undefined,

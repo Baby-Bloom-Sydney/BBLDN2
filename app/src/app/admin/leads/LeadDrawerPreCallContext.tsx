@@ -6,13 +6,13 @@ interface LeadDrawerPreCallContextProps {
   detail: LeadDetail;
 }
 
-import { formatSydneyDateTime } from "@/lib/leads/format";
+import { formatLeadDateTime } from "@/lib/leads/format";
 
 function composeContext(detail: LeadDetail): string {
   const parts: string[] = [];
 
   if (detail.nanny?.created_at) {
-    parts.push(`Signed up ${formatSydneyDateTime(detail.nanny.created_at)}`);
+    parts.push(`Signed up ${formatLeadDateTime(detail.nanny.created_at)}`);
   }
 
   const v = detail.verifications;

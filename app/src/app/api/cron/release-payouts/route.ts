@@ -1,12 +1,13 @@
 /**
  * Cron — release-payouts
  *
- * **Schedule:** daily at `0 21 * * *` UTC = 7:00 AEST / 8:00 AEDT.
- * Vercel cron runs in UTC and does not auto-adjust for Sydney DST,
- * so the wall-clock fires one hour later during AEDT (Oct–Apr). The
- * one-hour drift is irrelevant for a daily batch payout — what
- * matters is that it fires reliably once a day in Sydney morning
- * before the business day. Bailey 2026-05-14.
+ * **Schedule:** daily at `0 7 * * *` UTC = 07:00 London.
+ * Vercel cron runs in UTC and does not auto-adjust for British Summer
+ * Time, so the wall-clock fires one hour later during BST (late Mar–
+ * late Oct). The one-hour drift is irrelevant for a daily batch payout
+ * — what matters is that it fires reliably once a day in the London
+ * morning before the business day. Bailey 2026-05-14; re-anchored to
+ * London 2026-09-26 (12.02).
  *
  * Pays nannies whose `nanny_payouts.scheduled_release_at` has
  * arrived. Wraps the testable `releasePayouts` function with the
