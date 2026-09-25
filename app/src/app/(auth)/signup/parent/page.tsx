@@ -27,7 +27,7 @@ import {
   funnelSourceToSignupSource,
 } from "@/lib/funnel/source";
 import { ArrowLeft, Check, Loader2 } from "lucide-react";
-import { formatAuMobile, isAuMobile } from "@/lib/au-contact";
+import { formatUkMobile, isUkMobile } from "@/lib/uk-contact";
 
 const parentSignupSchema = z
   .object({
@@ -35,8 +35,8 @@ const parentSignupSchema = z
     mobile: z
       .string()
       .min(1, "Mobile number is required")
-      .refine((v) => isAuMobile(v), {
-        message: "Please enter a valid Australian mobile (04XX XXX XXX)",
+      .refine((v) => isUkMobile(v), {
+        message: "Please enter a valid UK mobile (07XXX XXX XXX)",
       }),
     password: z.string().min(8, "Password must be at least 8 characters"),
     confirmPassword: z.string(),
@@ -108,7 +108,7 @@ function ParentSignupForm() {
     formData.append("firstName", data.firstName);
     formData.append("lastName", data.lastName);
     // Send raw user input — server is the canonical normalisation point
-    // (signUp() calls normaliseAuMobile + isAuMobile defence-in-depth).
+    // (signUp() calls normaliseUkMobile + isUkMobile defence-in-depth).
     formData.append("mobile_number", data.mobile);
     formData.append("role", "parent");
     if (inviteToken) formData.append("invite_token", inviteToken);
@@ -242,7 +242,7 @@ function ParentSignupForm() {
             control={form.control}
             name="mobile"
             render={({ field, fieldState }) => {
-              const valid = isAuMobile(field.value);
+              const valid = isUkMobile(field.value);
               return (
                 <FormItem>
                   <FormLabel>Mobile number</FormLabel>
@@ -251,15 +251,15 @@ function ParentSignupForm() {
                       aria-hidden="true"
                       className="flex h-10 flex-shrink-0 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700"
                     >
-                      +61
+                      +44
                     </div>
                     <FormControl>
                       <Input
                         type="tel"
                         inputMode="numeric"
                         autoComplete="tel-national"
-                        placeholder="04XX XXX XXX"
-                        maxLength={12}
+                        placeholder="07XXX XXX XXX"
+                        maxLength={13}
                         disabled={isLoading}
                         aria-invalid={fieldState.invalid}
                         {...field}
@@ -279,7 +279,7 @@ function ParentSignupForm() {
                       role="status"
                       aria-live="polite"
                     >
-                      {formatAuMobile(field.value)}
+                      {formatUkMobile(field.value)}
                       <span className="sr-only"> is a valid mobile number</span>
                       <Check className="h-3 w-3" aria-hidden="true" />
                     </p>

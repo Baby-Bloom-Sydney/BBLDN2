@@ -12,6 +12,7 @@ import {
 import { funnelLog } from "@/lib/position/logger";
 import { createInboxMessage } from "./connection-helpers";
 import { autofireMatchmaking } from "./autofire-matchmaking";
+import { isUkMobile, normaliseUkMobile } from "@/lib/uk-contact";
 
 export interface Position {
   id: string;
@@ -627,22 +628,20 @@ export async function updateParentAccountSettings(
   // values accepted (per user policy 2026-05-07). This mirrors
   // the client-side validation in the settings dialog and prevents
   // any direct-action bypass.
+  // Shares `lib/uk-contact` with every other surface so the rule
+  // cannot drift (12.05); stores E.164 per P-5.
   if (data.mobile_number !== undefined) {
     const trimmed = (data.mobile_number ?? "").trim();
     if (trimmed.length === 0) {
       return { success: false, error: "Mobile number is required." };
     }
-    const normalised = trimmed.replace(/[\s-]+/g, "");
-    const promoted = /^4\d{8}$/.test(normalised)
-      ? "0" + normalised
-      : normalised;
-    if (!/^04\d{8}$/.test(promoted)) {
+    if (!isUkMobile(trimmed)) {
       return {
         success: false,
-        error: "Enter a valid Australian mobile number.",
+        error: "Enter a valid UK mobile number.",
       };
     }
-    data = { ...data, mobile_number: promoted };
+    data = { ...data, mobile_number: normaliseUkMobile(trimmed) };
   }
 
   const profileFields: Record<string, unknown> = {};

@@ -68,10 +68,10 @@ import { EditFieldDialog } from "@/components/settings/EditFieldDialog";
 import { AddressPickerDialog } from "@/components/settings/AddressPickerDialog";
 import { ContactSection } from "@/components/settings/ContactSection";
 import {
-  formatAuMobile,
-  isAuMobile,
-  normaliseAuMobile,
-} from "@/lib/au-contact";
+  formatUkMobile,
+  isUkMobile,
+  normaliseUkMobile,
+} from "@/lib/uk-contact";
 import type { SettingsNode } from "@/components/settings/tree";
 
 interface Props {
@@ -490,7 +490,7 @@ function ProfileSection({
         currentPostcode={profile.postcode}
         onSubmit={async (address) => {
           const r = await updateNannyAccountSettings({
-            suburb: address.suburb,
+            suburb: address.town,
             postcode: address.postcode,
           });
           if (r.success) {
@@ -512,7 +512,7 @@ function ContactDetailsSection({ profile }: { profile: Props["profile"] }) {
   const [mobile, setMobile] = useState(profile.mobile_number);
 
   const trimmed = mobile.trim();
-  const mobileValid = trimmed.length > 0 && isAuMobile(trimmed);
+  const mobileValid = trimmed.length > 0 && isUkMobile(trimmed);
 
   // Email change disabled in v1 — see ParentSettingsClient comment.
 
@@ -534,7 +534,7 @@ function ContactDetailsSection({ profile }: { profile: Props["profile"] }) {
           label="Mobile number"
           value={
             profile.mobile_number
-              ? formatAuMobile(profile.mobile_number)
+              ? formatUkMobile(profile.mobile_number)
               : undefined
           }
           isLast
@@ -554,11 +554,11 @@ function ContactDetailsSection({ profile }: { profile: Props["profile"] }) {
           if (!mobileValid) {
             return {
               success: false,
-              error: "Enter a valid Australian mobile number.",
+              error: "Enter a valid UK mobile number.",
             };
           }
           const r = await updateNannyAccountSettings({
-            mobile_number: normaliseAuMobile(mobile),
+            mobile_number: normaliseUkMobile(mobile),
           });
           if (r.success) {
             router.refresh();
@@ -574,18 +574,18 @@ function ContactDetailsSection({ profile }: { profile: Props["profile"] }) {
             type="tel"
             value={mobile}
             onChange={(e) => setMobile(e.target.value)}
-            placeholder="04XX XXX XXX"
+            placeholder="07XXX XXX XXX"
             autoFocus
             inputMode="tel"
           />
           {trimmed.length > 0 && !mobileValid && (
             <p className="text-xs text-rose-600">
-              That doesn&apos;t look like an Australian mobile number. Format:
-              04XX XXX XXX.
+              That doesn&apos;t look like a UK mobile number. Format:
+              07XXX XXX XXX.
             </p>
           )}
           {mobileValid && (
-            <p className="text-xs text-emerald-600">{formatAuMobile(mobile)}</p>
+            <p className="text-xs text-emerald-600">{formatUkMobile(mobile)}</p>
           )}
           <p className="text-[11px] text-slate-400">
             Required — parents and Baby Bloom rely on this for account-critical

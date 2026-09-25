@@ -18,6 +18,13 @@ import {
   submitWWCCSection,
   type VerificationData,
 } from "@/lib/actions/verification";
+import { BRAND } from "@/lib/constants";
+import {
+  formatAddressLine,
+  parseUkAddress,
+  toTitleCase,
+  type ParsedAddress,
+} from "@/lib/uk-contact";
 
 // ── Types ──
 
@@ -541,34 +548,6 @@ interface AddressResult {
   score: number;
 }
 
-interface ParsedAddress {
-  street: string;
-  suburb: string;
-  postcode: string;
-}
-
-function toTitleCase(str: string): string {
-  return str.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function parseGnafAddress(sla: string): ParsedAddress | null {
-  const match = sla.match(/^(.+),\s+([A-Z\s]+?)\s+NSW\s+(\d{4})$/);
-  if (!match) return null;
-
-  const fullBeforeState = sla
-    .substring(0, sla.lastIndexOf("NSW"))
-    .trim()
-    .replace(/,\s*$/, "");
-  const lastComma = fullBeforeState.lastIndexOf(",");
-  if (lastComma < 0) return null;
-
-  const street = fullBeforeState.substring(0, lastComma).trim();
-  const suburb = fullBeforeState.substring(lastComma + 1).trim();
-  const postcode = match[3];
-
-  return { street: toTitleCase(street), suburb: toTitleCase(suburb), postcode };
-}
-
 // ── Step: Account Secured ──
 
 type AccountSecuredVariant = "current" | "with-get-started";
@@ -760,8 +739,9 @@ function LocationStep({
   const [selectedAddress, setSelectedAddress] = useState<ParsedAddress | null>(
     initialAddress
       ? {
-          street: initialAddress.addressLine,
-          suburb: initialAddress.suburb,
+          line1: initialAddress.addressLine,
+          line2: "",
+          town: initialAddress.suburb,
           postcode: initialAddress.postcode,
         }
       : null,
@@ -839,7 +819,7 @@ function LocationStep({
   }
 
   function handleAddressSelect(result: AddressResult) {
-    const parsed = parseGnafAddress(result.ssla || result.sla);
+    const parsed = parseUkAddress(result.ssla || result.sla);
     if (!parsed) {
       setShowDropdown(false);
       return;
@@ -853,15 +833,15 @@ function LocationStep({
       return;
     }
 
-    setAddressQuery(parsed.street);
+    setAddressQuery(formatAddressLine(parsed));
     setSelectedAddress(parsed);
     setShowDropdown(false);
     setAddressResults([]);
     setNotInArea(false);
 
     onAddressSelected({
-      addressLine: parsed.street,
-      suburb: parsed.suburb,
+      addressLine: formatAddressLine(parsed),
+      suburb: parsed.town,
       state: "NSW",
       postcode: parsed.postcode,
     });
@@ -918,7 +898,7 @@ function LocationStep({
         <label className="text-sm font-medium text-slate-700">Suburb</label>
         <input
           type="text"
-          value={selectedAddress?.suburb ?? ""}
+          value={selectedAddress?.town ?? ""}
           readOnly
           className={`w-full h-11 rounded-lg border px-4 py-3 text-sm ${
             selectedAddress
@@ -1244,7 +1224,7 @@ function WWCCStepContent({
       {noWwcc && (
         <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800 space-y-2">
           <p className="font-medium">
-            A WWCC is required to work with children in NSW.
+            An enhanced DBS check is required to work with children in the UK.
           </p>
           <p className="text-xs text-amber-700">
             You cannot proceed without a valid Working With Children Check. You
@@ -2154,7 +2134,7 @@ export function OnboardingVerificationClient({
           city: storedAddress.suburb,
           state: storedAddress.state,
           postcode: storedAddress.postcode,
-          country: "Australia",
+          country: BRAND.country,
         });
 
         if (!contactResult.success) {
@@ -2483,8 +2463,8 @@ export function OnboardingVerificationClient({
                   Working With Children Check
                 </h2>
                 <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">
-                  A valid WWCC is required by law for anyone working with
-                  children in NSW.
+                  An enhanced DBS check is required to work with children in
+                  the UK.
                 </p>
               </div>
               <div className="max-w-md mx-auto px-2 pb-20">

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { openai } from "@/lib/ai/client";
+import { isUkMobile, normaliseUkMobile } from "@/lib/uk-contact";
 
 // ── Public nanny profile fetch (for /nannies/[id] page) ──
 
@@ -854,26 +855,23 @@ export async function updateNannyAccountSettings(
     return { success: false, error: "Not authenticated" };
   }
 
-  // Server-side AU mobile validation — mobile is REQUIRED and
-  // must be a valid Australian number (per user policy 2026-05-07).
-  // Mirrors the client-side validation in the settings dialog so
-  // direct-action calls cannot bypass.
+  // Server-side mobile validation — mobile is REQUIRED and must be a
+  // valid UK mobile (per user policy 2026-05-07). Mirrors the
+  // client-side validation in the settings dialog so direct-action
+  // calls cannot bypass. Shares `lib/uk-contact` with every other
+  // surface so the rule cannot drift (12.05).
   if (data.mobile_number !== undefined) {
     const trimmed = (data.mobile_number ?? "").trim();
     if (trimmed.length === 0) {
       return { success: false, error: "Mobile number is required." };
     }
-    const normalised = trimmed.replace(/[\s-]+/g, "");
-    const promoted = /^4\d{8}$/.test(normalised)
-      ? "0" + normalised
-      : normalised;
-    if (!/^04\d{8}$/.test(promoted)) {
+    if (!isUkMobile(trimmed)) {
       return {
         success: false,
-        error: "Enter a valid Australian mobile number.",
+        error: "Enter a valid UK mobile number.",
       };
     }
-    data = { ...data, mobile_number: promoted };
+    data = { ...data, mobile_number: normaliseUkMobile(trimmed) };
   }
 
   const profileFields: Record<string, unknown> = {};

@@ -21,7 +21,7 @@
  *     (AddressPickerDialog) — no manual entry, ensures matching-
  *     consistent suburb/postcode and rejects out-of-area selections.
  *   - Mobile number is REQUIRED and validated against the AU mobile
- *     regex from `lib/au-contact.ts`.
+ *     regex from `lib/uk-contact.ts`.
  */
 
 import { useState, useTransition } from "react";
@@ -54,10 +54,10 @@ import { EditFieldDialog } from "@/components/settings/EditFieldDialog";
 import { AddressPickerDialog } from "@/components/settings/AddressPickerDialog";
 import { ContactSection } from "@/components/settings/ContactSection";
 import {
-  formatAuMobile,
-  isAuMobile,
-  normaliseAuMobile,
-} from "@/lib/au-contact";
+  formatUkMobile,
+  isUkMobile,
+  normaliseUkMobile,
+} from "@/lib/uk-contact";
 import type { SettingsNode } from "@/components/settings/tree";
 
 interface Props {
@@ -292,7 +292,7 @@ function ProfileSection({ profile }: { profile: Props["profile"] }) {
         currentPostcode={profile.postcode}
         onSubmit={async (address) => {
           const r = await updateParentAccountSettings({
-            suburb: address.suburb,
+            suburb: address.town,
             postcode: address.postcode,
           });
           if (r.success) {
@@ -318,7 +318,7 @@ function ContactDetailsSection({ profile }: { profile: Props["profile"] }) {
   // value is in the input, and the server action enforces the
   // same rule at the API boundary as defence-in-depth.
   const trimmed = mobile.trim();
-  const mobileValid = trimmed.length > 0 && isAuMobile(trimmed);
+  const mobileValid = trimmed.length > 0 && isUkMobile(trimmed);
 
   // ── Email change — DISABLED in v1 (2026-05-07) ──────────────────
   // Email is read-only for now. Server-side flow remains wired for
@@ -344,7 +344,7 @@ function ContactDetailsSection({ profile }: { profile: Props["profile"] }) {
           label="Mobile number"
           value={
             profile.mobile_number
-              ? formatAuMobile(profile.mobile_number)
+              ? formatUkMobile(profile.mobile_number)
               : undefined
           }
           isLast
@@ -364,11 +364,11 @@ function ContactDetailsSection({ profile }: { profile: Props["profile"] }) {
           if (!mobileValid) {
             return {
               success: false,
-              error: "Enter a valid Australian mobile number.",
+              error: "Enter a valid UK mobile number.",
             };
           }
           const r = await updateParentAccountSettings({
-            mobile_number: normaliseAuMobile(mobile),
+            mobile_number: normaliseUkMobile(mobile),
           });
           if (r.success) {
             router.refresh();
@@ -384,21 +384,21 @@ function ContactDetailsSection({ profile }: { profile: Props["profile"] }) {
             type="tel"
             value={mobile}
             onChange={(e) => setMobile(e.target.value)}
-            placeholder="04XX XXX XXX"
+            placeholder="07XXX XXX XXX"
             autoFocus
             inputMode="tel"
           />
           {trimmed.length > 0 && !mobileValid && (
             <p className="text-xs text-rose-600">
-              That doesn&apos;t look like an Australian mobile number. Format:
-              04XX XXX XXX.
+              That doesn&apos;t look like a UK mobile number. Format:
+              07XXX XXX XXX.
             </p>
           )}
           {mobileValid && (
-            <p className="text-xs text-emerald-600">{formatAuMobile(mobile)}</p>
+            <p className="text-xs text-emerald-600">{formatUkMobile(mobile)}</p>
           )}
           <p className="text-[11px] text-slate-400">
-            We require a valid Australian mobile so we can reach you about
+            We require a valid UK mobile so we can reach you about
             account-critical updates.
           </p>
         </div>

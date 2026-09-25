@@ -84,7 +84,9 @@ vi.mock("@/lib/actions/bapp/child-invites", () => ({
 import { signUp } from "@/lib/auth/actions";
 
 const VALID_USER_ID = "00000000-0000-0000-0000-000000000001";
-const VALID_AU_MOBILE = "0412345678";
+// Ofcom drama range. P-5: typed as 07…, stored as E.164 +44….
+const VALID_UK_MOBILE = "07700900123";
+const STORED_UK_MOBILE = "+447700900123";
 
 function buildFormData(
   overrides: Record<string, string | undefined> = {},
@@ -96,7 +98,7 @@ function buildFormData(
     firstName: "Jane",
     lastName: "Smith",
     role: "parent",
-    mobile_number: VALID_AU_MOBILE,
+    mobile_number: VALID_UK_MOBILE,
     ...overrides,
   };
   for (const [k, v] of Object.entries(fields)) {
@@ -136,8 +138,8 @@ describe("signUp() — parent mobile validation (T-021)", () => {
     expect(insertCalls).toHaveLength(0);
   });
 
-  it("role=parent invalid mobile_number (non-04 prefix) → returns validation error", async () => {
-    const fd = buildFormData({ mobile_number: "0298765432" });
+  it("role=parent invalid mobile_number (non-07 prefix) → returns validation error", async () => {
+    const fd = buildFormData({ mobile_number: "0207946095" });
 
     const result = await signUp(fd);
 
@@ -147,7 +149,7 @@ describe("signUp() — parent mobile validation (T-021)", () => {
   });
 
   it("role=parent valid mobile_number → succeeds and persists normalised value to user_profiles", async () => {
-    const fd = buildFormData({ mobile_number: VALID_AU_MOBILE });
+    const fd = buildFormData({ mobile_number: VALID_UK_MOBILE });
 
     const result = await signUp(fd);
 
@@ -157,27 +159,27 @@ describe("signUp() — parent mobile validation (T-021)", () => {
 
     const profileInsert = insertCalls.find((c) => c.table === "user_profiles");
     expect(profileInsert).toBeDefined();
-    expect(profileInsert?.payload.mobile_number).toBe(VALID_AU_MOBILE);
+    expect(profileInsert?.payload.mobile_number).toBe(STORED_UK_MOBILE);
   });
 
-  it("role=parent bare 4xxxxxxxx → auto-promoted to 04xxxxxxxx in persisted value", async () => {
-    const fd = buildFormData({ mobile_number: "412345678" });
+  it("role=parent bare 7xxxxxxxxx → auto-promoted and persisted as E.164", async () => {
+    const fd = buildFormData({ mobile_number: "7700900123" });
 
     const result = await signUp(fd);
 
     expect(result.success).toBe(true);
     const profileInsert = insertCalls.find((c) => c.table === "user_profiles");
-    expect(profileInsert?.payload.mobile_number).toBe("0412345678");
+    expect(profileInsert?.payload.mobile_number).toBe(STORED_UK_MOBILE);
   });
 
   it("role=parent mobile with spaces and dashes → normalised before persist", async () => {
-    const fd = buildFormData({ mobile_number: "0412 345-678" });
+    const fd = buildFormData({ mobile_number: "07700 900-123" });
 
     const result = await signUp(fd);
 
     expect(result.success).toBe(true);
     const profileInsert = insertCalls.find((c) => c.table === "user_profiles");
-    expect(profileInsert?.payload.mobile_number).toBe("0412345678");
+    expect(profileInsert?.payload.mobile_number).toBe(STORED_UK_MOBILE);
   });
 
   it("role=nanny with no mobile_number → succeeds (validation is role-gated)", async () => {

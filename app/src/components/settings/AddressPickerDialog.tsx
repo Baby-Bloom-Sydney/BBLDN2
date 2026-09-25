@@ -31,10 +31,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  parseGnafAddress,
+  parseUkAddress,
   toTitleCase,
   type ParsedAddress,
-} from "@/lib/au-contact";
+} from "@/lib/uk-contact";
 
 interface AddressApiResult {
   sla: string;
@@ -164,7 +164,7 @@ export function AddressPickerDialog({
   }
 
   function onSelect(result: AddressApiResult) {
-    const parsed = parseGnafAddress(result.ssla || result.sla);
+    const parsed = parseUkAddress(result.ssla || result.sla);
     if (!parsed) {
       setShowDropdown(false);
       return;
@@ -176,7 +176,7 @@ export function AddressPickerDialog({
       setShowDropdown(false);
       return;
     }
-    setQuery(`${parsed.suburb} NSW ${parsed.postcode}`);
+    setQuery(`${parsed.town} NSW ${parsed.postcode}`);
     setSelected(parsed);
     setShowDropdown(false);
     setResults([]);
@@ -255,7 +255,7 @@ export function AddressPickerDialog({
             {selected && (
               <p className="mt-1 flex items-center gap-1 text-xs font-medium text-emerald-600">
                 <Check className="h-3 w-3" />
-                {selected.suburb} NSW {selected.postcode}
+                {selected.town} NSW {selected.postcode}
               </p>
             )}
             {notInArea && (

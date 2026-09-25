@@ -209,7 +209,7 @@ export function N1Location({ state, dispatch, goNext, goBack, progress, question
         <ProgressiveReveal show={showRightToWork}>
           <div className="flex flex-col gap-2 pt-2">
             <Label className="text-sm font-medium text-slate-700">
-              Do you have the right to work in Australia?
+              Do you have the right to work in the UK?
             </Label>
             <YesNoTags
               selected={residency.right_to_work}
@@ -231,7 +231,7 @@ export function N1Location({ state, dispatch, goNext, goBack, progress, question
         <ProgressiveReveal show={showSydney}>
           <div className="flex flex-col gap-2 pt-2">
             <Label className="text-sm font-medium text-slate-700">
-              Are you currently living in Sydney?
+              Are you currently living in London?
             </Label>
             <YesNoTags
               selected={residency.sydney_resident}
@@ -254,7 +254,7 @@ export function N1Location({ state, dispatch, goNext, goBack, progress, question
             <MapPin className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
             <div className="flex flex-col gap-1">
               <p className="text-sm font-medium text-blue-800">
-                We&apos;re currently only available in Sydney
+                We&apos;re currently only available in London
               </p>
               <p className="text-sm text-blue-700">
                 But we&apos;re growing! Complete your application and we&apos;ll let you know when we&apos;re in your area.

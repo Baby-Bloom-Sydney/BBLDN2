@@ -11,7 +11,7 @@ import { buildWelcomeParentEmail } from "@/lib/email/templates/welcome-parent";
 import { buildWelcomeInviteParentEmail } from "@/lib/email/templates/welcome-invite-parent";
 import { capitalizeName } from "@/lib/utils";
 import { signupViaInvite } from "@/lib/actions/bapp/child-invites";
-import { isAuMobile, normaliseAuMobile } from "@/lib/au-contact";
+import { isUkMobile, normaliseUkMobile } from "@/lib/uk-contact";
 
 const INVITE_TOKEN_REGEX = /^[A-HJKMN-Z2-9]{4}-[A-HJKMN-Z2-9]{4}$/;
 
@@ -200,14 +200,14 @@ export async function signUp(formData: FormData): Promise<ActionResult> {
   // for role=nanny or `/signup/nanny` + the apply→signup chain breaks.
   // Server-side defence in depth: even if a UI bypasses validation, the
   // request is rejected here before any auth user is created.
-  // `isAuMobile` internally normalises before regex-matching, and the regex
+  // `isUkMobile` internally normalises before regex-matching, and the regex
   // rejects empty strings, so a single normalise + validate is sufficient.
   let normalisedMobile: string | null = null;
   if (role === "parent") {
-    normalisedMobile = normaliseAuMobile(rawMobile ?? "");
-    if (!isAuMobile(normalisedMobile)) {
+    normalisedMobile = normaliseUkMobile(rawMobile ?? "");
+    if (!isUkMobile(normalisedMobile)) {
       return {
-        error: "A valid Australian mobile number is required (04XX XXX XXX)",
+        error: "A valid UK mobile number is required (07XXX XXX XXX)",
       };
     }
   }

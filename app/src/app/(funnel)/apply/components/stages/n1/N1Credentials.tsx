@@ -133,7 +133,7 @@ export function N1Credentials({ state, dispatch, goNext, goBack, progress, quest
         <ProgressiveReveal show={showWwcc}>
           <div className="flex flex-col gap-2 pt-2">
             <Label className="text-sm font-medium text-slate-700">
-              Do you have a valid Working with Children Check?
+              Do you hold an enhanced DBS check?
             </Label>
             <YesNoTags
               selected={qualifications.wwcc}
@@ -148,20 +148,20 @@ export function N1Credentials({ state, dispatch, goNext, goBack, progress, quest
             <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div className="flex flex-col gap-1">
               <p className="text-sm font-medium text-amber-800">
-                A valid Working with Children Check is required
+                An enhanced DBS check is required
               </p>
               <p className="text-sm text-amber-700">
-                Baby Bloom can only accept childcare professionals who hold a valid WWCC.
+                Baby Bloom can only accept childcare professionals who hold a valid enhanced DBS check.
                 You can apply for one at{' '}
                 <a
-                  href="https://www.service.nsw.gov.au/transaction/apply-for-a-working-with-children-check"
+                  href="https://www.gov.uk/dbs-check-applicant-criminal-record"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline font-medium"
                 >
-                  Service NSW
+                  GOV.UK
                 </a>
-                . Once you have your WWCC, come back and complete your application.
+                . Once you have your DBS check, come back and complete your application.
               </p>
               <p className="text-sm text-amber-700 mt-1">
                 You can still complete the rest of your application — we&apos;ll save your progress.

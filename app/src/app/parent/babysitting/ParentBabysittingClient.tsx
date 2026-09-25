@@ -39,6 +39,12 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { recordInformedAction } from "@/lib/legal/record-consent";
+import {
+  formatAddressLine,
+  parseUkAddress,
+  toTitleCase,
+  type ParsedAddress,
+} from "@/lib/uk-contact";
 
 // ── Time options (15-min intervals, 6am to 11:45pm) ──
 
@@ -127,32 +133,6 @@ interface AddressrResult {
   ssla?: string;
   pid: string;
   score: number;
-}
-
-interface ParsedAddress {
-  street: string;
-  suburb: string;
-  postcode: string;
-}
-
-function toTitleCase(str: string): string {
-  return str.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-/** Parse GNAF single-line address into street, suburb, postcode */
-function parseGnafAddress(sla: string): ParsedAddress | null {
-  const match = sla.match(/^(.+),\s+([A-Z\s]+?)\s+NSW\s+(\d{4})$/);
-  if (!match) return null;
-  const postcode = match[3];
-  const fullBeforeState = sla
-    .substring(0, sla.lastIndexOf("NSW"))
-    .trim()
-    .replace(/,\s*$/, "");
-  const lastComma = fullBeforeState.lastIndexOf(",");
-  if (lastComma < 0) return null;
-  const street = fullBeforeState.substring(0, lastComma).trim();
-  const suburb = fullBeforeState.substring(lastComma + 1).trim();
-  return { street: toTitleCase(street), suburb: toTitleCase(suburb), postcode };
 }
 
 // ── Main Component ──
@@ -248,7 +228,7 @@ export function ParentBabysittingClient({
   }
 
   function handleAddressSelect(result: AddressrResult) {
-    const parsed = parseGnafAddress(result.ssla || result.sla);
+    const parsed = parseUkAddress(result.ssla || result.sla);
     if (!parsed) {
       setShowAddressDropdown(false);
       return;
@@ -265,14 +245,15 @@ export function ParentBabysittingClient({
     }
 
     const exact = byPostcode.find(
-      (s) => s.suburb.toLowerCase() === parsed.suburb.toLowerCase(),
+      (s) => s.suburb.toLowerCase() === parsed.town.toLowerCase(),
     );
     const canonical = exact || byPostcode[0];
 
-    setAddressQuery(parsed.street);
+    setAddressQuery(formatAddressLine(parsed));
     setSelectedAddress({
-      street: parsed.street,
-      suburb: canonical.suburb,
+      line1: formatAddressLine(parsed),
+      line2: "",
+      town: canonical.suburb,
       postcode: canonical.postcode,
     });
     setShowAddressDropdown(false);
@@ -391,9 +372,9 @@ export function ParentBabysittingClient({
         ageMonths: c.ageMonths,
         gender: c.gender,
       })),
-      suburb: selectedAddress!.suburb,
+      suburb: selectedAddress!.town,
       postcode: selectedAddress!.postcode,
-      address: selectedAddress!.street,
+      address: selectedAddress!.line1,
       hourlyRate,
       specialRequirements: specialRequirements || undefined,
     });
@@ -624,7 +605,7 @@ export function ParentBabysittingClient({
                     )}
                     {selectedAddress && (
                       <p className="text-xs text-green-600 font-medium mt-1.5 flex items-center gap-1">
-                        {selectedAddress.street}, {selectedAddress.suburb} NSW{" "}
+                        {selectedAddress.line1}, {selectedAddress.town} NSW{" "}
                         {selectedAddress.postcode}
                         <Check className="h-3 w-3" />
                       </p>
@@ -828,10 +809,10 @@ export function ParentBabysittingClient({
                       Location
                     </p>
                     <p className="text-sm text-slate-700">
-                      {selectedAddress?.street}
+                      {selectedAddress?.line1}
                     </p>
                     <p className="text-sm text-slate-500">
-                      {selectedAddress?.suburb}, NSW {selectedAddress?.postcode}
+                      {selectedAddress?.town}, NSW {selectedAddress?.postcode}
                     </p>
                   </div>
                   <button
