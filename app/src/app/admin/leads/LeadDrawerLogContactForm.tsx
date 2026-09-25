@@ -18,6 +18,10 @@ import {
   CONTACT_PURPOSE_DEFAULTS,
 } from "@/lib/leads/types";
 import { logContact, setNextAction } from "./actions";
+import { localToUTC } from "@/lib/timezone";
+
+/** Snoozed follow-ups land at 09:00 in the app's home zone. */
+const SNOOZE_ANCHOR_HOUR = 9;
 
 interface LeadDrawerLogContactFormProps {
   detail: LeadDetail;
@@ -94,12 +98,12 @@ export function LeadDrawerLogContactForm({
       }
 
       if (nextActionDate) {
-        // Anchor the snooze date to Sydney AEST (+10:00) so a `next_action_at`
-        // entered as "follow up on May 22" fires at 09:00 AEST on May 22 no
-        // matter where the operator's machine is. Note: this is +10:00
-        // year-round (DST in NSW is +11:00 Oct–Apr); good enough for V1 — a
-        // proper IANA timezone formatter is the V2 polish.
-        const iso = new Date(`${nextActionDate}T09:00:00+10:00`).toISOString();
+        // Anchor the snooze date to `APP_TZ` so a `next_action_at` entered as
+        // "follow up on May 22" fires at 09:00 local on May 22 no matter where
+        // the operator's machine is. `localToUTC` resolves the zone's real
+        // offset for that date, so GMT and BST are both correct — this
+        // replaces a hardcoded fixed offset that was wrong half the year.
+        const iso = localToUTC(nextActionDate, SNOOZE_ANCHOR_HOUR, 0);
         const next = await setNextAction({
           nanny_user_id: detail.nanny_user_id,
           next_action_at: iso,

@@ -25,6 +25,7 @@ import {
   APP_LOCALE,
   OG_LOCALE,
   HOURLY_RATE_BOUNDS,
+  SUPABASE_REGION,
 } from "./constants";
 
 describe("LEGAL_ENTITY — ADR-171 sentinel", () => {
@@ -158,5 +159,22 @@ describe("SITE_DESCRIPTION", () => {
     // gate and, because the assertion has to spell the words out, would
     // itself become a gate hit.
     expect(SITE_DESCRIPTION.trim().length).toBeGreaterThan(0);
+  });
+});
+
+describe("SUPABASE_REGION — the hosting region (12.NEW)", () => {
+  it("is the European region the London project is hosted in", () => {
+    expect(SUPABASE_REGION).toBe("eu-west-2");
+  });
+
+  it("is a well-formed AWS region name in Europe", () => {
+    // `eu-`: the admin console and, later, the policy documents read this
+    // one value, so a typo here is a claim about where children's data
+    // lives. Shape is pinned, not just the string.
+    expect(SUPABASE_REGION).toMatch(/^eu-[a-z]+-\d$/);
+  });
+
+  it("is not BRAND.region — a data centre is not a place families live", () => {
+    expect(SUPABASE_REGION).not.toBe(BRAND.region);
   });
 });

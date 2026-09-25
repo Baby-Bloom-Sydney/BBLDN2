@@ -50,16 +50,13 @@ export function buildProfessionalHireConfirmationEmail(params: ProfessionalHireE
     <h3 style="font-size:15px;margin:16px 0 8px;">4. Affiliate Acknowledgment</h3>
     <p style="font-size:14px;color:#475569;line-height:1.6;">Baby Bloom may receive affiliate commissions from third-party products or services recommended on the Platform. These will always be disclosed.</p>
 
-    <h3 style="font-size:15px;margin:16px 0 8px;">5. Mandatory Reporting</h3>
-    <p style="font-size:14px;color:#475569;line-height:1.6;">As a childcare provider, you have legal obligations to report situations involving Risk of Significant Harm (ROSH) to the NSW DCJ Child Protection Helpline on <strong>132 111</strong>.</p>
-
-    <h3 style="font-size:15px;margin:16px 0 8px;">6. Confidentiality</h3>
+    <h3 style="font-size:15px;margin:16px 0 8px;">5. Confidentiality</h3>
     <p style="font-size:14px;color:#475569;line-height:1.6;">You must keep all information about the family, their children, household, and routines strictly confidential. This obligation survives termination of the arrangement.</p>
 
-    <h3 style="font-size:15px;margin:16px 0 8px;">7. Baby Bloom's Commitments</h3>
+    <h3 style="font-size:15px;margin:16px 0 8px;">6. Baby Bloom's Commitments</h3>
     <p style="font-size:14px;color:#475569;line-height:1.6;">We commit to maintaining the Platform, providing support, and ensuring compliance with the Privacy Act 1988 and other applicable legislation.</p>
 
-    <h3 style="font-size:15px;margin:16px 0 8px;">8. Data Retention</h3>
+    <h3 style="font-size:15px;margin:16px 0 8px;">7. Data Retention</h3>
     <p style="font-size:14px;color:#475569;line-height:1.6;">Your placement data will be retained for 5 years after the placement ends, as required for regulatory and dispute resolution purposes. You can request deletion of non-essential data at any time.</p>
 
     <div style="margin-top:32px;padding-top:24px;border-top:1px solid #e2e8f0;">

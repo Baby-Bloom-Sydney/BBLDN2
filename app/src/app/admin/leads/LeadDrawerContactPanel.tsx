@@ -17,7 +17,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import type { LeadDetail } from "@/lib/leads/fetch-lead-detail";
-import { formatSydneyDate } from "@/lib/leads/format";
+import { formatLeadDate } from "@/lib/leads/format";
 
 interface LeadDrawerContactPanelProps {
   detail: LeadDetail;
@@ -104,7 +104,7 @@ export function LeadDrawerContactPanel({
   const dob = p?.date_of_birth ?? null;
   const age = ageFromDob(dob);
   const dobDisplay = dob
-    ? `${formatSydneyDate(dob)}${age !== null ? ` · ${age}yo` : ""}`
+    ? `${formatLeadDate(dob)}${age !== null ? ` · ${age}yo` : ""}`
     : null;
   const wwccNumber = v?.wwcc_number ?? null;
 

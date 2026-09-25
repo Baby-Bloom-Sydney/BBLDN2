@@ -32,7 +32,7 @@ import {
   CheckCircle,
   XCircle,
 } from "lucide-react";
-import { formatSydneyDate } from "@/lib/timezone";
+import { formatLondonDate } from "@/lib/timezone";
 import {
   CONNECTION_STAGE,
   CONNECTION_STAGE_LABELS,
@@ -1874,7 +1874,7 @@ function PlacementCard({
               )}
               <span className="flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                Since {formatSydneyDate(placement.hiredAt)}
+                Since {formatLondonDate(placement.hiredAt)}
               </span>
             </div>
           </div>

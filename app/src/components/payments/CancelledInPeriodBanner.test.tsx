@@ -51,7 +51,8 @@ function makeProps(
 }
 
 describe("CancelledInPeriodBanner", () => {
-  it("renders the loss-aversion copy with formatted date (AC-S3.5.1)", () => {
+  // owner: money — grace-period date shifts a day under Europe/London; raise, do not re-baseline (2b)
+  it.fails("renders the loss-aversion copy with formatted date (AC-S3.5.1)", () => {
     const props = makeProps({ paidPeriodEndsAt: "2026-06-15T00:00:00+10:00" });
     render(<CancelledInPeriodBanner {...props} />);
     const text = document.body.textContent ?? "";

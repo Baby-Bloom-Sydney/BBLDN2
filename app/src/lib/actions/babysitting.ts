@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { APP_LOCALE } from "@/lib/constants";
+import { APP_LOCALE, APP_TZ } from "@/lib/constants";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { getParentId } from "./parent";
@@ -121,12 +121,12 @@ function formatSlotDisplay(slot: {
   const d = new Date(slot.slot_date + "T00:00:00");
   const dayName = d.toLocaleDateString(APP_LOCALE, {
     weekday: "short",
-    timeZone: "Australia/Sydney",
+    timeZone: APP_TZ,
   });
   const dateStr = d.toLocaleDateString(APP_LOCALE, {
     day: "numeric",
     month: "short",
-    timeZone: "Australia/Sydney",
+    timeZone: APP_TZ,
   });
   const start = formatTime(slot.start_time);
   const end = formatTime(slot.end_time);

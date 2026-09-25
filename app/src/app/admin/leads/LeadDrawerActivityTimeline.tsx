@@ -38,9 +38,9 @@ const CATEGORY_ICON: Record<
   other: Activity,
 };
 
-import { formatSydneyDateTime } from "@/lib/leads/format";
+import { formatLeadDateTime } from "@/lib/leads/format";
 
-const fmt = formatSydneyDateTime;
+const fmt = formatLeadDateTime;
 
 export function LeadDrawerActivityTimeline({
   events,

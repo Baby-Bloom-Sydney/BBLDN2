@@ -195,7 +195,7 @@ Baby Bloom does not use [Child]'s photograph or any other content about [Child] 
 
 Baby Bloom does not run audience-targeting analytics partners on authenticated surfaces.
 
-Baby Bloom does not disclose [Child]'s information in response to a third-party request except where Baby Bloom is legally compelled to do so. Where Baby Bloom is legally compelled — for example, a Family Court production order, a NSW Reportable Conduct Scheme investigation, or a lawful police request — the disclosure framework in Section 03 (Privacy Policy) §§ 8 and 17 governs.
+Baby Bloom does not disclose [Child]'s information in response to a third-party request except where Baby Bloom is legally compelled to do so. Where Baby Bloom is legally compelled — for example, a Family Court production order or a lawful police request — the disclosure framework in Section 03 (Privacy Policy) §§ 8 and 17 governs.
 
 ---
 
@@ -223,8 +223,6 @@ When you close your Baby Bloom account, the standard post-closure retention appl
 
 Where a record is subject to a statutory retention obligation, that record is preserved in an admin-only, child-record-unlinked archive for the period required by law, notwithstanding any cascade or deletion under sections 4.2 to 4.4. The statutory retention obligations Baby Bloom recognises are:
 
-- **Mandatory Reporting** under State child-protection legislation (in NSW, the *Children and Young Persons (Care and Protection) Act 1998*);
-- the **NSW Reportable Conduct Scheme** (under the *Children's Guardian Act 2019* (NSW));
 - the **NDIS Quality and Safeguards Commission** notification scheme;
 - the **Working With Children Check** disclosure pathway;
 - the **ATO** tax-record retention regime under the *Tax Administration Act 1953* (Cth) section 382-5 (currently five years for tax-adjacent records); and
@@ -426,8 +424,7 @@ If your complaint is not resolved to your satisfaction within 30 days of your co
 
 - the **Office of the Australian Information Commissioner (OAIC)** for privacy-related complaints (`oaic.gov.au`);
 - the **NSW Civil and Administrative Tribunal (NCAT)** for consumer-law disputes;
-- the **eSafety Commissioner** for content-of-children-related complaints (`esafety.gov.au`);
-- the **NSW Children's Guardian** for Reportable Conduct Scheme matters; and
+- the **eSafety Commissioner** for content-of-children-related complaints (`esafety.gov.au`); and
 - any other regulator with jurisdiction over the relevant subject-matter.
 
 Contact details and the broader regulator map are at Section 21 (Legal & Contact) § 6.
@@ -473,7 +470,7 @@ INSERT INTO legal_documents (
 **Version:** 1.0
 **Effective:** [DATE — to be inserted at publication]
 **Format:** This document is the bundled, in-app attestation a Childcare Professional gives at the moment they tap **Add child** (when they are creating a child record under the Path A nanny-first flow, before the Legal Guardian has joined Baby Bloom) or **Connect** (when they are accepting an invite from a Legal Guardian who has already created the child's record under the Path B parent-first flow). It is captured separately from, and in addition to, the Childcare Professional's acceptance of Baby Bloom's Professional Terms of Service (Section 02) at account sign-up.
-**Governing law:** Commonwealth of Australia and New South Wales — in particular the *Privacy Act 1988* (Cth) and the Australian Privacy Principles (APPs), with explicit reliance on APP 3 (collection), APP 3.6 (collection from someone other than the individual), APP 5 (notification of collection), APP 6 (use or disclosure), APP 11 (security and destruction), APP 12 (access), and APP 13 (correction); the Children's Online Privacy Code (COPC), registered by the Office of the Australian Information Commissioner and commencing 10 December 2026; the *Fair Work Act 2009* (Cth) and the *Fair Work Act 2024* (Cth) amendments at section 15AA in connection with the substance-over-form characterisation of the engagement; the *Australian Consumer Law* (Schedule 2 to the *Competition and Consumer Act 2010* (Cth)) under the post-26 March 2026 penalty regime; the *Child Protection (Working with Children) Act 2012* (NSW) and the *Children's Guardian Act 2019* (NSW) in connection with Working With Children Check and Reportable Conduct obligations; and the *Education and Care Services National Law* (NSW) where it interacts with childcare delivery.
+**Governing law:** Commonwealth of Australia and New South Wales — in particular the *Privacy Act 1988* (Cth) and the Australian Privacy Principles (APPs), with explicit reliance on APP 3 (collection), APP 3.6 (collection from someone other than the individual), APP 5 (notification of collection), APP 6 (use or disclosure), APP 11 (security and destruction), APP 12 (access), and APP 13 (correction); the Children's Online Privacy Code (COPC), registered by the Office of the Australian Information Commissioner and commencing 10 December 2026; the *Fair Work Act 2009* (Cth) and the *Fair Work Act 2024* (Cth) amendments at section 15AA in connection with the substance-over-form characterisation of the engagement; the *Australian Consumer Law* (Schedule 2 to the *Competition and Consumer Act 2010* (Cth)) under the post-26 March 2026 penalty regime; the *Education and Care Services National Law* (NSW) where it interacts with childcare delivery.
 
 ---
 
@@ -547,7 +544,7 @@ You will use Baby Bloom in service of the engagement — meaning the following c
 
 (f) **Uploading photographs of [Child]** — only where the Legal Guardian's `parent-app-consent` is live and only where you have the Legal Guardian's express permission to be the uploader (section 3 below); and
 
-(g) **Engaging with the Baby Bloom support and Trust & Safety surfaces** in connection with [Child]'s record where required — for example, by reporting an incident through the Section 16 (Incident & Accident Report Form) surface, or by escalating a Reportable Conduct matter under the NSW Reportable Conduct Scheme (which Baby Bloom is not a party to but reports through where the threshold is met).
+(g) **Engaging with the Baby Bloom support and Trust & Safety surfaces** in connection with [Child]'s record where required — for example, by reporting an incident through the Section 16 (Incident & Accident Report Form) surface.
 
 ### 2.3 What you will NOT use Baby Bloom for in connection with [Child]
 
@@ -612,10 +609,6 @@ Where, during the engagement, you observe a sensitive-information fact about [Ch
 (b) **add it as a non-sensitive observation** on the platform if the observation is genuinely non-sensitive (for example, "Mia is reluctant to eat the lentil bake — recommend trialling alternatives"). The Section 29 § 2 classification rules govern what crosses from non-sensitive to sensitive — broadly: an observation about ordinary preferences or routines is non-sensitive; an observation that names or implies a clinical-adjacent fact is sensitive.
 
 (c) If you observe something clearly within a sensitive category that the Legal Guardian has not yet consented to share, you should **raise it with the Legal Guardian off-platform** before adding it on the platform. The platform's content classifier (where shipped) catches obvious sensitive content and prompts the Legal Guardian to consent; until the Legal Guardian consents, the entry is held in a non-published state.
-
-### 4.3 Mandatory Reporting and Reportable Conduct
-
-Where you observe something that meets the mandatory-reporting threshold under State child-protection legislation (in NSW, the *Children and Young Persons (Care and Protection) Act 1998*), or the Reportable Conduct Scheme threshold under the *Children's Guardian Act 2019* (NSW), or any other statutory reporting obligation: you must follow the statutory pathway, not the in-app pathway. Section 19 (Mandatory Reporting SOP) sets out Baby Bloom's role (logistical support, not the reporter — you are the reporter where the obligation falls on you in your professional capacity).
 
 ---
 
@@ -773,9 +766,7 @@ Where the Legal Guardian (or another person entitled to act for [Child]) contact
 
 (c) **Suspension or closure of your Childcare Professional account** under Section 02 § 7, where the review concludes that the misrepresentation was deliberate or grossly negligent;
 
-(d) **Notification to the OAIC** under Part IIIC of the *Privacy Act 1988* (Cth) where the breach falls within the Notifiable Data Breach regime; and
-
-(e) **Escalation under the NSW Reportable Conduct Scheme** where the conduct meets the threshold.
+(d) **Notification to the OAIC** under Part IIIC of the *Privacy Act 1988* (Cth) where the breach falls within the Notifiable Data Breach regime.
 
 ### 9.2 Indemnity under Professional Terms of Service § 16
 
@@ -789,7 +780,7 @@ Where you upload a photograph under section 3 attesting falsely that the Legal G
 
 (b) the §16.1 indemnity above applies; and
 
-(c) where the upload itself contains content meeting the eSafety threshold or the Reportable Conduct threshold, the relevant statutory pathway is followed.
+(c) where the upload itself contains content meeting the eSafety threshold, the relevant statutory pathway is followed.
 
 ### 9.4 Misrepresentation about the engagement's nature
 

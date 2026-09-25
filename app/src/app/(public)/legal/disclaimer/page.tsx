@@ -267,25 +267,12 @@ export default function DisclaimerPage() {
 
         <h2>7. Reporting</h2>
 
-        <h3>IMMEDIATE Child Safety Concern?</h3>
-        <p><strong>Do NOT wait. Call immediately:</strong></p>
-        <ul>
-          <li><strong>000</strong> for immediate danger (child is injured, in active danger, or being harmed NOW)</li>
-          <li><strong>NSW Child Protection Helpline: 132 111</strong> for concerns about a child&apos;s safety, welfare, or wellbeing
-            <ul>
-              <li>You do not need to report through Baby Bloom first &mdash; you can report directly to authorities</li>
-            </ul>
-          </li>
-        </ul>
-
         <h3>Report Through Baby Bloom</h3>
         <p>If you want to also report through Baby Bloom (for platform records), use:</p>
         <ul>
           <li><strong>In-app:</strong> Use the &ldquo;Report Concern&rdquo; function in your dashboard</li>
           <li><strong>Email:</strong> <a href="mailto:contact@babybloomsydney.com.au">contact@babybloomsydney.com.au</a> with the subject line &ldquo;URGENT &mdash; Child Safety&rdquo;</li>
         </ul>
-        <p><strong>Important:</strong> Your direct report to 000 or 132 111 does NOT require Baby Bloom&apos;s involvement. If a child is at risk, contact authorities directly and immediately.</p>
-
         <h3>Platform Safety &amp; Misconduct</h3>
         <p>To report misconduct, inappropriate behaviour, or a safety concern relating to a platform user:</p>
         <ul>
@@ -338,11 +325,6 @@ export default function DisclaimerPage() {
                 <td><strong>Office of the Children&apos;s Guardian (NSW)</strong></td>
                 <td>Working With Children Check enquiries</td>
                 <td><a href="https://www.ocg.nsw.gov.au" target="_blank" rel="noopener noreferrer">www.ocg.nsw.gov.au</a></td>
-              </tr>
-              <tr>
-                <td><strong>NSW Child Protection Helpline</strong></td>
-                <td>Reporting child safety concerns</td>
-                <td>132 111</td>
               </tr>
               <tr>
                 <td><strong>Fair Work Ombudsman</strong></td>

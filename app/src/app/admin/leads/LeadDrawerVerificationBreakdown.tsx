@@ -7,9 +7,9 @@ interface LeadDrawerVerificationBreakdownProps {
   detail: LeadDetail;
 }
 
-import { formatSydneyDate } from "@/lib/leads/format";
+import { formatLeadDate } from "@/lib/leads/format";
 
-const fmtDate = formatSydneyDate;
+const fmtDate = formatLeadDate;
 
 interface RowProps {
   label: string;

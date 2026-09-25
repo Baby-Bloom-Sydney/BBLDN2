@@ -6,7 +6,8 @@ import { computeSnapshot } from '@/lib/analytics/compute-snapshot';
  * Cron endpoint: takes a daily snapshot of all pipeline metrics.
  * Stores one row per section per day in pipeline_snapshots.
  *
- * Called by Vercel Cron daily at 14:00 UTC (midnight AEST).
+ * Called by Vercel Cron daily at 00:00 UTC = midnight London
+ * (01:00 during BST — Vercel cron is UTC-only).
  * Also callable manually: GET /api/cron/snapshot-pipeline
  */
 export async function GET(request: NextRequest) {

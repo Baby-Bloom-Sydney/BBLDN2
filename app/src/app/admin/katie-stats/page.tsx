@@ -19,6 +19,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { APP_TZ } from "@/lib/constants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DollarSign,
@@ -56,25 +57,25 @@ interface DailyCostRow {
 }
 
 /**
- * Format a YYYY-MM-DD string for the Sydney timezone (where the
- * business operates). chat_cost_daily.date is a `DATE` column populated
- * server-side by `increment_chat_cost`; if our cutoff calculation uses
- * UTC and the admin is in Sydney, the boundary day can drift by one
- * (e.g. a 1am Sydney query starts from "two days ago" UTC instead of
- * "one day ago" Sydney). Computing the cutoff in Sydney time keeps
- * the displayed "last N days" label accurate.
+ * Format a YYYY-MM-DD string for `APP_TZ` (where the business operates).
+ * chat_cost_daily.date is a `DATE` column populated server-side by
+ * `increment_chat_cost`; if our cutoff calculation uses UTC and the admin
+ * is in the home zone, the boundary day can drift by one (e.g. a 1am local
+ * query starts from "two days ago" UTC instead of "one day ago" local).
+ * Computing the cutoff in the home zone keeps the displayed "last N days"
+ * label accurate.
  */
-function sydneyDateMinusDays(daysAgo: number): string {
+function localDateMinusDays(daysAgo: number): string {
   const target = new Date(Date.now() - daysAgo * 86_400_000);
   // en-CA returns YYYY-MM-DD format directly.
-  return target.toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" });
+  return target.toLocaleDateString("en-CA", { timeZone: APP_TZ });
 }
 
 async function getStats() {
   const admin = createAdminClient();
   const now = new Date();
-  const sevenDaysAgo = sydneyDateMinusDays(7);
-  const thirtyDaysAgo = sydneyDateMinusDays(30);
+  const sevenDaysAgo = localDateMinusDays(7);
+  const thirtyDaysAgo = localDateMinusDays(30);
 
   // Per-day cost rows for 30 days
   const { data: costRows30 } = await admin

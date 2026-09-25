@@ -16,9 +16,9 @@ interface LeadDrawerContactLogProps {
   onLocalPatch: (next: LeadDetail) => void;
 }
 
-import { formatSydneyDateTime } from "@/lib/leads/format";
+import { formatLeadDateTime } from "@/lib/leads/format";
 
-const fmtDate = formatSydneyDateTime;
+const fmtDate = formatLeadDateTime;
 
 export function LeadDrawerContactLog({
   detail,

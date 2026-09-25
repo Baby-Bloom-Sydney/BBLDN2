@@ -15,7 +15,7 @@ interface LeadsListCardsProps {
   isPending?: boolean;
 }
 
-import { formatSydneyDateTime } from "@/lib/leads/format";
+import { formatLeadDateTime } from "@/lib/leads/format";
 
 function fullName(row: LeadRow): string {
   const full = `${row.first_name ?? ""} ${row.last_name ?? ""}`.trim();
@@ -69,7 +69,7 @@ export function LeadsListCards({
                   <LeadStatusPill status={status} className="flex-shrink-0" />
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
-                  <span>Signed up {formatSydneyDateTime(row.signup_at)}</span>
+                  <span>Signed up {formatLeadDateTime(row.signup_at)}</span>
                   <VerificationMiniChip verification={row.verification} />
                   <span
                     className={`rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ${
@@ -106,7 +106,7 @@ export function LeadsListCards({
                   <span>
                     · last{" "}
                     {row.contact_state?.last_contact_at
-                      ? formatSydneyDateTime(row.contact_state.last_contact_at)
+                      ? formatLeadDateTime(row.contact_state.last_contact_at)
                       : "never"}
                   </span>
                   {row.responded_ever_derived && (

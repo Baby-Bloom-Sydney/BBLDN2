@@ -32,7 +32,7 @@
 
 import { Clock, Calendar, ChevronRight, PhoneCall } from "lucide-react";
 import type { ConnectionRequestWithDetails } from "@/lib/actions/connection";
-import { formatSydneyDate } from "@/lib/timezone";
+import { formatLondonDate } from "@/lib/timezone";
 
 export type ViewerRole = "nanny" | "parent";
 
@@ -144,7 +144,7 @@ export function ConnectionTile({
           {isConfirmed && request.confirmed_time && (
             <p className="flex items-center gap-1 text-xs text-green-600">
               <Calendar className="h-3 w-3" aria-hidden="true" />
-              {formatSydneyDate(request.confirmed_time)}
+              {formatLondonDate(request.confirmed_time)}
             </p>
           )}
           {isPending && (

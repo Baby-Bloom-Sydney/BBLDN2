@@ -242,23 +242,6 @@ export default function ClientTermsPage() {
 
         <hr />
 
-        <h2>19. Mandatory Reporting &amp; Reportable Conduct Scheme</h2>
-        <p>19.1. <strong>Your Legal Obligation &mdash; Individual Mandatory Reporting (s.27)</strong>: As a parent or legal guardian in NSW, you have a legal obligation under section 27 of the Children and Young Persons (Care and Protection) Act 1998 (NSW) to report situations involving <strong>Risk of Significant Harm (ROSH)</strong> to a child.</p>
-        <p>19.2. <strong>What is ROSH?</strong> ROSH includes reasonable suspicion that a child is suffering or at risk of suffering physical, sexual, emotional, or psychological harm, or neglect, serious enough to warrant intervention by the NSW Department of Communities and Justice.</p>
-        <p>19.3. <strong>How to Report</strong>: You <strong>must</strong> report directly to the NSW Department of Communities and Justice Child Protection Helpline on <strong>132 111</strong>. This is a legal obligation. Reporting through Baby Bloom does not satisfy this obligation. You may also contact local NSW Police or call 000 in an emergency.</p>
-        <p>19.4. <strong>If Unsure</strong>: If you are uncertain whether a situation constitutes ROSH, you can contact the Helpline on 132 111 for guidance without making a formal report.</p>
-        <p>19.5. <strong>Confidentiality of Report</strong>: Your report to DCJ is confidential. You may also request a reference number to track your report.</p>
-        <p>19.6. <strong>Baby Bloom&apos;s Organizational Obligation &mdash; Reportable Conduct Scheme (Children&apos;s Guardian Act 2019)</strong>: Baby Bloom is aware that under the Children&apos;s Guardian Act 2019 (NSW), organizations providing services to children must have systems to identify and respond to <strong>reportable conduct</strong> (conduct that could constitute a criminal offense, abuse, ill-treatment, psychological harm, grooming, or sexual misconduct involving children). Baby Bloom&apos;s Head of Entity is required to:</p>
-        <ul>
-          <li>Establish systems to identify and manage reportable conduct</li>
-          <li>Notify the Office of Children&apos;s Guardian within 7 business days of becoming aware of an allegation of reportable conduct</li>
-          <li>Cooperate with any investigation by the Office of Children&apos;s Guardian</li>
-          <li>Implement preventive measures and training</li>
-        </ul>
-        <p>If you report to Baby Bloom a concern that the Childcare Professional may have engaged in reportable conduct (e.g., inappropriate touching, grooming, abuse), Baby Bloom will report this to the Office of Children&apos;s Guardian as required by law within 7 business days of receiving your report. <strong>This is a separate legal obligation from your personal mandatory reporting obligation</strong> and does not replace your requirement to report directly to the Child Protection Helpline on 132 111.</p>
-
-        <hr />
-
         <h2>20. Online Safety</h2>
         <p>20.1. Baby Bloom complies with the Online Safety Act 2021 (Cth). The Platform provides a mechanism for reporting harmful content.</p>
         <p>20.2. If you encounter harmful, abusive, or threatening content on the Platform, you may report it through the Platform&apos;s reporting mechanism. Baby Bloom will respond to removal notices from the eSafety Commissioner.</p>
