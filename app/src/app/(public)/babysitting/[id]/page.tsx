@@ -29,8 +29,8 @@ export async function generateMetadata({
   const surname = bsr.parent_last_name ?? bsr.parent_first_name;
   const title = `The ${surname} family needs an experienced babysitter | apply now`;
   const description = dateStr
-    ? `Babysitter needed in ${suburb} on ${dateStr}. $${bsr.hourly_rate ?? 40}/hr. Apply on ${SITE_NAME}.`
-    : `Babysitter needed in ${suburb}. $${bsr.hourly_rate ?? 40}/hr. Apply on ${SITE_NAME}.`;
+    ? `Babysitter needed in ${suburb} on ${dateStr}. £${bsr.hourly_rate ?? 40}/hr. Apply on ${SITE_NAME}.`
+    : `Babysitter needed in ${suburb}. £${bsr.hourly_rate ?? 40}/hr. Apply on ${SITE_NAME}.`;
 
   const siteUrl = SITE_URL;
   const ogImageUrl = `${siteUrl}/api/og/babysitting/${params.id}`;

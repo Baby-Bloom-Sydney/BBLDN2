@@ -59,7 +59,7 @@ export function PayoutHistoryView({ rows, embedded = false }: Props) {
                 >
                   <div>
                     <p className="font-medium text-slate-900">
-                      A${(p.amountAudCents / 100).toFixed(2)}
+                      £{(p.amountAudCents / 100).toFixed(2)}
                     </p>
                     <p className="text-xs text-slate-500">
                       {p.parentFirstName} · {formatAuDate(p.periodStart)} →{" "}

@@ -153,7 +153,7 @@ function JobMatchBody({ d }: { d: JobMatchLiveData }) {
           <p className="text-xs text-slate-600">
             {d.hours_per_week != null ? `${d.hours_per_week}h/week` : ""}
             {d.hours_per_week != null && d.hourly_rate != null ? " · " : ""}
-            {d.hourly_rate != null ? `$${d.hourly_rate}/hr` : ""}
+            {d.hourly_rate != null ? `£${d.hourly_rate}/hr` : ""}
           </p>
         ) : null}
 

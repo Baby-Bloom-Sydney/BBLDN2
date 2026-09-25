@@ -18,6 +18,10 @@ import { profileModule } from "./profile";
 import { getNannyProfile, updateNannyProfile } from "@/lib/actions/nanny";
 import { getPosition } from "@/lib/actions/parent";
 import { getParentPlacement } from "@/lib/actions/position-funnel";
+import { HOURLY_RATE_BOUNDS } from "@/lib/constants";
+
+/** An in-bounds rate, expressed through the one config bound (Q-1/Q-7). */
+const IN_BOUNDS_RATE = HOURLY_RATE_BOUNDS.max;
 
 function makeCtx(role: "nanny" | "parent" = "nanny"): ModuleContext {
   return {
@@ -127,7 +131,7 @@ describe("profile module — read_my_profile (nanny)", () => {
     const data = r.data as any;
     expect(data.role).toBe("nanny");
     expect(data.first_name).toBe("Jess");
-    expect(data.hourly_rate).toBe("$45/hour");
+    expect(data.hourly_rate).toBe("£45/hour");
     expect(data.age_range).toMatch(/6 months.+5 years/);
     expect(data.photo_count).toBe(2);
     // Plain-English visibility — never expose the number
@@ -351,7 +355,7 @@ describe("profile module — tile emission (WU 8.18)", () => {
     const td = expectKatieNoteTile(r.tile);
     expect(td.badge).toBe("Your Profile");
     expect(td.title).toMatch(/Jess/);
-    expect(td.body).toMatch(/\$45\/hour/);
+    expect(td.body).toMatch(/£45\/hour/);
     expect(td.action?.href).toBe("/nanny/profile");
   });
 
@@ -497,7 +501,7 @@ describe("profile module — propose_/apply_update_rate", () => {
   it("rejects parent role", async () => {
     const r = await profileModule.execute(
       "propose_update_rate",
-      { hourly_rate: 50 },
+      { hourly_rate: IN_BOUNDS_RATE },
       makeCtx("parent"),
     );
     expect(r.success).toBe(false);
@@ -514,37 +518,41 @@ describe("profile module — propose_/apply_update_rate", () => {
     expect(r.error).toMatch(/number/);
   });
 
-  it("rejects rate below $20", async () => {
+  it("rejects a rate below the configured minimum", async () => {
     const r = await profileModule.execute(
       "propose_update_rate",
-      { hourly_rate: 5 },
+      { hourly_rate: HOURLY_RATE_BOUNDS.min - 1 },
       makeCtx("nanny"),
     );
     expect(r.success).toBe(false);
-    expect(r.error).toMatch(/between \$20 and \$200/);
+    expect(r.error).toContain(
+      `between £${HOURLY_RATE_BOUNDS.min} and £${HOURLY_RATE_BOUNDS.max}`,
+    );
   });
 
-  it("rejects rate above $200", async () => {
+  it("rejects a rate above the configured maximum", async () => {
     const r = await profileModule.execute(
       "propose_update_rate",
-      { hourly_rate: 500 },
+      { hourly_rate: HOURLY_RATE_BOUNDS.max + 1 },
       makeCtx("nanny"),
     );
     expect(r.success).toBe(false);
-    expect(r.error).toMatch(/between \$20 and \$200/);
+    expect(r.error).toContain(
+      `between £${HOURLY_RATE_BOUNDS.min} and £${HOURLY_RATE_BOUNDS.max}`,
+    );
   });
 
   it("propose returns preview, does not hit server action", async () => {
     const r = await profileModule.execute(
       "propose_update_rate",
-      { hourly_rate: 50 },
+      { hourly_rate: IN_BOUNDS_RATE },
       makeCtx("nanny"),
     );
     expect(r.success).toBe(true);
     expect(updateNannyProfile).not.toHaveBeenCalled();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data = r.data as any;
-    expect(data.preview).toContain("$50/hour");
+    expect(data.preview).toContain(`£${IN_BOUNDS_RATE}/hour`);
     expect(data.email_side_effect).toBe(false);
   });
 
@@ -555,11 +563,13 @@ describe("profile module — propose_/apply_update_rate", () => {
     });
     const r = await profileModule.execute(
       "apply_update_rate",
-      { hourly_rate: 50 },
+      { hourly_rate: IN_BOUNDS_RATE },
       makeCtx("nanny"),
     );
     expect(r.success).toBe(true);
-    expect(updateNannyProfile).toHaveBeenCalledWith({ hourly_rate_min: 50 });
+    expect(updateNannyProfile).toHaveBeenCalledWith({
+      hourly_rate_min: IN_BOUNDS_RATE,
+    });
   });
 
   it("surfaces server-action error verbatim", async () => {
@@ -569,7 +579,7 @@ describe("profile module — propose_/apply_update_rate", () => {
     });
     const r = await profileModule.execute(
       "apply_update_rate",
-      { hourly_rate: 50 },
+      { hourly_rate: IN_BOUNDS_RATE },
       makeCtx("nanny"),
     );
     expect(r.success).toBe(false);

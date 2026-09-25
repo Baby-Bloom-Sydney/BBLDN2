@@ -6,7 +6,7 @@ import {
   MapPin,
   Calendar,
   Clock,
-  DollarSign,
+  PoundSterling,
   Baby,
   FileText,
   ArrowRight,
@@ -103,12 +103,12 @@ export function BsrJobView({ bsr }: Props) {
         {/* Rate */}
         {bsr.hourly_rate && (
           <div className="flex items-center gap-2.5 px-4 py-2.5">
-            <DollarSign className="h-4 w-4 text-violet-500 flex-shrink-0" />
+            <PoundSterling className="h-4 w-4 text-violet-500 flex-shrink-0" />
             <div>
-              <p className="text-sm font-medium text-slate-800">${bsr.hourly_rate}/hr</p>
+              <p className="text-sm font-medium text-slate-800">£{bsr.hourly_rate}/hr</p>
               {bsr.estimated_hours && (
                 <p className="text-[11px] text-slate-400">
-                  ~{bsr.estimated_hours}hrs (${Math.round(bsr.hourly_rate * bsr.estimated_hours)} total)
+                  ~{bsr.estimated_hours}hrs (£{Math.round(bsr.hourly_rate * bsr.estimated_hours)} total)
                 </p>
               )}
             </div>

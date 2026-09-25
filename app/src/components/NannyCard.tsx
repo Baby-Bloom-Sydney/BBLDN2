@@ -77,7 +77,7 @@ export function NannyCard({ nanny, showRequestButton = false, onRequestInterview
           </div>
           {nanny.hourly_rate_min && (
             <div className="text-right">
-              <div className="font-bold text-lg text-slate-900">${nanny.hourly_rate_min}</div>
+              <div className="font-bold text-lg text-slate-900">£{nanny.hourly_rate_min}</div>
               <div className="text-xs text-slate-500">/hour</div>
             </div>
           )}

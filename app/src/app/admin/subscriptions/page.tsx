@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { formatAuDate } from "@/lib/format/date";
 import { AdminSubscriptionsClient } from "./AdminSubscriptionsClient";
 import type { AdminSubscriptionRow, AdminSubscriptionCounters } from "./types";
+import { APP_LOCALE } from "@/lib/constants";
 
 /**
  * `/admin/subscriptions` — operational overview of every parent
@@ -190,10 +191,10 @@ export default async function AdminSubscriptionsPage() {
               MRR
             </p>
             <p className="text-xl font-bold text-slate-900">
-              A${mrrAud.toLocaleString("en-AU")}
+              £{mrrAud.toLocaleString(APP_LOCALE)}
             </p>
             <p className="text-xs text-slate-500">
-              Lifetime A${cumulativeRevenueAud.toLocaleString("en-AU")}
+              Lifetime £{cumulativeRevenueAud.toLocaleString(APP_LOCALE)}
             </p>
           </CardContent>
         </Card>

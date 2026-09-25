@@ -18,7 +18,7 @@ const AGE_TO_MONTHS: Record<string, number> = {
 function funnelStateToProfile(state: NannyLeadFunnelState): PublicNannyProfile {
   const parseRate = (r: string | null): number | null => {
     if (!r) return null;
-    const n = parseFloat(r.replace('$', ''));
+    const n = parseFloat(r.replace('£', ''));
     return isNaN(n) ? null : n;
   };
 

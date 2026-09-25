@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Gift, MapPin, Calendar, Baby, DollarSign, MoreVertical, X, Loader2 } from 'lucide-react';
+import { Gift, MapPin, Calendar, Baby, PoundSterling, MoreVertical, X, Loader2 } from 'lucide-react';
 import { cancelBabysittingRequest } from '@/lib/actions/babysitting';
 import type { PublicBsrProfile } from '@/lib/actions/babysitting';
 
@@ -169,8 +169,8 @@ export default function BsrPaymentClient({ bsr }: { bsr: PublicBsrProfile }) {
 
           {bsr.hourly_rate && (
             <div className="flex items-start gap-2 text-sm text-slate-600">
-              <DollarSign className="h-4 w-4 text-violet-500 mt-0.5 flex-shrink-0" />
-              <span>${bsr.hourly_rate}/hr {bsr.estimated_hours ? `· ${bsr.estimated_hours}hrs total` : ''}</span>
+              <PoundSterling className="h-4 w-4 text-violet-500 mt-0.5 flex-shrink-0" />
+              <span>£{bsr.hourly_rate}/hr {bsr.estimated_hours ? `· ${bsr.estimated_hours}hrs total` : ''}</span>
             </div>
           )}
         </div>
@@ -182,7 +182,7 @@ export default function BsrPaymentClient({ bsr }: { bsr: PublicBsrProfile }) {
         <div className="px-4 py-3 space-y-1.5">
           <div className="flex justify-between text-sm text-slate-600">
             <span>Est. Babysitter fee</span>
-            <span className="text-slate-400">${estimatedTotal}</span>
+            <span className="text-slate-400">£{estimatedTotal}</span>
           </div>
           <div className="flex justify-between text-sm text-slate-600">
             <span>Placement fee</span>

@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { APP_LOCALE, APP_TZ, SITE_URL } from "@/lib/constants";
+import { APP_LOCALE, APP_TZ, HOURLY_RATE_BOUNDS, SITE_URL } from "@/lib/constants";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { getParentId } from "./parent";
@@ -760,11 +760,15 @@ export async function createBabysittingRequest(data: {
     return { success: false, error: "Maximum 3 children allowed" };
   }
 
-  // Validate hourly rate ($35-$100)
-  if (!data.hourlyRate || data.hourlyRate < 35 || data.hourlyRate > 100) {
+  // Validate hourly rate against the one configured bound (Q-1/Q-7).
+  if (
+    !data.hourlyRate ||
+    data.hourlyRate < HOURLY_RATE_BOUNDS.min ||
+    data.hourlyRate > HOURLY_RATE_BOUNDS.max
+  ) {
     return {
       success: false,
-      error: "Hourly rate must be between $35 and $100",
+      error: `Hourly rate must be between £${HOURLY_RATE_BOUNDS.min} and £${HOURLY_RATE_BOUNDS.max}`,
     };
   }
 
@@ -1024,7 +1028,7 @@ export async function activateBsr(
           <p style="color: #374151; margin: 4px 0;">📍 ${bsr.suburb} (${n.distanceKm < 1 ? "<1" : n.distanceKm} km from you)</p>
           <p style="color: #374151; margin: 4px 0;">👶 ${childrenStr}</p>
           ${bsr.special_requirements ? `<p style="color: #374151; margin: 4px 0;">📋 ${bsr.special_requirements}</p>` : ""}
-          <p style="color: #374151; margin: 4px 0;">💰 $${bsr.hourly_rate}/hr (est. total $${estimatedTotal})</p>
+          <p style="color: #374151; margin: 4px 0;">💰 £${bsr.hourly_rate}/hr (est. total £${estimatedTotal})</p>
           <p style="color: #374151; font-size: 14px; line-height: 1.6; margin-top: 12px;">Request this job and the family will choose their preferred babysitter.</p>
           <p style="margin-top: 16px;"><a href="${APP_URL}/nanny/babysitting" style="${BTN_STYLE}">View Job</a></p>
         </div>
@@ -1053,7 +1057,7 @@ export async function activateBsr(
         userId: n.userId,
         type: "bsr_new_job",
         title: `New babysitting job in ${bsr.suburb}`,
-        body: `A family needs a babysitter. ${n.distanceKm < 1 ? "<1" : n.distanceKm} km from you. $${bsr.hourly_rate}/hr. Request it now!`,
+        body: `A family needs a babysitter. ${n.distanceKm < 1 ? "<1" : n.distanceKm} km from you. £${bsr.hourly_rate}/hr. Request it now!`,
         actionUrl: "/nanny/babysitting",
         referenceId: bsrId,
         referenceType: "babysitting_request",
@@ -1603,7 +1607,7 @@ export async function parentAcceptNanny(
             ${slotsDisplay ? `<p style="color: #374151; margin: 4px 0;">${slotsDisplay}</p>` : ""}
             <p style="color: #374151; margin: 4px 0;">📍 ${bsr.suburb}</p>
             ${childrenStr ? `<p style="color: #374151; margin: 4px 0;">👶 ${childrenStr}</p>` : ""}
-            ${bsr.hourly_rate ? `<p style="color: #374151; margin: 4px 0;">💰 $${bsr.hourly_rate}/hr</p>` : ""}
+            ${bsr.hourly_rate ? `<p style="color: #374151; margin: 4px 0;">💰 £${bsr.hourly_rate}/hr</p>` : ""}
             <p style="color: #374151; font-size: 14px; line-height: 1.6; margin-top: 12px;">View the full details including the address in your Baby Bloom dashboard.</p>
             <p style="margin-top: 16px;"><a href="${APP_URL}/nanny/babysitting" style="${BTN_STYLE}">See Full Details</a></p>
           </div>
@@ -1647,7 +1651,7 @@ export async function parentAcceptNanny(
             ${nannyFirstName ? `<p style="color: #374151; margin: 4px 0; font-weight: 600;">👩 ${nannyFirstName}</p>` : ""}
             ${slotsDisplay ? `<p style="color: #374151; margin: 4px 0;">${slotsDisplay}</p>` : ""}
             <p style="color: #374151; margin: 4px 0;">📍 ${bsr.suburb}</p>
-            ${bsr.hourly_rate ? `<p style="color: #374141; margin: 4px 0;">💰 $${bsr.hourly_rate}/hr</p>` : ""}
+            ${bsr.hourly_rate ? `<p style="color: #374141; margin: 4px 0;">💰 £${bsr.hourly_rate}/hr</p>` : ""}
             <p style="color: #374151; font-size: 14px; line-height: 1.6; margin-top: 12px;">View the full booking details and your babysitter's contact information in your Baby Bloom dashboard.</p>
             <p style="margin-top: 16px;"><a href="${APP_URL}/parent/babysitting" style="${BTN_STYLE}">See Full Details</a></p>
           </div>

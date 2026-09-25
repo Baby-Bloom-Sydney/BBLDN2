@@ -9,7 +9,7 @@ import { scheduleCommissionFor } from "@/lib/payments/commission-scheduler";
  * cycle's commission row (2 or 3) once the previous cycle has run for
  * 30 days. Cycle 1 is scheduled by `checkout.session.completed`; this
  * cron handles cycles 2 + 3. After cycle 3 no more rows are scheduled
- * (upfront commission is capped at A$1,000 per spec 06 §1.5).
+ * (upfront commission is capped at £1,000 per spec 06 §1.5).
  *
  * Spec: `system/APP/PAYMENTS/06-commission-system.md` §3 + §1.5.
  *

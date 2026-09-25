@@ -4,7 +4,7 @@ import {
   User,
   Briefcase,
   Calendar,
-  DollarSign,
+  PoundSterling,
   MapPin,
   Info,
   Globe,
@@ -186,7 +186,7 @@ export function StepReview({ data, goBack, onComplete, isSubmitting }: ReviewPro
         </SectionCard>
 
         {/* Salary */}
-        <SectionCard icon={DollarSign} title="Salary">
+        <SectionCard icon={PoundSterling} title="Salary">
           <Row label="Minimum hourly rate" value={data.hourly_rate_min} />
           <Row label="Pay frequency" value={data.pay_frequency?.join(", ")} />
         </SectionCard>

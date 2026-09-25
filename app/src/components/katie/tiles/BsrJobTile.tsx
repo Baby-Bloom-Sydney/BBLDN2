@@ -179,8 +179,8 @@ function BsrTileBody({
 
         {d.hourly_rate != null ? (
           <p className="text-xs text-slate-600">
-            ${d.hourly_rate}/hr
-            {d.estimated_total != null ? ` · ~$${d.estimated_total} total` : ""}
+            £{d.hourly_rate}/hr
+            {d.estimated_total != null ? ` · ~£${d.estimated_total} total` : ""}
           </p>
         ) : null}
 

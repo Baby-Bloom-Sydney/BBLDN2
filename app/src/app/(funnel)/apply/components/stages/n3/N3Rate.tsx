@@ -6,6 +6,7 @@ import { MultiSelectTags } from '../../shared/MultiSelectTags';
 import { ProgressiveReveal } from '../../shared/ProgressiveReveal';
 import { CompoundPageShell } from '../../shared/CompoundPageShell';
 import { PAY_FREQUENCY_OPTIONS } from '@/types/nanny-leads';
+import { HOURLY_RATE_BOUNDS } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 
@@ -19,8 +20,8 @@ export function N3Rate({ state, dispatch, goNext, goBack, progress, questionNumb
     [dispatch]
   );
 
-  const rateValue = salary.hourly_rate_min ? parseFloat(salary.hourly_rate_min.replace('$', '')) : 0;
-  const hasRate = rateValue >= 35;
+  const rateValue = salary.hourly_rate_min ? parseFloat(salary.hourly_rate_min.replace('£', '')) : 0;
+  const hasRate = rateValue >= HOURLY_RATE_BOUNDS.min;
 
   const canContinue = hasRate && salary.pay_frequency.length > 0;
 
@@ -41,33 +42,42 @@ export function N3Rate({ state, dispatch, goNext, goBack, progress, questionNumb
             What hourly rate are you looking for?
           </Label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-medium">$</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-medium">£</span>
             <input
               type="number"
-              min={35}
-              max={100}
+              min={HOURLY_RATE_BOUNDS.min}
+              max={HOURLY_RATE_BOUNDS.max}
               step={0.25}
               value={rateValue || ''}
               onChange={(e) => {
                 const val = e.target.value;
-                update({ hourly_rate_min: val ? `$${val}` : null });
+                update({ hourly_rate_min: val ? `£${val}` : null });
               }}
               onBlur={() => {
                 if (rateValue > 0) {
-                  const clamped = Math.min(Math.max(rateValue, 35), 100);
+                  const clamped = Math.min(
+                    Math.max(rateValue, HOURLY_RATE_BOUNDS.min),
+                    HOURLY_RATE_BOUNDS.max
+                  );
                   const rounded = roundToQuarter(clamped);
-                  update({ hourly_rate_min: `$${rounded.toFixed(2)}` });
+                  update({ hourly_rate_min: `£${rounded.toFixed(2)}` });
                 }
               }}
-              placeholder="40.00"
+              placeholder={HOURLY_RATE_BOUNDS.min.toFixed(2)}
               className="w-full pl-8 pr-4 h-11 rounded-lg border border-slate-200 text-sm text-slate-800 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 outline-none"
             />
           </div>
-          {salary.hourly_rate_min && rateValue > 0 && rateValue < 35 && (
-            <p className="text-xs text-amber-600">Minimum rate is $35.00</p>
-          )}
-          {salary.hourly_rate_min && rateValue > 100 && (
-            <p className="text-xs text-amber-600">Maximum rate is $100.00</p>
+          {salary.hourly_rate_min &&
+            rateValue > 0 &&
+            rateValue < HOURLY_RATE_BOUNDS.min && (
+              <p className="text-xs text-amber-600">
+                Minimum rate is £{HOURLY_RATE_BOUNDS.min.toFixed(2)}
+              </p>
+            )}
+          {salary.hourly_rate_min && rateValue > HOURLY_RATE_BOUNDS.max && (
+            <p className="text-xs text-amber-600">
+              Maximum rate is £{HOURLY_RATE_BOUNDS.max.toFixed(2)}
+            </p>
           )}
         </div>
 
