@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import type { RealPosition, RealApplicant } from './page';
 import {
-  MapPin, Clock, DollarSign, Car, IdCard, Cigarette,
+  MapPin, Clock, PoundSterling, Car, IdCard, Cigarette,
   ChevronRight, X, ArrowLeft, CheckCircle2, Sparkles, CalendarDays,
   Phone, Briefcase, Baby, Users,
 } from 'lucide-react';
@@ -197,8 +197,8 @@ function PositionTile({ position }: { position: RealPosition }) {
         {/* Rate — hidden for AI/admin positions */}
         {position.hourly_rate && (!position.source || position.source === 'parent') && (
           <div className="flex items-center gap-2">
-            <DollarSign className="h-3.5 w-3.5 text-violet-500 flex-shrink-0" />
-            <p className="text-sm font-medium text-slate-800">${position.hourly_rate}/hr</p>
+            <PoundSterling className="h-3.5 w-3.5 text-violet-500 flex-shrink-0" />
+            <p className="text-sm font-medium text-slate-800">£{position.hourly_rate}/hr</p>
           </div>
         )}
       </div>
@@ -237,8 +237,8 @@ function ConnectionCard({ position }: { position: RealPosition }) {
               )}
               {position.hourly_rate && (!position.source || position.source === 'parent') && (
                 <span className="flex items-center gap-1">
-                  <DollarSign className="h-3 w-3" />
-                  ${position.hourly_rate}/hr
+                  <PoundSterling className="h-3 w-3" />
+                  £{position.hourly_rate}/hr
                 </span>
               )}
               {position.hours_per_week && (
@@ -354,7 +354,7 @@ function ApplicationCard({
           <span className="text-sm font-medium text-slate-900 truncate block">{displayName}</span>
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <span className="flex items-center gap-1"><MapPin className="w-2.5 h-2.5" />{applicant.suburb}</span>
-            <span className="flex items-center gap-1"><DollarSign className="w-2.5 h-2.5" />${applicant.hourly_rate_min}/hr</span>
+            <span className="flex items-center gap-1"><PoundSterling className="w-2.5 h-2.5" />£{applicant.hourly_rate_min}/hr</span>
             <span className="flex items-center gap-1"><Briefcase className="w-2.5 h-2.5" />{applicant.total_experience_years}yrs</span>
           </div>
         </div>
@@ -415,7 +415,7 @@ function ReviewModal({
               <p className="text-lg font-semibold text-slate-900 leading-tight">{displayName}</p>
               <p className="flex items-center gap-2 text-sm text-slate-500">
                 <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{applicant.suburb}</span>
-                <span>${applicant.hourly_rate_min}/hr</span>
+                <span>£{applicant.hourly_rate_min}/hr</span>
               </p>
             </div>
             <button type="button" onClick={onClose} className="rounded-sm opacity-70 hover:opacity-100 transition-opacity text-slate-500 shrink-0">

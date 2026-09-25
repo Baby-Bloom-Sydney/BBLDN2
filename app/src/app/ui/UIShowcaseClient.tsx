@@ -176,6 +176,7 @@ import {
 
 // ── Types ──
 import type { MatchResult } from "@/lib/matching/types";
+import { BRAND, SITE_NAME } from "@/lib/constants";
 
 // ════════════════════════════════════════════════════════════════════
 // Helpers
@@ -466,7 +467,7 @@ export function UIShowcaseClient({
                     <TableRow key={n.id}>
                       <TableCell className="font-medium">{n.first_name} {n.last_name}</TableCell>
                       <TableCell>{n.suburb}</TableCell>
-                      <TableCell>${n.hourly_rate_min}/hr</TableCell>
+                      <TableCell>£{n.hourly_rate_min}/hr</TableCell>
                       <TableCell>{n.nanny_experience_years} yrs</TableCell>
                     </TableRow>
                   ))}
@@ -596,7 +597,7 @@ export function UIShowcaseClient({
               <Accordion type="single" collapsible>
                 <AccordionItem value="item-1">
                   <AccordionTrigger>What is Baby Bloom?</AccordionTrigger>
-                  <AccordionContent>Baby Bloom is a nanny matching platform for Sydney families.</AccordionContent>
+                  <AccordionContent>{SITE_NAME} is a nanny matching platform for {BRAND.city} families.</AccordionContent>
                 </AccordionItem>
                 <AccordionItem value="item-2">
                   <AccordionTrigger>How does matching work?</AccordionTrigger>
@@ -709,7 +710,7 @@ export function UIShowcaseClient({
               <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                 <StatsCard icon={Users} value={42} label="Active Nannies" trend={{ value: 12, isPositive: true }} iconColor="text-green-500" iconBgColor="bg-green-100" />
                 <StatsCard icon={Briefcase} value={18} label="Open Positions" trend={{ value: 5, isPositive: true }} iconColor="text-blue-500" iconBgColor="bg-blue-100" />
-                <StatsCard icon={DollarSign} value="$38" label="Avg Rate" iconColor="text-violet-500" iconBgColor="bg-violet-100" />
+                <StatsCard icon={DollarSign} value="£28" label="Avg Rate" iconColor="text-violet-500" iconBgColor="bg-violet-100" />
                 <StatsCard icon={Star} value={96} label="Match Score" trend={{ value: 3, isPositive: false }} iconColor="text-amber-500" iconBgColor="bg-amber-100" />
               </div>
             </ShowcaseCard>

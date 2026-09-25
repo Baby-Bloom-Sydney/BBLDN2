@@ -35,6 +35,7 @@ import {
   MOCK_VERIFICATION_STEPS_COMPLETE,
 } from "../ui/mock-data";
 import type { MatchResult } from "@/lib/matching/types";
+import { SITE_NAME } from "@/lib/constants";
 
 // ── Design rationale helper ──
 
@@ -144,15 +145,15 @@ export function BrandKitClient({ profilePicUrl }: BrandKitClientProps) {
     first_name: "Bailey",
     last_name: "Wright",
     age: 24,
-    suburb: "Bondi",
+    suburb: "Clapham",
     verification_tier: "tier2",
     verification_level: 3,
     profile_picture_url: profilePicUrl,
     tagline:
       "Experienced and warm nanny with a passion for early childhood development. 4 years of dedicated experience across Sydney\u2019s Eastern Suburbs.",
-    bio: "Hi, I\u2019m Bailey! I\u2019m a passionate and experienced nanny based in Bondi with 4 years of dedicated childcare experience. I believe every child deserves a nurturing environment where they feel safe to explore, learn, and grow. My approach combines structured activities with plenty of creative play \u2014 I love getting outside, reading together, and finding little moments of magic in everyday routines. I\u2019m reliable, warm, and genuinely love what I do.",
+    bio: "Hi, I\u2019m Bailey! I\u2019m a passionate and experienced nanny based in Clapham with 4 years of dedicated childcare experience. I believe every child deserves a nurturing environment where they feel safe to explore, learn, and grow. My approach combines structured activities with plenty of creative play \u2014 I love getting outside, reading together, and finding little moments of magic in everyday routines. I\u2019m reliable, warm, and genuinely love what I do.",
     about:
-      "Originally from the UK, I moved to Sydney three years ago and fell in love with the lifestyle and the families I\u2019ve had the privilege of working with. I hold a Certificate III in Early Childhood Education and have completed my First Aid and CPR training. When I\u2019m not with the kids, you\u2019ll find me at the beach, trying new recipes, or exploring Sydney\u2019s hidden caf\u00e9s.",
+      "Originally from the UK, I moved to London three years ago and fell in love with the lifestyle and the families I\u2019ve had the privilege of working with. I hold a Certificate III in Early Childhood Education and have completed my First Aid and CPR training. When I\u2019m not with the kids, you\u2019ll find me at the beach, trying new recipes, or exploring Sydney\u2019s hidden caf\u00e9s.",
     experience:
       "6 years total childcare experience including 4 years as a dedicated nanny. I\u2019ve worked with children from newborn through to 8 years old across a variety of family setups \u2014 single children, twins, and families with up to 3 kids. I\u2019m experienced with school and daycare drop-offs/pickups, meal preparation, bath and bedtime routines, and managing activities and playdates.",
     strengths:
@@ -371,7 +372,7 @@ export function BrandKitClient({ profilePicUrl }: BrandKitClientProps) {
                 <p className="text-sm text-slate-600">
                   Experienced and warm nanny with a passion for early childhood
                   development. 4 years of dedicated nanny experience across
-                  Sydney&rsquo;s Eastern Suburbs.
+                  South West London.
                 </p>
               </div>
               <div>
@@ -379,7 +380,7 @@ export function BrandKitClient({ profilePicUrl }: BrandKitClientProps) {
                   text-xs / medium — Labels, metadata
                 </p>
                 <p className="text-xs font-medium text-slate-400">
-                  Verified · Bondi · 3 km away · $35/hr
+                  Verified · Clapham · 3 km away · £28/hr
                 </p>
               </div>
               <div>
@@ -607,7 +608,7 @@ export function BrandKitClient({ profilePicUrl }: BrandKitClientProps) {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="suburb">Suburb</Label>
-                <Input id="suburb" placeholder="Bondi" />
+                <Input id="suburb" placeholder="Clapham" />
                 <p className="text-xs text-slate-400">
                   We use this to match you with nearby families.
                 </p>
@@ -905,7 +906,7 @@ export function BrandKitClient({ profilePicUrl }: BrandKitClientProps) {
                         Interview Request
                       </p>
                       <p className="text-xs text-slate-500">
-                        The Smith family in Bondi wants to meet you
+                        The Smith family in Clapham wants to meet you
                       </p>
                     </div>
                     <Button size="sm" className="ml-auto shrink-0">
@@ -1270,10 +1271,10 @@ export function BrandKitClient({ profilePicUrl }: BrandKitClientProps) {
                         {/* Dropdown — positioned above */}
                         <div className="absolute z-10 bottom-full mb-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg overflow-hidden">
                           {[
-                            { suburb: "Bondi", postcode: "2026" },
-                            { suburb: "Bondi Beach", postcode: "2026" },
-                            { suburb: "Bondi Junction", postcode: "2022" },
-                            { suburb: "Bondena", postcode: "2536" },
+                            { suburb: "Clapham", postcode: "SW4" },
+                            { suburb: "Balham", postcode: "SW12" },
+                            { suburb: "Brixton", postcode: "SW2" },
+                            { suburb: "Chelsea", postcode: "SW3" },
                           ].map((entry) => (
                             <div
                               key={`${entry.suburb}-${entry.postcode}`}
@@ -1841,7 +1842,7 @@ export function BrandKitClient({ profilePicUrl }: BrandKitClientProps) {
         {/* ─── FOOTER ─── */}
         <footer className="border-t border-slate-100 pt-8 pb-4">
           <p className="text-xs text-slate-400 text-center">
-            Baby Bloom Sydney &mdash; Brand Kit v1 &mdash; Based on the Design
+            {SITE_NAME} &mdash; Brand Kit v1 &mdash; Based on the Design
             Ethos document
           </p>
         </footer>

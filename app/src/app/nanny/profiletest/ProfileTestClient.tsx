@@ -51,7 +51,7 @@ import { cn } from "@/lib/utils";
 const MOCK_HERO = {
   firstName: "Sarah",
   age: 27,
-  suburb: "Bondi",
+  suburb: "Clapham",
   profilePictureUrl: null as string | null,
   isVerified: true,
   verificationLevel: 4,
@@ -199,7 +199,7 @@ const MOCK_GOOD_TO_KNOW = {
 
 // hourly rate (from nannies table)
 const MOCK_RATE = {
-  hourly_rate_min: 45,
+  hourly_rate_min: 26,
 };
 
 // availability (from nanny_availability table — NOT ai-generated)
