@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import { APP_LOCALE } from '@/lib/constants';
 import { sendEmail } from './resend';
 import { generateClientHirePDF, generateProfessionalHirePDF } from '@/lib/pdf/generate-hire-pdf';
 import { buildClientHireConfirmationEmail } from './templates/client-hire-confirmation';
@@ -29,7 +30,7 @@ export async function sendHireConfirmationEmails(params: HireEmailParams): Promi
   } = params;
 
   const adminClient = createAdminClient();
-  const hireDate = new Date().toLocaleDateString('en-AU', {
+  const hireDate = new Date().toLocaleDateString(APP_LOCALE, {
     day: 'numeric', month: 'long', year: 'numeric',
   });
 
@@ -51,7 +52,7 @@ export async function sendHireConfirmationEmails(params: HireEmailParams): Promi
       .single();
 
     if (verification?.created_at) {
-      verificationDate = new Date(verification.created_at).toLocaleDateString('en-AU', {
+      verificationDate = new Date(verification.created_at).toLocaleDateString(APP_LOCALE, {
         day: 'numeric', month: 'long', year: 'numeric',
       });
     }

@@ -27,6 +27,7 @@
 import { CronExpressionParser } from "cron-parser";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generate, type GeminiTool } from "@/lib/ai/gemini-client";
+import { APP_LOCALE } from "@/lib/constants";
 import { selectGeminiModel, type BotRole } from "@/lib/ai/model-selector";
 import { collectTools, findToolHandler } from "@/lib/chat/modules/registry";
 import type { ChatTile } from "@/lib/chat/tiles";
@@ -68,7 +69,7 @@ export function inWakingHours(
   if (start == null || end == null || start >= end) return false;
 
   // Project `now` into the bot's timezone to compare minutes-of-day.
-  const fmt = new Intl.DateTimeFormat("en-AU", {
+  const fmt = new Intl.DateTimeFormat(APP_LOCALE, {
     timeZone: hrs.timezone,
     hour: "2-digit",
     minute: "2-digit",
@@ -141,7 +142,7 @@ async function fireTemplate(
   child: ChildRow | null,
   admin: SupabaseClient,
 ): Promise<{ content: string; messageId: string | null }> {
-  const today = new Date().toLocaleDateString("en-AU", {
+  const today = new Date().toLocaleDateString(APP_LOCALE, {
     weekday: "long",
     timeZone: row.timezone,
   });
@@ -180,7 +181,7 @@ async function fireAiMinimal(
   const model = selectGeminiModel(bot.role);
   const contextBlock = [
     child ? `You are addressing about ${child.first_name}.` : "",
-    `Today is ${new Date().toLocaleDateString("en-AU", { weekday: "long", timeZone: row.timezone })}.`,
+    `Today is ${new Date().toLocaleDateString(APP_LOCALE, { weekday: "long", timeZone: row.timezone })}.`,
   ]
     .filter(Boolean)
     .join(" ");
@@ -260,7 +261,7 @@ async function fireAiFull(
     memoryTable,
   });
 
-  const today = new Date().toLocaleDateString("en-AU", {
+  const today = new Date().toLocaleDateString(APP_LOCALE, {
     weekday: "long",
     timeZone: row.timezone,
   });

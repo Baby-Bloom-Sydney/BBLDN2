@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { APP_LOCALE } from "@/lib/constants";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { getParentId } from "./parent";
@@ -118,11 +119,11 @@ function formatSlotDisplay(slot: {
   end_time: string;
 }): string {
   const d = new Date(slot.slot_date + "T00:00:00");
-  const dayName = d.toLocaleDateString("en-AU", {
+  const dayName = d.toLocaleDateString(APP_LOCALE, {
     weekday: "short",
     timeZone: "Australia/Sydney",
   });
-  const dateStr = d.toLocaleDateString("en-AU", {
+  const dateStr = d.toLocaleDateString(APP_LOCALE, {
     day: "numeric",
     month: "short",
     timeZone: "Australia/Sydney",
@@ -1089,7 +1090,7 @@ export async function requestBabysittingJob(
     new Date(nannyData.bsr_banned_until) > new Date()
   ) {
     const banDate = new Date(nannyData.bsr_banned_until).toLocaleDateString(
-      "en-AU",
+      APP_LOCALE,
       {
         day: "numeric",
         month: "long",
@@ -1269,7 +1270,7 @@ export async function applyToBsrPublic(
   // Ban check
   if (nanny.bsr_banned_until && new Date(nanny.bsr_banned_until) > new Date()) {
     const banDate = new Date(nanny.bsr_banned_until).toLocaleDateString(
-      "en-AU",
+      APP_LOCALE,
       {
         day: "numeric",
         month: "long",
@@ -2042,7 +2043,7 @@ export async function nannyCancelBabysittingRequest(
     // BSR-009: Ban notification email
     const nannyEmailInfo = await getUserEmailInfo(nannyInfo.userId);
     if (nannyEmailInfo) {
-      const banDateStr = banUntil.toLocaleDateString("en-AU", {
+      const banDateStr = banUntil.toLocaleDateString(APP_LOCALE, {
         day: "numeric",
         month: "long",
         year: "numeric",
