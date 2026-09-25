@@ -14,12 +14,23 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { LeadDetail } from "@/lib/leads/fetch-lead-detail";
 
-const setNextAction = vi.fn(async () => ({ success: true, error: null }));
-const logContact = vi.fn(async () => ({ success: true, error: null }));
+interface SetNextActionInput {
+  nanny_user_id: string;
+  next_action_at: string;
+}
+
+const setNextAction = vi.fn(async (_input: SetNextActionInput) => ({
+  success: true,
+  error: null,
+}));
+const logContact = vi.fn(async (_input: unknown) => ({
+  success: true,
+  error: null,
+}));
 
 vi.mock("./actions", () => ({
-  logContact: (...args: unknown[]) => logContact(...(args as [])),
-  setNextAction: (...args: unknown[]) => setNextAction(...(args as [])),
+  logContact: (input: unknown) => logContact(input),
+  setNextAction: (input: unknown) => setNextAction(input as SetNextActionInput),
 }));
 
 const { LeadDrawerLogContactForm } = await import("./LeadDrawerLogContactForm");
@@ -40,8 +51,7 @@ async function snoozeTo(date: string): Promise<string> {
   await user.type(dateInput, date);
   await user.click(screen.getByRole("button", { name: /log contact/i }));
   expect(setNextAction).toHaveBeenCalledOnce();
-  const arg = setNextAction.mock.calls[0][0] as { next_action_at: string };
-  return arg.next_action_at;
+  return setNextAction.mock.calls[0][0].next_action_at;
 }
 
 describe("LeadDrawerLogContactForm — snooze anchor (12.02)", () => {
