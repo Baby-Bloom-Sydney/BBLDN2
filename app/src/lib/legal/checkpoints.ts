@@ -101,7 +101,6 @@ export const AGR07_MODAL_CONFIG: ConsentModalConfig = {
     "You should link to this Professional's WWCC via Service NSW for ongoing status alerts.",
     "If you have CCTV or surveillance devices in your home, you must disclose them to the Professional before the session.",
     "You agree to pay the Professional directly at the end of the session.",
-    "In any medical emergency, the Professional will call 000 immediately. Baby Bloom is not an emergency service.",
   ],
   reminderFooter:
     "These obligations are set out in full in the [Client Terms of Service](/legal/client-terms). You must provide the Professional with your child's medical conditions, allergies, emergency contacts, and authorised emergency procedures before the session begins.",
@@ -143,8 +142,6 @@ export const AGR09_MODAL_CONFIG: ConsentModalConfig = {
     "You must keep the Client's identity, household details, and location strictly confidential.",
     "You agree to maintain professional standards as outlined in the [Code of Conduct](/legal/code-of-conduct).",
     "You are responsible for arranging payment directly with the Client. Baby Bloom does not process payments.",
-    "In any medical, safety, or welfare emergency involving a child, call 000 immediately. Do not delay.",
-    "You are a mandatory reporter under NSW law. Report Risk of Significant Harm (ROSH) to DCJ on 132 111.",
     "Three or more babysitting cancellations with short notice within 12 months may result in temporary suspension, with right to appeal within 14 days.",
     "You agree to indemnify Baby Bloom from any claim arising out of your conduct, except where caused by Baby Bloom's gross negligence or willful misconduct.",
   ],

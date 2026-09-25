@@ -68,32 +68,27 @@ export function ProfessionalHireSummaryPDF({
           Baby Bloom may receive affiliate commissions from third-party products or services recommended on the Platform. These will always be disclosed.
         </Text>
 
-        <Text style={styles.sectionTitle}>5. Mandatory Reporting</Text>
-        <Text style={styles.paragraph}>
-          As a childcare provider in NSW, you have legal obligations as a mandatory reporter. You must report situations involving Risk of Significant Harm (ROSH) to the NSW DCJ Child Protection Helpline on 132 111. ROSH includes physical abuse, sexual abuse, emotional abuse, neglect, witnessing domestic violence, and substance abuse affecting parenting.
-        </Text>
-
-        <Text style={styles.sectionTitle}>6. Confidentiality</Text>
+        <Text style={styles.sectionTitle}>5. Confidentiality</Text>
         <Text style={styles.paragraph}>
           You must keep all information about the family, their children, household, location, and routines strictly confidential. You must not disclose any such information on any public or semi-public platform. This obligation survives termination of the arrangement.
         </Text>
 
-        <Text style={styles.sectionTitle}>7. Baby Bloom&apos;s Commitments</Text>
+        <Text style={styles.sectionTitle}>6. Baby Bloom&apos;s Commitments</Text>
         <Text style={styles.paragraph}>
           Baby Bloom commits to maintaining the Platform, providing support, and complying with the Privacy Act 1988 (Cth) and Australian Privacy Principles.
         </Text>
 
-        <Text style={styles.sectionTitle}>8. Data Retention</Text>
+        <Text style={styles.sectionTitle}>7. Data Retention</Text>
         <Text style={styles.paragraph}>
           Your placement data will be retained for 5 years after the placement ends, as required for regulatory and dispute resolution purposes. You can request deletion of non-essential data at any time by contacting privacy@babybloomsydney.com.au.
         </Text>
 
-        <Text style={styles.sectionTitle}>9. Email Preferences</Text>
+        <Text style={styles.sectionTitle}>8. Email Preferences</Text>
         <Text style={styles.paragraph}>
           You can manage your email preferences at any time from your Baby Bloom dashboard settings. Essential emails (security, legal, placement-related) cannot be unsubscribed from.
         </Text>
 
-        <Text style={styles.sectionTitle}>10. Important Links</Text>
+        <Text style={styles.sectionTitle}>9. Important Links</Text>
         <Text style={styles.listItem}>Professional Terms of Service: babybloomsydney.com.au/legal/professional-terms</Text>
         <Text style={styles.listItem}>Privacy Policy: babybloomsydney.com.au/legal/privacy-policy</Text>
         <Text style={styles.listItem}>Code of Conduct: babybloomsydney.com.au/legal/code-of-conduct</Text>
