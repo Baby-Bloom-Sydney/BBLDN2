@@ -682,7 +682,7 @@ export async function scheduleConnectionTime(
   if (!bracket)
     return {
       success: false,
-      error: "Selected time is outside available brackets (8am-8pm).",
+      error: "Selected time is outside available brackets (08:00–20:00).",
     };
 
   // Validate time is within bracket range (not at the end hour itself)

@@ -82,6 +82,7 @@ import {
 import type { DfyConnection } from "@/lib/actions/matching";
 import { getScoreBadgeStyle, calcAge } from "@/components/match/match-helpers";
 import { ScheduleTimeGrid } from "@/components/position/ScheduleTimeGrid";
+import { formatClockTime as bsrFormatTime } from "@/lib/timezone";
 import type { TypeformFormData } from "../parent/request/questions";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -151,15 +152,6 @@ function bsrFormatSlotDate(dateStr: string): string {
     day: "numeric",
     month: "short",
   });
-}
-
-function bsrFormatTime(time: string): string {
-  const [h, m] = time.split(":").map(Number);
-  const ampm = h >= 12 ? "pm" : "am";
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return m === 0
-    ? `${h12}${ampm}`
-    : `${h12}:${String(m).padStart(2, "0")}${ampm}`;
 }
 
 function formatStartWeekLabel(d: Date): string {

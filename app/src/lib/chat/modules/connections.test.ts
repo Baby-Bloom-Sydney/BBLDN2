@@ -1034,7 +1034,7 @@ describe("connections module — propose_schedule_meet", () => {
     expect(r.error).toMatch(/offered slots/i);
   });
 
-  it("rejects hour outside 8am-8pm window", async () => {
+  it("rejects hour outside the 08:00–20:00 window", async () => {
     vi.mocked(getParentConnectionRequests).mockResolvedValue({
       data: [
         buildConnection({

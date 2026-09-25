@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { formatClockTime } from "@/lib/timezone";
 import type { ModuleContext } from "./types";
 
 vi.mock("@/lib/actions/babysitting", () => ({
@@ -256,7 +257,12 @@ describe("bsr module — read_job_detail", () => {
     const data = r.data as any;
     expect(data.id).toBe("j1");
     expect(data.distance).toMatch(/3\.4 km/);
-    expect(data.slots[0]).toMatch(/6pm to 10pm/);
+    // Retargeted by LDN2 unit 2k (W-12): this pinned `6pm to 10pm`, the
+    // hand-rolled 12-hour label Katie spoke for a slot. One clock (12.03).
+    expect(data.slots[0]).toContain(
+      `${formatClockTime("18:00")} to ${formatClockTime("22:00")}`,
+    );
+    expect(data.slots[0]).not.toMatch(/[ap]m/i);
     expect(r.tile?.kind).toBe("bsr_job");
     if (r.tile?.kind === "bsr_job") {
       expect(r.tile.data.id).toBe("j1");

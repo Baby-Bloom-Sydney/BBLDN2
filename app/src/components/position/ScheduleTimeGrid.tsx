@@ -6,6 +6,7 @@ import { Calendar, Loader2 } from "lucide-react";
 import {
   TIME_BRACKETS,
   BRACKET_KEYS,
+  formatClockHourMinute,
   getBracketTimeOptions,
   localToUTC,
 } from "@/lib/timezone";
@@ -55,10 +56,7 @@ export function ScheduleTimeGrid({
     const [date] = selectedSlot.split("_");
     const d = new Date(date + "T00:00:00");
     const dayStr = d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
-    const h = selectedHour > 12 ? selectedHour - 12 : selectedHour;
-    const ampm = selectedHour >= 12 ? "pm" : "am";
-    const m = selectedMinute.toString().padStart(2, "0");
-    return `${dayStr} at ${h}:${m}${ampm}`;
+    return `${dayStr} at ${formatClockHourMinute(selectedHour, selectedMinute)}`;
   };
 
   const handleConfirm = () => {

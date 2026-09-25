@@ -3,15 +3,20 @@
  * All datetimes on BabyBloom are in `APP_TZ` — no per-user conversions.
  */
 
-import { APP_TZ } from '@/lib/constants';
+import { APP_LOCALE, APP_TZ } from '@/lib/constants';
 
 // ── Time Brackets ──
 
+// Sublabels read on the same 24-hour clock as the options inside them
+// (`getBracketTimeOptions`): `ParentConnectionsClient` renders the sublabel as
+// the header directly above that grid, so a 12-hour header over 24-hour options
+// would put two clocks in one control. Display only — what is stored for a
+// chosen slot is the bracket *key*, never this string.
 export const TIME_BRACKETS = {
-  morning: { label: 'Morning', sublabel: '8am – 11am', startHour: 8, endHour: 11 },
-  midday: { label: 'Midday', sublabel: '11am – 2pm', startHour: 11, endHour: 14 },
-  afternoon: { label: 'Afternoon', sublabel: '2pm – 5pm', startHour: 14, endHour: 17 },
-  evening: { label: 'Evening', sublabel: '5pm – 8pm', startHour: 17, endHour: 20 },
+  morning: { label: 'Morning', sublabel: '08:00 – 11:00', startHour: 8, endHour: 11 },
+  midday: { label: 'Midday', sublabel: '11:00 – 14:00', startHour: 11, endHour: 14 },
+  afternoon: { label: 'Afternoon', sublabel: '14:00 – 17:00', startHour: 14, endHour: 17 },
+  evening: { label: 'Evening', sublabel: '17:00 – 20:00', startHour: 17, endHour: 20 },
 } as const;
 
 export type BracketKey = keyof typeof TIME_BRACKETS;
@@ -138,7 +143,7 @@ export function getNext7Days(): { date: string; dayLabel: string; dateLabel: str
 
 /**
  * Generate 15-minute interval time options within a bracket.
- * Returns array of { hour, minute, label } e.g. { hour: 14, minute: 30, label: "2:30 PM" }
+ * Returns array of { hour, minute, label } e.g. { hour: 14, minute: 30, label: "14:30" }
  */
 export function getBracketTimeOptions(bracket: BracketKey): { hour: number; minute: number; label: string }[] {
   const { startHour, endHour } = TIME_BRACKETS[bracket];
@@ -146,14 +151,7 @@ export function getBracketTimeOptions(bracket: BracketKey): { hour: number; minu
 
   for (let h = startHour; h < endHour; h++) {
     for (let m = 0; m < 60; m += 15) {
-      const period = h >= 12 ? 'PM' : 'AM';
-      const displayHour = h > 12 ? h - 12 : (h as number) === 0 ? 12 : h;
-      const displayMin = m.toString().padStart(2, '0');
-      options.push({
-        hour: h,
-        minute: m,
-        label: `${displayHour}:${displayMin} ${period}`,
-      });
+      options.push({ hour: h, minute: m, label: formatClockHourMinute(h, m) });
     }
   }
 
@@ -170,4 +168,42 @@ export function getBracketForHour(hour: number): BracketKey | null {
     }
   }
   return null;
+}
+
+// ── The one clock ──
+
+/**
+ * Render a **wall-clock** hour and minute on the locale's clock.
+ *
+ * `APP_LOCALE` is `en-GB`, so this is 24-hour: `19:47`, `06:00`, `00:15`. Every
+ * time label in the app goes through here or through `formatClockTime` below,
+ * so the nanny, the parent, the public share page, the outbound post and the
+ * emails all read one job the same way (LDN2 W-12).
+ *
+ * `timeZone: 'UTC'` over a UTC-constructed date is deliberate and is **not** a
+ * missing `APP_TZ`. The inputs here are already London wall-clock values — the
+ * `start_time`/`end_time` `"HH:MM"` columns, or an hour a user picked out of a
+ * grid. Formatting them through `APP_TZ` would apply the London offset a second
+ * time and move every slot by an hour under BST. `APP_TZ` belongs on
+ * **instants** (`formatLondonDate` above); this pair is for wall clocks.
+ */
+export function formatClockHourMinute(hour: number, minute: number): string {
+  return new Date(Date.UTC(2000, 0, 1, hour, minute)).toLocaleTimeString(APP_LOCALE, {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'UTC',
+  });
+}
+
+/**
+ * Render an `"HH:MM"` wall-clock string on the locale's clock.
+ * Anything that is not a time is returned unchanged, so a malformed column
+ * value surfaces as itself rather than as `NaN:NaN`.
+ */
+export function formatClockTime(time: string): string {
+  const [hRaw, mRaw] = time.split(':');
+  const hour = Number(hRaw);
+  const minute = Number(mRaw);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return time;
+  return formatClockHourMinute(hour, minute);
 }
