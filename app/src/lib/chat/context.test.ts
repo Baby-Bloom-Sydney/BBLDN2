@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { interpolate, __resetPromptCache } from "./context";
+import {
+  interpolate,
+  __resetPromptCache,
+  buildRuntimeContext,
+} from "./context";
+import { APP_LOCALE, APP_TZ, BRAND } from "@/lib/constants";
 
 // Mock the supabase admin client. All DB calls flow through this mock.
 vi.mock("@/lib/supabase/admin", () => ({
@@ -356,5 +361,45 @@ describe("buildSystemPrompt", () => {
     // The feed module's fallback fragment must NOT leak in when the DB
     // row is present, otherwise admin Katie edits get shadowed.
     expect(prompt).not.toContain("Use `read_recent_feed` to see");
+  });
+});
+
+/**
+ * 12.11 / 12.02 — the runtime header is the block prefixed to EVERY Katie turn,
+ * so it is the one place where a wrong city or zone reaches every user at once.
+ * `KATIE_ENABLED` is off locally and no provider key is configured, so this is
+ * the render proof for unit 2h in place of a live exchange: it calls the real
+ * builder and reads the real string.
+ */
+describe("buildRuntimeContext — the place facts Katie is told every turn", () => {
+  const ctx = {
+    botId: "bot-1",
+    userId: "user-1",
+    role: "nanny",
+    effectiveRole: "nanny",
+    userName: "Sophie",
+    children: [],
+  } as unknown as Parameters<typeof buildRuntimeContext>[0];
+
+  it("names the configured city, not the one the code was written for", () => {
+    const header = buildRuntimeContext(ctx);
+    expect(header).toContain(`Local time (${BRAND.city})`);
+    expect(header).toContain("Local time (London)");
+  });
+
+  it("renders the day and the local time in the configured zone", () => {
+    const now = new Date();
+    const header = buildRuntimeContext(ctx);
+    expect(header).toContain(
+      `Day: ${now.toLocaleString(APP_LOCALE, { weekday: "long", timeZone: APP_TZ })}`,
+    );
+    expect(header).toContain(
+      now.toLocaleString(APP_LOCALE, {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: APP_TZ,
+      }),
+    );
   });
 });

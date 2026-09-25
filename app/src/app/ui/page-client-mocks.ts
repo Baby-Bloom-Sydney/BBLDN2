@@ -509,7 +509,7 @@ export const MOCK_POSITION_SHARE_DATA = {
   profilePicUrl: null as string | null,
   suburb: "Hackney",
   sharePost:
-    "Looking for an amazing nanny in Hackney! We need someone warm and experienced for our two little ones (18mo and 3yo). Part-time, Mon/Wed/Fri. If you know a great nanny, tag them below! #SydneyNanny #BabyBloom",
+    "Looking for an amazing nanny in Hackney! We need someone warm and experienced for our two little ones (18mo and 3yo). Part-time, Mon/Wed/Fri. If you know a great nanny, tag them below! #LondonNanny #BabyBloom",
   children: [
     { ageMonths: 18, gender: "female" },
     { ageMonths: 42, gender: "male" },
@@ -651,7 +651,7 @@ export const MOCK_BSR_SHARE_DATA = {
   profilePicUrl: null as string | null,
   suburb: "Hackney",
   sharePost:
-    "Need a babysitter in Hackney this Saturday evening! 6pm-10pm for two kids (2yo and 4yo). Know someone great? Tag them! #SydneyBabysitter #BabyBloom",
+    "Need a babysitter in Hackney this Saturday evening! 6pm-10pm for two kids (2yo and 4yo). Know someone great? Tag them! #LondonBabysitter #BabyBloom",
   timeSlots: [
     { slot_date: "2026-03-15", start_time: "18:00", end_time: "22:00" },
   ],
