@@ -114,3 +114,14 @@ export const MATCHING_WEIGHTS = {
 } as const;
 
 export const BSR_NOTIFICATION_LIMIT = 20;
+
+/**
+ * The AWS region the Supabase project is hosted in. A hosting region is
+ * configuration, never a literal in a body (ADR-171): it is displayed by
+ * the super-admin console and the legal stage writes the same value into
+ * the policy documents, which today disagree with each other (Q-6). One
+ * value, so they cannot. 12.NEW — BB-LDN-2g-250926.
+ *
+ * Distinct from `BRAND.region`, which is where families live.
+ */
+export const SUPABASE_REGION = "eu-west-2";
