@@ -149,19 +149,14 @@ describe("BRAND", () => {
   });
 });
 
-describe("no Sydney survives in the source", () => {
-  it.each([
-    ["SITE_NAME", SITE_NAME],
-    ["SITE_DESCRIPTION", SITE_DESCRIPTION],
-    ["SITE_DOMAIN", SITE_DOMAIN],
-    ["BRAND.city", BRAND.city],
-    ["BRAND.region", BRAND.region],
-    ["BRAND.country", BRAND.country],
-  ])("%s mentions no Australian place", (_label, value) => {
-    expect(value).not.toMatch(/sydney|nsw|australia/i);
-  });
-
-  it("SITE_DESCRIPTION is non-empty", () => {
+describe("SITE_DESCRIPTION", () => {
+  it("is non-empty", () => {
+    // Deliberately not asserted beyond this: it is marked @pending:copy
+    // and BAI rewords it. Whether any Australian place name survives
+    // anywhere in the tree is the london-sweep gate's job, whole-tree —
+    // re-implementing that check inside a unit test would duplicate the
+    // gate and, because the assertion has to spell the words out, would
+    // itself become a gate hit.
     expect(SITE_DESCRIPTION.trim().length).toBeGreaterThan(0);
   });
 });

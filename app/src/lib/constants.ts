@@ -52,7 +52,10 @@ export const SITE_URL = stripTrailingSlash(
   process.env.NEXT_PUBLIC_SITE_URL || DEFAULT_SITE_URL,
 );
 
-/** The place facts. 12.01 / 12.08 — `?? "Sydney"` and `country: "Australia"` read these. */
+/**
+ * The place facts. 12.01 / 12.08 — the scattered city fallbacks and the
+ * hardcoded country literals are re-pointed here by 2e and 2f.
+ */
 export const BRAND = {
   name: SITE_NAME,
   city: "London",
@@ -76,7 +79,7 @@ export const SUPPORT_INBOX = SENDERS.support;
 
 /**
  * ADR-171 — the trading entity's legal name is not ours to invent. The
- * sentinel ships wherever `Pty Ltd` / ABN lines used to sit; a test
+ * sentinel ships wherever the old entity and registration lines sat; a test
  * asserts it is *still* a sentinel, so the real name arrives as a
  * deliberate change rather than a plausible string.
  */
