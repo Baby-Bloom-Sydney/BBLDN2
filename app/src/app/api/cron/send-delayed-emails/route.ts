@@ -4,7 +4,7 @@ import { sendEmail } from '@/lib/email/resend';
 import { getUserEmailInfo } from '@/lib/email/helpers';
 import { createInboxMessage } from '@/lib/actions/connection-helpers';
 import { emailFooter } from "@/lib/email/brand";
-import { SITE_URL } from "@/lib/constants";
+import { SENDERS, SITE_NAME, SITE_URL } from "@/lib/constants";
 
 /**
  * Cron endpoint: checks for verification failures older than 10 minutes
@@ -459,7 +459,7 @@ export async function GET(request: NextRequest) {
     await sendEmail({
       to: userInfo.email,
       subject,
-      ...(isLcy104 ? { from: 'Baby Bloom <hello@babybloomsydney.com.au>' } : {}),
+      ...(isLcy104 ? { from: `${SITE_NAME} <${SENDERS.hello}>` } : {}),
       html: buildLcyHtml(heading, bodyParagraphs, ctaText, appUrl),
       emailType: 'verification_reminder',
       recipientUserId: v.user_id,

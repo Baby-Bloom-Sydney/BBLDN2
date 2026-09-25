@@ -25,7 +25,7 @@ import { createInboxMessage } from '@/lib/actions/connection-helpers';
 import { openai } from '@/lib/ai/client';
 import { V2_SYSTEM_PROMPT, buildV2Prompt, parseAIProfileSections, generateV2Checklist } from '@/lib/ai/nanny-profile-prompts';
 import { emailHeader, emailFooter } from "@/lib/email/brand";
-import { SITE_URL } from "@/lib/constants";
+import { ADMIN_FROM_ADDRESSES, SITE_URL } from "@/lib/constants";
 
 // ── Helper: require admin role ──
 
@@ -699,15 +699,6 @@ export async function adminRegenerateNannyBio(
 
 // ── Admin: Send Email to User ──
 
-const ALLOWED_FROM_ADDRESSES = [
-  'no-reply@babybloomsydney.com.au',
-  'verification@babybloomsydney.com.au',
-  'nannies@babybloomsydney.com.au',
-  'support@babybloomsydney.com.au',
-  'contact@babybloomsydney.com.au',
-  'parents@babybloomsydney.com.au',
-];
-
 export async function adminSendEmail(params: {
   toEmail: string;
   toUserId: string;
@@ -724,7 +715,7 @@ export async function adminSendEmail(params: {
     return { success: false, error: 'Email, subject, and body are required' };
   }
 
-  if (!ALLOWED_FROM_ADDRESSES.includes(fromAddress)) {
+  if (!(ADMIN_FROM_ADDRESSES as readonly string[]).includes(fromAddress)) {
     return { success: false, error: 'Invalid from address' };
   }
 

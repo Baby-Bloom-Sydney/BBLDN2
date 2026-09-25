@@ -78,6 +78,26 @@ export const SENDERS = {
 export const SUPPORT_INBOX = SENDERS.support;
 
 /**
+ * The addresses the admin console may send "as". Sydney kept this list
+ * twice — once server-side in `actions/admin.ts` and once client-side in
+ * `ContactUserModal` — and the two had to stay byte-identical for the
+ * server's validation to accept the modal's own picker value. It lives
+ * here because `actions/admin.ts` is a `'use server'` module and cannot
+ * export a constant. 12.07, BB-LDN-2f-250926.
+ *
+ * The four local parts that are not in `SENDERS` exist only on this
+ * console; they are built from the one domain so they cannot drift.
+ */
+export const ADMIN_FROM_ADDRESSES = [
+  SENDERS.noreply,
+  `verification@${SITE_DOMAIN}`,
+  `nannies@${SITE_DOMAIN}`,
+  SENDERS.support,
+  `contact@${SITE_DOMAIN}`,
+  `parents@${SITE_DOMAIN}`,
+] as const;
+
+/**
  * ADR-171 — the trading entity's legal name is not ours to invent. The
  * sentinel ships wherever the old entity and registration lines sat; a test
  * asserts it is *still* a sentinel, so the real name arrives as a

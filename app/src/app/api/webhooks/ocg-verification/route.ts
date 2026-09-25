@@ -6,7 +6,7 @@ import { parseOCGEmail } from '@/lib/verification/parse-ocg-email';
 import { sendEmail } from '@/lib/email/resend';
 import { getUserEmailInfo } from '@/lib/email/helpers';
 import { emailFooter } from "@/lib/email/brand";
-import { SITE_URL } from "@/lib/constants";
+import { SENDERS, SITE_URL } from "@/lib/constants";
 
 // ── OCG Result Status Categories ──
 // These MUST match the exact strings from the OCG portal email
@@ -440,7 +440,7 @@ async function sendOCGResultEmails(
     });
 
     // VER-011: Admin notification
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@babybloomsydney.com.au';
+    const adminEmail = process.env.ADMIN_EMAIL || SENDERS.admin;
     await sendEmail({
       to: adminEmail,
       subject: `BARRED nanny account suspended: ${userInfo.firstName} ${userInfo.lastName}`,

@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { SITE_DOMAIN } from "@/lib/constants";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -130,7 +131,7 @@ export async function computeSnapshot(): Promise<SectionSnapshot[]> {
     admin.from("bsr_notifications").select("id, babysitting_request_id, nanny_id, notified_at, viewed_at, requested_at, accepted_at, declined_at, created_at").then((r: any) => r, () => ({ data: null })),
     admin.from("nanny_positions").select("id, parent_id, dfy_activated_at, dfy_tier, dfy_expires_at, source, created_at").not('dfy_activated_at', 'is', null).eq("source", "parent").then((r: any) => r, () => ({ data: null })),
     admin.from("user_profiles").select("user_id").eq("is_test", true).then((r: any) => r, () => ({ data: [] })),
-    admin.from("user_profiles").select("user_id").ilike("email", "%babybloomsydney.com.au"),
+    admin.from("user_profiles").select("user_id").ilike("email", `%${SITE_DOMAIN}`),
     admin.from("page_visits").select("visitor_id, referrer_source, page_path, created_at"),
     admin.from("page_visits").select("visitor_id, created_at").or("page_path.like./apply/nanny%,page_path.eq./apply"),
     admin.from("nannies").select("id, user_id, verification_level, visible_in_bsr, created_at, updated_at"),
