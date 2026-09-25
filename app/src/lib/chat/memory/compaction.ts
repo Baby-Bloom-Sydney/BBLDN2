@@ -17,6 +17,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generate } from "@/lib/ai/gemini-client";
+import { APP_LOCALE } from "@/lib/constants";
 
 interface Message {
   role: string;
@@ -38,7 +39,7 @@ export function dayWindow(dateIso: string, timezone: string): DayWindow {
   // Approximate: noon UTC on the same day is safely inside the target
   // timezone's calendar date; then we compute offset from formatter.
   const probe = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
-  const fmt = new Intl.DateTimeFormat("en-US", {
+  const fmt = new Intl.DateTimeFormat(APP_LOCALE, {
     timeZone: timezone,
     year: "numeric",
     month: "2-digit",

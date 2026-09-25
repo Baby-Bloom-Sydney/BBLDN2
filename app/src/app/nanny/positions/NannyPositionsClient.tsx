@@ -65,7 +65,7 @@ import Link from "next/link";
 function formatStartWeekDisplay(dateStr: string): string {
   if (dateStr === "tbc") return "Start week to be confirmed";
   const d = new Date(dateStr + "T00:00:00");
-  const label = d.toLocaleDateString("en-AU", {
+  const label = d.toLocaleDateString("en-GB", {
     day: "numeric",
     month: "long",
   });
@@ -451,7 +451,7 @@ export function NannyPositionsClient({
                             placement.startDate + "T00:00:00",
                           );
                           const isPast = startMon <= new Date();
-                          const label = startMon.toLocaleDateString("en-AU", {
+                          const label = startMon.toLocaleDateString("en-GB", {
                             day: "numeric",
                             month: "short",
                           });
@@ -846,7 +846,7 @@ export function NannyPositionsClient({
                             placement.startDate + "T00:00:00",
                           );
                           const isPast = startMon <= new Date();
-                          const label = startMon.toLocaleDateString("en-AU", {
+                          const label = startMon.toLocaleDateString("en-GB", {
                             day: "numeric",
                             month: "long",
                           });

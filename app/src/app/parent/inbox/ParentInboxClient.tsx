@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 function formatDate(date: string): string {
-  return new Date(date).toLocaleDateString("en-AU", {
+  return new Date(date).toLocaleDateString("en-GB", {
     weekday: "short",
     day: "numeric",
     month: "short",

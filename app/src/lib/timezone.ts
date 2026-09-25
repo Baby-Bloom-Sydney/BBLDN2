@@ -24,7 +24,7 @@ export const BRACKET_KEYS: BracketKey[] = ['morning', 'midday', 'afternoon', 'ev
  */
 export function formatSydneyDate(isoString: string): string {
   const date = new Date(isoString);
-  return date.toLocaleDateString('en-AU', {
+  return date.toLocaleDateString('en-GB', {
     timeZone: SYDNEY_TZ,
     weekday: 'short',
     day: 'numeric',
@@ -39,7 +39,7 @@ export function formatSydneyDate(isoString: string): string {
  */
 export function formatSydneyDateOnly(isoString: string): string {
   const date = new Date(isoString);
-  return date.toLocaleDateString('en-AU', {
+  return date.toLocaleDateString('en-GB', {
     timeZone: SYDNEY_TZ,
     day: 'numeric',
     month: 'short',
@@ -118,7 +118,7 @@ export function getNext7Days(): { date: string; dayLabel: string; dateLabel: str
     const future = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
 
     // Format in Sydney timezone
-    const parts = new Intl.DateTimeFormat('en-AU', {
+    const parts = new Intl.DateTimeFormat('en-GB', {
       timeZone: SYDNEY_TZ,
       year: 'numeric',
       month: '2-digit',
@@ -134,7 +134,7 @@ export function getNext7Days(): { date: string; dayLabel: string; dateLabel: str
     const weekday = get('weekday');
 
     // Month name for display
-    const monthName = new Intl.DateTimeFormat('en-AU', {
+    const monthName = new Intl.DateTimeFormat('en-GB', {
       timeZone: SYDNEY_TZ,
       month: 'short',
     }).format(future);

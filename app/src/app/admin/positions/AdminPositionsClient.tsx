@@ -118,7 +118,7 @@ function timeAgo(dateStr: string): string {
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+  return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
 function matchesStageFilter(pos: AdminPosition, filter: StageFilter): boolean {

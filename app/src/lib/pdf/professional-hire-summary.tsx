@@ -101,7 +101,7 @@ export function ProfessionalHireSummaryPDF({
 
         <View style={styles.footer}>
           <Text>Baby Bloom Sydney</Text>
-          <Text>Document generated: {new Date().toLocaleDateString('en-AU')}</Text>
+          <Text>Document generated: {new Date().toLocaleDateString('en-GB')}</Text>
           <Text>This document is for your records. Please retain it for the duration of the arrangement.</Text>
         </View>
       </Page>

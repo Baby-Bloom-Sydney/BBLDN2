@@ -278,7 +278,7 @@ function buildWhatYouGet(p: PublicPositionProfile): string[] {
     items.push("Start right away — the family is ready for you");
   } else if (p.startDate) {
     const d = new Date(p.startDate);
-    const label = d.toLocaleDateString("en-AU", {
+    const label = d.toLocaleDateString("en-GB", {
       day: "numeric",
       month: "long",
     });

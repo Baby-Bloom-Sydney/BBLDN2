@@ -301,8 +301,8 @@ function ConnectionDetailModal({
   const formatDate = (dateStr: string) => {
     const [y, m, d] = dateStr.split("-").map(Number);
     const date = new Date(y, m - 1, d);
-    const weekday = date.toLocaleDateString("en-AU", { weekday: "short" });
-    const day = date.toLocaleDateString("en-AU", {
+    const weekday = date.toLocaleDateString("en-GB", { weekday: "short" });
+    const day = date.toLocaleDateString("en-GB", {
       day: "numeric",
       month: "short",
     });

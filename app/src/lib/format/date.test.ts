@@ -1,6 +1,6 @@
 /**
- * Regression: Node 25's ICU returns "June" for BOTH month: "long"
- * and month: "short" on en-AU, causing React hydration mismatches
+ * Regression: a Node ICU build returns "June" for BOTH month: "long"
+ * and month: "short", causing React hydration mismatches
  * (server "June" vs browser "Jun"). These helpers must produce
  * deterministic output regardless of runtime.
  *

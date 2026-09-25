@@ -105,7 +105,7 @@ export function IDCheckModal({ check, open, onOpenChange }: IDCheckModalProps) {
 
   function formatDate(dateStr: string | null): string {
     if (!dateStr) return "-";
-    return new Date(dateStr).toLocaleDateString("en-AU", {
+    return new Date(dateStr).toLocaleDateString("en-GB", {
       day: "numeric",
       month: "short",
       year: "numeric",

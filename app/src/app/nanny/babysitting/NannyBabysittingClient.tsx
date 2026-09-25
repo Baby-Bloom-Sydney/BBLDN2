@@ -49,7 +49,7 @@ function formatTimeLeft(expiresAt: string | null): { text: string; urgent: boole
 
 function formatSlotDate(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+  return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 }
 
 function formatTime(time: string): string {
@@ -136,7 +136,7 @@ export function NannyBabysittingClient({ jobs, banned, banUntil, hideHeader, sha
             <p className="text-sm text-red-700 mt-0.5">
               Due to multiple cancellations, you are suspended from accepting babysitting
               jobs until{" "}
-              {new Date(banUntil).toLocaleDateString("en-AU", {
+              {new Date(banUntil).toLocaleDateString("en-GB", {
                 day: "numeric",
                 month: "long",
                 year: "numeric",
@@ -526,7 +526,7 @@ function JobDetailModal({
               {job.expires_at && (
                 <p className="text-xs text-slate-400">
                   Expires{" "}
-                  {new Date(job.expires_at).toLocaleString("en-AU", {
+                  {new Date(job.expires_at).toLocaleString("en-GB", {
                     weekday: "short",
                     day: "numeric",
                     month: "short",
@@ -851,7 +851,7 @@ function JobDetailModal({
 
           <p className="text-xs text-slate-400">
             Notified{" "}
-            {new Date(job.notification.notifiedAt).toLocaleDateString("en-AU", {
+            {new Date(job.notification.notifiedAt).toLocaleDateString("en-GB", {
               day: "numeric",
               month: "short",
               year: "numeric",

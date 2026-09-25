@@ -334,7 +334,7 @@ export function WWCCSection({ verification, identityVerified, onSaved }: WWCCSec
               <p>WWCC: {verification.wwcc_number}</p>
             )}
             {verification?.wwcc_expiry_date && (
-              <p>Expiry: {new Date(verification.wwcc_expiry_date).toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" })}</p>
+              <p>Expiry: {new Date(verification.wwcc_expiry_date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })}</p>
             )}
           </div>
         )}
@@ -520,7 +520,7 @@ export function WWCCSection({ verification, identityVerified, onSaved }: WWCCSec
                     <CheckCircle2 className="h-5 w-5" />
                     <span className="text-sm font-semibold">
                       Valid WWCC — {pdfResult.extracted.wwcc_number}
-                      {pdfResult.extracted.expiry && `, expires ${new Date(pdfResult.extracted.expiry).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}`}
+                      {pdfResult.extracted.expiry && `, expires ${new Date(pdfResult.extracted.expiry).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`}
                     </span>
                   </div>
                   {pdfResult.issues.some(i => i.includes("expires within")) && (

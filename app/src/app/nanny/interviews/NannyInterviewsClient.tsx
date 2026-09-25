@@ -105,7 +105,7 @@ export function NannyInterviewsClient({ requests }: NannyInterviewsClientProps) 
                         className="h-4 w-4 text-violet-600"
                       />
                       <span className="text-sm">
-                        {new Date(time).toLocaleString("en-AU", {
+                        {new Date(time).toLocaleString("en-GB", {
                           weekday: "short",
                           day: "numeric",
                           month: "short",
@@ -154,7 +154,7 @@ export function NannyInterviewsClient({ requests }: NannyInterviewsClientProps) 
               </div>
 
               <p className="text-xs text-slate-400">
-                Requested {new Date(request.created_at).toLocaleDateString()}
+                Requested {new Date(request.created_at).toLocaleDateString("en-GB")}
               </p>
             </CardContent>
           </Card>

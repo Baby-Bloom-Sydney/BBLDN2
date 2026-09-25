@@ -119,7 +119,7 @@ export function ChildManagementCard({ items, role }: ChildManagementCardProps) {
                   </p>
                   {child.date_of_birth && (
                     <p className="text-xs text-slate-500">
-                      Born {new Date(child.date_of_birth).toLocaleDateString()}
+                      Born {new Date(child.date_of_birth).toLocaleDateString("en-GB")}
                     </p>
                   )}
                 </div>

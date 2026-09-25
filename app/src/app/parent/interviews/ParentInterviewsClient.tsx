@@ -60,7 +60,7 @@ export function ParentInterviewsClient({ requests }: ParentInterviewsClientProps
               <div className="space-y-1">
                 {request.proposed_times.map((time, index) => (
                   <p key={index} className="text-sm text-slate-600">
-                    {new Date(time).toLocaleString("en-AU", {
+                    {new Date(time).toLocaleString("en-GB", {
                       weekday: "short",
                       day: "numeric",
                       month: "short",
@@ -81,7 +81,7 @@ export function ParentInterviewsClient({ requests }: ParentInterviewsClientProps
 
             <div className="flex justify-between items-center pt-2">
               <p className="text-xs text-slate-400">
-                Sent {new Date(request.created_at).toLocaleDateString()}
+                Sent {new Date(request.created_at).toLocaleDateString("en-GB")}
               </p>
               <Button
                 variant="outline"
