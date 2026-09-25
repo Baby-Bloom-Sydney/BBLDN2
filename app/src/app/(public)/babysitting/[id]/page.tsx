@@ -2,6 +2,7 @@ import { getPublicBsrProfile } from "@/lib/actions/babysitting";
 import { BsrJobView } from "./BsrJobView";
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
+import { BRAND, SITE_NAME, SITE_URL } from "@/lib/constants";
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
@@ -18,20 +19,20 @@ export async function generateMetadata({
   const { data: bsr } = await getPublicBsrProfile(params.id);
 
   if (!bsr) {
-    return { title: "Job Not Found | Baby Bloom Sydney" };
+    return { title: `Job Not Found | ${SITE_NAME}` };
   }
 
-  const suburb = bsr.suburb ?? "Sydney";
+  const suburb = bsr.suburb ?? BRAND.city;
   const dateStr = bsr.time_slots.length > 0
     ? formatDate(bsr.time_slots[0].slot_date)
     : "";
   const surname = bsr.parent_last_name ?? bsr.parent_first_name;
   const title = `The ${surname} family needs an experienced babysitter | apply now`;
   const description = dateStr
-    ? `Babysitter needed in ${suburb} on ${dateStr}. $${bsr.hourly_rate ?? 40}/hr. Apply on Baby Bloom Sydney.`
-    : `Babysitter needed in ${suburb}. $${bsr.hourly_rate ?? 40}/hr. Apply on Baby Bloom Sydney.`;
+    ? `Babysitter needed in ${suburb} on ${dateStr}. $${bsr.hourly_rate ?? 40}/hr. Apply on ${SITE_NAME}.`
+    : `Babysitter needed in ${suburb}. $${bsr.hourly_rate ?? 40}/hr. Apply on ${SITE_NAME}.`;
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://app-babybloom.vercel.app";
+  const siteUrl = SITE_URL;
   const ogImageUrl = `${siteUrl}/api/og/babysitting/${params.id}`;
   const pageUrl = `${siteUrl}/babysitting/${params.id}`;
 

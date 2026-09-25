@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { getPublicNannyProfile } from "@/lib/actions/nanny";
 import sharp from "sharp";
+import { BRAND } from "@/lib/constants";
 
 export async function GET(
   _request: Request,
@@ -12,7 +13,7 @@ export async function GET(
     return new Response("Nanny not found", { status: 404 });
   }
 
-  const suburb = nanny.suburb ?? "Sydney";
+  const suburb = nanny.suburb ?? BRAND.city;
   const profilePicUrl = nanny.profile_picture_url;
 
   // Fetch profile picture and use sharp to auto-rotate based on EXIF orientation
@@ -216,7 +217,7 @@ export async function GET(
             opacity: 0.33,
           }}
         >
-          {suburb}, Sydney
+          {suburb}, {BRAND.city}
         </div>
 
         {/* BabyBloom Logo */}

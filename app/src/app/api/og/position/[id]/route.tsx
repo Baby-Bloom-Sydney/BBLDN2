@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { getPublicPositionProfile } from "@/lib/actions/matching";
+import { BRAND } from "@/lib/constants";
 
 export async function GET(
   _request: Request,
@@ -11,7 +12,7 @@ export async function GET(
     return new Response("Position not found", { status: 404 });
   }
 
-  const suburb = position.suburb ?? "Sydney";
+  const suburb = position.suburb ?? BRAND.city;
   const hoursLabel = position.hoursPerWeek ? `${position.hoursPerWeek} hrs/wk` : "";
   const childCount = position.children.length;
   const childLabel = childCount === 1 ? "1 child" : `${childCount} children`;

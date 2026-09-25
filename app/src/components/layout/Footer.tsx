@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Logo } from "./Logo";
+import { BRAND, SITE_NAME } from "@/lib/constants";
 
 const footerLinks = {
   company: {
@@ -40,8 +41,8 @@ export function Footer() {
           <div className="lg:col-span-1">
             <Logo />
             <p className="mt-4 text-sm text-slate-600 max-w-xs">
-              Connecting Sydney families with trusted, verified nannies since
-              2020.
+              Connecting {BRAND.city} families with trusted, verified nannies
+              since 2020.
             </p>
           </div>
 
@@ -71,7 +72,7 @@ export function Footer() {
         <div className="mt-12 pt-8 border-t border-slate-200">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <p className="text-sm text-slate-500">
-              {currentYear} Baby Bloom Sydney. All rights reserved.
+              {currentYear} {SITE_NAME}. All rights reserved.
             </p>
             <div className="flex gap-6">
               <Link

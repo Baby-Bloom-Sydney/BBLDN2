@@ -1,7 +1,8 @@
 import type { MetadataRoute } from 'next';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { SITE_URL } from '@/lib/constants';
 
-const BASE_URL = 'https://babybloomsydney.com.au';
+const BASE_URL = SITE_URL;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const supabase = createAdminClient();

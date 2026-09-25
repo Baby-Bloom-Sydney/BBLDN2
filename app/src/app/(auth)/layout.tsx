@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { BRAND } from "@/lib/constants";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -27,7 +28,7 @@ export default function AuthLayout({
               <span className="text-slate-900">Baby</span>
               <span className="text-violet-500">Bloom</span>
             </div>
-            <p className="text-sm text-slate-500 mt-1">Sydney</p>
+            <p className="text-sm text-slate-500 mt-1">{BRAND.city}</p>
           </Link>
         </div>
 

@@ -6,6 +6,7 @@ import { ParentNannyProfileView } from "@/app/parent/browse/[id]/ParentNannyProf
 import { parseFunnelSource, parseFunnelLead } from "@/lib/funnel/source";
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
+import { BRAND, SITE_NAME, SITE_URL } from "@/lib/constants";
 
 export async function generateMetadata({
   params,
@@ -15,14 +16,14 @@ export async function generateMetadata({
   const { data: nanny } = await getPublicNannyProfile(params.id);
 
   if (!nanny) {
-    return { title: "Nanny Not Found | Baby Bloom Sydney" };
+    return { title: `Nanny Not Found | ${SITE_NAME}` };
   }
 
   const firstName = nanny.first_name ?? "Nanny";
   const title = `${firstName} now has availability to Nanny & Babysit | see availability now`;
 
   // Use AI bio summary or fallback
-  const suburb = nanny.suburb ?? "Sydney";
+  const suburb = nanny.suburb ?? BRAND.city;
   const bioSummary = nanny.ai_content?.bio_summary;
   const bioAbout =
     typeof bioSummary === "object" && bioSummary !== null
@@ -35,10 +36,9 @@ export async function generateMetadata({
       .replace(/<[^>]*>/g, "") // strip HTML tags
       .slice(0, 155)
       .trim() ||
-    `Find a verified, trusted nanny in ${suburb} on Baby Bloom Sydney.`;
+    `Find a verified, trusted nanny in ${suburb} on ${SITE_NAME}.`;
 
-  const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ?? "https://app-babybloom.vercel.app";
+  const siteUrl = SITE_URL;
   const ogImageUrl = `${siteUrl}/api/og/nanny-v2/${params.id}`;
   const pageUrl = `${siteUrl}/nannies/${params.id}`;
 
@@ -190,14 +190,14 @@ export default async function NannyProfilePage({
     image: nanny.profile_picture_url || undefined,
     address: {
       "@type": "PostalAddress",
-      addressLocality: nanny.suburb ?? "Sydney",
-      addressRegion: "NSW",
-      addressCountry: "AU",
+      addressLocality: nanny.suburb ?? BRAND.city,
+      addressRegion: "England",
+      addressCountry: BRAND.countryCode,
     },
     worksFor: {
       "@type": "Organization",
-      name: "Baby Bloom Sydney",
-      url: "https://babybloomsydney.com.au",
+      name: SITE_NAME,
+      url: SITE_URL,
     },
   };
 
@@ -209,19 +209,19 @@ export default async function NannyProfilePage({
         "@type": "ListItem",
         position: 1,
         name: "Home",
-        item: "https://babybloomsydney.com.au",
+        item: SITE_URL,
       },
       {
         "@type": "ListItem",
         position: 2,
         name: "Nannies",
-        item: "https://babybloomsydney.com.au/nannies",
+        item: `${SITE_URL}/nannies`,
       },
       {
         "@type": "ListItem",
         position: 3,
         name: nanny.first_name ?? "Nanny",
-        item: `https://babybloomsydney.com.au/nannies/${params.id}`,
+        item: `${SITE_URL}/nannies/${params.id}`,
       },
     ],
   };

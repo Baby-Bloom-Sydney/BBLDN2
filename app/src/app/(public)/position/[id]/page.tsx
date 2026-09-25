@@ -5,6 +5,7 @@ import { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CONNECTION_STAGE } from "@/lib/position/constants";
+import { BRAND, SITE_NAME, SITE_URL } from "@/lib/constants";
 
 export async function generateMetadata({
   params,
@@ -14,10 +15,10 @@ export async function generateMetadata({
   const { data: position } = await getPublicPositionProfile(params.id);
 
   if (!position) {
-    return { title: "Job Not Found | Baby Bloom Sydney" };
+    return { title: `Job Not Found | ${SITE_NAME}` };
   }
 
-  const suburb = position.suburb ?? "Sydney";
+  const suburb = position.suburb ?? BRAND.city;
   const isAdmin = position.source && position.source !== "parent";
   const familyLabel = isAdmin
     ? position.parentFirstName
@@ -31,13 +32,12 @@ export async function generateMetadata({
     `Nanny needed in ${suburb}.`,
     daysStr ? `${daysStr}.` : "",
     hoursStr,
-    "Apply on Baby Bloom Sydney.",
+    `Apply on ${SITE_NAME}.`,
   ]
     .filter(Boolean)
     .join(" ");
 
-  const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ?? "https://app-babybloom.vercel.app";
+  const siteUrl = SITE_URL;
   const ogImageUrl = `${siteUrl}/api/og/position/${params.id}`;
   const pageUrl = `${siteUrl}/position/${params.id}`;
 

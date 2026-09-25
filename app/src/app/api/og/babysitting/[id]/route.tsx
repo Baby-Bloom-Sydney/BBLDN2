@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { getPublicBsrProfile } from "@/lib/actions/babysitting";
+import { BRAND } from "@/lib/constants";
 
 export async function GET(
   _request: Request,
@@ -11,7 +12,7 @@ export async function GET(
     return new Response("Babysitting request not found", { status: 404 });
   }
 
-  const suburb = bsr.suburb ?? "Sydney";
+  const suburb = bsr.suburb ?? BRAND.city;
   const rate = bsr.hourly_rate ? `$${bsr.hourly_rate}/hr` : "";
   const childCount = bsr.children.length;
   const childLabel = childCount === 1 ? "1 child" : `${childCount} children`;

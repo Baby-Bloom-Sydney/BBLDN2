@@ -1,8 +1,9 @@
 import { Metadata } from 'next';
+import { BRAND, SITE_NAME } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: 'Apply to Nanny with Baby Bloom',
-  description: 'Join Baby Bloom as a professional nanny in Sydney. Complete your application and get matched with families.',
+  description: `Join ${SITE_NAME} as a professional nanny in ${BRAND.city}. Complete your application and get matched with families.`,
 };
 
 export default function ApplyNannyLayout({

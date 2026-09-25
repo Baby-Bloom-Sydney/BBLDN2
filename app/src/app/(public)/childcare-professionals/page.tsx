@@ -13,14 +13,18 @@ import {
   Sparkles,
   CheckCircle,
 } from "lucide-react";
+import { BRAND, SITE_NAME } from "@/lib/constants";
+
+const PRO_TITLE = `Work as a Nanny in ${BRAND.city}`;
+const PRO_DESCRIPTION = `Join ${SITE_NAME} as a childcare professional in ${BRAND.city}. Get matched with local families who value quality early childhood education and care.`;
 
 export const metadata: Metadata = {
-  title: 'Work as a Nanny in Sydney',
-  description: 'Join Baby Bloom as a childcare professional in Sydney. Get matched with local families who value quality early childhood education and care.',
+  title: PRO_TITLE,
+  description: PRO_DESCRIPTION,
   alternates: { canonical: '/childcare-professionals' },
   openGraph: {
-    title: 'Work as a Nanny in Sydney | Baby Bloom',
-    description: 'Join Baby Bloom as a childcare professional in Sydney. Get matched with local families who value quality early childhood education and care.',
+    title: `${PRO_TITLE} | Baby Bloom`,
+    description: PRO_DESCRIPTION,
   },
 };
 
@@ -133,7 +137,7 @@ export default function ForNanniesPage() {
               Work with families who value what you do
             </h1>
             <p className="mt-6 text-lg md:text-xl text-slate-500 leading-relaxed max-w-2xl">
-              Education-focused nannies matched with Sydney families who care
+              Education-focused nannies matched with {BRAND.city} families who care
               about child development. No commission. No middleman. Meaningful
               work with the right people.
             </p>
