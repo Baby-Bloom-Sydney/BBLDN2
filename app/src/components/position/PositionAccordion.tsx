@@ -118,7 +118,7 @@ function buildWhatYouGet(p: PositionAccordionData): string[] {
     items.push('Start right away — the family is ready for you');
   } else if (p.startDate) {
     const d = new Date(p.startDate);
-    const label = d.toLocaleDateString('en-AU', { day: 'numeric', month: 'long' });
+    const label = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
     items.push(`Start date: ${label}`);
   }
   if (isOngoing) items.push('Long-term position — not just a short gig');

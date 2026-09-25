@@ -49,7 +49,7 @@ function relativeDate(dateStr: string): string {
   if (diffHr < 24) return `${diffHr}h ago`;
   const diffDay = Math.floor(diffHr / 24);
   if (diffDay < 7) return `${diffDay}d ago`;
-  return new Date(dateStr).toLocaleDateString("en-AU", {
+  return new Date(dateStr).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
   });
@@ -57,7 +57,7 @@ function relativeDate(dateStr: string): string {
 
 /** Format a stable date string for SSR (no relative time) */
 function stableDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-AU", {
+  return new Date(dateStr).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
   });

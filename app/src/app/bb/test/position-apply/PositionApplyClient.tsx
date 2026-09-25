@@ -69,7 +69,7 @@ function getProjectedDates(availability: Record<string, string[]>): Array<{ date
     if (brackets && brackets.length > 0) {
       result.push({
         date: d.toISOString().split('T')[0],
-        dayLabel: d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }),
+        dayLabel: d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }),
         dayKey: dayName,
         brackets,
       });

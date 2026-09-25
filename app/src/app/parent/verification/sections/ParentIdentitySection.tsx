@@ -407,7 +407,7 @@ export function ParentIdentitySection({ verification, documentType, onSaved, onM
               <p>Full Name: {verification.given_names} {verification.surname}</p>
             )}
             {(verification?.date_of_birth || dob) && (
-              <p>Date of Birth: {new Date(verification?.date_of_birth || dob).toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" })}</p>
+              <p>Date of Birth: {new Date(verification?.date_of_birth || dob).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })}</p>
             )}
             <p>Document Type: {documentType === "passport" ? "Passport" : "Driver's License"}</p>
             {documentType === "passport" ? (

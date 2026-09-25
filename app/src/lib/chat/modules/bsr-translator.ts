@@ -147,11 +147,11 @@ export function formatSlot(slot: {
   end_time: string;
 }): string {
   const d = new Date(slot.slot_date + "T00:00:00");
-  const day = d.toLocaleDateString("en-AU", {
+  const day = d.toLocaleDateString("en-GB", {
     weekday: "short",
     timeZone: "Australia/Sydney",
   });
-  const date = d.toLocaleDateString("en-AU", {
+  const date = d.toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
     timeZone: "Australia/Sydney",
@@ -201,7 +201,7 @@ export function banText(banUntil: string | null): string | null {
   if (!banUntil) return null;
   const d = new Date(banUntil);
   if (!Number.isFinite(d.getTime())) return null;
-  const until = d.toLocaleDateString("en-AU", {
+  const until = d.toLocaleDateString("en-GB", {
     day: "numeric",
     month: "long",
     year: "numeric",

@@ -139,11 +139,11 @@ export function ConnectionProgress({
         // Date context for intro time or trial date
         let dateText: string | null = null;
         if (text && confirmedTime && currentStage === CONNECTION_STAGE.INTRO_SCHEDULED)
-          dateText = new Date(confirmedTime).toLocaleDateString("en-AU", {
+          dateText = new Date(confirmedTime).toLocaleDateString("en-GB", {
             weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit",
           });
         if (text && trialDate && currentStage === CONNECTION_STAGE.TRIAL_ARRANGED)
-          dateText = new Date(trialDate + "T00:00:00").toLocaleDateString("en-AU", {
+          dateText = new Date(trialDate + "T00:00:00").toLocaleDateString("en-GB", {
             weekday: "short", day: "numeric", month: "short",
           });
 

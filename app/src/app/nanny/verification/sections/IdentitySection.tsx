@@ -440,7 +440,7 @@ export function IdentitySection({ verification, locked, profileData, onSaved, on
               <p>Full Name: {verification.given_names} {verification.surname}</p>
             )}
             {(verification?.date_of_birth || dob) && (
-              <p>Date of Birth: {new Date(verification?.date_of_birth || dob).toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" })}</p>
+              <p>Date of Birth: {new Date(verification?.date_of_birth || dob).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })}</p>
             )}
             {verification?.extracted_passport_number && (
               <p>Passport: {verification.extracted_passport_number}</p>

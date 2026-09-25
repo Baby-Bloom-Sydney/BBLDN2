@@ -109,7 +109,7 @@ interface PositionPageClientProps {
 
 function bsrFormatSlotDate(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("en-AU", {
+  return d.toLocaleDateString("en-GB", {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -126,7 +126,7 @@ function bsrFormatTime(time: string): string {
 }
 
 function formatStartWeekLabel(d: Date): string {
-  return `Week of ${d.toLocaleDateString("en-AU", { day: "numeric", month: "long" })}`;
+  return `Week of ${d.toLocaleDateString("en-GB", { day: "numeric", month: "long" })}`;
 }
 
 function getStartWeekOptionsFill(): {
@@ -1974,7 +1974,7 @@ export function PositionPageClient({
 
               <p className="text-xs text-slate-400">
                 Created{" "}
-                {new Date(selectedBsr.created_at).toLocaleDateString("en-AU", {
+                {new Date(selectedBsr.created_at).toLocaleDateString("en-GB", {
                   day: "numeric",
                   month: "short",
                   year: "numeric",

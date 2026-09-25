@@ -40,7 +40,7 @@ import { recordInformedAction } from "@/lib/legal/record-consent";
 
 // ── Start week options ──
 function formatStartWeek(d: Date): string {
-  return `Week of ${d.toLocaleDateString("en-AU", { day: "numeric", month: "long" })}`;
+  return `Week of ${d.toLocaleDateString("en-GB", { day: "numeric", month: "long" })}`;
 }
 
 function getWeekMonday(weeksAhead: number): Date {
@@ -75,7 +75,7 @@ function getStartWeekOptions(includeTbc = true): { label: string; value: string;
 function formatStartWeekDisplay(dateStr: string): string {
   if (dateStr === "tbc") return "Start week to be confirmed";
   const d = new Date(dateStr + "T00:00:00");
-  const label = d.toLocaleDateString("en-AU", { day: "numeric", month: "long" });
+  const label = d.toLocaleDateString("en-GB", { day: "numeric", month: "long" });
   const isPast = d.getTime() < Date.now();
   return isPast ? `Started week of ${label}` : `Starting week of ${label}`;
 }
@@ -156,7 +156,7 @@ function ProposedTimesGrid({ proposedTimes }: { proposedTimes: string[] }) {
         ))}
         {dates.map((date) => {
           const d = new Date(date + "T00:00:00");
-          const label = d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+          const label = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
           return (
             <div key={date} className="contents">
               <div className="text-amber-700 font-medium truncate pr-1">{label}</div>
@@ -704,7 +704,7 @@ export function ConnectionDetailPopup({
                 <div className="rounded-lg bg-green-50 border border-green-200 p-3 space-y-2">
                   <div className="flex items-center gap-2 text-sm text-green-800 font-medium">
                     <Calendar className="h-4 w-4" />
-                    {new Date(intro.confirmedTime).toLocaleDateString("en-AU", {
+                    {new Date(intro.confirmedTime).toLocaleDateString("en-GB", {
                       weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit",
                     })}
                   </div>
@@ -979,7 +979,7 @@ export function ConnectionDetailPopup({
                 {intro.trialDate && (
                   <div className="rounded-lg bg-violet-50 border border-violet-200 px-3 py-2 text-sm text-violet-700 flex items-center gap-2">
                     <Calendar className="h-4 w-4 shrink-0" />
-                    {new Date(intro.trialDate + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}
+                    {new Date(intro.trialDate + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
                   </div>
                 )}
 

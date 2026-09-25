@@ -2,7 +2,7 @@
 // Used across the leads list + drawer + log so operators always see absolute
 // ANZ wall-clock time regardless of where the server or their browser is.
 
-const SYDNEY_DATE_TIME = new Intl.DateTimeFormat("en-AU", {
+const SYDNEY_DATE_TIME = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Australia/Sydney",
   day: "numeric",
   month: "short",
@@ -12,7 +12,7 @@ const SYDNEY_DATE_TIME = new Intl.DateTimeFormat("en-AU", {
   hour12: true,
 });
 
-const SYDNEY_DATE_ONLY = new Intl.DateTimeFormat("en-AU", {
+const SYDNEY_DATE_ONLY = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Australia/Sydney",
   day: "numeric",
   month: "short",

@@ -104,7 +104,7 @@ function calcAge(dob: string | null): number | null {
 
 function formatSlotDate(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("en-AU", {
+  return d.toLocaleDateString("en-GB", {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -1690,7 +1690,7 @@ function BSRDetailModal({
 
           <p className="text-xs text-slate-400">
             Created{" "}
-            {new Date(request.created_at).toLocaleDateString("en-AU", {
+            {new Date(request.created_at).toLocaleDateString("en-GB", {
               day: "numeric",
               month: "short",
               year: "numeric",

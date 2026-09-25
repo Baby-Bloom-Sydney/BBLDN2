@@ -105,7 +105,7 @@ function StartDateLine({ startDate }: { startDate: string | null }) {
   const startMon = new Date(`${startDate}T00:00:00`);
   if (Number.isNaN(startMon.getTime())) return null;
   const isPast = startMon <= new Date();
-  const label = startMon.toLocaleDateString("en-AU", {
+  const label = startMon.toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
   });
@@ -173,7 +173,7 @@ function StartDateValue({ startDate }: { startDate: string | null }) {
   }
   return (
     <span>
-      {startMon.toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
+      {startMon.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
     </span>
   );
 }

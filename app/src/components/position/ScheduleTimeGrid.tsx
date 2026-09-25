@@ -36,8 +36,8 @@ export function ScheduleTimeGrid({
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr + "T00:00:00");
     return {
-      weekday: d.toLocaleDateString("en-AU", { weekday: "short" }),
-      day: d.toLocaleDateString("en-AU", { day: "numeric", month: "short" }),
+      weekday: d.toLocaleDateString("en-GB", { weekday: "short" }),
+      day: d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
     };
   };
 
@@ -54,7 +54,7 @@ export function ScheduleTimeGrid({
     if (!selectedSlot || selectedHour === null || selectedMinute === null) return "";
     const [date] = selectedSlot.split("_");
     const d = new Date(date + "T00:00:00");
-    const dayStr = d.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" });
+    const dayStr = d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
     const h = selectedHour > 12 ? selectedHour - 12 : selectedHour;
     const ampm = selectedHour >= 12 ? "pm" : "am";
     const m = selectedMinute.toString().padStart(2, "0");

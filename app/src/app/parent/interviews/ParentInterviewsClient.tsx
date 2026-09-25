@@ -60,7 +60,7 @@ export function ParentInterviewsClient({ requests }: ParentInterviewsClientProps
               <div className="space-y-1">
                 {request.proposed_times.map((time, index) => (
                   <p key={index} className="text-sm text-slate-600">
-                    {new Date(time).toLocaleString("en-AU", {
+                    {new Date(time).toLocaleString("en-GB", {
                       weekday: "short",
                       day: "numeric",
                       month: "short",

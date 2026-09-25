@@ -78,7 +78,7 @@ export function ProposalCard({ proposal }: Props) {
           className="shrink-0 text-xs text-slate-400"
           dateTime={proposal.created_at}
         >
-          {new Date(proposal.created_at).toLocaleString("en-AU", {
+          {new Date(proposal.created_at).toLocaleString("en-GB", {
             day: "numeric",
             month: "short",
             hour: "2-digit",

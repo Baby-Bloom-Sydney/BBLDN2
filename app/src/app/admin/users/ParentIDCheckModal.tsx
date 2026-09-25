@@ -144,7 +144,7 @@ export function ParentIDCheckModal({ check, open, onOpenChange }: ParentIDCheckM
 
   function formatDate(dateStr: string | null): string {
     if (!dateStr) return "-";
-    return new Date(dateStr).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
+    return new Date(dateStr).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   }
 
   async function handleVerify() {
