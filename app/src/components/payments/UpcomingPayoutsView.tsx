@@ -11,7 +11,7 @@
  *
  * Removed:
  *  - Monthly Earnings tile (Bailey 2026-05-14: "unnecessary noise").
- *  - Aggregated next-payout sum (per Bailey: each $100 is its own payment on its own date).
+ *  - Aggregated next-payout sum (per Bailey: each £100 is its own payment on its own date).
  *  - Per-family detail cards (replaced by single line per payment).
  */
 
