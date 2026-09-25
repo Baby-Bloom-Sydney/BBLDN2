@@ -1,21 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { SITE_NAME, SITE_URL } from "@/lib/constants";
+import { toServedPrefix } from "@/lib/uk-contact";
 
 // Photon (OpenStreetMap-backed geocoder, hosted by Komoot) replaces the
 // previous `api.addressr.io` upstream, which began rejecting our serverless
 // IPs ("no-origin not permitted from <ip>") and effectively blocked signup
-// + verification flows. Photon is free, key-free, AU-supported, and has
-// reasonable terms. We adapt the response into the legacy `AddressResult`
-// shape (`sla` legible all-caps line + `ssla` + `pid` + `score`) that the
-// existing consumers parse via `parseGnafAddress`.
+// + verification flows. Photon is free, key-free, GB-supported, and has
+// reasonable terms. We adapt the response into the `AddressResult` shape
+// (`sla` legible all-caps line + `ssla` + `pid` + `score`) that the existing
+// consumers parse via `parseUkAddress` — so the line carries no state or
+// county token, only `line1, [line2, ]TOWN POSTCODE` (12.01).
 
 interface PhotonFeature {
   properties?: {
     housenumber?: string;
     street?: string;
     suburb?: string;
-    city?: string;
+    /** A sub-neighbourhood: "Myatt's Fields", "East Marylebone". */
+    locality?: string;
+    /** A neighbourhood: "Soho", "Oval", "Clapham". Often, not always, a district. */
     district?: string;
-    state?: string;
+    /** "London" for the whole metro, or the local authority elsewhere. */
+    city?: string;
     postcode?: string;
     country?: string;
     countrycode?: string;
@@ -31,16 +38,58 @@ interface AddressResult {
   score: number;
 }
 
-const STATE_ABBR = {
-  "new south wales": "NSW",
-  victoria: "VIC",
-  queensland: "QLD",
-  "south australia": "SA",
-  "western australia": "WA",
-  tasmania: "TAS",
-  "northern territory": "NT",
-  "australian capital territory": "ACT",
-} as const satisfies Record<string, string>;
+/** Central London. Photon ranks by importance mixed with proximity to this. */
+const LONDON_BIAS = { lat: "51.51", lon: "-0.13" } as const;
+
+/**
+ * The served geography, as this route needs it: every district name, and the
+ * district to fall back to for each prefix. Loaded once per server instance —
+ * it is seed-only reference data that changes by data migration, and the route
+ * is called once per keystroke-debounce, so a per-request read is pure waste.
+ */
+interface ServedGeography {
+  /** lower-cased district name -> canonical district name */
+  names: Map<string, string>;
+  /** prefix -> canonical district name */
+  byPrefix: Map<string, string>;
+}
+
+let servedPromise: Promise<ServedGeography> | null = null;
+
+async function loadServedGeography(): Promise<ServedGeography> {
+  const names = new Map<string, string>();
+  const byPrefix = new Map<string, string>();
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("london_districts")
+      .select("district, prefix");
+    if (error || !data) {
+      // Fail open here, fail closed at the consumer's service-area gate: an
+      // unreachable database must not silently empty every autocomplete.
+      console.warn("[address-search] district lookup failed", error);
+      return { names, byPrefix };
+    }
+    for (const row of data as Array<{ district: string; prefix: string }>) {
+      names.set(row.district.toLowerCase(), row.district);
+      // A prefix can carry several districts (SW1 is Westminster, Victoria and
+      // Belgravia). They share one centroid, so any of them is correct; keep
+      // the first by name so the choice is deterministic.
+      const existing = byPrefix.get(row.prefix);
+      if (!existing || row.district < existing) {
+        byPrefix.set(row.prefix, row.district);
+      }
+    }
+  } catch (err) {
+    console.warn("[address-search] district lookup threw", err);
+  }
+  return { names, byPrefix };
+}
+
+function servedGeography(): Promise<ServedGeography> {
+  servedPromise ??= loadServedGeography();
+  return servedPromise;
+}
 
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q");
@@ -48,26 +97,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json([]);
   }
 
-  // AU users commonly type unit/flat numbers as "5/12 George St" or
-  // "Unit 5, 12 George St". Photon's OSM-backed dataset rarely indexes the
-  // unit segment, so we split it off before querying and stitch it back
-  // onto every result's SLA. Without this preprocessing, "5/12 george" gets
-  // sent verbatim to Photon and matches nothing.
+  // Users commonly type flat numbers as "Flat 4, 12 Baker Street" (and the
+  // "4/12" form arrives from habit too). Photon's OSM-backed dataset rarely
+  // indexes the flat segment, so we split it off before querying and stitch it
+  // back onto every result's SLA. Without this, the whole query matches
+  // nothing.
   const { unit, baseQuery } = splitUnitPrefix(q);
 
   try {
-    // Bias toward Sydney (lat/lon) so AU/NSW results rank higher and
-    // appear in the first page of `limit=50`. Photon ranks results by a
-    // mix of importance + proximity to the supplied lat/lon.
     const upstream = await fetch(
       `https://photon.komoot.io/api/?q=${encodeURIComponent(baseQuery)}` +
-        `&lang=en&limit=50&lat=-33.87&lon=151.21`,
+        `&lang=en&limit=50&lat=${LONDON_BIAS.lat}&lon=${LONDON_BIAS.lon}`,
       {
         headers: {
           // No PII in this UA — third-party access logs would otherwise
           // accumulate the admin contact email indefinitely.
-          "User-Agent":
-            "babybloom-address-search/1.0 (+https://babybloomsydney.com.au)",
+          "User-Agent": `${SITE_NAME.toLowerCase()}-address-search/1.0 (+${SITE_URL})`,
         },
         signal: AbortSignal.timeout(5000),
       },
@@ -86,11 +131,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json([]);
     }
 
-    const auFeatures = data.features.filter(
-      (f) => f.properties?.countrycode === "AU",
+    const served = await servedGeography();
+    const gbFeatures = data.features.filter(
+      (f) => f.properties?.countrycode === "GB",
     );
-    const results = auFeatures
-      .map((f, i) => mapToAddressResult(f, i, auFeatures, unit))
+    const results = gbFeatures
+      .map((f, i) => mapToAddressResult(f, i, gbFeatures, unit, served))
       .filter((r): r is AddressResult => r !== null);
 
     return NextResponse.json(results);
@@ -101,23 +147,22 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * Strips an AU-style unit/flat prefix from a free-text address query so the
- * remaining street-level portion can be sent to Photon, then returns the
- * prefix in canonical "X/" form to be re-prepended to every result.
+ * Strips a flat/unit prefix from a free-text address query so the remaining
+ * street-level portion can be sent to Photon, then returns the prefix in
+ * canonical "X/" form to be re-prepended to every result.
  *
  * Recognised patterns (case-insensitive):
- *   "5/12 George St"          → unit "5/",  base "12 George St"
- *   "5a/12 George St"         → unit "5A/", base "12 George St"
- *   "Unit 5, 12 George St"    → unit "5/",  base "12 George St"
- *   "Flat 5 12 George St"     → unit "5/",  base "12 George St"
- *   "Apt 5 - 12 George St"    → unit "5/",  base "12 George St"
+ *   "Flat 4, 12 Baker St"     → unit "4/",  base "12 Baker St"
+ *   "Flat 4 12 Baker St"      → unit "4/",  base "12 Baker St"
+ *   "Apt 4 - 12 Baker St"     → unit "4/",  base "12 Baker St"
+ *   "4/12 Baker St"           → unit "4/",  base "12 Baker St"
  *
  * Otherwise returns the query unchanged with an empty unit.
  */
 function splitUnitPrefix(q: string): { unit: string; baseQuery: string } {
   const trimmed = q.trim();
 
-  // "5/12 George St" form
+  // "4/12 Baker St" form
   const slashMatch = trimmed.match(/^(\d+[a-zA-Z]?)\s*\/\s*(\d+.*)$/);
   if (slashMatch) {
     return {
@@ -126,7 +171,7 @@ function splitUnitPrefix(q: string): { unit: string; baseQuery: string } {
     };
   }
 
-  // "Unit 5, 12 George St" / "Flat 5, 12 George St" / "Apt 5 12 George St" form
+  // "Flat 4, 12 Baker St" / "Unit 4, 12 Baker St" / "Apt 4 12 Baker St" form
   const wordMatch = trimmed.match(
     /^(?:unit|flat|apt|apartment)\s+(\d+[a-zA-Z]?)\s*[,\-/]?\s*(\d+.*)$/i,
   );
@@ -146,31 +191,59 @@ function isPhotonResponse(d: unknown): d is { features: PhotonFeature[] } {
   return Array.isArray(obj.features);
 }
 
+/**
+ * Pick the town segment of the SLA.
+ *
+ * None of Photon's UK fields is a reliable district on its own: `suburb` is
+ * almost never populated, `locality` is a sub-neighbourhood ("Myatt's Fields"),
+ * `district` is a neighbourhood that is sometimes a served district and
+ * sometimes not ("Oval"), and `city` is "London" for the whole metro. So the
+ * candidates are checked against the served district names first, then the
+ * postcode prefix decides, and only then do we fall back to the most specific
+ * field Photon gave us (ADR-188).
+ *
+ * A feature outside the served set keeps its Photon name and is still
+ * returned — the consumer's service-area gate is the one place that decision
+ * belongs.
+ */
+function resolveTown(
+  p: NonNullable<PhotonFeature["properties"]>,
+  postcode: string,
+  served: ServedGeography,
+): string {
+  const candidates = [p.suburb, p.locality, p.district, p.city]
+    .map((c) => (c ?? "").trim())
+    .filter((c) => c.length > 0);
+
+  for (const candidate of candidates) {
+    const canonical = served.names.get(candidate.toLowerCase());
+    if (canonical) return canonical;
+  }
+
+  const prefix = toServedPrefix(postcode, new Set(served.byPrefix.keys()));
+  const byPrefix = prefix ? served.byPrefix.get(prefix) : undefined;
+  if (byPrefix) return byPrefix;
+
+  return candidates[0] ?? "";
+}
+
 function mapToAddressResult(
   f: PhotonFeature,
   index: number,
   all: ReadonlyArray<PhotonFeature>,
   unit: string,
+  served: ServedGeography,
 ): AddressResult | null {
   const p = f.properties;
   if (!p) return null;
 
   const street = (p.street ?? "").trim().toUpperCase();
-  // Field order: prefer the most-specific Photon field first. `p.suburb` is
-  // rarely populated for AU data but trust it when present. `p.district`
-  // reliably carries the actual suburb name for inner-Sydney addresses
-  // (Potts Point, Elizabeth Bay, Surry Hills, etc.). `p.city` is the metro-
-  // area catch-all — for Sydney it's always "Sydney" regardless of the actual
-  // suburb, so it MUST come last. (`p.name` is intentionally excluded — for
-  // street-level results it's often a POI/business/transit name like "Kings
-  // Cross Station, Stand D", not a suburb.)
-  const suburb = (p.suburb ?? p.district ?? p.city ?? "").trim().toUpperCase();
-  const stateAbbr = stateToAbbr(p.state ?? "");
-  const postcode = (p.postcode ?? "").trim();
+  const postcode = (p.postcode ?? "").trim().toUpperCase();
+  const town = resolveTown(p, postcode, served).toUpperCase();
 
-  if (!street || !suburb || !stateAbbr || !postcode) return null;
+  if (!street || !town || !postcode) return null;
 
-  // `unit` is "5/" or "" — Photon doesn't typically index unit-level data so
+  // `unit` is "4/" or "" — Photon doesn't typically index flat-level data so
   // we pre-stripped it from the query (see splitUnitPrefix) and we paste it
   // back here as a literal prefix on the street segment.
   const housePrefix = p.housenumber
@@ -178,7 +251,9 @@ function mapToAddressResult(
     : unit
       ? `${unit}`
       : "";
-  const sla = `${housePrefix}${street}, ${suburb} ${stateAbbr} ${postcode}`;
+  // No state or county token: `parseUkAddress` takes the last comma segment as
+  // the town and the trailing UK postcode, and returns null for anything else.
+  const sla = `${housePrefix}${street}, ${town} ${postcode}`;
 
   // `osm_id` is scoped per feature type in OSM (a node + way + relation can
   // share an integer id), so include `osm_type` to keep `pid` collision-free.
@@ -195,12 +270,4 @@ function mapToAddressResult(
     // consumers that sort on `score` still see the best match first.
     score: all.length - index,
   };
-}
-
-function stateToAbbr(state: string): string {
-  const lower = state.toLowerCase().trim();
-  // `STATE_ABBR` is `as const` so values stay narrow, but TS doesn't widen
-  // its key set to `string` — we cast at the lookup boundary to keep the
-  // immutability intent intact while still indexing by an arbitrary input.
-  return (STATE_ABBR as Record<string, string>)[lower] ?? "";
 }

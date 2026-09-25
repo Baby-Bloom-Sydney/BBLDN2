@@ -189,7 +189,7 @@ export function ParentBabysittingClient({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // GNAF address search — debounced, NSW only
+  // Address search — debounced, London-biased and GB-filtered upstream
   const searchAddress = useCallback((query: string) => {
     if (query.trim().length < 4) {
       setAddressResults([]);
@@ -209,9 +209,10 @@ export function ParentBabysittingClient({
           return;
         }
         const data: AddressrResult[] = await res.json();
-        const nswOnly = data.filter((r) => r.sla.includes(" NSW "));
-        setAddressResults(nswOnly.slice(0, 8));
-        setShowAddressDropdown(nswOnly.length > 0);
+        // The route already filters to GB and emits the UK address shape,
+        // so there is nothing left to filter here (12.01).
+        setAddressResults(data.slice(0, 8));
+        setShowAddressDropdown(data.length > 0);
       } catch {
         setAddressResults([]);
         setShowAddressDropdown(false);
@@ -576,7 +577,7 @@ export function ParentBabysittingClient({
                     <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
                       Address
                     </Label>
-                    <span className="text-xs text-slate-400">NSW only</span>
+                    <span className="text-xs text-slate-400">London only</span>
                   </div>
                   <div className="relative" ref={addressDropdownRef}>
                     <div className="relative">
@@ -612,7 +613,7 @@ export function ParentBabysittingClient({
                     )}
                     {selectedAddress && (
                       <p className="text-xs text-green-600 font-medium mt-1.5 flex items-center gap-1">
-                        {selectedAddress.line1}, {selectedAddress.town} NSW{" "}
+                        {selectedAddress.line1}, {selectedAddress.town}{" "}
                         {selectedAddress.postcode}
                         <Check className="h-3 w-3" />
                       </p>
@@ -620,7 +621,7 @@ export function ParentBabysittingClient({
                     {notInArea && (
                       <p className="text-xs text-amber-600 mt-1.5">
                         This address is outside our service area. We currently
-                        only operate in Greater Sydney, NSW.
+                        only operate in Greater London.
                       </p>
                     )}
                   </div>
@@ -819,7 +820,7 @@ export function ParentBabysittingClient({
                       {selectedAddress?.line1}
                     </p>
                     <p className="text-sm text-slate-500">
-                      {selectedAddress?.town}, NSW {selectedAddress?.postcode}
+                      {selectedAddress?.town} {selectedAddress?.postcode}
                     </p>
                   </div>
                   <button

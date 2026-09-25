@@ -93,7 +93,7 @@ export function ContactSection({
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  // GNAF address search — debounced, NSW only
+  // Address search — debounced, London-biased and GB-filtered upstream
   const searchAddress = useCallback((query: string) => {
     if (query.trim().length < 4) {
       setAddressResults([]);
@@ -115,9 +115,10 @@ export function ContactSection({
           return;
         }
         const data: AddressrResult[] = await res.json();
-        const nswOnly = data.filter((r) => r.sla.includes(" NSW "));
-        setAddressResults(nswOnly.slice(0, 8));
-        setShowAddressDropdown(nswOnly.length > 0);
+        // The route already filters to GB and emits the UK address shape,
+        // so there is nothing left to filter here (12.01).
+        setAddressResults(data.slice(0, 8));
+        setShowAddressDropdown(data.length > 0);
       } catch {
         setAddressResults([]);
         setShowAddressDropdown(false);
@@ -179,7 +180,7 @@ export function ContactSection({
           phone_number: normaliseUkMobile(phone),
           address_line: formatAddressLine(selectedAddress!),
           city: selectedAddress!.town,
-          state: "NSW",
+          state: BRAND.region,
           postcode: selectedAddress!.postcode,
           country: BRAND.country,
         }),
@@ -222,7 +223,7 @@ export function ContactSection({
           {displayAddress && <p>{displayAddress}</p>}
           {displaySuburb && (
             <p>
-              {displaySuburb}, NSW {displayPostcode}
+              {displaySuburb}, {displayPostcode}
             </p>
           )}
         </div>
@@ -254,7 +255,7 @@ export function ContactSection({
           >
             Address
           </Label>
-          <span className="text-xs text-slate-400">NSW only</span>
+          <span className="text-xs text-slate-400">London only</span>
         </div>
         <div className="relative" ref={addressDropdownRef}>
           <div className="relative">
@@ -291,7 +292,7 @@ export function ContactSection({
           )}
           {selectedAddress && (
             <p className="text-xs text-green-600 font-medium mt-1.5 flex items-center gap-1">
-              {selectedAddress.line1}, {selectedAddress.town} NSW{" "}
+              {selectedAddress.line1}, {selectedAddress.town}{" "}
               {selectedAddress.postcode}
               <Check className="h-3 w-3" />
             </p>

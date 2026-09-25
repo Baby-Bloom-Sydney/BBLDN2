@@ -10,6 +10,7 @@ import {
   type ParsedAddress,
   toServedPrefix,
 } from '@/lib/uk-contact';
+import { BRAND } from '@/lib/constants';
 
 const PASSPORT_COUNTRIES = [
   "Australia", "Afghanistan", "Albania", "Algeria", "Andorra", "Angola",
@@ -336,9 +337,10 @@ function LocationStep() {
           return;
         }
         const data: AddressResult[] = await res.json();
-        const nswOnly = data.filter((r) => r.sla.includes(' NSW '));
-        setAddressResults(nswOnly.slice(0, 8));
-        setShowDropdown(nswOnly.length > 0);
+        // The route already filters to GB and emits the UK address shape,
+        // so there is nothing left to filter here (12.01).
+        setAddressResults(data.slice(0, 8));
+        setShowDropdown(data.length > 0);
       } catch {
         setAddressResults([]);
         setShowDropdown(false);
@@ -386,7 +388,7 @@ function LocationStep() {
       <div className="space-y-2">
         <div className="flex items-baseline justify-between">
           <label className="text-sm font-medium text-slate-700">Address</label>
-          <span className="text-xs text-slate-400">Sydney, NSW</span>
+          <span className="text-xs text-slate-400">London</span>
         </div>
         <div className="relative" ref={dropdownRef}>
           <div className="relative">
@@ -421,7 +423,7 @@ function LocationStep() {
           )}
           {notInArea && (
             <p className="text-xs text-amber-600 mt-1.5">
-              This address is outside our service area. We currently only operate in Greater Sydney, NSW.
+              This address is outside our service area. We currently only operate in Greater London.
             </p>
           )}
         </div>
@@ -443,10 +445,10 @@ function LocationStep() {
 
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-slate-700">State</label>
+          <label className="text-sm font-medium text-slate-700">County</label>
           <input
             type="text"
-            value={selectedAddress ? 'NSW' : ''}
+            value={selectedAddress ? BRAND.region : ''}
             readOnly
             placeholder=""
             className={`w-full h-11 rounded-lg border px-4 py-3 text-sm ${
