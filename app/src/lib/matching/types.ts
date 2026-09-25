@@ -16,7 +16,7 @@ export interface PositionMatchData {
   schedule_type: string | null;
   urgency: string | null;
   suburb: string | null;
-  postcode: number | null;
+  postcode: string | null;
   details: {
     child_needs?: boolean;
     focus_type?: string | null;
@@ -70,8 +70,16 @@ export interface NannyCredentialData {
   certification_type: string | null;
 }
 
-export interface PostcodeData {
-  suburb: string;
+/**
+ * A row of `london_districts` — the served London geography (ADR-188).
+ * `district` is the place name a family says ("Clapham"), `prefix` the postcode
+ * district ("SW4"), `label` the stored display form ("Clapham, SW4").
+ */
+export interface LondonDistrict {
+  area: string;
+  district: string;
+  prefix: string;
+  label: string;
   latitude: number;
   longitude: number;
 }

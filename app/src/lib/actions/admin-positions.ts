@@ -173,15 +173,16 @@ export async function createAdminPosition(input: AdminPositionInput): Promise<{
   const admin = createAdminClient();
   const source = input.source ?? "admin";
 
-  // Look up postcode from suburb
-  let postcode: number | null = null;
-  const { data: postcodeRow } = await admin
-    .from("sydney_postcodes")
-    .select("postcode")
-    .ilike("suburb", input.suburb)
+  // Look up the postcode district prefix from the district name.
+  // ADR-188: a prefix is 2-4 alphanumerics ("SW4", "E1"), never a number.
+  let postcode: string | null = null;
+  const { data: districtRow } = await admin
+    .from("london_districts")
+    .select("prefix")
+    .ilike("district", input.suburb)
     .limit(1)
     .maybeSingle();
-  if (postcodeRow) postcode = postcodeRow.postcode;
+  if (districtRow) postcode = districtRow.prefix;
 
   // Build details JSONB
   const details: Record<string, unknown> = {
@@ -312,13 +313,13 @@ export async function updateAdminPosition(
     updates.family_display_name = input.family_display_name.trim();
   if (input.suburb !== undefined) {
     updates.suburb = input.suburb;
-    const { data: pc } = await admin
-      .from("sydney_postcodes")
-      .select("postcode")
-      .ilike("suburb", input.suburb)
+    const { data: districtRow } = await admin
+      .from("london_districts")
+      .select("prefix")
+      .ilike("district", input.suburb)
       .limit(1)
       .maybeSingle();
-    if (pc) updates.postcode = pc.postcode;
+    if (districtRow) updates.postcode = districtRow.prefix;
   }
   if (input.hourly_rate !== undefined) updates.hourly_rate = input.hourly_rate;
   if (input.hours_per_week !== undefined)

@@ -7,7 +7,7 @@ import type {
   NannyMatchData,
   NannyProfileData,
   NannyCredentialData,
-  PostcodeData,
+  LondonDistrict,
   MatchResult,
   MatchingResult,
 } from './types';
@@ -86,32 +86,35 @@ export async function fetchAndScoreNannies(
     credentialMap.set(c.nanny_id, existing);
   }
 
-  // ── Fetch postcodes for distance calc ──
+  // ── Fetch district centroids for distance calc ──
   const allSuburbs = new Set<string>();
   if (position.suburb) allSuburbs.add(position.suburb);
   for (const p of profilesRes.data ?? []) {
     if (p.suburb) allSuburbs.add(p.suburb);
   }
 
-  const postcodeMap = new Map<string, PostcodeData>();
+  const districtMap = new Map<
+    string,
+    Pick<LondonDistrict, 'district' | 'latitude' | 'longitude'>
+  >();
   if (allSuburbs.size > 0) {
-    const { data: postcodes } = await supabase
-      .from('sydney_postcodes')
-      .select('suburb, latitude, longitude')
-      .in('suburb', Array.from(allSuburbs));
+    const { data: districts } = await supabase
+      .from('london_districts')
+      .select('district, latitude, longitude')
+      .in('district', Array.from(allSuburbs));
 
-    for (const pc of postcodes ?? []) {
-      postcodeMap.set(pc.suburb.toLowerCase(), {
-        suburb: pc.suburb,
-        latitude: Number(pc.latitude),
-        longitude: Number(pc.longitude),
+    for (const d of districts ?? []) {
+      districtMap.set(d.district.toLowerCase(), {
+        district: d.district,
+        latitude: Number(d.latitude),
+        longitude: Number(d.longitude),
       });
     }
   }
 
   // Parent's coordinates
-  const parentPostcode = position.suburb
-    ? postcodeMap.get(position.suburb.toLowerCase())
+  const parentDistrict = position.suburb
+    ? districtMap.get(position.suburb.toLowerCase())
     : null;
 
   // ── Score each nanny ──
@@ -126,14 +129,14 @@ export async function fetchAndScoreNannies(
 
     // Distance
     let distanceKm: number | null = null;
-    if (parentPostcode && profile.suburb) {
-      const nannyPostcode = postcodeMap.get(profile.suburb.toLowerCase());
-      if (nannyPostcode) {
+    if (parentDistrict && profile.suburb) {
+      const nannyDistrict = districtMap.get(profile.suburb.toLowerCase());
+      if (nannyDistrict) {
         distanceKm = haversineDistance(
-          parentPostcode.latitude,
-          parentPostcode.longitude,
-          nannyPostcode.latitude,
-          nannyPostcode.longitude
+          parentDistrict.latitude,
+          parentDistrict.longitude,
+          nannyDistrict.latitude,
+          nannyDistrict.longitude
         );
         distanceKm = Math.floor(distanceKm); // whole km, rounded down
       }
@@ -329,31 +332,34 @@ export async function runBasicMatchmaking(positionId: string): Promise<MatchingR
     );
   }
 
-  // ── Step 3: Fetch postcodes for distance calc ──
+  // ── Step 3: Fetch district centroids for distance calc ──
   const allSuburbs = new Set<string>();
   if (position.suburb) allSuburbs.add(position.suburb);
   for (const p of profilesRes.data ?? []) {
     if (p.suburb) allSuburbs.add(p.suburb);
   }
 
-  const postcodeMap = new Map<string, PostcodeData>();
+  const districtMap = new Map<
+    string,
+    Pick<LondonDistrict, 'district' | 'latitude' | 'longitude'>
+  >();
   if (allSuburbs.size > 0) {
-    const { data: postcodes } = await supabase
-      .from('sydney_postcodes')
-      .select('suburb, latitude, longitude')
-      .in('suburb', Array.from(allSuburbs));
+    const { data: districts } = await supabase
+      .from('london_districts')
+      .select('district, latitude, longitude')
+      .in('district', Array.from(allSuburbs));
 
-    for (const pc of postcodes ?? []) {
-      postcodeMap.set(pc.suburb.toLowerCase(), {
-        suburb: pc.suburb,
-        latitude: Number(pc.latitude),
-        longitude: Number(pc.longitude),
+    for (const d of districts ?? []) {
+      districtMap.set(d.district.toLowerCase(), {
+        district: d.district,
+        latitude: Number(d.latitude),
+        longitude: Number(d.longitude),
       });
     }
   }
 
-  const parentPostcode = position.suburb
-    ? postcodeMap.get(position.suburb.toLowerCase())
+  const parentDistrict = position.suburb
+    ? districtMap.get(position.suburb.toLowerCase())
     : null;
 
   // ── Step 4: Score each nanny (location + schedule only) ──
@@ -367,14 +373,14 @@ export async function runBasicMatchmaking(positionId: string): Promise<MatchingR
 
     // Distance
     let distanceKm: number | null = null;
-    if (parentPostcode && profile.suburb) {
-      const nannyPostcode = postcodeMap.get(profile.suburb.toLowerCase());
-      if (nannyPostcode) {
+    if (parentDistrict && profile.suburb) {
+      const nannyDistrict = districtMap.get(profile.suburb.toLowerCase());
+      if (nannyDistrict) {
         distanceKm = haversineDistance(
-          parentPostcode.latitude,
-          parentPostcode.longitude,
-          nannyPostcode.latitude,
-          nannyPostcode.longitude
+          parentDistrict.latitude,
+          parentDistrict.longitude,
+          nannyDistrict.latitude,
+          nannyDistrict.longitude
         );
         distanceKm = Math.floor(distanceKm);
       }

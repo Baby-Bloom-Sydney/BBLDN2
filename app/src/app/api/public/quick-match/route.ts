@@ -92,26 +92,26 @@ export async function POST(req: NextRequest) {
       (credentialsRes.data ?? []).map((c) => [c.nanny_id, c.qualification_type as string])
     );
 
-    // ── Fetch postcodes for distance calc ──
+    // ── Fetch district centroids for distance calc ──
     const allSuburbs = new Set<string>();
     allSuburbs.add(body.suburb);
     for (const p of profilesRes.data ?? []) {
       if (p.suburb) allSuburbs.add(p.suburb);
     }
 
-    const { data: postcodes } = await supabase
-      .from("sydney_postcodes")
-      .select("suburb, latitude, longitude")
-      .in("suburb", Array.from(allSuburbs));
+    const { data: districts } = await supabase
+      .from("london_districts")
+      .select("district, latitude, longitude")
+      .in("district", Array.from(allSuburbs));
 
-    const postcodeMap = new Map(
-      (postcodes ?? []).map((pc) => [
-        pc.suburb.toLowerCase(),
-        { latitude: Number(pc.latitude), longitude: Number(pc.longitude) },
+    const districtMap = new Map(
+      (districts ?? []).map((d) => [
+        d.district.toLowerCase(),
+        { latitude: Number(d.latitude), longitude: Number(d.longitude) },
       ])
     );
 
-    const parentLocation = postcodeMap.get(body.suburb.toLowerCase());
+    const parentLocation = districtMap.get(body.suburb.toLowerCase());
 
     // ── Score each nanny ──
     const scored: QuickMatchNanny[] = [];
@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
       // Distance
       let distanceKm: number | null = null;
       if (parentLocation && profile.suburb) {
-        const nannyLocation = postcodeMap.get(profile.suburb.toLowerCase());
+        const nannyLocation = districtMap.get(profile.suburb.toLowerCase());
         if (nannyLocation) {
           distanceKm = Math.floor(
             haversineDistance(

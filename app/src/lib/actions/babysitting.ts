@@ -192,9 +192,9 @@ async function findClosestNannies(
 
   // 1. Parent coordinates
   const { data: parentLoc } = await adminClient
-    .from("sydney_postcodes")
+    .from("london_districts")
     .select("latitude, longitude")
-    .eq("suburb", suburb)
+    .eq("district", suburb)
     .single();
 
   if (!parentLoc) return [];
@@ -233,15 +233,15 @@ async function findClosestNannies(
   const uniqueSuburbs = Array.from(
     new Set(profiles.map((p) => p.suburb).filter(Boolean)),
   );
-  const { data: postcodes } = await adminClient
-    .from("sydney_postcodes")
-    .select("suburb, latitude, longitude")
-    .in("suburb", uniqueSuburbs);
+  const { data: districts } = await adminClient
+    .from("london_districts")
+    .select("district, latitude, longitude")
+    .in("district", uniqueSuburbs);
 
-  if (!postcodes) return [];
+  if (!districts) return [];
 
-  const postcodeMap = new Map(
-    postcodes.map((p) => [p.suburb.toLowerCase(), p]),
+  const districtMap = new Map(
+    districts.map((d) => [d.district.toLowerCase(), d]),
   );
 
   // 5. Calculate distances
@@ -255,7 +255,7 @@ async function findClosestNannies(
     const profile = profileMap.get(nanny.user_id);
     if (!profile?.suburb) continue;
 
-    const loc = postcodeMap.get(profile.suburb.toLowerCase());
+    const loc = districtMap.get(profile.suburb.toLowerCase());
     if (!loc) continue;
 
     const dist = haversineDistance(
@@ -779,9 +779,9 @@ export async function createBabysittingRequest(data: {
 
   // Look up lat/lng from suburb
   const { data: coords } = await adminClient
-    .from("sydney_postcodes")
+    .from("london_districts")
     .select("latitude, longitude")
-    .eq("suburb", data.suburb)
+    .eq("district", data.suburb)
     .single();
 
   if (!coords) {
@@ -1347,15 +1347,15 @@ export async function applyToBsrPublic(
 
   if (nannyProfile?.suburb) {
     const { data: nannyLoc } = await adminClient
-      .from("sydney_postcodes")
+      .from("london_districts")
       .select("latitude, longitude")
-      .eq("suburb", nannyProfile.suburb)
+      .eq("district", nannyProfile.suburb)
       .maybeSingle();
 
     const { data: bsrLoc } = await adminClient
-      .from("sydney_postcodes")
+      .from("london_districts")
       .select("latitude, longitude")
-      .eq("suburb", bsr.suburb)
+      .eq("district", bsr.suburb)
       .maybeSingle();
 
     if (nannyLoc && bsrLoc) {
@@ -2709,16 +2709,16 @@ export async function getNannyBabysittingJobs(): Promise<{
 }
 
 // ══════════════════════════════════════════════════════════════
-// 8. GET SYDNEY SUBURBS (for babysitting request form)
+// 8. GET LONDON DISTRICTS (for babysitting request form)
 // ══════════════════════════════════════════════════════════════
 
-export async function getSydneySuburbs(): Promise<
-  Array<{ suburb: string; postcode: string }>
+export async function getLondonDistricts(): Promise<
+  Array<{ district: string; prefix: string; label: string }>
 > {
   const adminClient = createAdminClient();
   const { data } = await adminClient
-    .from("sydney_postcodes")
-    .select("suburb, postcode")
-    .order("suburb");
+    .from("london_districts")
+    .select("district, prefix, label")
+    .order("district");
   return data ?? [];
 }

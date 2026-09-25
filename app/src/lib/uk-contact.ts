@@ -138,3 +138,27 @@ export function parseUkAddress(sla: string): ParsedAddress | null {
     postcode: normalisePostcode(postcodeMatch[1]),
   };
 }
+
+/**
+ * Resolve a full UK postcode to the served `london_districts.prefix`, or null
+ * when the address is outside the served set.
+ *
+ * ADR-188: sub-districts (SW1A, EC1M, W1D) are never stored or offered, so a
+ * real central-London postcode's outward code is one character longer than the
+ * prefix a family's district is filed under. The sub-district letter is dropped
+ * only when the parent prefix is actually served, so the lookup stays driven by
+ * the data rather than by a hand-written list of which areas subdivide.
+ *
+ *   "SW4 7AA"  -> "SW4"   (outward code is already the prefix)
+ *   "SW1A 2AA" -> "SW1"   (sub-district of a served prefix)
+ *   "GU9 7PB"  -> null    (not served)
+ */
+export function toServedPrefix(
+  postcode: string,
+  served: ReadonlySet<string>,
+): string | null {
+  const outward = postcode.trim().toUpperCase().split(/\s+/)[0] ?? "";
+  if (served.has(outward)) return outward;
+  const parent = outward.replace(/[A-Z]$/, "");
+  return served.has(parent) ? parent : null;
+}

@@ -21,7 +21,7 @@ import {
   MOCK_POSITION_WITH_CHILDREN,
   MOCK_POSITION_SHARE_DATA,
   MOCK_PARENT_BSR_REQUESTS,
-  MOCK_SUBURBS,
+  MOCK_DISTRICTS,
   MOCK_BSR_PROFILE,
   MOCK_BSR_SHARE_DATA,
   MOCK_PARENT_VERIFICATION_DATA,
@@ -148,7 +148,7 @@ const COMPONENTS: Record<string, { name: string; render: () => React.ReactNode }
   },
   "parent-babysitting": {
     name: "ParentBabysittingClient",
-    render: () => <ParentBabysittingClient requests={MOCK_PARENT_BSR_REQUESTS} suburbs={MOCK_SUBURBS} />,
+    render: () => <ParentBabysittingClient requests={MOCK_PARENT_BSR_REQUESTS} districts={MOCK_DISTRICTS} />,
   },
   "bsr-payment": {
     name: "BsrPaymentClient",

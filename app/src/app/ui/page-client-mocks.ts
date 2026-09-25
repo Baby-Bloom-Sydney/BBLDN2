@@ -608,13 +608,15 @@ export const MOCK_PARENT_BSR_REQUESTS: BabysittingRequestWithSlots[] = [
   },
 ];
 
-export const MOCK_SUBURBS = [
-  { suburb: "Coogee", postcode: "2034" },
-  { suburb: "Bondi", postcode: "2026" },
-  { suburb: "Surry Hills", postcode: "2010" },
-  { suburb: "Paddington", postcode: "2021" },
-  { suburb: "Manly", postcode: "2095" },
-];
+// Shape re-pointed to `london_districts` by 2a (ADR-188); the VALUES are still
+// Sydney's and are owner 2h — `label` is derived so no new literal was typed here.
+export const MOCK_DISTRICTS = [
+  { district: "Coogee", prefix: "2034" },
+  { district: "Bondi", prefix: "2026" },
+  { district: "Surry Hills", prefix: "2010" },
+  { district: "Paddington", prefix: "2021" },
+  { district: "Manly", prefix: "2095" },
+].map((d) => ({ ...d, label: `${d.district}, ${d.prefix}` }));
 
 // ── BSR Payment (CMP-065) ──────────────────────────────────────────
 

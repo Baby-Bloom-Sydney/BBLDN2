@@ -38,7 +38,7 @@ export function OnboardingFlow() {
           const { suburb, postcode, availability } = JSON.parse(cached);
           const initial = { ...INITIAL_FORM_DATA };
           if (suburb) initial.suburb = suburb;
-          if (postcode) initial.postcode = parseInt(postcode, 10) || undefined;
+          if (postcode) initial.postcode = String(postcode);
           if (availability && typeof availability === "object") {
             const days: string[] = [];
             for (const [day, blocks] of Object.entries(availability)) {

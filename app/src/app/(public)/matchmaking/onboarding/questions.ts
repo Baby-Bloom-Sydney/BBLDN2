@@ -24,7 +24,8 @@ export interface TypeformFormData {
 
   // At Home
   suburb: string | null;
-  postcode: number | null;
+  /** London postcode district prefix, e.g. "SW4" (ADR-188). */
+  postcode: string | null;
   has_pets: string | null;
   has_pets_details: string | null;
   reason_for_nanny: string | null;
