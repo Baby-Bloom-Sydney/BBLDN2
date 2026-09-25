@@ -203,3 +203,30 @@ describe("ChildManagementCard — nanny role", () => {
     });
   });
 });
+
+/**
+ * LDN2 Stage 2, unit 2c (12.03) — London date rendering.
+ *
+ * This card's date-of-birth line was one of the nine formatter calls in the
+ * tree that passed **no** locale argument, so it rendered in whatever locale
+ * the runtime resolved. Node's default is `en-US`, i.e. Oliver's 15 March 2024
+ * appeared as "3/15/2024". 2c pinned the call to `en-GB`.
+ *
+ * Falsifiable: drop the locale argument and the first assertion fails with the
+ * American order — which is the reason for pinning it.
+ *
+ * `oliver.date_of_birth` is a date-only string (UTC midnight) in mid-March, so
+ * the rendered calendar day is the same under the suite's current clock and
+ * under Europe/London when 2b re-points `vitest.setup.ts` (12.02).
+ */
+describe("ChildManagementCard — London date rendering (2c, 12.03)", () => {
+  it("renders the date of birth in day-month-year order", () => {
+    render(<ChildManagementCard items={[oliver]} role="parent" />);
+    expect(screen.getByText(/^Born /)).toHaveTextContent("Born 15/03/2024");
+  });
+
+  it("does not render the date in month-first order", () => {
+    render(<ChildManagementCard items={[oliver]} role="parent" />);
+    expect(document.body.textContent ?? "").not.toMatch(/3\/15\/2024/);
+  });
+});
