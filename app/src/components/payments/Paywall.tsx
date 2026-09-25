@@ -88,7 +88,7 @@ export function Paywall({
                 className="w-full bg-violet-600 hover:bg-violet-700"
                 onClick={() => router.push("/parent/subscribe?plan=monthly")}
               >
-                Subscribe — A$200/month
+                Subscribe — £200/month
               </Button>
               <Button
                 size="lg"
@@ -96,7 +96,7 @@ export function Paywall({
                 className="w-full"
                 onClick={() => router.push("/parent/subscribe?plan=upfront")}
               >
-                Or pay upfront — A$2,000
+                Or pay upfront — £2,000
               </Button>
             </div>
           )}

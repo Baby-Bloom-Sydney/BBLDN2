@@ -166,7 +166,7 @@ function nannySnapshot(profile: NannyProfile): NannySnapshot {
   const p = profile as NannyProfileWithBsr;
 
   const rate =
-    p.hourly_rate_min != null ? `$${p.hourly_rate_min}/hour` : "Not set yet";
+    p.hourly_rate_min != null ? `£${p.hourly_rate_min}/hour` : "Not set yet";
   const age = ageRangeText(p.min_child_age_months, p.max_child_age_months);
 
   const photos = [
@@ -511,7 +511,7 @@ async function proposeUpdateRate(
       action: "update_rate",
       hourly_rate: r.rate,
       email_side_effect: false,
-      preview: `You're about to update your public hourly rate to $${r.rate}/hour. Parents browsing Baby Bloom will see this rate on your profile.`,
+      preview: `You're about to update your public hourly rate to £${r.rate}/hour. Parents browsing Baby Bloom will see this rate on your profile.`,
       next_call:
         "Read the preview back, ask yes/cancel, then on yes call apply_update_rate with the same hourly_rate.",
     },
@@ -542,7 +542,7 @@ async function applyUpdateRate(
     data: {
       action: "update_rate",
       hourly_rate: r.rate,
-      message: `Done — your profile now shows $${r.rate}/hour.`,
+      message: `Done — your profile now shows £${r.rate}/hour.`,
     },
   };
 }

@@ -332,8 +332,8 @@ function derivePlanLabel(
 }
 
 /**
- * Cumulative AUD this parent has paid us. Monthly = $200 per renewal
- * cycle; upfront = $1,000 one-off. Derived from activity_logs because
+ * Cumulative AUD this parent has paid us. Monthly = £200 per renewal
+ * cycle; upfront = £1,000 one-off. Derived from activity_logs because
  * the source of truth is the audit trail, not a column we maintain.
  */
 function computeCumulativeSpend(args: {
@@ -344,7 +344,7 @@ function computeCumulativeSpend(args: {
   if (!sub) return 0;
   const isMonthly = sub.stripe_subscription_id !== null;
   if (isMonthly) {
-    // Each subscription_started + subscription_renewed = one $200 paid cycle.
+    // Each subscription_started + subscription_renewed = one £200 paid cycle.
     const paidCycles = activityLogs.filter(
       (l) =>
         l.action_type === "subscription_started" ||
@@ -352,7 +352,7 @@ function computeCumulativeSpend(args: {
     ).length;
     return paidCycles * 200;
   }
-  // Upfront = one-off A$1,000 on subscription_started.
+  // Upfront = one-off £1,000 on subscription_started.
   return activityLogs.some((l) => l.action_type === "subscription_started")
     ? 1000
     : 0;

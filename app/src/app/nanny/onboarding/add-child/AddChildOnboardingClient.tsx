@@ -86,7 +86,7 @@ export function AddChildOnboardingClient({
             </h1>
             <p className="mx-auto max-w-md text-base leading-relaxed text-slate-600">
               We contribute up to{" "}
-              <span className="font-semibold text-slate-900">A$1000</span> to
+              <span className="font-semibold text-slate-900">£1000</span> to
               you for every child under 3 you look after — to support your work
               developing young minds.
             </p>
@@ -166,7 +166,7 @@ export function AddChildOnboardingClient({
                     className="mt-[7px] inline-block h-1 w-1 shrink-0 rounded-full bg-emerald-500"
                   />
                   <span>
-                    <span className="font-semibold text-slate-900">A$100</span>{" "}
+                    <span className="font-semibold text-slate-900">£100</span>{" "}
                     for every month of continued developmental support with
                     every family you work with
                   </span>
@@ -178,7 +178,7 @@ export function AddChildOnboardingClient({
                   />
                   <span>
                     <span className="font-semibold text-slate-900">
-                      A$1,000
+                      £1,000
                     </span>{" "}
                     for every family that pre-plans for long-term development
                   </span>

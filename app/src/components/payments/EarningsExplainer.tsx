@@ -45,7 +45,7 @@ export function EarningsExplainer() {
                 •
               </span>
               <span>
-                <span className="font-semibold text-slate-900">A$100</span> for
+                <span className="font-semibold text-slate-900">£100</span> for
                 every month of continued developmental support with a family.
               </span>
             </li>
@@ -54,7 +54,7 @@ export function EarningsExplainer() {
                 •
               </span>
               <span>
-                <span className="font-semibold text-slate-900">A$1,000</span>{" "}
+                <span className="font-semibold text-slate-900">£1,000</span>{" "}
                 for assisting families that pre-plan for long-term development.
               </span>
             </li>

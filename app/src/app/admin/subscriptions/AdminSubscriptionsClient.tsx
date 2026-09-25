@@ -166,7 +166,7 @@ function Row({ row }: { row: AdminSubscriptionRow }) {
       </td>
       <td className="px-4 py-3 text-right">
         <p className="font-medium text-slate-900">
-          A${row.cumulativeSpendAud.toLocaleString("en-AU")}
+          £{row.cumulativeSpendAud.toLocaleString("en-AU")}
         </p>
         {row.cycle > 1 && (
           <p className="text-xs text-slate-500">cycle {row.cycle}</p>

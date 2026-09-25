@@ -214,7 +214,7 @@ async function buildDfyEmailItems(
   // Build comprehensive position details for email
   const daysDisplay = position.days_required?.join(', ') || '';
   const hoursDisplay = position.hours_per_week ? `${position.hours_per_week}h/week` : '';
-  const rateDisplay = position.hourly_rate ? `$${position.hourly_rate}/hr` : 'Rate negotiable';
+  const rateDisplay = position.hourly_rate ? `£${position.hourly_rate}/hr` : 'Rate negotiable';
   const scheduleDisplay = position.schedule_type || 'Flexible';
 
   // Get nanny email info for batch emails
@@ -1187,7 +1187,7 @@ export async function processDfyWaves(): Promise<{ processed: number }> {
 
             const daysDisplay = pos.days_required?.join(', ') || '';
             const hoursDisplay = pos.hours_per_week ? `${pos.hours_per_week}h/week` : '';
-            const rateDisplay = pos.hourly_rate ? `$${pos.hourly_rate}/hr` : 'Rate negotiable';
+            const rateDisplay = pos.hourly_rate ? `£${pos.hourly_rate}/hr` : 'Rate negotiable';
             const scheduleDisplay = pos.schedule_type || 'Flexible';
             const childCount = (children ?? []).length;
 

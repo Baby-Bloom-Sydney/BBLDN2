@@ -150,7 +150,7 @@ function NextPayoutTile({ entry }: { entry: UpcomingEntry }) {
             isDeferred ? "text-amber-900" : "text-emerald-900"
           }`}
         >
-          A${formatAudFromCents(entry.amountAudCents)}
+          £{formatAudFromCents(entry.amountAudCents)}
         </p>
         {entry.scheduledReleaseAt && (
           <p
@@ -234,7 +234,7 @@ function UpcomingListRow({ entry }: { entry: UpcomingEntry }) {
       </div>
       <div className="text-right">
         <p className="text-lg font-semibold text-slate-900">
-          A${formatAudFromCents(entry.amountAudCents)}
+          £{formatAudFromCents(entry.amountAudCents)}
         </p>
         <p className="text-xs text-slate-600">{dateLabel}</p>
       </div>

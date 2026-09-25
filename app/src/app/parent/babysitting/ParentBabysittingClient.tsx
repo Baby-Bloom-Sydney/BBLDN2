@@ -20,7 +20,7 @@ import {
   Plus,
   Clock,
   MapPin,
-  DollarSign,
+  PoundSterling,
   X,
   Loader2,
   ChevronRight,
@@ -729,7 +729,7 @@ export function ParentBabysittingClient({
                     className="flex-1 accent-violet-500"
                   />
                   <span className="text-lg font-bold text-slate-900 w-16 text-right">
-                    ${hourlyRate}
+                    £{hourlyRate}
                   </span>
                 </div>
 
@@ -769,7 +769,7 @@ export function ParentBabysittingClient({
                         Est. Total Pay
                       </span>
                       <span className="font-bold text-green-800 text-base">
-                        ${estimatedTotal}
+                        £{estimatedTotal}
                       </span>
                     </div>
                   </div>
@@ -858,11 +858,11 @@ export function ParentBabysittingClient({
                       Babysitter Rate
                     </p>
                     <p className="text-sm text-slate-700">
-                      ${hourlyRate}/hr
+                      £{hourlyRate}/hr
                       {estimatedHours > 0 && (
                         <span className="text-slate-500">
                           {" "}
-                          — Est. ${estimatedTotal} ({estimatedHours} hrs)
+                          — Est. £{estimatedTotal} ({estimatedHours} hrs)
                         </span>
                       )}
                     </p>
@@ -1602,7 +1602,7 @@ function BSRDetailModal({
             })()}
             {request.hourly_rate && (
               <div className="flex items-center gap-2">
-                <DollarSign className="h-3.5 w-3.5" />${request.hourly_rate}/hr
+                <PoundSterling className="h-3.5 w-3.5" />£{request.hourly_rate}/hr
                 {(() => {
                   let mins = 0;
                   for (const s of request.slots) {
@@ -1614,7 +1614,7 @@ function BSRDetailModal({
                   }
                   const hrs = Math.round((mins / 60) * 10) / 10;
                   const est = Math.round(hrs * request.hourly_rate!);
-                  return hrs > 0 ? <span> (est. ${est})</span> : null;
+                  return hrs > 0 ? <span> (est. £{est})</span> : null;
                 })()}
               </div>
             )}

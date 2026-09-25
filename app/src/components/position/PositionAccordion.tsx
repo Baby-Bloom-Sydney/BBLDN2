@@ -8,7 +8,7 @@ import {
   Baby,
   MapPin,
   Clock,
-  DollarSign,
+  PoundSterling,
 } from "lucide-react";
 
 export interface PositionAccordionData {
@@ -112,7 +112,7 @@ function buildWhatYouGet(p: PositionAccordionData): string[] {
   else if (isFixed) items.push('Set days and hours for the duration of the role');
   else if (isOngoing) items.push('Ongoing role with flexible hours that suit you both');
   else items.push('Flexible arrangement — days and times can be worked out together');
-  if (p.hourlyRate && (!p.source || p.source === 'parent')) items.push(`Competitive pay at $${p.hourlyRate}/hr`);
+  if (p.hourlyRate && (!p.source || p.source === 'parent')) items.push(`Competitive pay at £${p.hourlyRate}/hr`);
   items.push('A family that values and respects their nanny');
   if (p.urgency === 'Immediately' || p.urgency === 'As soon as possible') {
     items.push('Start right away — the family is ready for you');
@@ -261,8 +261,8 @@ export function PositionAccordion({ position }: { position: PositionAccordionDat
             {/* Rate */}
             {position.hourlyRate && (
               <div className="flex items-center gap-1.5">
-                <DollarSign className="h-3 w-3 text-violet-500 shrink-0" />
-                <p className="text-xs font-medium text-slate-800">${position.hourlyRate}/hr</p>
+                <PoundSterling className="h-3 w-3 text-violet-500 shrink-0" />
+                <p className="text-xs font-medium text-slate-800">£{position.hourlyRate}/hr</p>
               </div>
             )}
           </div>

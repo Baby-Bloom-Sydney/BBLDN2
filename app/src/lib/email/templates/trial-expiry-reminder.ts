@@ -10,7 +10,7 @@
  *
  * Locked-in copy levers:
  * - Specificity ("you've been with us 25 days") — availability heuristic
- * - Reciprocity ("A$100 of every payment supports your nanny")
+ * - Reciprocity ("£100 of every payment supports your nanny")
  * - No "track" / "tracking" terminology
  */
 
@@ -67,7 +67,7 @@ export function buildTrialExpiryReminderEmail(
     <a href="${escapeHtml(subscribeUrl)}" style="${btnStyle}">Subscribe now</a>
   </p>
   <p style="font-size: 14px; color: #475569; margin: 16px 0;">
-    A$100 of every payment supports your nanny's work.
+    £100 of every payment supports your nanny's work.
   </p>
   <p style="font-size: 12px; color: #94a3b8; margin: 32px 0 0;">
     ${SITE_NAME}

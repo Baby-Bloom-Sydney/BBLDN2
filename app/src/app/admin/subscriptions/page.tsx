@@ -190,10 +190,10 @@ export default async function AdminSubscriptionsPage() {
               MRR
             </p>
             <p className="text-xl font-bold text-slate-900">
-              A${mrrAud.toLocaleString("en-AU")}
+              £{mrrAud.toLocaleString("en-AU")}
             </p>
             <p className="text-xs text-slate-500">
-              Lifetime A${cumulativeRevenueAud.toLocaleString("en-AU")}
+              Lifetime £{cumulativeRevenueAud.toLocaleString("en-AU")}
             </p>
           </CardContent>
         </Card>

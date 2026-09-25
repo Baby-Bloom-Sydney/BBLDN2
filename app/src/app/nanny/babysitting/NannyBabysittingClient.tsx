@@ -15,7 +15,7 @@ import {
   Briefcase,
   Clock,
   MapPin,
-  DollarSign,
+  PoundSterling,
   X,
   Loader2,
   ChevronRight,
@@ -685,7 +685,7 @@ function JobDetailModal({
             })()}
             {job.hourly_rate && (
               <div className="flex items-center gap-2">
-                <DollarSign className="h-3.5 w-3.5" />${job.hourly_rate}/hr
+                <PoundSterling className="h-3.5 w-3.5" />£{job.hourly_rate}/hr
                 {(() => {
                   let mins = 0;
                   for (const s of job.slots) {
@@ -697,7 +697,7 @@ function JobDetailModal({
                   }
                   const hrs = Math.round((mins / 60) * 10) / 10;
                   const est = Math.round(hrs * job.hourly_rate!);
-                  return hrs > 0 ? <span> (est. ${est})</span> : null;
+                  return hrs > 0 ? <span> (est. £{est})</span> : null;
                 })()}
               </div>
             )}

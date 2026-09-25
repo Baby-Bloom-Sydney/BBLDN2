@@ -50,7 +50,7 @@ export function generatePositionPost(input: PositionPostInput): string {
   }
 
   if (hourlyRate) {
-    lines.push(`💰 $${hourlyRate}/hr`);
+    lines.push(`💰 £${hourlyRate}/hr`);
   }
 
   lines.push('');

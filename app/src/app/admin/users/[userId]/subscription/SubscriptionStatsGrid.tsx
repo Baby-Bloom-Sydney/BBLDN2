@@ -90,10 +90,10 @@ export function SubscriptionStatsGrid({
         />
         <StatCard
           label="Cumulative spend"
-          value={`A$${cumulativeSpendAud.toLocaleString("en-AU")}`}
+          value={`£${cumulativeSpendAud.toLocaleString("en-AU")}`}
           sub={
             refundedTotalAud > 0
-              ? `A$${refundedTotalAud.toFixed(0)} refunded`
+              ? `£${refundedTotalAud.toFixed(0)} refunded`
               : null
           }
           tone={refundedTotalAud > 0 ? "muted" : undefined}
