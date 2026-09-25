@@ -4,14 +4,14 @@
     "file": "app/src/app/api/webhooks/ocg-verification/route.ts",
     "match": "+11:00",
     "owner": "identity",
-    "note": "Hardcoded regulator-webhook offset in the audit timestamp it writes back. The identity stage rewrites this webhook for DBS, and the timestamp goes with it \u2014 2b does not touch identity wiring (04 \u00a72 2b, 03-triage \u00a72)."
+    "note": "Hardcoded regulator-webhook offset in the audit timestamp it writes back. The identity stage rewrites this webhook for DBS, and the timestamp goes with it — 2b does not touch identity wiring (04 §2 2b, 03-triage §2)."
   },
   {
     "rule": "timezone",
     "file": "app/src/app/(public)/legal/biometric-notice/page.tsx",
     "match": "9am-5pm AEST",
     "owner": "legal",
-    "note": "Support-hours line inside a legal page body. The legal stage rewrites these bodies with a solicitor; 2b changes no legal copy (03-triage \u00a72, 04 \u00a74)."
+    "note": "Support-hours line inside a legal page body. The legal stage rewrites these bodies with a solicitor; 2b changes no legal copy (03-triage §2, 04 §4)."
   },
   {
     "rule": "timezone",
@@ -25,7 +25,7 @@
     "file": "app/src/app/(public)/legal/client-terms/page.tsx",
     "match": "9:00 AM AEDT",
     "owner": "legal",
-    "note": "Clause 8.2's daily check time, inside a legal page body \u2014 the clause itself is identity/legal work, not a zone substitution."
+    "note": "Clause 8.2's daily check time, inside a legal page body — the clause itself is identity/legal work, not a zone substitution."
   },
   {
     "rule": "timezone",
@@ -39,28 +39,28 @@
     "file": "app/supabase/migrations/katie-foundation.sql",
     "match": "DEFAULT 'Australia/Sydney'",
     "owner": "cleanup",
-    "note": "Historical migration \u2014 never edited (04 \u00a70). The live default is changed by LDN2/schema/amendments/02-2b-timezone-default.sql, applied to the London project by 2b; this line is the record of what the column used to be."
+    "note": "Historical migration — never edited (04 §0). The live default is changed by LDN2/schema/amendments/02-2b-timezone-default.sql, applied to the London project by 2b; this line is the record of what the column used to be."
   },
   {
     "rule": "timezone",
     "file": "app/supabase/migrations/payments-frontend.sql",
     "match": "2026-05-11T15:00+10:00",
     "owner": "cleanup",
-    "note": "An audit-footer timestamp in a historical migration's comment \u2014 a record of when a review happened, not a place fact. Historical migrations are never edited (04 \u00a70)."
+    "note": "An audit-footer timestamp in a historical migration's comment — a record of when a review happened, not a place fact. Historical migrations are never edited (04 §0)."
   },
   {
     "rule": "region",
     "file": "app/src/app/(public)/legal/privacy-policy/page.tsx",
     "match": "Processing location",
     "owner": "legal",
-    "note": "Q-6: in-DB policy says ap-southeast-2, page says ap-northeast-1 \u2014 London writes eu-west-2 in both at the legal stage"
+    "note": "Q-6: in-DB policy says ap-southeast-2, page says ap-northeast-1 — London writes eu-west-2 in both at the legal stage"
   },
   {
     "rule": "region",
     "file": "app/supabase/migrations/T-017-load-v2-policies.sql",
     "match": "is held in **Supabase**",
     "owner": "legal",
-    "note": "Q-6: in-DB policy says ap-southeast-2, page says ap-northeast-1 \u2014 London writes eu-west-2 in both at the legal stage"
+    "note": "Q-6: in-DB policy says ap-southeast-2, page says ap-northeast-1 — London writes eu-west-2 in both at the legal stage"
   },
   {
     "rule": "region",
@@ -74,7 +74,7 @@
     "file": "app/src/lib/stripe/connect.ts",
     "match": "Normalise an AU phone number to E.164",
     "owner": "money",
-    "note": "2e: the whole file is the money stage's (03-triage.md \u00a75). Its +61 E.164 normaliser feeds Stripe Connect onboarding, not the app's own contact surfaces."
+    "note": "2e: the whole file is the money stage's (03-triage.md §5). Its +61 E.164 normaliser feeds Stripe Connect onboarding, not the app's own contact surfaces."
   },
   {
     "rule": "phone",
@@ -487,105 +487,105 @@
     "file": "app/scripts/check-held-rows.mjs",
     "match": "amount_aud_cents",
     "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md \u00a74).  [2d, 2 hit(s): lines 12, 15]"
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 12, 15]"
   },
   {
     "rule": "currency",
     "file": "app/scripts/setup-stripe-test-mode.ts",
     "match": "currency: \"aud\"",
     "owner": "money",
-    "note": "Stripe's own currency argument \u2014 behaviour, not display. Money stage (04-sequence.md \u00a72 2d 'Not this unit').  [2d, 3 hit(s): lines 89, 98, 175]"
+    "note": "Stripe's own currency argument — behaviour, not display. Money stage (04-sequence.md §2 2d 'Not this unit').  [2d, 3 hit(s): lines 89, 98, 175]"
   },
   {
     "rule": "currency",
     "file": "app/scripts/t018-preflight-audit.mjs",
     "match": "amount_aud_cents",
     "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md \u00a74).  [2d, 3 hit(s): lines 16, 21, 39]"
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 16, 21, 39]"
   },
   {
     "rule": "currency",
     "file": "app/scripts/test-release-cron-e2e.mjs",
     "match": "amount_aud_cents",
     "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md \u00a74).  [2d, 4 hit(s): lines 60, 75, 99, 186]"
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 4 hit(s): lines 60, 75, 99, 186]"
   },
   {
     "rule": "currency",
     "file": "app/scripts/test-release-cron-e2e.mjs",
     "match": "currency: \"aud\"",
     "owner": "money",
-    "note": "Stripe's own currency argument \u2014 behaviour, not display. Money stage (04-sequence.md \u00a72 2d 'Not this unit').  [2d, 1 hit(s): line 187]"
+    "note": "Stripe's own currency argument — behaviour, not display. Money stage (04-sequence.md §2 2d 'Not this unit').  [2d, 1 hit(s): line 187]"
   },
   {
     "rule": "currency",
     "file": "app/src/app/admin/payouts/page.tsx",
     "match": "amount_aud_cents",
     "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md \u00a74).  [2d, 7 hit(s): lines 30, 43, 50, 59, 83, 87, 170]"
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 7 hit(s): lines 30, 43, 50, 59, 83, 87, 170]"
   },
   {
     "rule": "currency",
     "file": "app/src/app/admin/subscriptions/AdminSubscriptionsClient.tsx",
     "match": "cumulativeSpendAud",
     "owner": "money",
-    "note": "`cumulativeSpendAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md \u00a74).  [2d, 1 hit(s): line 170]"
+    "note": "`cumulativeSpendAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 170]"
   },
   {
     "rule": "currency",
     "file": "app/src/app/admin/subscriptions/page.tsx",
     "match": "cumulativeSpendAud",
     "owner": "money",
-    "note": "`cumulativeSpendAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md \u00a74).  [2d, 3 hit(s): lines 115, 148, 170]"
+    "note": "`cumulativeSpendAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 115, 148, 170]"
   },
   {
     "rule": "currency",
     "file": "app/src/app/admin/subscriptions/page.tsx",
     "match": "mrrAud",
     "owner": "money",
-    "note": "`mrrAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md \u00a74).  [2d, 2 hit(s): lines 168, 194]"
+    "note": "`mrrAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 168, 194]"
   },
   {
     "rule": "currency",
     "file": "app/src/app/admin/subscriptions/page.tsx",
     "match": "cumulativeRevenueAud",
     "owner": "money",
-    "note": "`cumulativeRevenueAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md \u00a74).  [2d, 2 hit(s): lines 169, 197]"
+    "note": "`cumulativeRevenueAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 169, 197]"
   },
   {
     "rule": "currency",
     "file": "app/src/app/admin/subscriptions/types.ts",
     "match": "cumulativeSpendAud",
     "owner": "money",
-    "note": "`cumulativeSpendAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md \u00a74).  [2d, 1 hit(s): line 15]"
+    "note": "`cumulativeSpendAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 15]"
   },
   {
     "rule": "currency",
     "file": "app/src/app/admin/users/[userId]/subscription/build-timeline.ts",
     "match": "amount_aud_cents",
     "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md \u00a74).  [2d, 4 hit(s): lines 100, 109, 125, 246, 247 \u2014 125 is refund_amount_aud_cents, the same substring]"
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 4 hit(s): lines 100, 109, 125, 246, 247 — 125 is refund_amount_aud_cents, the same substring]"
   },
   {
     "rule": "currency",
     "file": "app/src/app/admin/users/[userId]/subscription/page.tsx",
     "match": "amount_aud_cents",
     "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md \u00a74).  [2d, 2 hit(s): lines 60, 68, 170, 292, 305 \u2014 the refund_ prefixed ones carry the same substring]"
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 60, 68, 170, 292, 305 — the refund_ prefixed ones carry the same substring]"
   },
   {
     "rule": "currency",
     "file": "app/src/app/admin/users/[userId]/subscription/page.tsx",
     "match": "cumulativeSpendAud",
     "owner": "money",
-    "note": "`cumulativeSpendAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md \u00a74).  [2d, 2 hit(s): lines 154, 217]"
+    "note": "`cumulativeSpendAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 154, 217]"
   },
   {
     "rule": "currency",
     "file": "app/src/app/admin/users/[userId]/subscription/page.tsx",
     "match": "refundedTotalAud",
     "owner": "money",
-    "note": "`refundedTotalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md \u00a74).  [2d, 2 hit(s): lines 167, 218]"
+    "note": "`refundedTotalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 167, 218]"
   },
   {
     "rule": "currency",
@@ -599,217 +599,217 @@
     "file": "app/src/app/admin/users/[userId]/subscription/SubscriptionStatsGrid.tsx",
     "match": "cumulativeSpendAud",
     "owner": "money",
-    "note": "`cumulativeSpendAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md \u00a74).  [2d, 3 hit(s): lines 11, 36, 94]"
+    "note": "`cumulativeSpendAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 11, 36, 94]"
   },
   {
     "rule": "currency",
     "file": "app/src/app/admin/users/[userId]/subscription/SubscriptionStatsGrid.tsx",
     "match": "refundedTotalAud",
     "owner": "money",
-    "note": "`refundedTotalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md \u00a74).  [2d, 5 hit(s): lines 12, 37, 96, 97, 100]"
+    "note": "`refundedTotalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 5 hit(s): lines 12, 37, 96, 97, 100]"
   },
   {
     "rule": "currency",
     "file": "app/src/app/api/nanny/earnings-badge/route.ts",
     "match": "trialTeaserAudCents",
     "owner": "money",
-    "note": "`trialTeaserAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md \u00a74).  [2d, 2 hit(s): lines 12, 41]"
+    "note": "`trialTeaserAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 12, 41]"
   },
   {
     "rule": "currency",
     "file": "app/src/app/api/nanny/earnings-badge/route.ts",
     "match": "totalAud",
     "owner": "money",
-    "note": "`totalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md \u00a74).  [2d, 3 hit(s): lines 16, 39, 42]"
+    "note": "`totalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 16, 39, 42]"
   },
   {
     "rule": "currency",
     "file": "app/src/app/nanny/payouts/[familyId]/page.tsx",
     "match": "amount_aud_cents",
     "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md \u00a74).  [2d, 3 hit(s): lines 47, 55, 96]"
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 47, 55, 96]"
   },
   {
     "rule": "currency",
     "file": "app/src/components/layout/NannyEarningsBadge.tsx",
     "match": "totalAud",
     "owner": "money",
-    "note": "`totalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md \u00a74).  [2d, 4 hit(s): lines 28, 59, 71, 74]"
+    "note": "`totalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 4 hit(s): lines 28, 59, 71, 74]"
   },
   {
     "rule": "currency",
     "file": "app/src/components/payments/AccountTotalTile.tsx",
     "match": "totalAud",
     "owner": "money",
-    "note": "`totalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md \u00a74).  [2d, 3 hit(s): lines 15, 20, 29]"
+    "note": "`totalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 15, 20, 29]"
   },
   {
     "rule": "currency",
     "file": "app/src/components/payments/PayoutHistoryView.tsx",
     "match": "amountAudCents",
     "owner": "money",
-    "note": "`amountAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md \u00a74).  [2d, 1 hit(s): line 62]"
+    "note": "`amountAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 62]"
   },
   {
     "rule": "currency",
     "file": "app/src/components/payments/UpcomingPayoutsView.tsx",
     "match": "formatAudFromCents",
     "owner": "money",
-    "note": "`formatAudFromCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md \u00a74).  [2d, 1 hit(s): lines 44, 153, 237 \u2014 the row amounts read through this helper]"
+    "note": "`formatAudFromCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 1 hit(s): lines 44, 153, 237 — the row amounts read through this helper]"
   },
   {
     "rule": "currency",
     "file": "app/src/components/providers/SessionProvider.tsx",
     "match": "aud",
     "owner": "cleanup",
-    "note": "Gate precision, not currency: `aud` here is the JWT audience claim on a Supabase session fixture. The rule's bare-`aud` alternation cannot tell a claim from a currency. Tighten the rule in W6 (LEDGER/2d.md \u00a79) and delete this entry.  [2d, 1 hit(s): line 76]"
+    "note": "Gate precision, not currency: `aud` here is the JWT audience claim on a Supabase session fixture. The rule's bare-`aud` alternation cannot tell a claim from a currency. Tighten the rule in W6 (LEDGER/2d.md §9) and delete this entry.  [2d, 1 hit(s): line 76]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/auth/display-name.test.ts",
     "match": "aud",
     "owner": "cleanup",
-    "note": "Gate precision, not currency: the JWT `aud` claim in a session fixture. Same rule-tightening as the SessionProvider entry (LEDGER/2d.md \u00a79).  [2d, 1 hit(s): line 13]"
+    "note": "Gate precision, not currency: the JWT `aud` claim in a session fixture. Same rule-tightening as the SessionProvider entry (LEDGER/2d.md §9).  [2d, 1 hit(s): line 13]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/chat/flags.ts",
     "match": "AUD",
     "owner": "cleanup",
-    "note": "Katie's LLM budget comment, and the cost really is USD \u2014 the AUD only appears as the conversion note that explains the default. Genuinely USD; reword when the budget is re-derived for London.  [2d, 1 hit(s): line 59]"
+    "note": "Katie's LLM budget comment, and the cost really is USD — the AUD only appears as the conversion note that explains the default. Genuinely USD; reword when the budget is re-derived for London.  [2d, 1 hit(s): line 59]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/chat/route-allowlist.ts",
     "match": "aud",
     "owner": "cleanup",
-    "note": "Gate precision, not currency: `aud` is a local variable holding the route's *audience* (nanny / parent). Same rule-tightening as the SessionProvider entry (LEDGER/2d.md \u00a79).  [2d, 3 hit(s): lines 116, 117, 118]"
+    "note": "Gate precision, not currency: `aud` is a local variable holding the route's *audience* (nanny / parent). Same rule-tightening as the SessionProvider entry (LEDGER/2d.md §9).  [2d, 3 hit(s): lines 116, 117, 118]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/leads/timeline.ts",
     "match": "amount_aud_cents",
     "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md \u00a74).  [2d, 2 hit(s): lines 119, 177]"
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 119, 177]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/commission-engine.test.ts",
     "match": "A$",
     "owner": "money",
-    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md \u00a74).  [2d, 15 hit(s): lines 5, 6, 17, 22, 24, 27, 30, 36, 38, 42, 44, 48, 50, 54, 58]"
+    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md §4).  [2d, 15 hit(s): lines 5, 6, 17, 22, 24, 27, 30, 36, 38, 42, 44, 48, 50, 54, 58]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/commission-engine.ts",
     "match": "A$",
     "owner": "money",
-    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md \u00a74).  [2d, 9 hit(s): lines 5, 7, 8, 15, 17, 18, 19, 47, 48]"
+    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md §4).  [2d, 9 hit(s): lines 5, 7, 8, 15, 17, 18, 19, 47, 48]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/commission-scheduler.ts",
     "match": "amount_aud_cents",
     "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md \u00a74).  [2d, 2 hit(s): lines 212, 249]"
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 212, 249]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/payouts-state.ts",
     "match": "A$",
     "owner": "money",
-    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md \u00a74).  [2d, 1 hit(s): line 20]"
+    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 20]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/payouts-state.ts",
     "match": "COMMISSION_PER_CYCLE_AUD",
     "owner": "money",
-    "note": "Price constant with AUD in its identifier. Money stage (03-triage.md \u00a74).  [2d, 1 hit(s): line 25]"
+    "note": "Price constant with AUD in its identifier. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 25]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/queryPayoutHistory.ts",
     "match": "amountAudCents",
     "owner": "money",
-    "note": "`amountAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md \u00a74).  [2d, 1 hit(s): line 14]"
+    "note": "`amountAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 14]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/queryPayoutHistory.ts",
     "match": "amount_aud_cents",
     "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md \u00a74).  [2d, 3 hit(s): lines 29, 38, 66]"
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 29, 38, 66]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/queryPayoutsDashboard.test.ts",
     "match": "amount_aud_cents",
     "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md \u00a74).  [2d, 2 hit(s): lines 46, 53]"
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 46, 53]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/queryPayoutsDashboard.test.ts",
     "match": "amountAudCents",
     "owner": "money",
-    "note": "`amountAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md \u00a74).  [2d, 3 hit(s): lines 78, 158, 316]"
+    "note": "`amountAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 78, 158, 316]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/queryPayoutsDashboard.ts",
     "match": "amountAudCents",
     "owner": "money",
-    "note": "`amountAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md \u00a74).  [2d, 4 hit(s): lines 39, 183, 467, 497]"
+    "note": "`amountAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 4 hit(s): lines 39, 183, 467, 497]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/queryPayoutsDashboard.ts",
     "match": "trialTeaserAudCents",
     "owner": "money",
-    "note": "`trialTeaserAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md \u00a74).  [2d, 4 hit(s): lines 56, 181, 189, 531]"
+    "note": "`trialTeaserAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 4 hit(s): lines 56, 181, 189, 531]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/queryPayoutsDashboard.ts",
     "match": "amount_aud_cents",
     "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md \u00a74).  [2d, 5 hit(s): lines 94, 271, 307, 373, 442]"
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 5 hit(s): lines 94, 271, 307, 373, 442]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/queryPayoutsDashboard.ts",
     "match": "A$",
     "owner": "money",
-    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md \u00a74).  [2d, 1 hit(s): line 111]"
+    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 111]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/refund-engine.test.ts",
     "match": "A$",
     "owner": "money",
-    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md \u00a74).  [2d, 42 hit(s): lines 11, 21, 24, 38, 41, 42, 48, 50, 52, 53, 54, 57, 62, 65, 73, 80, 85, 88, 90, 91, 110, 116, 123, 139, 146, 147, 153, 156, 161, 166, 168, 169, 170, 174, 181, 182, 185, 200, 218, 222, 229, 230]"
+    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md §4).  [2d, 42 hit(s): lines 11, 21, 24, 38, 41, 42, 48, 50, 52, 53, 54, 57, 62, 65, 73, 80, 85, 88, 90, 91, 110, 116, 123, 139, 146, 147, 153, 156, 161, 166, 168, 169, 170, 174, 181, 182, 185, 200, 218, 222, 229, 230]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/release-payouts.test.ts",
     "match": "amount_aud_cents",
     "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md \u00a74).  [2d, 4 hit(s): lines 37, 252, 359, 360]"
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 4 hit(s): lines 37, 252, 359, 360]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/release-payouts.test.ts",
     "match": "currency: \"aud\"",
     "owner": "money",
-    "note": "Stripe's own currency argument \u2014 behaviour, not display. Money stage (04-sequence.md \u00a72 2d 'Not this unit').  [2d, 1 hit(s): line 298]"
+    "note": "Stripe's own currency argument — behaviour, not display. Money stage (04-sequence.md §2 2d 'Not this unit').  [2d, 1 hit(s): line 298]"
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/release-payouts.ts",
     "match": "amount_aud_cents",
     "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md \u00a74).  [2d, 5 hit(s): lines 44, 88, 189, 219, 251]"
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 5 hit(s): lines 44, 88, 189, 219, 251]"
   },
   {
     "rule": "currency",
@@ -823,7 +823,7 @@
     "file": "app/src/lib/stripe/transfers.ts",
     "match": "currency: \"aud\"",
     "owner": "money",
-    "note": "Stripe's own currency argument \u2014 behaviour, not display. Money stage (04-sequence.md \u00a72 2d 'Not this unit').  [2d, 1 hit(s): line 62]"
+    "note": "Stripe's own currency argument — behaviour, not display. Money stage (04-sequence.md §2 2d 'Not this unit').  [2d, 1 hit(s): line 62]"
   },
   {
     "rule": "currency",
@@ -837,125 +837,370 @@
     "file": "app/supabase/migrations/cancel-inflight-trigger-v2.sql",
     "match": "A$",
     "owner": "money",
-    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md \u00a74).  [2d, 1 hit(s): line 9]"
+    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 9]"
   },
   {
     "rule": "currency",
     "file": "app/supabase/migrations/payments-foundation.sql",
     "match": "amount_aud_cents",
     "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md \u00a74).  [2d, 1 hit(s): lines 164, 286 \u2014 approved_amount_aud_cents carries the same substring]"
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 1 hit(s): lines 164, 286 — approved_amount_aud_cents carries the same substring]"
   },
   {
     "rule": "currency",
     "file": "app/supabase/migrations/payments-foundation.sql",
     "match": "earnings_value_aud_cents",
     "owner": "money",
-    "note": "`earnings_value_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md \u00a74).  [2d, 1 hit(s): line 238]"
+    "note": "`earnings_value_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 238]"
   },
   {
     "rule": "currency",
     "file": "app/supabase/migrations/payments-foundation.sql",
     "match": "calculated_refund_aud_cents",
     "owner": "money",
-    "note": "`calculated_refund_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md \u00a74).  [2d, 1 hit(s): line 272]"
+    "note": "`calculated_refund_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 272]"
   },
   {
     "rule": "currency",
     "file": "app/supabase/migrations/payments-foundation.sql",
     "match": "A$",
     "owner": "money",
-    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md \u00a74).  [2d, 1 hit(s): line 338]"
+    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 338]"
   },
   {
     "rule": "currency",
     "file": "app/src/app/(public)/legal/professional-terms/page.tsx",
     "match": "Public Liability Insurance",
     "owner": "legal",
-    "note": "An AUD insurance-cover figure inside a legal page body. The legal stage owns these pages and the English-law figure comes with a solicitor (04-sequence.md \u00a74 legal); 2s touched only the safeguarding sentences.  [2d, 1 hit(s): line 70]"
+    "note": "An AUD insurance-cover figure inside a legal page body. The legal stage owns these pages and the English-law figure comes with a solicitor (04-sequence.md §4 legal); 2s touched only the safeguarding sentences.  [2d, 1 hit(s): line 70]"
   },
   {
     "rule": "currency",
     "file": "app/supabase/migrations/T-017-load-v2-policies.sql",
     "match": "The decision to withdraw this consent",
     "owner": "legal",
-    "note": "AUD penalty and liability-cap figures inside the T-017 policy rows. Legal stage (04-sequence.md \u00a74; Q-6).  [2d, 1 hit(s): line 315]"
+    "note": "AUD penalty and liability-cap figures inside the T-017 policy rows. Legal stage (04-sequence.md §4; Q-6).  [2d, 1 hit(s): line 315]"
   },
   {
     "rule": "currency",
     "file": "app/supabase/migrations/T-017-load-v2-policies.sql",
     "match": "Where Baby Bloom suffers loss as a direct result",
     "owner": "legal",
-    "note": "AUD penalty and liability-cap figures inside the T-017 policy rows. Legal stage (04-sequence.md \u00a74; Q-6).  [2d, 1 hit(s): line 773]"
+    "note": "AUD penalty and liability-cap figures inside the T-017 policy rows. Legal stage (04-sequence.md §4; Q-6).  [2d, 1 hit(s): line 773]"
   },
   {
     "rule": "geography",
     "file": "app/src/lib/matching/normalize.ts",
     "match": "const HARBOUR_BRIDGE: Coord",
     "owner": "matching",
-    "note": "ADR-189 / P-12: Sydney's bridge-aware distance is carried to the checkpoint unchanged. None of these tripwires fires with both points in London, so the function degrades to plain crow-flies \u2014 acceptable to the checkpoint, wrong for a city whose river has the same effect on a commute as the Harbour. The post-checkpoint rebuild replaces the detour set with Thames crossings; owner matching, not cleanup."
+    "note": "ADR-189 / P-12: Sydney's bridge-aware distance is carried to the checkpoint unchanged. None of these tripwires fires with both points in London, so the function degrades to plain crow-flies — acceptable to the checkpoint, wrong for a city whose river has the same effect on a commute as the Harbour. The post-checkpoint rebuild replaces the detour set with Thames crossings; owner matching, not cleanup."
   },
   {
     "rule": "geography",
     "file": "app/src/lib/matching/normalize.ts",
     "match": "const SPIT_BRIDGE: Coord",
     "owner": "matching",
-    "note": "ADR-189 / P-12: Sydney's bridge-aware distance is carried to the checkpoint unchanged. None of these tripwires fires with both points in London, so the function degrades to plain crow-flies \u2014 acceptable to the checkpoint, wrong for a city whose river has the same effect on a commute as the Harbour. The post-checkpoint rebuild replaces the detour set with Thames crossings; owner matching, not cleanup."
+    "note": "ADR-189 / P-12: Sydney's bridge-aware distance is carried to the checkpoint unchanged. None of these tripwires fires with both points in London, so the function degrades to plain crow-flies — acceptable to the checkpoint, wrong for a city whose river has the same effect on a commute as the Harbour. The post-checkpoint rebuild replaces the detour set with Thames crossings; owner matching, not cleanup."
   },
   {
     "rule": "geography",
     "file": "app/src/lib/matching/normalize.ts",
     "match": "const ROSEVILLE_BRIDGE: Coord",
     "owner": "matching",
-    "note": "ADR-189 / P-12: Sydney's bridge-aware distance is carried to the checkpoint unchanged. None of these tripwires fires with both points in London, so the function degrades to plain crow-flies \u2014 acceptable to the checkpoint, wrong for a city whose river has the same effect on a commute as the Harbour. The post-checkpoint rebuild replaces the detour set with Thames crossings; owner matching, not cleanup."
+    "note": "ADR-189 / P-12: Sydney's bridge-aware distance is carried to the checkpoint unchanged. None of these tripwires fires with both points in London, so the function degrades to plain crow-flies — acceptable to the checkpoint, wrong for a city whose river has the same effect on a commute as the Harbour. The post-checkpoint rebuild replaces the detour set with Thames crossings; owner matching, not cleanup."
   },
   {
     "rule": "geography",
     "file": "app/src/lib/matching/normalize.ts",
     "match": "const CAPTAIN_COOK_BRIDGE: Coord",
     "owner": "matching",
-    "note": "ADR-189 / P-12: Sydney's bridge-aware distance is carried to the checkpoint unchanged. None of these tripwires fires with both points in London, so the function degrades to plain crow-flies \u2014 acceptable to the checkpoint, wrong for a city whose river has the same effect on a commute as the Harbour. The post-checkpoint rebuild replaces the detour set with Thames crossings; owner matching, not cleanup."
+    "note": "ADR-189 / P-12: Sydney's bridge-aware distance is carried to the checkpoint unchanged. None of these tripwires fires with both points in London, so the function degrades to plain crow-flies — acceptable to the checkpoint, wrong for a city whose river has the same effect on a commute as the Harbour. The post-checkpoint rebuild replaces the detour set with Thames crossings; owner matching, not cleanup."
   },
   {
     "rule": "geography",
     "file": "app/src/lib/matching/normalize.ts",
     "match": "{ bridge: HARBOUR_BRIDGE, lineA: HARBOUR_BRIDGE",
     "owner": "matching",
-    "note": "ADR-189 / P-12: Sydney's bridge-aware distance is carried to the checkpoint unchanged. None of these tripwires fires with both points in London, so the function degrades to plain crow-flies \u2014 acceptable to the checkpoint, wrong for a city whose river has the same effect on a commute as the Harbour. The post-checkpoint rebuild replaces the detour set with Thames crossings; owner matching, not cleanup."
+    "note": "ADR-189 / P-12: Sydney's bridge-aware distance is carried to the checkpoint unchanged. None of these tripwires fires with both points in London, so the function degrades to plain crow-flies — acceptable to the checkpoint, wrong for a city whose river has the same effect on a commute as the Harbour. The post-checkpoint rebuild replaces the detour set with Thames crossings; owner matching, not cleanup."
   },
   {
     "rule": "geography",
     "file": "app/src/lib/matching/normalize.ts",
     "match": "{ bridge: SPIT_BRIDGE, lineA:",
     "owner": "matching",
-    "note": "ADR-189 / P-12: Sydney's bridge-aware distance is carried to the checkpoint unchanged. None of these tripwires fires with both points in London, so the function degrades to plain crow-flies \u2014 acceptable to the checkpoint, wrong for a city whose river has the same effect on a commute as the Harbour. The post-checkpoint rebuild replaces the detour set with Thames crossings; owner matching, not cleanup."
+    "note": "ADR-189 / P-12: Sydney's bridge-aware distance is carried to the checkpoint unchanged. None of these tripwires fires with both points in London, so the function degrades to plain crow-flies — acceptable to the checkpoint, wrong for a city whose river has the same effect on a commute as the Harbour. The post-checkpoint rebuild replaces the detour set with Thames crossings; owner matching, not cleanup."
   },
   {
     "rule": "geography",
     "file": "app/src/lib/matching/normalize.ts",
     "match": "{ bridge: CAPTAIN_COOK_BRIDGE, lineA: CAPTAIN_COOK_BRIDGE",
     "owner": "matching",
-    "note": "ADR-189 / P-12: Sydney's bridge-aware distance is carried to the checkpoint unchanged. None of these tripwires fires with both points in London, so the function degrades to plain crow-flies \u2014 acceptable to the checkpoint, wrong for a city whose river has the same effect on a commute as the Harbour. The post-checkpoint rebuild replaces the detour set with Thames crossings; owner matching, not cleanup."
+    "note": "ADR-189 / P-12: Sydney's bridge-aware distance is carried to the checkpoint unchanged. None of these tripwires fires with both points in London, so the function degrades to plain crow-flies — acceptable to the checkpoint, wrong for a city whose river has the same effect on a commute as the Harbour. The post-checkpoint rebuild replaces the detour set with Thames crossings; owner matching, not cleanup."
   },
   {
     "rule": "geography",
     "file": "app/src/app/nanny/share/NannyShareClient.tsx",
     "match": "Babysitting / Nannies Hornsby And Surrounding Areas",
     "owner": "removals",
-    "note": "Sydney Facebook group directory inside the share loop, which is out for London (N-3, 03-triage \u00a71). Gated or removed by the removals stage; not translated."
+    "note": "Sydney Facebook group directory inside the share loop, which is out for London (N-3, 03-triage §1). Gated or removed by the removals stage; not translated."
   },
   {
     "rule": "geography",
     "file": "app/src/app/parent/babysitting/[id]/share/BsrShareClient.tsx",
     "match": "Babysitting / Nannies Hornsby And Surrounding Areas",
     "owner": "removals",
-    "note": "Sydney Facebook group directory inside the share loop, which is out for London (N-3, 03-triage \u00a71). Gated or removed by the removals stage; not translated."
+    "note": "Sydney Facebook group directory inside the share loop, which is out for London (N-3, 03-triage §1). Gated or removed by the removals stage; not translated."
   },
   {
     "rule": "geography",
     "file": "app/src/app/parent/matches/share/PositionShareClient.tsx",
     "match": "Babysitting / Nannies Hornsby And Surrounding Areas",
     "owner": "removals",
-    "note": "Sydney Facebook group directory inside the share loop, which is out for London (N-3, 03-triage \u00a71). Gated or removed by the removals stage; not translated."
+    "note": "Sydney Facebook group directory inside the share loop, which is out for London (N-3, 03-triage §1). Gated or removed by the removals stage; not translated."
+  },
+  {
+    "rule": "timezone",
+    "file": "app/src/components/payments/CancelledInPeriodBanner.test.tsx",
+    "match": "+10:00",
+    "owner": "money",
+    "note": "Fixture of one of the two `it.fails` specs 2b pinned rather than re-baselined: the subscription grace deadline moves by a day under the new zone, and whether it is still correct in London is the money stage's question, not a fixture chore (LEDGER/2b.md §8(1), 04 §4 money). Re-basing the offset here would turn an open question into a green test."
+  },
+  {
+    "rule": "timezone",
+    "file": "app/src/components/payments/PastDueBanner.test.tsx",
+    "match": "+10:00",
+    "owner": "money",
+    "note": "Fixture of one of the two `it.fails` specs 2b pinned rather than re-baselined: the subscription grace deadline moves by a day under the new zone, and whether it is still correct in London is the money stage's question, not a fixture chore (LEDGER/2b.md §8(1), 04 §4 money). Re-basing the offset here would turn an open question into a green test."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/app/(funnel)/apply/components/stages/n1/N1Location.tsx",
+    "match": "sydney_resident",
+    "owner": "identity",
+    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/app/(funnel)/apply/components/stages/n1/N1Location.tsx",
+    "match": "not in Sydney",
+    "owner": "identity",
+    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/app/(funnel)/apply/components/stages/n1/N1Location.tsx",
+    "match": "Sydney resident",
+    "owner": "identity",
+    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/app/(funnel)/apply/components/stages/n1/N1Location.tsx",
+    "match": "Not in Sydney message",
+    "owner": "identity",
+    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/app/nanny/register/NannyRegistrationFunnel.tsx",
+    "match": "sydney_resident",
+    "owner": "identity",
+    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/app/nanny/register/steps/StepResidency.tsx",
+    "match": "sydney_resident",
+    "owner": "identity",
+    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/app/nanny/register/steps/StepResidency.tsx",
+    "match": "sydney residency",
+    "owner": "identity",
+    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/app/nanny/register/steps/StepResidency.tsx",
+    "match": "Sydney Resident",
+    "owner": "identity",
+    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/app/nanny/register/steps/StepResidency.tsx",
+    "match": "living in Sydney?",
+    "owner": "identity",
+    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/app/nanny/register/steps/StepResidency.tsx",
+    "match": "Not-Sydney note",
+    "owner": "identity",
+    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/app/nanny/register/steps/StepResidency.tsx",
+    "match": "soon to be living) in Sydney",
+    "owner": "identity",
+    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/app/nanny/register/steps/StepReview.tsx",
+    "match": "Sydney resident",
+    "owner": "identity",
+    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/app/nanny/register/steps/StepReview.tsx",
+    "match": "sydney_resident",
+    "owner": "identity",
+    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/lib/actions/nanny-leads.ts",
+    "match": "sydney_resident",
+    "owner": "identity",
+    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/lib/actions/nanny.ts",
+    "match": "sydney_resident",
+    "owner": "identity",
+    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/types/nanny-leads.ts",
+    "match": "sydney_resident",
+    "owner": "identity",
+    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/lib/chat/modules/profile.test.ts",
+    "match": "sydney_resident",
+    "owner": "identity",
+    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/app/api/webhooks/ocg-verification/route.ts",
+    "match": "(Sydney timezone)",
+    "owner": "identity",
+    "note": "Docblock on the OCG regulator webhook's datetime parser. The identity stage rewrites this webhook for DBS and the docblock goes with it (04 §4 identity); the same file's `+11:00` is already allow-listed to identity by 2b."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/lib/ai/check-share-screenshot.ts",
+    "match": "Sydney",
+    "owner": "removals",
+    "note": "The share loop and its Sydney Facebook-group prompts are out for London (N-3, 03-triage §1; 04 §4 removals). 12.11 explicitly routes `ai/check-share-screenshot.ts` to removals rather than translating a vision prompt for a feature that is being removed."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/lib/ai/check-share-screenshot.ts",
+    "match": "babybloomsydney.com.au",
+    "owner": "removals",
+    "note": "The share loop and its Sydney Facebook-group prompts are out for London (N-3, 03-triage §1; 04 §4 removals). 12.11 explicitly routes `ai/check-share-screenshot.ts` to removals rather than translating a vision prompt for a feature that is being removed."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/lib/actions/viral-loop.ts",
+    "match": "Sydney childcare Facebook group",
+    "owner": "removals",
+    "note": "The share loop and its Sydney Facebook-group prompts are out for London (N-3, 03-triage §1; 04 §4 removals). 12.11 explicitly routes `ai/check-share-screenshot.ts` to removals rather than translating a vision prompt for a feature that is being removed."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/lib/matching/normalize.ts",
+    "match": "Sydney bridge-aware",
+    "owner": "matching",
+    "note": "P-12 / ADR-189: distance measurement is carried unchanged to the checkpoint and rebuilt afterwards with the Thames as the detour set. `normalize.ts` is `leave` in Stage 2 and its bridge constants belong to `matching`, not `cleanup`."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/lib/matching/normalize.ts",
+    "match": "Sydney Harbour",
+    "owner": "matching",
+    "note": "P-12 / ADR-189: distance measurement is carried unchanged to the checkpoint and rebuilt afterwards with the Thames as the detour set. `normalize.ts` is `leave` in Stage 2 and its bridge constants belong to `matching`, not `cleanup`."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/lib/matching/normalize.ts",
+    "match": "Sydney Heads",
+    "owner": "matching",
+    "note": "P-12 / ADR-189: distance measurement is carried unchanged to the checkpoint and rebuilt afterwards with the Thames as the detour set. `normalize.ts` is `leave` in Stage 2 and its bridge constants belong to `matching`, not `cleanup`."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/lib/matching/normalize.ts",
+    "match": "Eastern Sydney",
+    "owner": "matching",
+    "note": "P-12 / ADR-189: distance measurement is carried unchanged to the checkpoint and rebuilt afterwards with the Thames as the detour set. `normalize.ts` is `leave` in Stage 2 and its bridge constants belong to `matching`, not `cleanup`."
+  },
+  {
+    "rule": "brand",
+    "file": "app/scripts/setup-stripe-test-mode.ts",
+    "match": "babybloomsydney.com.au",
+    "owner": "money",
+    "note": "Stripe test-mode / tax configuration script. 03-triage §9 routes the Stripe scripts to the money stage, which owns currency, country, tax and Connect (04 §4 money); its URLs and the AU billing city move when that configuration does."
+  },
+  {
+    "rule": "brand",
+    "file": "app/scripts/test-checkout-tax.ts",
+    "match": "babybloomsydney.com.au",
+    "owner": "money",
+    "note": "Stripe test-mode / tax configuration script. 03-triage §9 routes the Stripe scripts to the money stage, which owns currency, country, tax and Connect (04 §4 money); its URLs and the AU billing city move when that configuration does."
+  },
+  {
+    "rule": "brand",
+    "file": "app/scripts/test-checkout-tax.ts",
+    "match": "city: \"Sydney\"",
+    "owner": "money",
+    "note": "Stripe test-mode / tax configuration script. 03-triage §9 routes the Stripe scripts to the money stage, which owns currency, country, tax and Connect (04 §4 money); its URLs and the AU billing city move when that configuration does."
+  },
+  {
+    "rule": "brand",
+    "file": "app/supabase/migrations/payments-frontend.sql",
+    "match": "The existing email-to-admin@babyb",
+    "owner": "cleanup",
+    "note": "A `COMMENT ON TABLE` string inside an already-applied historical migration. Historical migrations are not edited in this stage (2b wrote a new amendment instead of rewriting `katie-foundation.sql`); the comment is not user-facing and a fresh amendment to restate it is cleanup, not place. (The gate truncates the snippet at 140 chars, so the match substring stops there.)"
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/lib/ai/check-share-screenshot.ts",
+    "match": "if (isPosition) return \"We couldn't quite verify",
+    "owner": "removals",
+    "note": "Same removals deferral as the rest of this file; the Sydney token on this line falls past the gate's 140-char snippet cut, so the match anchors on the start of the line instead."
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/app/ui/page-client-mocks.ts",
+    "match": "wwcc",
+    "owner": "identity",
+    "note": "Demo-page mock rows for the WWCC verification surface. 2h replaced the two invented check NUMBERS with an obviously-placeholder string (12.09); what the gate still sees is the FIELD NAMES (`wwcc_*`, `PendingWWCCCheck`, `service_nsw`), which are the column and type names the identity stage renames when it supplies the DBS shape (04 §2 2h, §4 identity). Renaming them here would be a schema change in a place-layer unit."
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/app/ui/page-client-mocks.ts",
+    "match": "WWCC",
+    "owner": "identity",
+    "note": "Demo-page mock rows for the WWCC verification surface. 2h replaced the two invented check NUMBERS with an obviously-placeholder string (12.09); what the gate still sees is the FIELD NAMES (`wwcc_*`, `PendingWWCCCheck`, `service_nsw`), which are the column and type names the identity stage renames when it supplies the DBS shape (04 §2 2h, §4 identity). Renaming them here would be a schema change in a place-layer unit."
+  },
+  {
+    "rule": "jurisdiction",
+    "file": "app/src/app/ui/page-client-mocks.ts",
+    "match": "service_nsw",
+    "owner": "identity",
+    "note": "Demo-page mock rows for the WWCC verification surface. 2h replaced the two invented check NUMBERS with an obviously-placeholder string (12.09); what the gate still sees is the FIELD NAMES (`wwcc_*`, `PendingWWCCCheck`, `service_nsw`), which are the column and type names the identity stage renames when it supplies the DBS shape (04 §2 2h, §4 identity). Renaming them here would be a schema change in a place-layer unit."
   }
 ]

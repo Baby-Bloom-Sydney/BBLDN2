@@ -5,7 +5,7 @@ import { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { AuthContext } from "@/contexts/AuthContext";
 import { UserRole, UserProfile } from "@/lib/auth/types";
-import { BRAND } from "@/lib/constants";
+import { BRAND, SITE_DOMAIN } from "@/lib/constants";
 
 const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === "true";
 
@@ -15,7 +15,7 @@ const DEV_PROFILES: Record<UserRole, UserProfile> = {
     user_id: "dev-nanny-user",
     first_name: "Emma",
     last_name: "Wilson",
-    email: "emma@babybloom.dev",
+    email: `emma@${SITE_DOMAIN}`,
     suburb: "Clapham",
     postcode: "SW4",
     profile_picture_url: null,
@@ -25,7 +25,7 @@ const DEV_PROFILES: Record<UserRole, UserProfile> = {
     user_id: "dev-parent-user",
     first_name: "James",
     last_name: "Chen",
-    email: "james@babybloom.dev",
+    email: `james@${SITE_DOMAIN}`,
     suburb: "Islington",
     postcode: "N1",
     profile_picture_url: null,
@@ -35,7 +35,7 @@ const DEV_PROFILES: Record<UserRole, UserProfile> = {
     user_id: "dev-admin-user",
     first_name: "Bailey",
     last_name: "Admin",
-    email: "admin@babybloom.dev",
+    email: `admin@${SITE_DOMAIN}`,
     suburb: BRAND.city,
     postcode: "EC1",
     profile_picture_url: null,
@@ -45,7 +45,7 @@ const DEV_PROFILES: Record<UserRole, UserProfile> = {
     user_id: "dev-admin-user",
     first_name: "Bailey",
     last_name: "Admin",
-    email: "admin@babybloom.dev",
+    email: `admin@${SITE_DOMAIN}`,
     suburb: BRAND.city,
     postcode: "EC1",
     profile_picture_url: null,

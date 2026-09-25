@@ -150,10 +150,10 @@ export function BrandKitClient({ profilePicUrl }: BrandKitClientProps) {
     verification_level: 3,
     profile_picture_url: profilePicUrl,
     tagline:
-      "Experienced and warm nanny with a passion for early childhood development. 4 years of dedicated experience across Sydney\u2019s Eastern Suburbs.",
+      "Experienced and warm nanny with a passion for early childhood development. 4 years of dedicated experience across South West London.",
     bio: "Hi, I\u2019m Bailey! I\u2019m a passionate and experienced nanny based in Clapham with 4 years of dedicated childcare experience. I believe every child deserves a nurturing environment where they feel safe to explore, learn, and grow. My approach combines structured activities with plenty of creative play \u2014 I love getting outside, reading together, and finding little moments of magic in everyday routines. I\u2019m reliable, warm, and genuinely love what I do.",
     about:
-      "Originally from the UK, I moved to London three years ago and fell in love with the lifestyle and the families I\u2019ve had the privilege of working with. I hold a Certificate III in Early Childhood Education and have completed my First Aid and CPR training. When I\u2019m not with the kids, you\u2019ll find me at the beach, trying new recipes, or exploring Sydney\u2019s hidden caf\u00e9s.",
+      "Originally from Yorkshire, I moved to London three years ago and fell in love with the city and the families I\u2019ve had the privilege of working with. I hold a Certificate III in Early Childhood Education and have completed my First Aid and CPR training. When I\u2019m not with the kids, you\u2019ll find me on the Common, trying new recipes, or exploring London\u2019s hidden caf\u00e9s.",
     experience:
       "6 years total childcare experience including 4 years as a dedicated nanny. I\u2019ve worked with children from newborn through to 8 years old across a variety of family setups \u2014 single children, twins, and families with up to 3 kids. I\u2019m experienced with school and daycare drop-offs/pickups, meal preparation, bath and bedtime routines, and managing activities and playdates.",
     strengths:
