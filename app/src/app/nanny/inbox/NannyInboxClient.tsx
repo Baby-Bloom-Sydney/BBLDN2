@@ -8,7 +8,7 @@ import {
 } from "@/lib/actions/connection";
 import { CONNECTION_STAGE } from "@/lib/position/constants";
 import { InboxMessage, markAsRead, markAllAsRead } from "@/lib/actions/inbox";
-import { formatSydneyDate } from "@/lib/timezone";
+import { formatLondonDate } from "@/lib/timezone";
 import {
   Bell,
   Loader2,
@@ -94,7 +94,7 @@ function NotificationItem({
           </p>
         )}
         <p className="mt-1 text-xs text-slate-400">
-          {formatSydneyDate(message.created_at)}
+          {formatLondonDate(message.created_at)}
         </p>
       </div>
       {!message.is_read && (
@@ -137,7 +137,7 @@ function PastConnectionCard({
               {request.parent?.first_name} {request.parent?.last_name?.[0]}.
             </p>
             <p className="text-xs text-slate-400">
-              {formatSydneyDate(request.created_at)}
+              {formatLondonDate(request.created_at)}
             </p>
           </div>
         </div>

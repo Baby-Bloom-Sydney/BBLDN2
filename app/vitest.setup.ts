@@ -1,12 +1,15 @@
 import "@testing-library/jest-dom/vitest";
 
-// Pin the test timezone to the app's home (Sydney) so date-formatting tests
-// are deterministic across local (AEST) and CI (UTC). Without this, banners
-// that render an AU-formatted date fail in CI only — the timestamp lands on
-// the previous day under UTC (the CI-only PastDueBanner / CancelledInPeriodBanner
-// failures). Baby Bloom is a Sydney product, so Australia/Sydney is the correct
-// canonical test clock. Must be set before any test constructs a Date.
-process.env.TZ = "Australia/Sydney";
+// Pin the test timezone to the app's home zone (`APP_TZ`) so date-formatting
+// tests are deterministic across a developer's machine and CI (UTC). Without
+// this, banners that render a locale-formatted date fail in CI only — the
+// timestamp lands on the previous day under UTC (the CI-only PastDueBanner /
+// CancelledInPeriodBanner failures). BabyBloom is a London product, so
+// Europe/London is the canonical test clock. Kept as a literal rather than
+// importing `APP_TZ`: this file runs before the module graph and a setup file
+// that imports app code would drag the whole alias resolver into every worker.
+// Must be set before any test constructs a Date.
+process.env.TZ = "Europe/London";
 
 // Prevent SDK clients from throwing at module-load time when tests don't
 // set real credentials. Tests that exercise AI calls mock the clients

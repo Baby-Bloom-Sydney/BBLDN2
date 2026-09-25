@@ -52,10 +52,7 @@ export function buildClientHireConfirmationEmail(params: ClientHireEmailParams):
     <h3 style="font-size:15px;margin:16px 0 8px;">4. AI Content Notice</h3>
     <p style="font-size:14px;color:#475569;line-height:1.6;">Some content on the Platform, including nanny bios and matching summaries, is generated using AI (OpenAI GPT-4o). AI-generated content is clearly labelled and should be independently verified.</p>
 
-    <h3 style="font-size:15px;margin:16px 0 8px;">5. Mandatory Reporting</h3>
-    <p style="font-size:14px;color:#475569;line-height:1.6;">If you become aware of any situation involving Risk of Significant Harm (ROSH) to a child, contact the NSW DCJ Child Protection Helpline immediately on <strong>132 111</strong>.</p>
-
-    <h3 style="font-size:15px;margin:16px 0 8px;">6. Baby Bloom's Commitments to You</h3>
+    <h3 style="font-size:15px;margin:16px 0 8px;">5. Baby Bloom's Commitments to You</h3>
     <p style="font-size:14px;color:#475569;line-height:1.6;">We commit to maintaining the Platform, providing support, and ensuring that all professionals on the Platform have been WWCC and identity verified at onboarding.</p>
 
     <div style="margin-top:32px;padding-top:24px;border-top:1px solid #e2e8f0;">

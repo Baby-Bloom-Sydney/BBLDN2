@@ -147,7 +147,6 @@ export default function BiometricNoticePage({
         <p><strong>Relationship to Your Account:</strong> Your verification result is linked to your account. If your account is closed, the verification result remains linked to your account record, even though your biometric data and documents are deleted.</p>
         <p><strong>Sharing with Third Parties:</strong> Baby Bloom does not share verification results with third parties, except:</p>
         <ul>
-          <li>Government agencies (NSW DCJ, law enforcement) if required by law or court order.</li>
           <li>Childcare regulators (if Baby Bloom is asked to verify your suitability).</li>
           <li>Law enforcement, upon warrant or subpoena.</li>
         </ul>

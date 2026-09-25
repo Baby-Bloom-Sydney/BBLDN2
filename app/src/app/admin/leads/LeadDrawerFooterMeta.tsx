@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { LeadDetail } from "@/lib/leads/fetch-lead-detail";
-import { formatSydneyDateTime } from "@/lib/leads/format";
+import { formatLeadDateTime } from "@/lib/leads/format";
 
 interface LeadDrawerFooterMetaProps {
   detail: LeadDetail;
@@ -30,7 +30,7 @@ export function LeadDrawerFooterMeta({ detail }: LeadDrawerFooterMetaProps) {
           <dt className="uppercase">Created</dt>
           <dd>
             {detail.nanny?.created_at
-              ? formatSydneyDateTime(detail.nanny.created_at)
+              ? formatLeadDateTime(detail.nanny.created_at)
               : "—"}
           </dd>
         </div>
@@ -38,7 +38,7 @@ export function LeadDrawerFooterMeta({ detail }: LeadDrawerFooterMetaProps) {
           <dt className="uppercase">Last sign-in</dt>
           <dd>
             {detail.last_sign_in_at
-              ? formatSydneyDateTime(detail.last_sign_in_at)
+              ? formatLeadDateTime(detail.last_sign_in_at)
               : "—"}
           </dd>
         </div>

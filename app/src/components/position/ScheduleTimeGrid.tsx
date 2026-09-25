@@ -7,7 +7,7 @@ import {
   TIME_BRACKETS,
   BRACKET_KEYS,
   getBracketTimeOptions,
-  sydneyToUTC,
+  localToUTC,
 } from "@/lib/timezone";
 
 export function ScheduleTimeGrid({
@@ -64,7 +64,7 @@ export function ScheduleTimeGrid({
   const handleConfirm = () => {
     if (!selectedSlot || selectedHour === null || selectedMinute === null) return;
     const [date] = selectedSlot.split("_");
-    const iso = sydneyToUTC(date, selectedHour, selectedMinute);
+    const iso = localToUTC(date, selectedHour, selectedMinute);
     onConfirm(iso);
   };
 

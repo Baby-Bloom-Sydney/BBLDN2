@@ -9,7 +9,8 @@ import { processDfyWaves } from '@/lib/actions/matching';
  * - Wave 2 (Day 2): Next 20 nannies, if <10 interested responses
  * - Wave 3 (Day 5): Next 20 nannies, if <10 interested responses
  *
- * Called by Vercel Cron daily at 9:00 AM UTC (7:00 PM AEST).
+ * Called by Vercel Cron daily at 19:00 UTC = 7:00 PM London
+ * (8:00 PM during BST — Vercel cron is UTC-only).
  * Also triggered lazily by getDfyStatus() on parent page visit.
  */
 export async function GET(request: NextRequest) {

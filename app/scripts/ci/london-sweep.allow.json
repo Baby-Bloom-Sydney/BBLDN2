@@ -1,17 +1,66 @@
 [
   {
+    "rule": "timezone",
+    "file": "app/src/app/api/webhooks/ocg-verification/route.ts",
+    "match": "+11:00",
+    "owner": "identity",
+    "note": "Hardcoded regulator-webhook offset in the audit timestamp it writes back. The identity stage rewrites this webhook for DBS, and the timestamp goes with it \u2014 2b does not touch identity wiring (04 \u00a72 2b, 03-triage \u00a72)."
+  },
+  {
+    "rule": "timezone",
+    "file": "app/src/app/(public)/legal/biometric-notice/page.tsx",
+    "match": "9am-5pm AEST",
+    "owner": "legal",
+    "note": "Support-hours line inside a legal page body. The legal stage rewrites these bodies with a solicitor; 2b changes no legal copy (03-triage \u00a72, 04 \u00a74)."
+  },
+  {
+    "rule": "timezone",
+    "file": "app/src/app/(public)/legal/code-of-conduct/page.tsx",
+    "match": "9am-5pm AEST",
+    "owner": "legal",
+    "note": "Support-hours line, twice in this page body. Same deferral as biometric-notice."
+  },
+  {
+    "rule": "timezone",
+    "file": "app/src/app/(public)/legal/client-terms/page.tsx",
+    "match": "9:00 AM AEDT",
+    "owner": "legal",
+    "note": "Clause 8.2's daily check time, inside a legal page body \u2014 the clause itself is identity/legal work, not a zone substitution."
+  },
+  {
+    "rule": "timezone",
+    "file": "app/src/app/(public)/legal/disclaimer/page.tsx",
+    "match": "Baby Bloom, Sydney | ABN",
+    "owner": "legal",
+    "note": "Footer line of a legal page body; the rule matches the `AEDT` in its support-hours clause. The gate compares against the first 140 characters of the line, so this entry anchors on the entity prefix that begins it. The legal stage owns the whole footer, entity line included."
+  },
+  {
+    "rule": "timezone",
+    "file": "app/supabase/migrations/katie-foundation.sql",
+    "match": "DEFAULT 'Australia/Sydney'",
+    "owner": "cleanup",
+    "note": "Historical migration \u2014 never edited (04 \u00a70). The live default is changed by LDN2/schema/amendments/02-2b-timezone-default.sql, applied to the London project by 2b; this line is the record of what the column used to be."
+  },
+  {
+    "rule": "timezone",
+    "file": "app/supabase/migrations/payments-frontend.sql",
+    "match": "2026-05-11T15:00+10:00",
+    "owner": "cleanup",
+    "note": "An audit-footer timestamp in a historical migration's comment \u2014 a record of when a review happened, not a place fact. Historical migrations are never edited (04 \u00a70)."
+  },
+  {
     "rule": "region",
     "file": "app/src/app/(public)/legal/privacy-policy/page.tsx",
     "match": "Processing location",
     "owner": "legal",
-    "note": "Q-6: in-DB policy says ap-southeast-2, page says ap-northeast-1 — London writes eu-west-2 in both at the legal stage"
+    "note": "Q-6: in-DB policy says ap-southeast-2, page says ap-northeast-1 \u2014 London writes eu-west-2 in both at the legal stage"
   },
   {
     "rule": "region",
     "file": "app/supabase/migrations/T-017-load-v2-policies.sql",
     "match": "is held in **Supabase**",
     "owner": "legal",
-    "note": "Q-6: in-DB policy says ap-southeast-2, page says ap-northeast-1 — London writes eu-west-2 in both at the legal stage"
+    "note": "Q-6: in-DB policy says ap-southeast-2, page says ap-northeast-1 \u2014 London writes eu-west-2 in both at the legal stage"
   },
   {
     "rule": "region",
