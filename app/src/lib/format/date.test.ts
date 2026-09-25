@@ -17,9 +17,9 @@ import {
 } from "./date";
 
 describe("formatAuDate — deterministic AU date formatting", () => {
-  // Use a fixed Sydney-local instant to remove TZ ambiguity.
-  // 13 June 2026 at noon AEST — a Saturday.
-  const sat13Jun2026 = "2026-06-13T12:00:00+10:00";
+  // Use a fixed London-local instant to remove TZ ambiguity.
+  // 13 June 2026 at noon BST — a Saturday.
+  const sat13Jun2026 = "2026-06-13T12:00:00+01:00";
 
   it('short style → "13 Jun 2026" (the format that broke under Node ICU)', () => {
     expect(formatAuDate(sat13Jun2026)).toBe("13 Jun 2026");
@@ -37,7 +37,7 @@ describe("formatAuDate — deterministic AU date formatting", () => {
   });
 
   it("accepts a Date object as well as ISO string", () => {
-    expect(formatAuDate(new Date("2026-06-13T12:00:00+10:00"))).toBe(
+    expect(formatAuDate(new Date("2026-06-13T12:00:00+01:00"))).toBe(
       "13 Jun 2026",
     );
   });
@@ -83,10 +83,10 @@ describe("formatAuDate — deterministic AU date formatting", () => {
 
 describe("formatAuDayMonth — day + month only", () => {
   it('short → "13 Jun"', () => {
-    expect(formatAuDayMonth("2026-06-13T12:00:00+10:00")).toBe("13 Jun");
+    expect(formatAuDayMonth("2026-06-13T12:00:00+01:00")).toBe("13 Jun");
   });
   it('long → "13 June"', () => {
-    expect(formatAuDayMonth("2026-06-13T12:00:00+10:00", "long")).toBe(
+    expect(formatAuDayMonth("2026-06-13T12:00:00+01:00", "long")).toBe(
       "13 June",
     );
   });
@@ -103,7 +103,7 @@ describe("formatAuMonth — month label", () => {
 
 describe("formatAuWeekdayDayMonth — list format", () => {
   it("Sat 13 Jun for 2026-06-13", () => {
-    expect(formatAuWeekdayDayMonth("2026-06-13T12:00:00+10:00")).toBe(
+    expect(formatAuWeekdayDayMonth("2026-06-13T12:00:00+01:00")).toBe(
       "Sat 13 Jun",
     );
   });
@@ -111,7 +111,7 @@ describe("formatAuWeekdayDayMonth — list format", () => {
 
 describe("formatAuWeekdayDate — full date with weekday", () => {
   it("Sat, 13 Jun 2026", () => {
-    expect(formatAuWeekdayDate("2026-06-13T12:00:00+10:00")).toBe(
+    expect(formatAuWeekdayDate("2026-06-13T12:00:00+01:00")).toBe(
       "Sat, 13 Jun 2026",
     );
   });

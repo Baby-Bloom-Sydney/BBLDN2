@@ -12,6 +12,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { APP_TZ } from "@/lib/constants";
 
 const state = vi.hoisted(() => ({
   existingBot: null as Record<string, unknown> | null,
@@ -202,7 +203,7 @@ describe("getOrCreateBot — default schedule seeding", () => {
     expect(call.tz).toBe("America/New_York");
   });
 
-  it("falls back to Australia/Sydney when settings.waking_hours is missing", async () => {
+  it("falls back to the configured app timezone when settings.waking_hours is missing", async () => {
     state.createdBot = {
       ...state.createdBot,
       settings: {},
@@ -217,7 +218,7 @@ describe("getOrCreateBot — default schedule seeding", () => {
     ];
 
     await getOrCreateBot("user-1", "nanny");
-    expect(state.seedDefaultSchedulesCalls[0].tz).toBe("Australia/Sydney");
+    expect(state.seedDefaultSchedulesCalls[0].tz).toBe(APP_TZ);
   });
 
   it("seeds with empty children array when user has no child access", async () => {

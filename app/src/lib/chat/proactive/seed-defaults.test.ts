@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { APP_TZ } from "@/lib/constants";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildWeeklyOverviewSeed,
@@ -17,7 +18,7 @@ describe("buildWeeklyOverviewSeed", () => {
     const row = buildWeeklyOverviewSeed(
       "bot-1",
       { id: "c-1", firstName: "Oliver" },
-      "Australia/Sydney",
+      APP_TZ,
     );
     expect(row.trigger_id).toBe(WEEKLY_OVERVIEW_TRIGGER_ID);
     expect(row.cron_expr).toBe(WEEKLY_OVERVIEW_CRON);
@@ -34,7 +35,7 @@ describe("buildWeeklyOverviewSeed", () => {
     const row = buildWeeklyOverviewSeed(
       "bot-1",
       { id: "c-1", firstName: "Oliver" },
-      "Australia/Sydney",
+      APP_TZ,
     );
     expect(row.description).toContain("Oliver");
     expect(row.prompt_fragment).toContain("Oliver");
@@ -54,12 +55,12 @@ describe("buildWeeklyOverviewSeed", () => {
     expect(ts).toBeGreaterThan(Date.now());
   });
 
-  it("defaults to Australia/Sydney when tz omitted", () => {
+  it("defaults to the configured app timezone when tz omitted", () => {
     const row = buildWeeklyOverviewSeed("bot-1", {
       id: "c-1",
       firstName: "Oliver",
     });
-    expect(row.timezone).toBe("Australia/Sydney");
+    expect(row.timezone).toBe(APP_TZ);
   });
 });
 

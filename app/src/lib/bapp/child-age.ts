@@ -24,7 +24,7 @@ export type DobValidationResult =
  *
  * Uses UTC accessors throughout — `new Date("YYYY-MM-DD")` parses to UTC
  * midnight per ECMA-262, so anchoring all comparisons to UTC keeps the age
- * count correct regardless of where the server clock is set (Sydney prod,
+ * count correct regardless of where the server clock is set (London prod,
  * UTC CI, anywhere else).
  */
 export function getChildAgeMonths(dob: Date, now: Date): number {

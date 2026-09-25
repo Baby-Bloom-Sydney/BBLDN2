@@ -8,9 +8,11 @@
  *      Katie re-do the math.
  *   3. Distance: values < 1km render as the string "<1". Numbers
  *      rendered to one decimal place.
- *   4. Time slots render in Sydney-local 12h format ("Sat 3 May —
+ *   4. Time slots render in London-local 12h format ("Sat 3 May —
  *      6pm to 10pm").
  */
+
+import { APP_TZ } from "@/lib/constants";
 
 /**
  * Categorise a nanny's notification into the plain-English bucket
@@ -138,7 +140,7 @@ export function distanceText(km: number | null): string {
 }
 
 /**
- * Format a babysitting time slot in Sydney-local prose.
+ * Format a babysitting time slot in London-local prose.
  * e.g. "Sat 3 May — 6pm to 10pm".
  */
 export function formatSlot(slot: {
@@ -149,12 +151,12 @@ export function formatSlot(slot: {
   const d = new Date(slot.slot_date + "T00:00:00");
   const day = d.toLocaleDateString("en-GB", {
     weekday: "short",
-    timeZone: "Australia/Sydney",
+    timeZone: APP_TZ,
   });
   const date = d.toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
-    timeZone: "Australia/Sydney",
+    timeZone: APP_TZ,
   });
   const start = formatClockTime(slot.start_time);
   const end = formatClockTime(slot.end_time);
@@ -205,7 +207,7 @@ export function banText(banUntil: string | null): string | null {
     day: "numeric",
     month: "long",
     year: "numeric",
-    timeZone: "Australia/Sydney",
+    timeZone: APP_TZ,
   });
   return `You're currently not receiving babysitting job invitations until ${until}. This comes from the 3-cancellation rule — if you need more context you can contact support.`;
 }

@@ -5,7 +5,7 @@
  * When a parent creates a position, the matchmaking system sends
  * notifications to matching nannies. This module surfaces those
  * notifications in plain English so Katie can narrate "3 new
- * positions matched, closest is Bondi, 30h/week, $45/hr".
+ * positions matched, closest is Clapham, 30h/week, £26/hr".
  *
  * v1 scope: READ-ONLY. Applying / declining happens via the main
  * surface (`/nanny/jobs` or the connections module). The connections
@@ -242,7 +242,7 @@ async function browseOpenPositions(
 
   if (suburbFilter) {
     // ilike matches case-insensitive substring — useful for "show me
-    // jobs in Surry" matching "Surry Hills". Escape the LIKE wildcards
+    // jobs in Clap" matching "Clapham". Escape the LIKE wildcards
     // ('%', '_', '\') from the user-supplied value so a literal '%'
     // typed by the user doesn't bypass the filter and return everything.
     const escaped = suburbFilter.replace(/[%_\\]/g, "\\$&");
@@ -354,14 +354,14 @@ export const jobSearchModule: BloomBotModule = {
     {
       name: "browse_open_positions",
       description:
-        "Return open positions across the platform — NOT filtered to this nanny's matches. Use when the nanny asks 'what jobs are available?', 'show me all open positions', 'are there any positions in [suburb]?', or otherwise wants to see what's out there beyond their matchmaker queue. Each result has a `matched: boolean` flag — true means the nanny is already recommended for it (in their match list), false means the position is open but they aren't a matchmaker recommendation. Default returns the 10 most recent. Optional `suburb` filter (case-insensitive substring match — 'Surry' matches 'Surry Hills') and `limit` (1-50).",
+        "Return open positions across the platform — NOT filtered to this nanny's matches. Use when the nanny asks 'what jobs are available?', 'show me all open positions', 'are there any positions in [suburb]?', or otherwise wants to see what's out there beyond their matchmaker queue. Each result has a `matched: boolean` flag — true means the nanny is already recommended for it (in their match list), false means the position is open but they aren't a matchmaker recommendation. Default returns the 10 most recent. Optional `suburb` filter (case-insensitive substring match — 'Clap' matches 'Clapham') and `limit` (1-50).",
       parameters: {
         type: "object",
         properties: {
           suburb: {
             type: "string",
             description:
-              "Optional suburb filter — case-insensitive substring match. E.g. 'Bondi' matches 'Bondi Junction', 'Bondi Beach', 'North Bondi'. Omit to see positions everywhere.",
+              "Optional suburb filter — case-insensitive substring match. E.g. 'Clap' matches 'Clapham' and 'Clapton'. Omit to see positions everywhere.",
           },
           limit: {
             type: "number",
@@ -396,6 +396,6 @@ export const jobSearchModule: BloomBotModule = {
     "• NEVER speak raw field names (`match_score`, `dfy_tier`, `respondedAt`, etc.) — the tools return plain-English text already.\n" +
     "• NEVER fabricate a parent's name — only use `parent_first_name` returned by the tool.\n" +
     "• Distances are pre-rendered (e.g. '3.5 km', '<1 km'). Don't recompute.\n" +
-    "• When framing a non-matched position, mention the gap factually: 'Open in Bondi, 30h/week — you're not on the matchmaker list for this one but you can still apply.' Don't editorialise ('your profile is wrong') — just state it.\n" +
+    "• When framing a non-matched position, mention the gap factually: 'Open in Clapham, 30h/week — you're not on the matchmaker list for this one but you can still apply.' Don't editorialise ('your profile is wrong') — just state it.\n" +
     "• To actually apply to any position, the nanny goes through the connection flow — parent must send the request first, or the nanny applies via the main `/nanny/jobs` page. This module is read-only.",
 };

@@ -36,7 +36,7 @@ const NANNY = {
   id: "nanny-1",
   first_name: "Alex",
   last_name: "Smith",
-  suburb: "Bondi",
+  suburb: "Clapham",
   hourly_rate_min: 35,
   profile_picture_url: null,
   date_of_birth: null,

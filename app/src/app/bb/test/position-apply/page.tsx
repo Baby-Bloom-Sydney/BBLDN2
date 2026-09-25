@@ -190,17 +190,17 @@ export default async function PositionApplyTestPage() {
     {
       request_id: 'req-1', connection_stage: 5, status: 'pending', message: null,
       expires_at: '2026-04-07T10:00:00Z', created_at: '2026-03-31T10:00:00Z',
-      nanny_id: 'nan-1', hourly_rate_min: 35, total_experience_years: 5,
+      nanny_id: 'nan-1', hourly_rate_min: 28, total_experience_years: 5,
       drivers_license: true, has_car: true, non_smoker: true, vaccination_status: true,
-      first_name: 'Jessica', last_name: 'Miller', suburb: 'Bondi', profile_picture_url: null,
+      first_name: 'Jessica', last_name: 'Miller', suburb: 'Clapham', profile_picture_url: null,
     },
     {
       request_id: 'req-2', connection_stage: 5, status: 'pending',
       message: 'I love working with young children and have extensive newborn experience!',
       expires_at: '2026-04-06T14:30:00Z', created_at: '2026-03-30T14:30:00Z',
-      nanny_id: 'nan-2', hourly_rate_min: 38, total_experience_years: 8,
+      nanny_id: 'nan-2', hourly_rate_min: 28, total_experience_years: 8,
       drivers_license: true, has_car: false, non_smoker: true, vaccination_status: true,
-      first_name: 'Sarah', last_name: 'Kim', suburb: 'Coogee', profile_picture_url: null,
+      first_name: 'Sarah', last_name: 'Kim', suburb: 'Hackney', profile_picture_url: null,
     },
   ];
 

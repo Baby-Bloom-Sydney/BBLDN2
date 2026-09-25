@@ -37,7 +37,7 @@ beforeEach(() => {
     id: "sub-row-1",
     status: "active_monthly",
     stripe_subscription_id: "sub_stripe_1",
-    paid_period_ends_at: "2026-06-15T00:00:00+10:00",
+    paid_period_ends_at: "2026-06-15T00:00:00+01:00",
   };
   state.stripeUpdateCalls = [];
   state.stripeUpdateThrows = false;
@@ -157,7 +157,7 @@ describe("cancelSubscription", () => {
     });
     expect(r.success).toBe(true);
     if (r.success)
-      expect(r.data.paidPeriodEndsAt).toBe("2026-06-15T00:00:00+10:00");
+      expect(r.data.paidPeriodEndsAt).toBe("2026-06-15T00:00:00+01:00");
     expect(state.stripeUpdateCalls).toHaveLength(1);
     expect(state.stripeUpdateCalls[0]?.subId).toBe("sub_stripe_1");
     expect(state.stripeUpdateCalls[0]?.args).toMatchObject({

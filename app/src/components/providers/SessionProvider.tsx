@@ -5,6 +5,7 @@ import { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { AuthContext } from "@/contexts/AuthContext";
 import { UserRole, UserProfile } from "@/lib/auth/types";
+import { BRAND, SITE_DOMAIN } from "@/lib/constants";
 
 const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === "true";
 
@@ -14,9 +15,9 @@ const DEV_PROFILES: Record<UserRole, UserProfile> = {
     user_id: "dev-nanny-user",
     first_name: "Emma",
     last_name: "Wilson",
-    email: "emma@babybloom.dev",
-    suburb: "Bondi",
-    postcode: "2026",
+    email: `emma@${SITE_DOMAIN}`,
+    suburb: "Clapham",
+    postcode: "SW4",
     profile_picture_url: null,
   },
   parent: {
@@ -24,9 +25,9 @@ const DEV_PROFILES: Record<UserRole, UserProfile> = {
     user_id: "dev-parent-user",
     first_name: "James",
     last_name: "Chen",
-    email: "james@babybloom.dev",
-    suburb: "Surry Hills",
-    postcode: "2010",
+    email: `james@${SITE_DOMAIN}`,
+    suburb: "Islington",
+    postcode: "N1",
     profile_picture_url: null,
   },
   admin: {
@@ -34,9 +35,9 @@ const DEV_PROFILES: Record<UserRole, UserProfile> = {
     user_id: "dev-admin-user",
     first_name: "Bailey",
     last_name: "Admin",
-    email: "admin@babybloom.dev",
-    suburb: "Sydney",
-    postcode: "2000",
+    email: `admin@${SITE_DOMAIN}`,
+    suburb: BRAND.city,
+    postcode: "EC1",
     profile_picture_url: null,
   },
   super_admin: {
@@ -44,9 +45,9 @@ const DEV_PROFILES: Record<UserRole, UserProfile> = {
     user_id: "dev-admin-user",
     first_name: "Bailey",
     last_name: "Admin",
-    email: "admin@babybloom.dev",
-    suburb: "Sydney",
-    postcode: "2000",
+    email: `admin@${SITE_DOMAIN}`,
+    suburb: BRAND.city,
+    postcode: "EC1",
     profile_picture_url: null,
   },
 };

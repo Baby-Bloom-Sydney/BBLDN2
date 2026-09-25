@@ -48,7 +48,7 @@ import { getPosition } from "@/lib/actions/parent";
 import { getParentPlacement } from "@/lib/actions/position-funnel";
 import { asUserFacingRole, type UserFacingRole } from "./utils";
 import { isMyProfilePresent } from "@/lib/chat/preload/predicates";
-import { HOURLY_RATE_BOUNDS } from "@/lib/constants";
+import { HOURLY_RATE_BOUNDS, SENDERS } from "@/lib/constants";
 
 type ProfileRole = UserFacingRole;
 
@@ -760,6 +760,6 @@ export const profileModule: BloomBotModule = {
     "• Full schedule change / qualification change / add certificate → /nanny/profile.\n" +
     "• Create or edit a parent position → /parent/request (42 fields, too much for chat).\n" +
     "• Deactivate account / change email → settings page.\n" +
-    "• Pause account / stop receiving requests / hide profile from parents → there is NO self-service toggle yet. Don't invent one. Acknowledge the user's preference and tell them to email support@babybloomsydney.com.au to pause their listing manually. Do NOT claim a 'Hidden' toggle exists at /nanny/profile or anywhere else.\n" +
+    `• Pause account / stop receiving requests / hide profile from parents → there is NO self-service toggle yet. Don't invent one. Acknowledge the user's preference and tell them to email ${SENDERS.support} to pause their listing manually. Do NOT claim a 'Hidden' toggle exists at /nanny/profile or anywhere else.\n` +
     "• Anything about verification → this module deliberately says nothing beyond the high-level visibility line; use the verification module for details.",
 };

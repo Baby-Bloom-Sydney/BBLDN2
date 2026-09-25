@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { SENDERS } from "@/lib/constants";
 import {
   getRouteAllowlist,
   buildRouteAllowlistPrompt,
@@ -76,7 +77,7 @@ describe("route-allowlist — buildRouteAllowlistPrompt", () => {
 
   it("anti-hallucination rule is verbatim and references the existing capability list", () => {
     const prompt = buildRouteAllowlistPrompt("nanny");
-    expect(prompt).toContain("support@babybloomsydney.com.au");
+    expect(prompt).toContain(SENDERS.support);
     expect(prompt).toContain("Do NOT invent");
     expect(prompt).toContain("NOT BUILT YET");
     // Cross-references the existing capability list rather than

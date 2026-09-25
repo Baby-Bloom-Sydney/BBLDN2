@@ -1,7 +1,9 @@
 export default function TestOGImagePage() {
-  const profilePicUrl =
-    "https://umkqevipzmoovyrnynrf.supabase.co/storage/v1/object/public/profile-pictures/adbf794c-3c71-4b43-a3a5-4306f0152a95/1771910182533-IMG_9586.jpeg";
-  const firstName = "Bailey";
+  // A local placeholder, never a storage URL. This route is public and
+  // unauthenticated, and it previously served a real person's photograph out
+  // of the old project's bucket (stage-0 finding 7, HIGH). 12.09 / 12.NEW.
+  const profilePicUrl = "/og-placeholder-avatar.svg";
+  const firstName = "Sophie";
 
   const logo = (
     <div className="absolute bottom-[6px] right-[12px] z-10 flex items-center gap-2">
@@ -66,7 +68,7 @@ export default function TestOGImagePage() {
                   <span className="text-[96px] font-bold leading-none text-slate-900">nanny  babysitter</span>
                 </div>
               </div>
-              <span className="absolute z-10 text-[32px] font-semibold leading-none text-slate-900 opacity-[0.33]" style={{ top: 410, left: 645 }}>Bondi, Sydney</span>
+              <span className="absolute z-10 text-[32px] font-semibold leading-none text-slate-900 opacity-[0.33]" style={{ top: 410, left: 645 }}>Clapham, London</span>
               {logo}
             </div>
           </div>

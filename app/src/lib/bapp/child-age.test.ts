@@ -7,7 +7,7 @@ import {
   validateChildDob,
 } from "./child-age";
 
-const NOW = new Date("2026-05-15T10:00:00+10:00");
+const NOW = new Date("2026-05-15T10:00:00+01:00");
 
 describe("getChildAgeMonths", () => {
   it("returns 0 for a child born today", () => {

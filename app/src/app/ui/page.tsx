@@ -55,7 +55,7 @@ export default async function UIShowcasePage() {
           user_id: nannyProfile.user_id,
           first_name: nannyProfile.first_name ?? "Bailey",
           last_name: nannyProfile.last_name ?? "Wright",
-          suburb: nannyProfile.suburb ?? "Bondi",
+          suburb: nannyProfile.suburb ?? "Clapham",
           profile_picture_url: nannyProfile.profile_picture_url,
           hourly_rate_min: nanny.hourly_rate_min,
           nanny_experience_years: nanny.nanny_experience_years,
@@ -90,7 +90,7 @@ export default async function UIShowcasePage() {
       parentData = {
         first_name: parentProfile.first_name ?? "Bailey",
         last_name: parentProfile.last_name ?? "Wright",
-        suburb: parentProfile.suburb ?? "Coogee",
+        suburb: parentProfile.suburb ?? "Hackney",
         profile_picture_url: parentProfile.profile_picture_url,
       };
     }

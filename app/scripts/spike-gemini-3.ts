@@ -105,7 +105,7 @@ async function runSuite(modelId: string): Promise<void> {
   await test("function calling", async () => {
     const res = await ai.models.generateContent({
       model: modelId,
-      contents: "What is the weather in Sydney? Use the tool.",
+      contents: "What is the weather in London? Use the tool.",
       config: {
         tools: [
           {
@@ -165,7 +165,7 @@ async function runSuite(modelId: string): Promise<void> {
     ];
 
     const userPrompt =
-      "What is the weather in Sydney? Use the tool and tell me.";
+      "What is the weather in London? Use the tool and tell me.";
 
     // Round 1: user asks, we capture the model's raw parts (including thoughtSignature)
     const round1 = await ai.models.generateContent({

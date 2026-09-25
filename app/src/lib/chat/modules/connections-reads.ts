@@ -17,6 +17,7 @@ import type { BloomBotModule, ToolDefinition, ToolResult } from "./types";
 import type { ConnectionRequestWithDetails } from "@/lib/actions/connection";
 import { isTerminal, isActionRequired } from "./connections-translator";
 import { makeSlotPresentPredicate } from "@/lib/chat/preload/predicates";
+import { BRAND } from "@/lib/constants";
 import {
   loadConnections,
   summarise,
@@ -277,6 +278,6 @@ export const readSystemPromptFragment =
   "Reads:\n" +
   "• 'Who wants to interview me?' / 'who have I reached out to?' → `read_connection_inbox`. Narrate the active list — do NOT emit a tile per connection; one tile per reply max. If the user picks one, follow up with `read_connection_by_name` which emits an interactive tile for just that one.\n" +
   "• User names a specific counterparty → `read_connection_by_name`. If match_count > 1, ask which one before proceeding.\n" +
-  "• 'When is my meet?' → `read_upcoming_meet` and read the `confirmed_time` in Sydney time plus the nanny phone (only if the tool returned one — don't paraphrase if absent).\n" +
+  `• 'When is my meet?' → \`read_upcoming_meet\` and read the \`confirmed_time\` in ${BRAND.city} time plus the nanny phone (only if the tool returned one — don't paraphrase if absent).\n` +
   "• 'What do I need to do?' / 'anything outstanding?' → `read_action_required`.\n" +
   "• Never fabricate a counterparty name — only use names returned by the tools.";

@@ -15,6 +15,7 @@ import {
   scheduleConnectionTime,
 } from "@/lib/actions/connection";
 import { CONNECTION_STAGE } from "@/lib/position/constants";
+import { BRAND } from "@/lib/constants";
 import {
   BRACKET_KEYS,
   TIME_BRACKETS,
@@ -438,7 +439,7 @@ function parseMeetTime(
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return {
       ok: false,
-      error: "Pass `date` as an ISO date in Sydney time (YYYY-MM-DD).",
+      error: `Pass \`date\` as an ISO date in ${BRAND.city} time (YYYY-MM-DD).`,
     };
   }
   if (!Number.isInteger(hour) || hour < 0 || hour > 23) {
@@ -452,7 +453,7 @@ function parseMeetTime(
     return {
       ok: false,
       error:
-        "Selected time is outside the available window (meet and greets run 8am–8pm Sydney time).",
+        `Selected time is outside the available window (meet and greets run 8am–8pm ${BRAND.city} time).`,
     };
   }
   return { ok: true, t: { date, hour, minute, bracket } };
@@ -466,7 +467,7 @@ function formatTimeForPreview(
   const h12 = ((hour + 11) % 12) + 1;
   const am = hour < 12 ? "AM" : "PM";
   const mm = minute.toString().padStart(2, "0");
-  return `${date} ${h12}:${mm} ${am} AEST`;
+  return `${date} ${h12}:${mm} ${am} ${BRAND.city} time`;
 }
 
 async function proposeScheduleMeet(
@@ -580,7 +581,7 @@ async function applyScheduleMeet(
       action: "schedule_meet",
       connection_id: connection.id,
       counterparty_name: displayName,
-      message: `Booked! Your meet and greet with ${displayName} is scheduled. Check the connection tile for the confirmed time in Sydney time and ${displayName}'s phone number.`,
+      message: `Booked! Your meet and greet with ${displayName} is scheduled. Check the connection tile for the confirmed time in ${BRAND.city} time and ${displayName}'s phone number.`,
     },
     tile: {
       kind: "connection_request",
@@ -700,14 +701,14 @@ export const preMeetWriteTools: ToolDefinition[] = [
   {
     name: "propose_schedule_meet",
     description:
-      "Preview scheduling a meet-and-greet time for a connection (parent only; connection must be in ACCEPTED stage). Date is Sydney-local ISO (YYYY-MM-DD), hour is 24h (0-23), minute is 0-59. Must fall inside one of the nanny's proposed brackets (morning 8-11, midday 11-14, afternoon 14-17, evening 17-20). Does NOT hit the server.",
+      `Preview scheduling a meet-and-greet time for a connection (parent only; connection must be in ACCEPTED stage). Date is ${BRAND.city}-local ISO (YYYY-MM-DD), hour is 24h (0-23), minute is 0-59. Must fall inside one of the nanny's proposed brackets (morning 8-11, midday 11-14, afternoon 14-17, evening 17-20). Does NOT hit the server.`,
     parameters: {
       type: "object",
       properties: {
         connection_id: { type: "string" },
         date: {
           type: "string",
-          description: "Sydney-local date in YYYY-MM-DD format.",
+          description: `${BRAND.city}-local date in YYYY-MM-DD format.`,
         },
         hour: { type: "number", description: "Hour in 24-hour format, 0-23." },
         minute: { type: "number", description: "Minute, 0-59." },

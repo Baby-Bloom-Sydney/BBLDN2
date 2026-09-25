@@ -18,6 +18,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generate } from "@/lib/ai/gemini-client";
 import { APP_LOCALE } from "@/lib/constants";
+import { APP_TZ } from "@/lib/constants";
 
 interface Message {
   role: string;
@@ -122,7 +123,7 @@ export async function compactDailyForBot(
   args: CompactDayArgs,
 ): Promise<CompactDayResult> {
   const { admin, botId, dateIso } = args;
-  const timezone = args.timezone ?? "Australia/Sydney";
+  const timezone = args.timezone ?? APP_TZ;
   const { startUtc, endUtc } = dayWindow(dateIso, timezone);
 
   const { data: msgs, error: readErr } = await admin
@@ -208,7 +209,7 @@ export async function compactDailyAllBots(
     id: string;
     settings: { waking_hours?: { timezone?: string } } | null;
   }>) {
-    const tz = b.settings?.waking_hours?.timezone ?? "Australia/Sydney";
+    const tz = b.settings?.waking_hours?.timezone ?? APP_TZ;
     const r = await compactDailyForBot({
       admin,
       botId: b.id,

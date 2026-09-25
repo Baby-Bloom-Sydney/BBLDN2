@@ -127,7 +127,7 @@ describe("distanceText", () => {
 });
 
 describe("formatSlot", () => {
-  it("renders Sydney-local prose", () => {
+  it("renders London-local prose", () => {
     const out = formatSlot({
       slot_date: "2026-05-03",
       start_time: "18:00",

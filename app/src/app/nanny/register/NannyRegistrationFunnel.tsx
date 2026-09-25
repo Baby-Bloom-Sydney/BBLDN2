@@ -145,8 +145,8 @@ const DEV_MOCK_DATA: Partial<NannyRegistrationData> = {
   residency_status: null,
   right_to_work: true,
   sydney_resident: true,
-  suburb: "Bondi",
-  postcode: "2026",
+  suburb: "Clapham",
+  postcode: "SW4",
   // Step 9
   hobbies_interests: "Swimming, reading, arts and crafts, bushwalking, yoga",
   strengths_traits: "Patient, creative, reliable, strong communicator, great with routines",

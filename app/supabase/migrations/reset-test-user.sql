@@ -1,4 +1,4 @@
--- Reset test user: contact@babybloomsydney.com.au
+-- Reset test user: contact@babybloomlondon.co.uk
 -- Run in Supabase SQL Editor
 
 DO $$
@@ -7,7 +7,7 @@ DECLARE
   v_nanny_id UUID;
 BEGIN
   -- Find auth user
-  SELECT id INTO v_user_id FROM auth.users WHERE email = 'contact@babybloomsydney.com.au';
+  SELECT id INTO v_user_id FROM auth.users WHERE email = 'contact@babybloomlondon.co.uk';
 
   IF v_user_id IS NOT NULL THEN
     -- Find nanny record
@@ -34,7 +34,7 @@ BEGIN
       converted_at = NULL,
       terms_accepted_at = NULL,
       funnel_step = 'N4'
-  WHERE email = 'contact@babybloomsydney.com.au';
+  WHERE email = 'contact@babybloomlondon.co.uk';
 
   RAISE NOTICE 'Done. User deleted, lead reset to ai_generated.';
 END $$;

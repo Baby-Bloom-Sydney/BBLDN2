@@ -996,7 +996,7 @@ export async function deactivateNannyAccount(): Promise<{
 // ── AI Content Editing ──
 
 import { findProfanityInFields } from "@/lib/profanity";
-import { SITE_URL } from "@/lib/constants";
+import { BRAND, SITE_DOMAIN, SITE_URL } from "@/lib/constants";
 
 /**
  * Update AI-generated content with profanity check.
@@ -1323,8 +1323,14 @@ export async function regenerateNannyAIContent(): Promise<{
 }
 
 // ── AI Profile Generation (o4-mini via Chat Completions) ──
+//
+// DUPLICATE, recorded for `cleanup`: `PROFILE_SYSTEM_PROMPT` below is a second
+// copy of the profile-writer system prompt that also lives in
+// `@/lib/ai/nanny-profile-prompts.ts` (`V2_SYSTEM_PROMPT`). Two prompts do one
+// job; 12.11 amends both identically rather than collapsing one onto the other,
+// because collapsing is a behaviour change and Stage 2 is a place layer.
 
-const PROFILE_SYSTEM_PROMPT = `You are a professional nanny profile writer. Your task is to generate concise content using all relevant provided fields, in a warm, engaging, first-person tone tailored for Sydney families, avoiding salesy or generic language and focusing on family/child benefits with natural, personal phrasing and cohesive sentence connections or structured lists. The nanny's name must not be included in most sections, except for the <bio> section's profile link. For the <bio> section, use direct language (e.g., "your kids") except in the intro (broader, e.g., "little ones"), with Sydney references and specified emojis. For the <tagline> section, use "children" for broader appeal, mirroring the <bio>'s Traits paragraph.
+const PROFILE_SYSTEM_PROMPT = `You are a professional nanny profile writer. Your task is to generate concise content using all relevant provided fields, in a warm, engaging, first-person tone tailored for ${BRAND.city} families, avoiding salesy or generic language and focusing on family/child benefits with natural, personal phrasing and cohesive sentence connections or structured lists. The nanny's name must not be included in most sections, except for the <bio> section's profile link. For the <bio> section, use direct language (e.g., "your kids") except in the intro (broader, e.g., "little ones"), with ${BRAND.city} references and specified emojis. For the <tagline> section, use "children" for broader appeal, mirroring the <bio>'s Traits paragraph.
 
 Before responding, validate all fields for completeness (use neutral assumptions for missing fields, e.g., "caring" for Traits). Paraphrase input essence. Rationalize and prioritize family-desirable benefits. Segment for readability using transitions, spacing, and emojis where applicable.
 
@@ -1332,7 +1338,7 @@ Respond with ONLY the 7 HTML-wrapped sections below. No extra text, explanations
 
 **Section Structures**:
 
-<about> - Short paragraph (~30 words) from Traits + Hobbies & Interest. Warm connection with Sydney parents, paraphrased, benefit-led, direct language. Example: "<p>A cheerful and patient soul, I find joy in baking treats that spark smiles and family bonding in your home.</p>"
+<about> - Short paragraph (~30 words) from Traits + Hobbies & Interest. Warm connection with ${BRAND.city} parents, paraphrased, benefit-led, direct language. Example: "<p>A cheerful and patient soul, I find joy in baking treats that spark smiles and family bonding in your home.</p>"
 
 <experience> - Short paragraph (~35 words) starting with "I have." Uses Total Experience, Nanny Experience, Under 3 Experience, Newborn Experience, Experience Details. Paraphrased, benefit-led. Example: "<p>I have 5 years of childcare experience, including 3 years as a nanny, with 2 years caring for children under 3. I spent time in daycare creating joyful routines for your family.</p>"
 
@@ -1344,7 +1350,7 @@ Respond with ONLY the 7 HTML-wrapped sections below. No extra text, explanations
 
 <tagline> - Single sentence (~10-20 words) using Traits with "children" for broader appeal. Include confidence-focused benefit. Mirrors <bio> Traits paragraph. Example: "<p>I'm patient and creative, creating fun, safe spaces for children, helping them learn with self-esteem.</p>"
 
-<bio> - Social media advert (~100-120 words) structured with <br> as: Header (💫 Experienced Nanny Available! 💫), Location (📍 {Suburb}-based), Intro (Hello families, broad language "little ones", age range, total experience, passion statement, "I'm now looking for my next wonderful Nanny Family! 😊"), Checklist A "I have" (✨ Total Experience, 🌟 Nanny Experience with age range, 👼 Infant/Newborn if non-zero, 🌟 Experience Details, 👩‍🎓 Qualifications), Checklist B "I am" (⭐️ Skills & Training items), Checklist C "I also have" (✅ Assurances, 🩺 Certificates, 🪪 License, 🚗 Car, 💚 Vaccinated — exclude Pets), Traits paragraph (direct "your kids", Traits + Hobbies, confidence benefit), CTA (synonym traits, profile link: babybloomsydney.com.au/nannies/{Suburb}/{FirstName}/{LastName} 💕). Do NOT bold "Experienced" in header. Do NOT include name in intro. Use synonyms for traits in CTA (e.g., "gentle" → "kind").`;
+<bio> - Social media advert (~100-120 words) structured with <br> as: Header (💫 Experienced Nanny Available! 💫), Location (📍 {Area}-based), Intro (Hello families, broad language "little ones", age range, total experience, passion statement, "I'm now looking for my next wonderful Nanny Family! 😊"), Checklist A "I have" (✨ Total Experience, 🌟 Nanny Experience with age range, 👼 Infant/Newborn if non-zero, 🌟 Experience Details, 👩‍🎓 Qualifications), Checklist B "I am" (⭐️ Skills & Training items), Checklist C "I also have" (✅ Assurances, 🩺 Certificates, 🪪 License, 🚗 Car, 💚 Vaccinated — exclude Pets), Traits paragraph (direct "your kids", Traits + Hobbies, confidence benefit), CTA (synonym traits, profile link: ${SITE_DOMAIN}/nannies/{Area}/{FirstName}/{LastName} 💕). Do NOT bold "Experienced" in header. Do NOT include name in intro. Use synonyms for traits in CTA (e.g., "gentle" → "kind").`;
 
 function buildProfilePrompt(data: CreateNannyProfileData): string {
   const yesNo = (v: boolean | undefined) => (v ? "Yes" : "No");

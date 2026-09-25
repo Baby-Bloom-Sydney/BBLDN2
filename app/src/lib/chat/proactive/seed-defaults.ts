@@ -29,11 +29,12 @@
 import { CronExpressionParser } from "cron-parser";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ChildSummary } from "@/lib/chat/context";
+import { APP_TZ } from "@/lib/constants";
 
 export const WEEKLY_OVERVIEW_TRIGGER_ID = "child.weekly_overview" as const;
 /** Friday 18:00 local — matches the PROACTIVE-MESSAGES.md reference example. */
 export const WEEKLY_OVERVIEW_CRON = "0 18 * * 5" as const;
-const DEFAULT_TZ = "Australia/Sydney";
+const DEFAULT_TZ = APP_TZ;
 
 export interface WeeklyOverviewPayload {
   child_name: string;
