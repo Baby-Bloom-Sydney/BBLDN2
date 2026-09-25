@@ -65,7 +65,10 @@ export function QuickMatch() {
   const [prompt, setPrompt] = useState<string | null>(null);
 
   // Typewriter placeholder
-  const PLACEHOLDER_SUBURBS = ["Vaucluse", "Mosman", "Double Bay", "Rose Bay", "Woollahra", "Neutral Bay", "Bellevue Hill", "Cremorne", "Paddington", "Manly", "Bondi", "Balmoral", "Darling Point", "Palm Beach", "Bronte", "Avalon", "Coogee", "Randwick", "Clovelly", "Maroubra"];
+  // Sixteen served districts, from LDN2/schema/data/london_districts.csv
+  // (ADR-188). A constant rather than the fetched rows: the typewriter runs at
+  // first paint and restarting it when the fetch lands is a visible glitch.
+  const PLACEHOLDER_DISTRICTS = ["Clapham", "Islington", "Camden Town", "Chelsea", "Notting Hill", "Bethnal Green", "Greenwich", "Hampstead", "Fulham", "Wimbledon", "Brixton", "Battersea", "Putney", "Dulwich", "Whitechapel", "Stoke Newington"];
   const [typedPlaceholder, setTypedPlaceholder] = useState("");
   const [isInputFocused, setIsInputFocused] = useState(false);
   const typewriterRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -73,18 +76,18 @@ export function QuickMatch() {
   useEffect(() => {
     if (isInputFocused || query.length > 0) return;
 
-    let suburbIdx = 0;
+    let districtIdx = 0;
     let charIdx = 0;
     let deleting = false;
     let pauseTimer: ReturnType<typeof setTimeout> | null = null;
 
     const tick = () => {
-      const currentSuburb = PLACEHOLDER_SUBURBS[suburbIdx];
+      const currentDistrict = PLACEHOLDER_DISTRICTS[districtIdx];
 
       if (!deleting) {
         charIdx++;
-        setTypedPlaceholder(currentSuburb.slice(0, charIdx));
-        if (charIdx === currentSuburb.length) {
+        setTypedPlaceholder(currentDistrict.slice(0, charIdx));
+        if (charIdx === currentDistrict.length) {
           // Pause at full word, then start deleting
           pauseTimer = setTimeout(() => {
             deleting = true;
@@ -95,10 +98,10 @@ export function QuickMatch() {
         typewriterRef.current = setTimeout(tick, 80 + Math.random() * 40);
       } else {
         charIdx--;
-        setTypedPlaceholder(currentSuburb.slice(0, charIdx));
+        setTypedPlaceholder(currentDistrict.slice(0, charIdx));
         if (charIdx === 0) {
           deleting = false;
-          suburbIdx = (suburbIdx + 1) % PLACEHOLDER_SUBURBS.length;
+          districtIdx = (districtIdx + 1) % PLACEHOLDER_DISTRICTS.length;
           typewriterRef.current = setTimeout(tick, 400);
           return;
         }

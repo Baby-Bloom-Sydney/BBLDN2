@@ -66,7 +66,7 @@ export function AddressPickerDialog({
   onSubmit,
 }: AddressPickerDialogProps) {
   const initialQuery = currentSuburb
-    ? `${currentSuburb}${currentPostcode ? ` NSW ${currentPostcode}` : ""}`
+    ? `${currentSuburb}${currentPostcode ? ` ${currentPostcode}` : ""}`
     : "";
 
   const [query, setQuery] = useState(initialQuery);
@@ -145,9 +145,10 @@ export function AddressPickerDialog({
           return;
         }
         const data: AddressApiResult[] = await res.json();
-        const nswOnly = data.filter((r) => r.sla.includes(" NSW "));
-        setResults(nswOnly.slice(0, 8));
-        setShowDropdown(nswOnly.length > 0);
+        // The route already filters to GB and emits the UK address shape,
+        // so there is nothing left to filter here (12.01).
+        setResults(data.slice(0, 8));
+        setShowDropdown(data.length > 0);
       } catch {
         setResults([]);
         setShowDropdown(false);
@@ -180,7 +181,7 @@ export function AddressPickerDialog({
       setShowDropdown(false);
       return;
     }
-    setQuery(`${parsed.town} NSW ${parsed.postcode}`);
+    setQuery(`${parsed.town} ${parsed.postcode}`);
     setSelected(parsed);
     setShowDropdown(false);
     setResults([]);
@@ -222,7 +223,7 @@ export function AddressPickerDialog({
             <div className="flex items-baseline justify-between">
               <Label htmlFor="address-search">Address</Label>
               <span className="text-[10px] text-slate-400">
-                Sydney, NSW only
+                London only
               </span>
             </div>
             <div className="relative" ref={dropdownRef}>
@@ -259,13 +260,13 @@ export function AddressPickerDialog({
             {selected && (
               <p className="mt-1 flex items-center gap-1 text-xs font-medium text-emerald-600">
                 <Check className="h-3 w-3" />
-                {selected.town} NSW {selected.postcode}
+                {selected.town} {selected.postcode}
               </p>
             )}
             {notInArea && (
               <p className="mt-1 text-xs text-amber-600">
                 That address is outside our service area. We currently only
-                operate in Greater Sydney.
+                operate in Greater London.
               </p>
             )}
           </div>
