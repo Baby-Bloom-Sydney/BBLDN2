@@ -15,6 +15,7 @@
  */
 
 import type { EmailTemplate } from "./types";
+import { SITE_NAME } from "@/lib/constants";
 
 interface TrialExpiryReminderParams {
   firstName: string;
@@ -69,7 +70,7 @@ export function buildTrialExpiryReminderEmail(
     A$100 of every payment supports your nanny's work.
   </p>
   <p style="font-size: 12px; color: #94a3b8; margin: 32px 0 0;">
-    Baby Bloom Sydney
+    ${SITE_NAME}
   </p>
 </body>
 </html>`;

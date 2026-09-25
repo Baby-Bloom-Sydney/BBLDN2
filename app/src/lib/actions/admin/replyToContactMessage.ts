@@ -17,6 +17,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
+import { SITE_NAME } from "@/lib/constants";
 
 export type ReplyToContactMessageResult =
   | { success: true; warning?: string }
@@ -155,6 +156,6 @@ function renderReplyHtml(body: string): string {
 <html><head><meta charset="utf-8"></head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #0f172a; max-width: 560px; margin: 0 auto; padding: 24px;">
   <div style="white-space: pre-wrap; font-size: 15px; line-height: 1.6;">${escaped}</div>
-  <p style="margin-top: 32px; color: #94a3b8; font-size: 12px;">Baby Bloom Sydney</p>
+  <p style="margin-top: 32px; color: #94a3b8; font-size: 12px;">${SITE_NAME}</p>
 </body></html>`;
 }

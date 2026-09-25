@@ -18,6 +18,7 @@ import { capitalizeName } from '@/lib/utils';
 import { syncNannyVerificationState } from '@/lib/actions/verification';
 import { verifyPassport } from './verify-passport';
 import { verifyWWCC } from './verify-wwcc';
+import { emailFooter } from "@/lib/email/brand";
 
 /** Race a promise against a timeout. Throws on timeout. */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -405,13 +406,7 @@ export async function runCrossCheckPhase(verificationId: string): Promise<void> 
     <div style="text-align:center;margin-top:24px;">
       <a href="${appUrl}/nanny/profile" style="display:inline-block;background:#8b5cf6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">View Your Profile</a>
     </div>
-    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #e2e8f0;">
-      <p style="font-size:12px;color:#94a3b8;line-height:1.6;margin:0;">
-        Baby Bloom Sydney<br/>
-        <a href="https://babybloomsydney.com.au/legal/privacy-policy" style="color:#7c3aed;">Privacy Policy</a> |
-        <a href="https://babybloomsydney.com.au/legal/professional-terms" style="color:#7c3aed;">Terms</a>
-      </p>
-    </div>
+    ${emailFooter()}
   </div>
 </div>
 </body></html>`,

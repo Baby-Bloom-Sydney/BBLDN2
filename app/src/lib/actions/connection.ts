@@ -33,6 +33,7 @@ import {
   checkPostTrialOutcomes,
 } from "./position-funnel";
 import { dispatchActionTriggeredInBackground } from "@/lib/chat/proactive/action-triggered";
+import { emailHeader } from "@/lib/email/brand";
 
 // ── Types ──
 
@@ -412,7 +413,7 @@ export async function createConnectionRequest(
         to: nannyInfo.email,
         subject: `New connection request from ${parentName}`,
         html: `<div style="${baseStyle}">
-          <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+          ${emailHeader()}
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">${parentName} from ${parentSuburb} would like to connect with you for a meet and greet. Review their request and respond within 3 days.</p>
           <p style="margin-top: 24px;"><a href="${appUrl}/nanny/inbox" style="${btnStyle}">View Request</a></p>
         </div>`,
@@ -613,7 +614,7 @@ export async function acceptConnectionRequest(
         to: parentEmailInfo.email,
         subject: `${nannyName} accepted your connection request!`,
         html: `<div style="${baseStyle}">
-          <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+          ${emailHeader()}
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">Great news! ${nannyName} has accepted your connection request and shared their available times. Check their availability and pick a slot for your meet and greet.</p>
           <p style="color: #6B7280; font-size: 14px; margin-top: 8px;">You have 3 days to schedule a time.</p>
           <p style="margin-top: 24px;"><a href="${appUrl}/parent/connections" style="${btnStyle}">Pick a Time</a></p>
@@ -827,7 +828,7 @@ export async function scheduleConnectionTime(
         to: parentEmailInfo.email,
         subject: `Meet and greet scheduled with ${nannyName}!`,
         html: `<div style="${baseStyle}">
-          <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+          ${emailHeader()}
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">Your meet and greet with ${nannyName} is confirmed.</p>
           <div style="background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 8px; padding: 16px; margin: 16px 0;">
             <p style="margin: 0; font-weight: 600; color: #166534;">Meet Time: ${confirmedDate}</p>
@@ -871,7 +872,7 @@ export async function scheduleConnectionTime(
       to: nannyEmailInfo.email,
       subject: `Meet and greet scheduled with ${parentName}`,
       html: `<div style="${baseStyle}">
-        <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+        ${emailHeader()}
         <p style="color: #374151; font-size: 16px; line-height: 1.6;">Your meet and greet with ${parentName} is confirmed for ${confirmedDate}. Your contact details will be available to the family on their dashboard.</p>
         <p style="margin-top: 24px;"><a href="${appUrl}/nanny/inbox" style="${btnStyle}">View in Inbox</a></p>
       </div>`,
@@ -1019,7 +1020,7 @@ export async function declineConnectionRequest(
         to: parentEmailInfo.email,
         subject: `Update on your connection with ${nannyName}`,
         html: `<div style="${baseStyle}">
-          <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+          ${emailHeader()}
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">Unfortunately, ${nannyName} is unable to connect at this time. This could be due to scheduling or availability.</p>
           <p style="margin-top: 24px;"><a href="${appUrl}/parent/browse" style="${btnStyle}">Browse More Nannies</a></p>
         </div>`,

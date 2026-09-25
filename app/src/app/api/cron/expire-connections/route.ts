@@ -4,6 +4,7 @@ import { createInboxMessage, logConnectionEvent } from '@/lib/actions/connection
 import { sendEmail } from '@/lib/email/resend';
 import { getUserEmailInfo } from '@/lib/email/helpers';
 import { CONNECTION_STAGE } from '@/lib/position/constants';
+import { emailFooter } from "@/lib/email/brand";
 
 /**
  * Cron endpoint: expires pending connection requests past their expires_at.
@@ -112,13 +113,7 @@ export async function GET(request: NextRequest) {
     <div style="text-align:center;margin-top:24px;">
       <a href="${appUrl}/parent/browse" style="display:inline-block;background:#8b5cf6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Browse Nannies</a>
     </div>
-    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #e2e8f0;">
-      <p style="font-size:12px;color:#94a3b8;line-height:1.6;margin:0;">
-        Baby Bloom Sydney<br/>
-        <a href="https://babybloomsydney.com.au/legal/privacy-policy" style="color:#7c3aed;">Privacy Policy</a> |
-        <a href="https://babybloomsydney.com.au/legal/client-terms" style="color:#7c3aed;">Terms</a>
-      </p>
-    </div>
+    ${emailFooter({ terms: "client" })}
   </div>
 </div>
 </body></html>`,
@@ -160,13 +155,7 @@ export async function GET(request: NextRequest) {
     <div style="text-align:center;margin-top:24px;">
       <a href="${appUrl}/nanny/inbox" style="display:inline-block;background:#8b5cf6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">View Inbox</a>
     </div>
-    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #e2e8f0;">
-      <p style="font-size:12px;color:#94a3b8;line-height:1.6;margin:0;">
-        Baby Bloom Sydney<br/>
-        <a href="https://babybloomsydney.com.au/legal/privacy-policy" style="color:#7c3aed;">Privacy Policy</a> |
-        <a href="https://babybloomsydney.com.au/legal/professional-terms" style="color:#7c3aed;">Terms</a>
-      </p>
-    </div>
+    ${emailFooter()}
   </div>
 </div>
 </body></html>`,

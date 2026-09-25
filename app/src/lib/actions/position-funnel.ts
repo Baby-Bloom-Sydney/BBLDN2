@@ -24,6 +24,7 @@ import {
 } from "@/lib/position/constants";
 import type { EndReason } from "@/lib/position/constants";
 import { funnelLog, funnelError } from "@/lib/position/logger";
+import { emailHeader } from "@/lib/email/brand";
 
 // ── Email helpers ──
 
@@ -150,7 +151,7 @@ export async function checkPostIntroOutcomes(
           to: parties.nannyEmail,
           subject: `How did your meet and greet with ${parties.parentName} go?`,
           html: `<div style="${baseStyle}">
-            <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+            ${emailHeader()}
             <p style="color: #374151; font-size: 16px; line-height: 1.6;">We hope your meet and greet with ${parties.parentName} went well! When you have a moment, let us know how it went so we can help with next steps.</p>
             <p style="margin-top: 24px;"><a href="${appUrl}/nanny/positions" style="${btnStyle}">Update in My Positions</a></p>
           </div>`,
@@ -244,7 +245,7 @@ export async function checkPostTrialOutcomes(
           to: parties.nannyEmail,
           subject: `How did your trial with ${parties.parentName} go?`,
           html: `<div style="${baseStyle}">
-            <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+            ${emailHeader()}
             <p style="color: #374151; font-size: 16px; line-height: 1.6;">We hope your trial shift with ${parties.parentName} went well! When you have a moment, let us know how it went so we can help with next steps.</p>
             <p style="margin-top: 24px;"><a href="${appUrl}/nanny/positions" style="${btnStyle}">Update in My Positions</a></p>
           </div>`,
@@ -373,7 +374,7 @@ export async function reportIntroOutcome(
           to: parties.parentEmail,
           subject: `${parties.nannyName} has been selected — please confirm`,
           html: `<div style="${baseStyle}">
-            <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+            ${emailHeader()}
             <p style="color: #374151; font-size: 16px; line-height: 1.6;">We're delighted to hear your meet and greet with ${parties.nannyName} went well! ${parties.nannyName} has indicated they've been selected for your position — please confirm the details to get started.</p>
             <p style="margin-top: 24px;"><a href="${appUrl}/parent/connections" style="${btnStyle}">Confirm Placement</a></p>
           </div>`,
@@ -458,7 +459,7 @@ export async function reportIntroOutcome(
           to: parties.parentEmail,
           subject: "We'd love to help you find the right fit",
           html: `<div style="${baseStyle}">
-            <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+            ${emailHeader()}
             <p style="color: #374151; font-size: 16px; line-height: 1.6;">Thank you for meeting with ${parties.nannyName}. We'd love to help you find the right fit — would you like us to arrange meet and greets with other nannies?</p>
             <p style="margin-top: 24px;"><a href="${appUrl}/parent/browse" style="${btnStyle}">Browse Nannies</a></p>
           </div>`,
@@ -1389,7 +1390,7 @@ export async function confirmPlacement(
         to: parties.nannyEmail,
         subject: `Congratulations! Your position with ${parties.parentName} is confirmed`,
         html: `<div style="${baseStyle}">
-          <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+          ${emailHeader()}
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">Great news — ${parties.parentName} has confirmed you for their nanny position. Please update your availability to reflect your new commitment.</p>
           <p style="margin-top: 24px;"><a href="${appUrl}/nanny/positions" style="${btnStyle}">View Position</a></p>
         </div>`,
@@ -1575,7 +1576,7 @@ export async function parentInitiateFill(
         to: parties.nannyEmail,
         subject: `Great news! ${parties.parentName} has selected you`,
         html: `<div style="${baseStyle}">
-          <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+          ${emailHeader()}
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">We're delighted to share that ${parties.parentName} would like you for their nanny position. Please confirm to get started.</p>
           <p style="margin-top: 24px;"><a href="${appUrl}/nanny/positions" style="${btnStyle}">Confirm Position</a></p>
         </div>`,
@@ -1723,7 +1724,7 @@ export async function nannyConfirmPosition(
         to: parties.parentEmail,
         subject: `Your nanny ${parties.nannyName} is confirmed!`,
         html: `<div style="${baseStyle}">
-          <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+          ${emailHeader()}
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">Wonderful news — ${parties.nannyName} has confirmed your nanny position. You can view your placement details in My Childcare.</p>
           <p style="margin-top: 24px;"><a href="${appUrl}/parent" style="${btnStyle}">View My Childcare</a></p>
         </div>`,
@@ -3571,7 +3572,7 @@ export async function reportParentOutcome(
           to: nannyEmail.email,
           subject: `Great news! ${parties.parentName} has selected you`,
           html: `<div style="${baseStyle}">
-            <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+            ${emailHeader()}
             <p style="color: #374151; font-size: 16px; line-height: 1.6;">We're delighted to share that ${parties.parentName} would like you for their nanny position. Please confirm to get started.</p>
             <p style="margin-top: 24px;"><a href="${appUrl}/nanny/positions" style="${btnStyle}">View in My Positions</a></p>
           </div>`,

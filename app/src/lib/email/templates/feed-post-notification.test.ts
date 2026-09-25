@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildFeedPostNotificationEmail } from "./feed-post-notification";
+import { SITE_NAME } from "@/lib/constants";
 
 const PARAMS = {
   nannyFirstName: "Sarah",
@@ -185,9 +186,9 @@ describe("buildFeedPostNotificationEmail — branding + footer", () => {
     expect(html).toContain("/legal/client-terms");
   });
 
-  it("includes 'Baby Bloom Sydney' attribution in the footer", () => {
+  it("attributes the footer to the configured product name", () => {
     const { html } = buildFeedPostNotificationEmail(PARAMS);
-    expect(html).toContain("Baby Bloom Sydney");
+    expect(html).toContain(SITE_NAME);
   });
 });
 

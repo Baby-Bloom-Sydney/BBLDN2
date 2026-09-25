@@ -13,6 +13,7 @@
  */
 
 import type { EmailTemplate } from "./types";
+import { emailFooter } from "@/lib/email/brand";
 
 type WelcomeInviteParentEmailParams = {
   firstName: string;
@@ -79,13 +80,7 @@ export function buildWelcomeInviteParentEmail(
     <div style="text-align:center;margin-top:24px;">
       <a href="${appUrl}/invite/${safeToken}?auto=1" style="${btnStyle}">Open ${childLabel}&apos;s feed</a>
     </div>
-    <div style="margin-top:32px;padding-top:24px;border-top:1px solid #e2e8f0;">
-      <p style="font-size:12px;color:#94a3b8;line-height:1.6;">
-        Baby Bloom Sydney<br/>
-        <a href="https://babybloomsydney.com.au/legal/privacy-policy" style="color:#7c3aed;">Privacy Policy</a> |
-        <a href="https://babybloomsydney.com.au/legal/client-terms" style="color:#7c3aed;">Terms of Service</a>
-      </p>
-    </div>
+    ${emailFooter({ terms: "client", termsLabel: "Terms of Service" })}
   </div>
 </div>
 </body></html>`;

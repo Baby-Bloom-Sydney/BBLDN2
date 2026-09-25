@@ -6,6 +6,8 @@
  */
 
 import type { EmailTemplate } from "./types";
+import { emailFooter } from "@/lib/email/brand";
+import { BRAND, SITE_NAME } from "@/lib/constants";
 
 type WelcomeNannyEmailParams = {
   firstName: string;
@@ -31,25 +33,19 @@ export function buildWelcomeNannyEmail(
     </div>
     <h1 style="font-size:24px;font-weight:700;text-align:center;margin:0 0 8px;">Welcome, ${firstName}!</h1>
     <p style="text-align:center;color:#64748b;margin:0 0 24px;">Your Baby Bloom account has been created.</p>
-    <p style="font-size:14px;color:#475569;line-height:1.6;">We're excited to have you join Baby Bloom Sydney. Here's how to get started:</p>
+    <p style="font-size:14px;color:#475569;line-height:1.6;">We're excited to have you join ${SITE_NAME}. Here's how to get started:</p>
     <div style="background:#f5f3ff;border-radius:12px;padding:16px;margin:16px 0;">
       <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:#7c3aed;">Next steps</p>
       <ol style="margin:0;padding-left:20px;font-size:14px;color:#475569;line-height:1.8;">
         <li>Complete your profile with your experience and qualifications</li>
         <li>Upload your ID and WWCC for verification</li>
-        <li>Once verified, families in Sydney can find and connect with you</li>
+        <li>Once verified, families in ${BRAND.city} can find and connect with you</li>
       </ol>
     </div>
     <div style="text-align:center;margin-top:24px;">
       <a href="${appUrl}/nanny/profile" style="${btnStyle}">Complete Your Profile</a>
     </div>
-    <div style="margin-top:32px;padding-top:24px;border-top:1px solid #e2e8f0;">
-      <p style="font-size:12px;color:#94a3b8;line-height:1.6;">
-        Baby Bloom Sydney<br/>
-        <a href="https://babybloomsydney.com.au/legal/privacy-policy" style="color:#7c3aed;">Privacy Policy</a> |
-        <a href="https://babybloomsydney.com.au/legal/professional-terms" style="color:#7c3aed;">Terms of Service</a>
-      </p>
-    </div>
+    ${emailFooter({ termsLabel: "Terms of Service" })}
   </div>
 </div>
 </body></html>`;

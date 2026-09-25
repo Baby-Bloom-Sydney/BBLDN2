@@ -14,6 +14,8 @@ import { getUserEmailInfo } from '@/lib/email/helpers';
 import { createInboxMessage } from '@/lib/actions/connection-helpers';
 import { ParentVerificationData } from '@/types/parent';
 import { capitalizeName } from '@/lib/utils';
+import { emailHeader } from "@/lib/email/brand";
+import { SITE_NAME } from "@/lib/constants";
 
 // ── Shared auth helper ──
 
@@ -193,7 +195,7 @@ export async function submitParentIdentityForManualReview(): Promise<{ success: 
       to: userInfo.email,
       subject: "We're reviewing your identity documents",
       html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-        <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+        ${emailHeader()}
         <p style="color: #374151; font-size: 16px; line-height: 1.6; margin-bottom: 16px;">
           Hi ${userInfo.firstName},
         </p>
@@ -205,7 +207,7 @@ export async function submitParentIdentityForManualReview(): Promise<{ success: 
         </p>
         <p style="margin-top: 24px;"><a href="${appUrl}/parent/verification" style="background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">View Status</a></p>
         <p style="color: #6B7280; font-size: 14px; margin-top: 32px;">
-          — Baby Bloom Sydney Team
+          — ${SITE_NAME} Team
         </p>
       </div>`,
       emailType: 'parent_verification_review',

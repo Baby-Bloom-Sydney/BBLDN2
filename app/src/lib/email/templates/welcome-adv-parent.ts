@@ -19,6 +19,7 @@
  */
 
 import type { EmailTemplate } from "./types";
+import { emailFooter } from "@/lib/email/brand";
 
 type WelcomeAdvParentEmailParams = {
   firstName: string;
@@ -99,13 +100,7 @@ export function buildWelcomeAdvParentEmail(
     <p style="font-size:13px;color:#64748b;line-height:1.6;text-align:center;margin:20px 0 0;">
       We've activated Advanced matchmaking on your position. No further action needed &mdash; sit tight while we do the legwork.
     </p>
-    <div style="margin-top:32px;padding-top:24px;border-top:1px solid #e2e8f0;">
-      <p style="font-size:12px;color:#94a3b8;line-height:1.6;text-align:center;">
-        Baby Bloom Sydney<br/>
-        <a href="https://babybloomsydney.com.au/legal/privacy-policy" style="color:#7c3aed;">Privacy Policy</a> |
-        <a href="https://babybloomsydney.com.au/legal/client-terms" style="color:#7c3aed;">Terms of Service</a>
-      </p>
-    </div>
+    ${emailFooter({ terms: "client", termsLabel: "Terms of Service", align: "center" })}
   </div>
 </div>
 </body></html>`;

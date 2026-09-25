@@ -14,6 +14,7 @@
  */
 
 import type { EmailTemplate } from "./types";
+import { emailFooter } from "@/lib/email/brand";
 
 export type FeedPostNotificationParams = {
   /** First name of the nanny / author. Sourced from `user_profiles.first_name`.
@@ -116,13 +117,7 @@ export function buildFeedPostNotificationEmail(
     <div style="text-align:center;margin-top:8px;">
       <a href="${feedUrl}" style="${btnStyle}">${ctaText}</a>
     </div>
-    <div style="margin-top:32px;padding-top:24px;border-top:1px solid #e2e8f0;">
-      <p style="font-size:12px;color:#94a3b8;line-height:1.6;text-align:center;margin:0;">
-        Baby Bloom Sydney<br/>
-        <a href="https://babybloomsydney.com.au/legal/privacy-policy" style="color:#7c3aed;">Privacy Policy</a> |
-        <a href="https://babybloomsydney.com.au/legal/client-terms" style="color:#7c3aed;">Terms of Service</a>
-      </p>
-    </div>
+    ${emailFooter({ terms: "client", termsLabel: "Terms of Service", align: "center" })}
   </div>
 </div>
 </body></html>`;
