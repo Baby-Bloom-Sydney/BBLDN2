@@ -13,7 +13,7 @@ import {
   Sparkles,
   CheckCircle,
 } from "lucide-react";
-import { BRAND, SITE_NAME } from "@/lib/constants";
+import { BRAND, OG_LOCALE, SITE_NAME } from "@/lib/constants";
 
 const PRO_TITLE = `Work as a Nanny in ${BRAND.city}`;
 const PRO_DESCRIPTION = `Join ${SITE_NAME} as a childcare professional in ${BRAND.city}. Get matched with local families who value quality early childhood education and care.`;
@@ -23,6 +23,7 @@ export const metadata: Metadata = {
   description: PRO_DESCRIPTION,
   alternates: { canonical: '/childcare-professionals' },
   openGraph: {
+    locale: OG_LOCALE,
     title: `${PRO_TITLE} | Baby Bloom`,
     description: PRO_DESCRIPTION,
   },

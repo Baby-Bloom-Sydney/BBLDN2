@@ -2,7 +2,7 @@ import { getPublicBsrProfile } from "@/lib/actions/babysitting";
 import { BsrJobView } from "./BsrJobView";
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
-import { BRAND, SITE_NAME, SITE_URL } from "@/lib/constants";
+import { BRAND, OG_LOCALE, SITE_NAME, SITE_URL } from "@/lib/constants";
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
@@ -40,6 +40,7 @@ export async function generateMetadata({
     title,
     description,
     openGraph: {
+      locale: OG_LOCALE,
       title,
       description,
       type: "website",

@@ -84,9 +84,13 @@ function getBracketTimeOptions(bracket: string): Array<{ hour: number; minute: n
   const options: Array<{ hour: number; minute: number; label: string }> = [];
   for (let h = b.startHour; h < b.startHour + 3; h++) {
     for (let m = 0; m < 60; m += 15) {
-      const hour12 = h % 12 || 12;
-      const ampm = h < 12 ? 'AM' : 'PM';
-      options.push({ hour: h, minute: m, label: `${hour12}:${m.toString().padStart(2, '0')} ${ampm}` });
+      // One clock everywhere (LEDGER/2b.md §3.2): the label comes from the locale, which is
+      // 24-hour, rather than from a hand-rolled am/pm that no locale change can reach.
+      const label = new Date(2000, 0, 1, h, m).toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      options.push({ hour: h, minute: m, label });
     }
   }
   return options;
