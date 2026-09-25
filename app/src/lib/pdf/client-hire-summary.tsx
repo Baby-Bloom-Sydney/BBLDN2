@@ -68,17 +68,12 @@ export function ClientHireSummaryPDF({
           Some content on the Platform, including nanny bios and matching summaries, is generated using AI (OpenAI GPT-4o or similar). AI-generated content is labelled and should be independently verified.
         </Text>
 
-        <Text style={styles.sectionTitle}>5. Mandatory Reporting</Text>
-        <Text style={styles.paragraph}>
-          If you become aware of any situation involving Risk of Significant Harm (ROSH) to a child, contact the NSW DCJ Child Protection Helpline immediately on 132 111.
-        </Text>
-
-        <Text style={styles.sectionTitle}>6. Baby Bloom&apos;s Commitments</Text>
+        <Text style={styles.sectionTitle}>5. Baby Bloom&apos;s Commitments</Text>
         <Text style={styles.paragraph}>
           Baby Bloom commits to maintaining the Platform, providing support, and ensuring all professionals have been WWCC and identity verified at onboarding. We comply with the Privacy Act 1988 (Cth) and the Australian Privacy Principles.
         </Text>
 
-        <Text style={styles.sectionTitle}>7. Important Links</Text>
+        <Text style={styles.sectionTitle}>6. Important Links</Text>
         <Text style={styles.listItem}>Client Terms of Service: babybloomsydney.com.au/legal/client-terms</Text>
         <Text style={styles.listItem}>Privacy Policy: babybloomsydney.com.au/legal/privacy-policy</Text>
         <Text style={styles.listItem}>Code of Conduct: babybloomsydney.com.au/legal/code-of-conduct</Text>
