@@ -207,7 +207,7 @@ function ProfileSection({ profile }: { profile: Props["profile"] }) {
 
       <SettingsSubsection header="Address">
         <SettingsRow
-          label="Suburb"
+          label="Area"
           value={profile.suburb}
           onClick={() => setEditingAddress(true)}
         />

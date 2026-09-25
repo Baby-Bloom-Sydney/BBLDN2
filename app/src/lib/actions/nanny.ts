@@ -1378,7 +1378,7 @@ function buildProfilePrompt(data: CreateNannyProfileData): string {
   return `Generate a nanny profile based on:
 First Name: ${data.first_name}
 Last Name: ${data.last_name}
-Suburb: ${data.suburb}
+Area: ${data.suburb}
 Age: ${age || "Not provided"}
 Nationality: ${data.nationality || "Not provided"}
 Total Childcare Experience: ${data.total_experience_years ?? 0} years

@@ -337,7 +337,7 @@ export function LeadFiltersBar({
               suburb: e.target.value.trim() ? e.target.value.trim() : null,
             })
           }
-          placeholder="Suburb"
+          placeholder="Area"
           disabled={disabled}
           className="max-w-[180px]"
         />

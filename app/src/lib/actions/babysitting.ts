@@ -774,7 +774,7 @@ export async function createBabysittingRequest(data: {
 
   // Validate suburb exists
   if (!data.suburb || !data.postcode) {
-    return { success: false, error: "Please select a suburb" };
+    return { success: false, error: "Please select an area" };
   }
 
   // Look up lat/lng from suburb
@@ -785,7 +785,7 @@ export async function createBabysittingRequest(data: {
     .single();
 
   if (!coords) {
-    return { success: false, error: "Invalid suburb selected" };
+    return { success: false, error: "Invalid area selected" };
   }
 
   // Calculate estimated hours and total

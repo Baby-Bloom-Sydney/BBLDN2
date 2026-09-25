@@ -66,7 +66,7 @@ function describeProgress(
 
   // Position exists — assess what's set.
   const missing: string[] = [];
-  if (!position.suburb) missing.push("Suburb");
+  if (!position.suburb) missing.push("Area");
   if (!position.hours_per_week) missing.push("Hours per week");
   if (!position.days_required || position.days_required.length === 0) {
     missing.push("Days required");

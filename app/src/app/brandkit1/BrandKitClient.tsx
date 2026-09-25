@@ -607,7 +607,7 @@ export function BrandKitClient({ profilePicUrl }: BrandKitClientProps) {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="suburb">Suburb</Label>
+                <Label htmlFor="suburb">Area</Label>
                 <Input id="suburb" placeholder="Clapham" />
                 <p className="text-xs text-slate-400">
                   We use this to match you with nearby families.
@@ -1262,7 +1262,7 @@ export function BrandKitClient({ profilePicUrl }: BrandKitClientProps) {
 
                     <div className="flex-1 flex items-center justify-center px-6">
                       <h2 className="text-xl font-semibold text-slate-800 text-center leading-snug">
-                        What suburb do you live in?
+                        What area do you live in?
                       </h2>
                     </div>
 

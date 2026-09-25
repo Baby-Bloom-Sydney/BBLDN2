@@ -127,7 +127,7 @@ export function LeadDrawerContactPanel({
         />
         <ContactRow
           icon={MapPin}
-          label="Suburb"
+          label="Area"
           value={[p?.suburb, p?.postcode].filter(Boolean).join(" ") || null}
         />
         <ContactRow

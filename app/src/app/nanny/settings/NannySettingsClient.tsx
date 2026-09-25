@@ -405,7 +405,7 @@ function ProfileSection({
 
       <SettingsSubsection header="Address">
         <SettingsRow
-          label="Suburb"
+          label="Area"
           value={profile.suburb}
           onClick={() => setEditingAddress(true)}
         />

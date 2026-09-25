@@ -276,7 +276,7 @@ export function QuickMatch() {
                     if (filtered.length > 0) setShowDropdown(true);
                   }}
                   onBlur={() => setIsInputFocused(false)}
-                  placeholder={isInputFocused ? "Search suburb or postcode..." : ""}
+                  placeholder={isInputFocused ? "Search area or postcode..." : ""}
                   className="w-full h-11 pl-10 pr-4 rounded-lg border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 transition-colors"
                 />
                 {showDropdown && filtered.length > 0 && (
@@ -413,7 +413,7 @@ export function QuickMatch() {
               disabled={loading}
               onClick={() => {
                 if (!selectedDistrict) {
-                  setPrompt("Enter your suburb to get started");
+                  setPrompt("Enter your area to get started");
                   return;
                 }
                 if (selectedDays.length === 0) {

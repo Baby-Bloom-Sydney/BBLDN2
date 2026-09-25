@@ -311,7 +311,7 @@ async function browseOpenPositions(
       summary:
         summaries.length === 0
           ? suburbFilter
-            ? `No open positions in suburbs matching "${suburbFilter}". Try a different area or remove the filter.`
+            ? `No open positions in areas matching "${suburbFilter}". Try a different area or remove the filter.`
             : "No open positions right now. Check back as families post new positions."
           : `${summaries.length} open position${summaries.length === 1 ? "" : "s"}${matchedCount > 0 ? ` (${matchedCount} match your profile)` : ""}.`,
     },
@@ -332,7 +332,7 @@ export const jobSearchModule: BloomBotModule = {
     {
       name: "read_my_job_matches",
       description:
-        "Return the list of open positions the matchmaking system has notified this nanny about. Each entry has the suburb, distance, hours/week, hourly rate, days required, child ages, and any hard requirements (license / car / qualification etc.). Use for 'any new jobs for me?', 'what positions have I been matched to?'.",
+        "Return the list of open positions the matchmaking system has notified this nanny about. Each entry has the area, distance, hours/week, hourly rate, days required, child ages, and any hard requirements (license / car / qualification etc.). Use for 'any new jobs for me?', 'what positions have I been matched to?'.",
       parameters: { type: "object", properties: {}, required: [] },
     },
     {
@@ -361,7 +361,7 @@ export const jobSearchModule: BloomBotModule = {
           suburb: {
             type: "string",
             description:
-              "Optional suburb filter — case-insensitive substring match. E.g. 'Clap' matches 'Clapham' and 'Clapton'. Omit to see positions everywhere.",
+              "Optional area filter — case-insensitive substring match. E.g. 'Clap' matches 'Clapham' and 'Clapton'. Omit to see positions everywhere.",
           },
           limit: {
             type: "number",

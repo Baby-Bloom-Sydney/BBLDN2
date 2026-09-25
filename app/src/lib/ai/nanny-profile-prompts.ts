@@ -129,7 +129,7 @@ IMPORTANT: Vary the wording, sentence structure, and emoji choices for EVERY nan
 ═══════════════════════════════════════════════════════════════
 
 Structure:
-1. Header + location (1-2 lines): Must reference "nanny" or "nanny & babysitter" and foreshadow availability. The suburb can be in the header line, on its own line, or omitted if the intro mentions it. Vary the format each time. The header should feel like an update or status change, not an ad.
+1. Header + location (1-2 lines): Must reference "nanny" or "nanny & babysitter" and foreshadow availability. The area can be in the header line, on its own line, or omitted if the intro mentions it. Vary the format each time. The header should feel like an update or status change, not an ad.
     Format variations:
     - Two lines: "✨ Experienced Nanny — New Availability ✨" + "📍 Clapham"
     - Area in header: "🌟 Clapham Nanny — Availability Update 🌟"
@@ -218,7 +218,7 @@ export function buildV2Prompt(data: V2PromptData): string {
   return `Generate a nanny profile based on:
 First Name: ${data.firstName}
 Last Name: ${data.lastName}
-Suburb: ${data.suburb || 'Not provided'}
+Area: ${data.suburb || 'Not provided'}
 Age: ${age || 'Not provided'}
 Nationality: ${data.nationality || 'Not provided'}
 Motivation: ${data.motivation || 'Not provided'}

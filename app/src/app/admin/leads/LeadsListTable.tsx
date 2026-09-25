@@ -76,7 +76,7 @@ export function LeadsListTable({
             </th>
             <th className="px-3 py-2 font-medium">Last contact</th>
             <th className="px-3 py-2 font-medium text-center">#</th>
-            <th className="px-3 py-2 font-medium">Suburb</th>
+            <th className="px-3 py-2 font-medium">Area</th>
             <th className="px-3 py-2 font-medium text-right">Actions</th>
           </tr>
         </thead>
