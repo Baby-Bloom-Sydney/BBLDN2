@@ -116,7 +116,7 @@ export function AdminLeadsClient({
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Nanny Contacts</h1>
           <p className="mt-1 text-sm text-slate-500">
-            {headerStats.totalNannies.toLocaleString()} nannies. Manual contact
+            {headerStats.totalNannies.toLocaleString("en-GB")} nannies. Manual contact
             + log + notes.
           </p>
         </div>

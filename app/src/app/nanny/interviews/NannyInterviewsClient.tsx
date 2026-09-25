@@ -154,7 +154,7 @@ export function NannyInterviewsClient({ requests }: NannyInterviewsClientProps) 
               </div>
 
               <p className="text-xs text-slate-400">
-                Requested {new Date(request.created_at).toLocaleDateString()}
+                Requested {new Date(request.created_at).toLocaleDateString("en-GB")}
               </p>
             </CardContent>
           </Card>

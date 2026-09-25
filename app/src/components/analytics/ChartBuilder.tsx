@@ -589,7 +589,7 @@ function ChartBuilderInner({ catalog }: ChartBuilderProps) {
                       return (
                         <td key={d.date} className="text-right px-2 py-2 tabular-nums whitespace-nowrap">
                           <span className="text-slate-700 font-medium">
-                            {val === null ? '--' : isDwell ? fmtDwell(val) : val.toLocaleString()}
+                            {val === null ? '--' : isDwell ? fmtDwell(val) : val.toLocaleString("en-GB")}
                           </span>
                           {pctChange !== null && (
                             <span className={`block text-[9px] ${

@@ -34,15 +34,15 @@ export function LeadsPagination({
       <div>
         Showing{" "}
         <span className="font-medium text-slate-900">
-          {start.toLocaleString()}
+          {start.toLocaleString("en-GB")}
         </span>
         –
         <span className="font-medium text-slate-900">
-          {end.toLocaleString()}
+          {end.toLocaleString("en-GB")}
         </span>{" "}
         of{" "}
         <span className="font-medium text-slate-900">
-          {total.toLocaleString()}
+          {total.toLocaleString("en-GB")}
         </span>
       </div>
       <div className="flex items-center gap-2">
@@ -76,7 +76,7 @@ export function LeadsPagination({
         <span className="min-w-[70px] text-center text-xs">
           Page <span className="font-medium text-slate-900">{page}</span> of{" "}
           <span className="font-medium text-slate-900">
-            {maxPage.toLocaleString()}
+            {maxPage.toLocaleString("en-GB")}
           </span>
         </span>
         <Button
