@@ -15,10 +15,12 @@ import type { BracketKey } from '@/lib/timezone';
 import { CONNECTION_STAGE, HIDDEN_CONNECTION_STAGES, POSITION_STAGE, POSITION_STATUS } from '@/lib/position/constants';
 import { funnelLog } from '@/lib/position/logger';
 import type { MatchResult } from '@/lib/matching/types';
+import { emailHeader } from "@/lib/email/brand";
+import { SITE_URL } from "@/lib/constants";
 
 // ── Email styles (shared) ──
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://app-babybloom.vercel.app';
+const APP_URL = SITE_URL;
 const BASE_STYLE = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
 const BTN_STYLE = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;
 
@@ -234,7 +236,7 @@ async function buildDfyEmailItems(
         to: profile.email,
         subject: `A family in ${parentSuburb} matched with you!`,
         html: `<div style="${BASE_STYLE}">
-          <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+          ${emailHeader()}
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${profile.first_name},</p>
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">${parentName} from ${parentSuburb} is looking for a nanny and you're one of their top matches!</p>
           <div style="background: #F5F3FF; border: 1px solid #C4B5FD; border-radius: 8px; padding: 16px; margin: 16px 0;">
@@ -800,7 +802,7 @@ export async function respondToDfyMatch(
           to: parentEmailInfo.email,
           subject: `${nannyName} is interested and available for a meet and greet!`,
           html: `<div style="${BASE_STYLE}">
-            <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+            ${emailHeader()}
             <p style="color: #374151; font-size: 16px; line-height: 1.6;">${nannyName} has expressed interest in your nanny position and shared their availability for a meet and greet.</p>
             <p style="color: #374151; font-size: 14px;">Pick a time that works for your meet and greet.</p>
             <p style="margin-top: 24px;"><a href="${APP_URL}/parent" style="${BTN_STYLE}">Pick a Time</a></p>
@@ -1193,7 +1195,7 @@ export async function processDfyWaves(): Promise<{ processed: number }> {
               to: profile.email,
               subject: `A family in ${parentSuburb} matched with you!`,
               html: `<div style="${BASE_STYLE}">
-                <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+                ${emailHeader()}
                 <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${profile.first_name},</p>
                 <p style="color: #374151; font-size: 16px; line-height: 1.6;">${parentName} from ${parentSuburb} is looking for a nanny and you're one of their top matches!</p>
                 <div style="background: #F5F3FF; border: 1px solid #C4B5FD; border-radius: 8px; padding: 16px; margin: 16px 0;">
@@ -1281,7 +1283,7 @@ export async function processDfyWaves(): Promise<{ processed: number }> {
                   to: profile.email,
                   subject: `Reminder: A family in ${parentSuburb} is still looking for a nanny`,
                   html: `<div style="${BASE_STYLE}">
-                    <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+                    ${emailHeader()}
                     <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${profile.first_name},</p>
                     <p style="color: #374151; font-size: 16px; line-height: 1.6;">${parentName} from ${parentSuburb} is still looking for a nanny. You were matched as one of their top candidates — let them know if you're interested!</p>
                     <p style="margin-top: 24px;"><a href="${APP_URL}/nanny/positions" style="${BTN_STYLE}">View Position & Respond</a></p>
@@ -1462,7 +1464,7 @@ async function expireDfyNotifications(
           to: parentEmailInfo.email,
           subject: 'Your Done For You search has completed',
           html: `<div style="${BASE_STYLE}">
-            <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+            ${emailHeader()}
             <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${parentEmailInfo.firstName},</p>
             <p style="color: #374151; font-size: 16px; line-height: 1.6;">Your Done For You search has completed &mdash; all matched nannies have been notified about your position.</p>
             <div style="background: #F5F3FF; border: 1px solid #C4B5FD; border-radius: 8px; padding: 16px; margin: 16px 0;">

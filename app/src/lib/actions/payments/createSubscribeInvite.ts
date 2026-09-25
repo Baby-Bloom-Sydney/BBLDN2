@@ -34,6 +34,7 @@ import crypto from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SUBSCRIBE_INVITE_TOKEN_ALPHABET } from "@/lib/payments/subscribe-invite-token";
+import { SITE_URL } from "@/lib/constants";
 
 // Token shape (alphabet + regex + validator) lives at
 // `lib/payments/subscribe-invite-token.ts` so it can be imported
@@ -58,7 +59,7 @@ function generateToken(): string {
 
 function buildSubscribeUrl(token: string): string {
   const base =
-    process.env.NEXT_PUBLIC_INVITE_BASE_URL ?? "https://babybloomsydney.com.au";
+    SITE_URL;
   return `${base}/subscribe-for/${token}`;
 }
 

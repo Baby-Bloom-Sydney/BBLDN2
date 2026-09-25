@@ -21,6 +21,8 @@ import { sendEmail } from '@/lib/email/resend';
 import { getUserEmailInfo } from '@/lib/email/helpers';
 import { CONNECTION_STAGE } from '@/lib/position/constants';
 import { createInboxMessage } from './connection-helpers';
+import { emailHeader, emailFooter } from "@/lib/email/brand";
+import { SITE_URL } from "@/lib/constants";
 
 // ── Shared auth helper ──
 
@@ -209,7 +211,7 @@ async function promotePendingConnections(
   // 5. Promote stage 9 → 10 for active positions
   const nannyEmailInfo = await getUserEmailInfo(userId);
   const nannyName = nannyEmailInfo ? nannyEmailInfo.firstName : 'A nanny';
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app-babybloom.vercel.app';
+  const appUrl = SITE_URL;
   const baseStyle = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
   const btnStyle = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;
 
@@ -247,7 +249,7 @@ async function promotePendingConnections(
               to: parentEmailInfo.email,
               subject: `${nannyName} is interested and available for a meet and greet!`,
               html: `<div style="${baseStyle}">
-                <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+                ${emailHeader()}
                 <p style="color: #374151; font-size: 16px; line-height: 1.6;">${nannyName} has expressed interest in your nanny position and shared their availability for a meet and greet.</p>
                 <p style="color: #374151; font-size: 14px;">Pick a time that works for your meet and greet.</p>
                 <p style="margin-top: 24px;"><a href="${appUrl}/parent" style="${btnStyle}">Pick a Time</a></p>
@@ -273,7 +275,7 @@ async function promotePendingConnections(
               to: parentEmailInfo.email,
               subject: `${nannyName} accepted your connection request!`,
               html: `<div style="${baseStyle}">
-                <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+                ${emailHeader()}
                 <p style="color: #374151; font-size: 16px; line-height: 1.6;">Great news! ${nannyName} has accepted your connection request and shared their available times. Check their availability and pick a slot for your meet and greet.</p>
                 <p style="color: #6B7280; font-size: 14px; margin-top: 8px;">You have 3 days to schedule a time.</p>
                 <p style="margin-top: 24px;"><a href="${appUrl}/parent/connections" style="${btnStyle}">Pick a Time</a></p>
@@ -536,7 +538,7 @@ export async function submitIdentityForManualReview(): Promise<{ success: boolea
   // VER-004: Submitted for Manual Review email
   const userInfo = await getUserEmailInfo(user.id);
   if (userInfo) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app-babybloom.vercel.app';
+    const appUrl = SITE_URL;
     sendEmail({
       to: userInfo.email,
       subject: "We're reviewing your documents",
@@ -554,13 +556,7 @@ export async function submitIdentityForManualReview(): Promise<{ success: boolea
     <div style="text-align:center;margin-top:24px;">
       <a href="${appUrl}/nanny/verification" style="display:inline-block;background:#8b5cf6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">View Status</a>
     </div>
-    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #e2e8f0;">
-      <p style="font-size:12px;color:#94a3b8;line-height:1.6;margin:0;">
-        Baby Bloom Sydney<br/>
-        <a href="https://babybloomsydney.com.au/legal/privacy-policy" style="color:#7c3aed;">Privacy Policy</a> |
-        <a href="https://babybloomsydney.com.au/legal/professional-terms" style="color:#7c3aed;">Terms</a>
-      </p>
-    </div>
+    ${emailFooter()}
   </div>
 </div>
 </body></html>`,

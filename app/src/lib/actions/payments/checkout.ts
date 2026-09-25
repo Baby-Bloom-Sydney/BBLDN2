@@ -16,6 +16,7 @@ import { createCheckoutSession as createStripeCheckoutSession } from "@/lib/stri
 import { ensureStripeCustomer } from "@/lib/actions/payments/customer";
 import { PAYMENTS_ENABLED } from "@/lib/payments/flags";
 import type { PaidPlan } from "@/types/payments";
+import { SITE_URL } from "@/lib/constants";
 
 export interface CreateCheckoutSessionResult {
   success: boolean;
@@ -198,7 +199,7 @@ function resolveOrigin(): string {
   if (envOrigin && envOrigin.length > 0) {
     return envOrigin.replace(/\/$/, "");
   }
-  return "https://babybloomsydney.com.au";
+  return SITE_URL;
 }
 
 function getErrorMessage(err: unknown): string {

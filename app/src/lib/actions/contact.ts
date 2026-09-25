@@ -22,8 +22,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
-
-const SUPPORT_INBOX = "admin@babybloomsydney.com.au";
+import { SUPPORT_INBOX } from "@/lib/constants";
 
 const SUBJECT_MAX = 120;
 const MESSAGE_MIN = 10;

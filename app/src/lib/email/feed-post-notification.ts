@@ -34,15 +34,16 @@ import { getUserEmailInfo } from "./helpers";
 import { sendEmail } from "./resend";
 import { buildFeedPostNotificationEmail } from "./templates/feed-post-notification";
 import type { BAppLogType, BAppLogContext } from "@/types/bapp";
+import { SITE_URL } from "@/lib/constants";
 
 export const FEED_POST_NOTIFICATION_EMAIL_TYPE = "feed_post_notification";
 
 // Canonical production domain — used as the fallback when
 // `NEXT_PUBLIC_APP_URL` is unset (dev / mis-configured deploy). Production
-// MUST set `NEXT_PUBLIC_APP_URL=https://babybloomsydney.com.au` per
+// MUST set `NEXT_PUBLIC_APP_URL` to the production origin per
 // `feedback_vercel_app_project` memory; the fallback exists so emails
 // degrade to a working canonical link rather than the Vercel preview URL.
-const DEFAULT_APP_URL = "https://babybloomsydney.com.au";
+const DEFAULT_APP_URL = SITE_URL;
 
 export interface NotifyParentOfFeedPostArgs {
   /** `child_client.id` — identifies the child whose feed received the tile. */

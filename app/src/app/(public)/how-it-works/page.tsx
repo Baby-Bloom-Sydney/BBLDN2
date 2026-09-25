@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import { BRAND } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: 'How Baby Bloom Works — Find a Nanny in 3 Steps',
-  description: 'See how Baby Bloom matches Sydney families with WWCC-verified nannies. Browse profiles, get matched, and arrange a meet and greet — it\'s simple.',
+  description: `See how Baby Bloom matches ${BRAND.city} families with verified nannies. Browse profiles, get matched, and arrange a meet and greet — it's simple.`,
   alternates: { canonical: '/how-it-works' },
 };
 

@@ -1,5 +1,13 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import {
+  APP_LOCALE,
+  BRAND,
+  OG_LOCALE,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_URL,
+} from "@/lib/constants";
 import "./globals.css";
 import { SessionProvider } from "@/components/providers/SessionProvider";
 import { VisitorTracker } from "@/components/providers/VisitorTracker";
@@ -26,13 +34,12 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://babybloomsydney.com.au"),
+  metadataBase: new URL(SITE_URL),
   title: {
-    template: "%s | Baby Bloom Sydney",
-    default: "Baby Bloom Sydney — Verified Nannies for Sydney Families",
+    template: `%s | ${SITE_NAME}`,
+    default: `${SITE_NAME} — Verified Nannies for ${BRAND.city} Families`,
   },
-  description:
-    "Find trusted, WWCC-verified nannies in Sydney. Baby Bloom matches families with background-checked, education-focused childcare professionals.",
+  description: SITE_DESCRIPTION,
   // Declares the icon links explicitly so Safari stops probing
   // /apple-touch-icon.png + /apple-touch-icon-precomposed.png on
   // every page load (those 404s were cosmetic but cluttered the
@@ -44,8 +51,8 @@ export const metadata: Metadata = {
     apple: "/logo.svg",
   },
   openGraph: {
-    siteName: "Baby Bloom Sydney",
-    locale: "en_AU",
+    siteName: SITE_NAME,
+    locale: OG_LOCALE,
     type: "website",
   },
 };
@@ -58,24 +65,24 @@ export default function RootLayout({
   const organizationJsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: "Baby Bloom Sydney",
+    name: SITE_NAME,
     alternateName: "Baby Bloom",
-    url: "https://babybloomsydney.com.au",
-    logo: "https://babybloomsydney.com.au/logo.png",
-    description:
-      "Sydney's trusted platform for connecting families with verified, WWCC-checked nannies and babysitters.",
+    url: SITE_URL,
+    // `logo.png` never existed in `public/` — only `logo.svg` (inventory C 8.13).
+    logo: `${SITE_URL}/logo.svg`,
+    description: SITE_DESCRIPTION,
     foundingDate: "2020",
     areaServed: {
       "@type": "City",
-      name: "Sydney",
-      addressRegion: "NSW",
-      addressCountry: "AU",
+      name: BRAND.city,
+      addressRegion: "England",
+      addressCountry: BRAND.countryCode,
     },
     sameAs: [],
   };
 
   return (
-    <html lang="en" className="overflow-x-hidden">
+    <html lang={APP_LOCALE} className="overflow-x-hidden">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased overflow-x-hidden`}
       >

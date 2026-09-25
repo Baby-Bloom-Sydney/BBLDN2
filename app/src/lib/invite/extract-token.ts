@@ -1,3 +1,4 @@
+import { SITE_URL } from "@/lib/constants";
 /**
  * Pure URL → token extraction with origin + format validation.
  * See `extract-token.test.ts` for the spec; see `child-invites.ts` for
@@ -6,7 +7,7 @@
 
 const TOKEN_PATH_REGEX = /^\/invite\/([A-HJKMN-Z2-9]{4}-[A-HJKMN-Z2-9]{4})\/?$/;
 
-const DEFAULT_INVITE_BASE = "https://babybloomsydney.com.au";
+const DEFAULT_INVITE_BASE = SITE_URL;
 
 export function extractInviteToken(input: string): string | null {
   if (typeof input !== "string") return null;

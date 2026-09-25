@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import type { JobMatchChatTile } from "@/lib/chat/tiles";
 import { useTileNavigation } from "./use-tile-navigation";
+import { BRAND } from "@/lib/constants";
 
 interface JobMatchLiveData {
   id: string;
@@ -145,7 +146,7 @@ function JobMatchBody({ d }: { d: JobMatchLiveData }) {
 
         <div className="flex items-center gap-1.5 text-xs text-slate-500">
           <MapPin className="h-3 w-3" />
-          {d.suburb ?? "Sydney"} — {d.distance}
+          {d.suburb ?? BRAND.city} — {d.distance}
         </div>
 
         {d.hours_per_week != null || d.hourly_rate != null ? (

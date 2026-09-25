@@ -33,13 +33,14 @@ import type {
   PendingInviteCard,
 } from "@/types/bapp";
 import { invitesDisabled } from "@/lib/invite/flags";
+import { SITE_URL } from "@/lib/constants";
 
 // ── Internal helpers ────────────────────────────────────────────────────
 
 /** Builds the public invite URL. Default origin per audit fix C13. */
 function buildInviteUrl(token: string): string {
   const base =
-    process.env.NEXT_PUBLIC_INVITE_BASE_URL ?? "https://babybloomsydney.com.au";
+    SITE_URL;
   return `${base}/invite/${token}`;
 }
 

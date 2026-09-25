@@ -11,6 +11,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/admin/require-admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
+import { SITE_NAME, SITE_URL } from "@/lib/constants";
 import {
   CONTACT_DIRECTIONS,
   CONTACT_METHODS,
@@ -605,8 +606,8 @@ export async function updateNannyAvailability(
   <p>Hi ${profile.first_name ?? "there"},</p>
   <p>Following our chat, your Baby Bloom availability has been updated by ${operator}. Here's what's now on your profile:</p>
   ${scheduleHtml}
-  <p>If anything here is wrong, you can edit it any time in your <a href="https://babybloomsydney.com.au/nanny/profile" style="color:#7c3aed">profile</a>, or just reply to this email.</p>
-  <p style="margin-top:24px;color:#64748b;font-size:13px">Baby Bloom Sydney</p>
+  <p>If anything here is wrong, you can edit it any time in your <a href="${SITE_URL}/nanny/profile" style="color:#7c3aed">profile</a>, or just reply to this email.</p>
+  <p style="margin-top:24px;color:#64748b;font-size:13px">${SITE_NAME}</p>
 </div>`.trim();
 
         await sendEmail({

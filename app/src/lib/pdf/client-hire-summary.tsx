@@ -1,4 +1,5 @@
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { SITE_DOMAIN, SITE_NAME } from '@/lib/constants';
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: 'Helvetica', fontSize: 11, color: '#1e293b' },
@@ -34,7 +35,7 @@ export function ClientHireSummaryPDF({
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <Text style={styles.title}>Client Hire Summary</Text>
-          <Text style={styles.subtitle}>Baby Bloom Sydney</Text>
+          <Text style={styles.subtitle}>{SITE_NAME}</Text>
         </View>
 
         <View style={styles.refBox}>
@@ -74,13 +75,13 @@ export function ClientHireSummaryPDF({
         </Text>
 
         <Text style={styles.sectionTitle}>6. Important Links</Text>
-        <Text style={styles.listItem}>Client Terms of Service: babybloomsydney.com.au/legal/client-terms</Text>
-        <Text style={styles.listItem}>Privacy Policy: babybloomsydney.com.au/legal/privacy-policy</Text>
-        <Text style={styles.listItem}>Code of Conduct: babybloomsydney.com.au/legal/code-of-conduct</Text>
+        <Text style={styles.listItem}>Client Terms of Service: {SITE_DOMAIN}/legal/client-terms</Text>
+        <Text style={styles.listItem}>Privacy Policy: {SITE_DOMAIN}/legal/privacy-policy</Text>
+        <Text style={styles.listItem}>Code of Conduct: {SITE_DOMAIN}/legal/code-of-conduct</Text>
         <Text style={styles.listItem}>Service NSW WWCC: service.nsw.gov.au/transaction/apply-for-a-working-with-children-check</Text>
 
         <View style={styles.footer}>
-          <Text>Baby Bloom Sydney</Text>
+          <Text>{SITE_NAME}</Text>
           <Text>Document generated: {new Date().toLocaleDateString('en-GB')}</Text>
           <Text>This document is for your records. Please retain it for the duration of the arrangement.</Text>
         </View>

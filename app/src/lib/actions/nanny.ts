@@ -938,7 +938,7 @@ export async function updateAccountEmail(
       : null;
 
   const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ?? "https://babybloomsydney.com.au";
+    SITE_URL;
   const next = role ? `/${role}/settings?s=contact&email_changed=1` : "/";
   const emailRedirectTo = `${siteUrl}/api/auth/callback?next=${encodeURIComponent(next)}`;
 
@@ -996,6 +996,7 @@ export async function deactivateNannyAccount(): Promise<{
 // ── AI Content Editing ──
 
 import { findProfanityInFields } from "@/lib/profanity";
+import { SITE_URL } from "@/lib/constants";
 
 /**
  * Update AI-generated content with profanity check.

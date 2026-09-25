@@ -1,3 +1,4 @@
+import { SENDERS } from "@/lib/constants";
 // ── Verification Data Systems Constants ──
 // Reference: verification_pipeline/verification-data-systems.md
 //
@@ -200,7 +201,7 @@ export const GUIDANCE_MESSAGES = {
     explanation: 'The Office of the Children\'s Guardian has indicated that you are not eligible to hold a Working With Children Check. Your Baby Bloom account has been suspended and you are unable to use our services.',
     steps_to_fix: [
       'If you believe this is an error, please contact the Office of the Children\'s Guardian directly',
-      'For questions about your Baby Bloom account, contact us at support@babybloom.com.au',
+      `For questions about your Baby Bloom account, contact us at ${SENDERS.support}`,
     ],
   },
 } as const;

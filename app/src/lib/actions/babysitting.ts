@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { APP_LOCALE, APP_TZ } from "@/lib/constants";
+import { APP_LOCALE, APP_TZ, SITE_URL } from "@/lib/constants";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { getParentId } from "./parent";
@@ -11,6 +11,8 @@ import { getUserEmailInfo } from "@/lib/email/helpers";
 import { haversineDistance } from "@/lib/matching/normalize";
 import { generateBsrPost } from "@/lib/viral-loop/generate-bsr-post";
 import { dispatchActionTriggeredInBackground } from "@/lib/chat/proactive/action-triggered";
+import { emailHeader } from "@/lib/email/brand";
+import { BRAND } from "@/lib/constants";
 
 // ── Types ──
 
@@ -109,7 +111,7 @@ export interface NannyBabysittingJob {
 // ── Email styles (shared) ──
 
 const APP_URL =
-  process.env.NEXT_PUBLIC_APP_URL || "https://app-babybloom.vercel.app";
+  SITE_URL;
 const BASE_STYLE = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
 const BTN_STYLE = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;
 
@@ -399,10 +401,10 @@ async function expireStaleBSRs(parentId?: string): Promise<void> {
           subject: "Your babysitting request has expired",
           html: `<div style="${BASE_STYLE}">
             <div style="background: #F5F3FF; border-radius: 12px; padding: 20px;">
-              <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+              ${emailHeader()}
               <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${parentInfo.firstName},</p>
               <p style="color: #374151; font-size: 16px; line-height: 1.6;">We're sorry — on this occasion we were unable to find a babysitter for your request. We apologise for the inconvenience.</p>
-              <p style="color: #374151; margin: 4px 0;">Please don't hesitate to try again — we have wonderful nannies across Sydney and we'd love to help you find the right match.</p>
+              <p style="color: #374151; margin: 4px 0;">Please don't hesitate to try again — we have wonderful nannies across ${BRAND.city} and we'd love to help you find the right match.</p>
               <p style="margin-top: 16px;"><a href="${APP_URL}/parent/babysitting" style="${BTN_STYLE}">Post New Request</a></p>
             </div>
           </div>`,
@@ -543,7 +545,7 @@ async function completeAndRemindBSRs(parentId?: string): Promise<void> {
               subject: `Reminder: babysitting tomorrow with ${nannyFirstName}`,
               html: `<div style="${BASE_STYLE}">
                 <div style="background: #F5F3FF; border-radius: 12px; padding: 20px;">
-                  <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+                  ${emailHeader()}
                   <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${parentInfo.firstName},</p>
                   <p style="color: #374151; font-size: 16px; line-height: 1.6;">Just a friendly reminder that your babysitting job with <strong>${nannyFirstName}</strong> is coming up:</p>
                   <p style="color: #374151; font-size: 16px; line-height: 1.6; background: white; border-radius: 8px; padding: 12px;">📅 ${slotDisplay}</p>
@@ -567,7 +569,7 @@ async function completeAndRemindBSRs(parentId?: string): Promise<void> {
               subject: "Reminder: babysitting job tomorrow",
               html: `<div style="${BASE_STYLE}">
                 <div style="background: #F5F3FF; border-radius: 12px; padding: 20px;">
-                  <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+                  ${emailHeader()}
                   <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${nannyInfo.firstName},</p>
                   <p style="color: #374151; font-size: 16px; line-height: 1.6;">Just a friendly reminder that your babysitting job is coming up:</p>
                   <p style="color: #374151; font-size: 16px; line-height: 1.6; background: white; border-radius: 8px; padding: 12px;">📅 ${slotDisplay}<br/>📍 ${bsr.suburb}</p>
@@ -1015,7 +1017,7 @@ export async function activateBsr(
       subject: `New babysitting job in ${bsr.suburb}`,
       html: `<div style="${BASE_STYLE}">
         <div style="background: #F5F3FF; border-radius: 12px; padding: 20px;">
-          <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+          ${emailHeader()}
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${info.firstName},</p>
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">A family in ${bsr.suburb} is looking for a babysitter!</p>
           <p style="color: #374151; margin: 4px 0;">${slotsStr}</p>
@@ -1191,7 +1193,7 @@ export async function requestBabysittingJob(
         subject: `${nannyEmailInfo.firstName} wants to babysit for you!`,
         html: `<div style="${BASE_STYLE}">
           <div style="background: #F5F3FF; border-radius: 12px; padding: 20px;">
-            <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+            ${emailHeader()}
             <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${parentInfo.firstName},</p>
             <p style="color: #374151; font-size: 16px; line-height: 1.6;">${nannyEmailInfo.firstName} has requested your babysitting job!</p>
             ${slotDisplay ? `<p style="color: #374151; margin: 4px 0;">${slotDisplay}</p>` : ""}
@@ -1417,7 +1419,7 @@ export async function applyToBsrPublic(
         subject: `${nannyEmailInfo.firstName} wants to babysit for you!`,
         html: `<div style="${BASE_STYLE}">
           <div style="background: #F5F3FF; border-radius: 12px; padding: 20px;">
-            <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+            ${emailHeader()}
             <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${parentInfo.firstName},</p>
             <p style="color: #374151; font-size: 16px; line-height: 1.6;">${nannyEmailInfo.firstName} has requested your babysitting job!</p>
             ${slotDisplay ? `<p style="color: #374151; margin: 4px 0;">${slotDisplay}</p>` : ""}
@@ -1595,7 +1597,7 @@ export async function parentAcceptNanny(
         subject: "You got the babysitting job!",
         html: `<div style="${BASE_STYLE}">
           <div style="background: #F5F3FF; border-radius: 12px; padding: 20px;">
-            <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+            ${emailHeader()}
             <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${nannyEmailInfo.firstName},</p>
             <p style="color: #374151; font-size: 16px; line-height: 1.6;">Great news — the family has chosen you for their babysitting job!</p>
             ${slotsDisplay ? `<p style="color: #374151; margin: 4px 0;">${slotsDisplay}</p>` : ""}
@@ -1639,7 +1641,7 @@ export async function parentAcceptNanny(
         subject: "Babysitter confirmed!",
         html: `<div style="${BASE_STYLE}">
           <div style="background: #F5F3FF; border-radius: 12px; padding: 20px;">
-            <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+            ${emailHeader()}
             <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${parentInfo.firstName},</p>
             <p style="color: #374151; font-size: 16px; line-height: 1.6;">Great news — your babysitter is confirmed!</p>
             ${nannyFirstName ? `<p style="color: #374151; margin: 4px 0; font-weight: 600;">👩 ${nannyFirstName}</p>` : ""}
@@ -1692,7 +1694,7 @@ export async function parentAcceptNanny(
           subject: "Babysitting position filled",
           html: `<div style="${BASE_STYLE}">
             <div style="background: #F5F3FF; border-radius: 12px; padding: 20px;">
-              <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+              ${emailHeader()}
               <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${info.firstName},</p>
               <p style="color: #374151; font-size: 16px; line-height: 1.6;">The babysitting job in ${bsr.suburb}${firstSlotDisplay ? ` (${firstSlotDisplay})` : ""} has been filled by another nanny.</p>
               <p style="color: #374151; margin: 4px 0;">Keep an eye out for new opportunities — new jobs pop up regularly!</p>
@@ -1952,7 +1954,7 @@ export async function cancelBabysittingRequest(
           subject: "Babysitting job cancelled",
           html: `<div style="${BASE_STYLE}">
             <div style="background: #F5F3FF; border-radius: 12px; padding: 20px;">
-              <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+              ${emailHeader()}
               <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${nannyEmailInfo.firstName},</p>
               <p style="color: #374151; font-size: 16px; line-height: 1.6;">The parent has cancelled the babysitting request in ${bsr.suburb} that you accepted. We apologise for any inconvenience.</p>
               <p style="color: #374151; margin: 4px 0;">Don't worry — new opportunities pop up regularly.</p>
@@ -2053,7 +2055,7 @@ export async function nannyCancelBabysittingRequest(
         to: nannyEmailInfo.email,
         subject: "Babysitting suspension notice",
         html: `<div style="${BASE_STYLE}">
-          <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+          ${emailHeader()}
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${nannyEmailInfo.firstName},</p>
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">You have been suspended from babysitting opportunities for 3 months (until ${banDateStr}).</p>
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">This is because you have cancelled 3 accepted babysitting jobs within the last 12 months. You will automatically be eligible again after ${banDateStr}.</p>
@@ -2134,7 +2136,7 @@ export async function nannyCancelBabysittingRequest(
             subject: `Babysitting job in ${bsr.suburb} is available again!`,
             html: `<div style="${BASE_STYLE}">
               <div style="background: #F5F3FF; border-radius: 12px; padding: 20px;">
-                <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+                ${emailHeader()}
                 <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${info.firstName},</p>
                 <p style="color: #374151; font-size: 16px; line-height: 1.6;">A babysitting job in ${bsr.suburb} is available again! The previous nanny had to cancel.</p>
                 <p style="color: #374151; margin: 4px 0;">Request this job and the family will choose their preferred babysitter.</p>
@@ -2179,7 +2181,7 @@ export async function nannyCancelBabysittingRequest(
           subject: "Your babysitter cancelled — we're finding a replacement",
           html: `<div style="${BASE_STYLE}">
             <div style="background: #F5F3FF; border-radius: 12px; padding: 20px;">
-              <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+              ${emailHeader()}
               <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${parentInfo.firstName},</p>
               <p style="color: #374151; font-size: 16px; line-height: 1.6;">Unfortunately, the nanny who accepted your babysitting request has had to cancel. We've already re-notified other nannies in your area.</p>
               <p style="color: #374151; margin: 4px 0;">We're working to find you a replacement babysitter.</p>
@@ -2212,7 +2214,7 @@ export async function nannyCancelBabysittingRequest(
           subject: "Your babysitter has cancelled",
           html: `<div style="${BASE_STYLE}">
             <div style="background: #F5F3FF; border-radius: 12px; padding: 20px;">
-              <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+              ${emailHeader()}
               <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${parentInfo.firstName},</p>
               <p style="color: #374151; font-size: 16px; line-height: 1.6;">Unfortunately, the nanny who accepted your babysitting request has had to cancel. As the job is too soon to find a replacement, please create a new request.</p>
               <p style="color: #374151; margin: 4px 0;">Create a new request to find another babysitter.</p>

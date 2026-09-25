@@ -1,9 +1,10 @@
 import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { SENDERS, SITE_NAME } from "@/lib/constants";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const DEFAULT_FROM = "Baby Bloom <noreply@babybloomsydney.com.au>";
+const DEFAULT_FROM = `${SITE_NAME} <${SENDERS.noreply}>`;
 
 export interface SendEmailParams {
   to: string | string[];

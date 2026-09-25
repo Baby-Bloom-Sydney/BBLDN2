@@ -24,6 +24,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
+import { SITE_URL } from "@/lib/constants";
 
 export async function requestPasswordChange(): Promise<{
   success: boolean;
@@ -39,10 +40,7 @@ export async function requestPasswordChange(): Promise<{
       return { success: false, error: "Not authenticated" };
     }
 
-    const siteUrl =
-      process.env.NEXT_PUBLIC_APP_URL ??
-      process.env.NEXT_PUBLIC_SITE_URL ??
-      "https://babybloomsydney.com.au";
+    const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? SITE_URL;
     const redirectTo = `${siteUrl}/api/auth/callback?next=/reset-password`;
 
     const { error } = await supabase.auth.resetPasswordForEmail(user.email, {

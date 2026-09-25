@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { Mail, Clock, MapPin } from "lucide-react";
 import { PublicContactForm } from "@/components/settings/PublicContactForm";
+import { BRAND, SENDERS, SITE_NAME } from "@/lib/constants";
 
 export const metadata: Metadata = {
-  title: "Contact Us — Baby Bloom Sydney",
-  description:
-    "Get in touch with Baby Bloom Sydney. We help families find verified nannies and help childcare professionals connect with great families.",
+  title: `Contact Us — ${SITE_NAME}`,
+  description: `Get in touch with ${SITE_NAME}. We help families find verified nannies and help childcare professionals connect with great families.`,
   alternates: { canonical: "/contact" },
 };
 
@@ -35,10 +35,10 @@ export default function ContactPage() {
                   Email
                 </p>
                 <a
-                  href="mailto:admin@babybloomsydney.com.au"
+                  href={`mailto:${SENDERS.admin}`}
                   className="mt-0.5 block text-sm font-medium text-slate-900 hover:text-violet-700"
                 >
-                  admin@babybloomsydney.com.au
+                  {SENDERS.admin}
                 </a>
               </div>
             </div>
@@ -57,7 +57,7 @@ export default function ContactPage() {
                   Within 1 business day
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
-                  Mon–Fri, Sydney time
+                  Mon–Fri, {BRAND.city} time
                 </p>
               </div>
             </div>
@@ -73,7 +73,7 @@ export default function ContactPage() {
                   Based in
                 </p>
                 <p className="mt-0.5 text-sm font-medium text-slate-900">
-                  Sydney, Australia
+                  {BRAND.city}, {BRAND.country}
                 </p>
               </div>
             </div>

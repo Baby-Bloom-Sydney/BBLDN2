@@ -3,6 +3,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email/resend';
 import { getUserEmailInfo } from '@/lib/email/helpers';
 import { createInboxMessage } from '@/lib/actions/connection-helpers';
+import { emailFooter } from "@/lib/email/brand";
+import { BRAND, SENDERS, SITE_NAME, SITE_URL } from "@/lib/constants";
 
 /**
  * Cron endpoint: checks for verification failures older than 10 minutes
@@ -23,7 +25,7 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createAdminClient();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app-babybloom.vercel.app';
+  const appUrl = SITE_URL;
   const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   const baseStyle = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
   const btnStyle = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;
@@ -80,13 +82,7 @@ export async function GET(request: NextRequest) {
     <div style="text-align:center;margin-top:24px;">
       <a href="${appUrl}/nanny/verification" style="display:inline-block;background:#8b5cf6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Fix It Now</a>
     </div>
-    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #e2e8f0;">
-      <p style="font-size:12px;color:#94a3b8;line-height:1.6;margin:0;">
-        Baby Bloom Sydney<br/>
-        <a href="https://babybloomsydney.com.au/legal/privacy-policy" style="color:#7c3aed;">Privacy Policy</a> |
-        <a href="https://babybloomsydney.com.au/legal/professional-terms" style="color:#7c3aed;">Terms</a>
-      </p>
-    </div>
+    ${emailFooter()}
   </div>
 </div>
 </body></html>`,
@@ -142,13 +138,7 @@ export async function GET(request: NextRequest) {
     <div style="text-align:center;margin-top:24px;">
       <a href="${appUrl}/nanny/verification" style="display:inline-block;background:#8b5cf6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Fix It Now</a>
     </div>
-    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #e2e8f0;">
-      <p style="font-size:12px;color:#94a3b8;line-height:1.6;margin:0;">
-        Baby Bloom Sydney<br/>
-        <a href="https://babybloomsydney.com.au/legal/privacy-policy" style="color:#7c3aed;">Privacy Policy</a> |
-        <a href="https://babybloomsydney.com.au/legal/professional-terms" style="color:#7c3aed;">Terms</a>
-      </p>
-    </div>
+    ${emailFooter()}
   </div>
 </div>
 </body></html>`,
@@ -206,13 +196,7 @@ export async function GET(request: NextRequest) {
     <div style="text-align:center;margin-top:24px;">
       <a href="${appUrl}/parent/verification" style="display:inline-block;background:#FF6B9D;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Fix It Now</a>
     </div>
-    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #e2e8f0;">
-      <p style="font-size:12px;color:#94a3b8;line-height:1.6;margin:0;">
-        Baby Bloom Sydney<br/>
-        <a href="https://babybloomsydney.com.au/legal/privacy-policy" style="color:#FF6B9D;">Privacy Policy</a> |
-        <a href="https://babybloomsydney.com.au/legal/client-terms" style="color:#FF6B9D;">Terms</a>
-      </p>
-    </div>
+    ${emailFooter({ terms: "client", linkColor: "#FF6B9D" })}
   </div>
 </div>
 </body></html>`,
@@ -299,13 +283,7 @@ export async function GET(request: NextRequest) {
     <div style="text-align:center;margin-top:24px;">
       <a href="${appUrl}/parent/connections" style="display:inline-block;background:#8b5cf6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">View Connection</a>
     </div>
-    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #e2e8f0;">
-      <p style="font-size:12px;color:#94a3b8;line-height:1.6;margin:0;">
-        Baby Bloom Sydney<br/>
-        <a href="https://babybloomsydney.com.au/legal/privacy-policy" style="color:#7c3aed;">Privacy Policy</a> |
-        <a href="https://babybloomsydney.com.au/legal/client-terms" style="color:#7c3aed;">Terms</a>
-      </p>
-    </div>
+    ${emailFooter({ terms: "client" })}
   </div>
 </div>
 </body></html>`,
@@ -384,13 +362,7 @@ export async function GET(request: NextRequest) {
     <div style="text-align:center;margin-top:24px;">
       <a href="${appUrl}/nanny/positions" style="display:inline-block;background:#8b5cf6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Update in My Positions</a>
     </div>
-    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #e2e8f0;">
-      <p style="font-size:12px;color:#94a3b8;line-height:1.6;margin:0;">
-        Baby Bloom Sydney<br/>
-        <a href="https://babybloomsydney.com.au/legal/privacy-policy" style="color:#7c3aed;">Privacy Policy</a> |
-        <a href="https://babybloomsydney.com.au/legal/professional-terms" style="color:#7c3aed;">Terms</a>
-      </p>
-    </div>
+    ${emailFooter()}
   </div>
 </div>
 </body></html>`,
@@ -487,7 +459,7 @@ export async function GET(request: NextRequest) {
     await sendEmail({
       to: userInfo.email,
       subject,
-      ...(isLcy104 ? { from: 'Baby Bloom <hello@babybloomsydney.com.au>' } : {}),
+      ...(isLcy104 ? { from: `${SITE_NAME} <${SENDERS.hello}>` } : {}),
       html: buildLcyHtml(heading, bodyParagraphs, ctaText, appUrl),
       emailType: 'verification_reminder',
       recipientUserId: v.user_id,
@@ -571,7 +543,7 @@ function getLcyContent(
         heading: group === 3 ? 'Quick fix needed' : 'Almost there!',
         bodyParagraphs: [
           `Hi ${firstName},`,
-          'Verify your account to be considered for nanny and babysitting positions with families in Sydney.',
+          `Verify your account to be considered for nanny and babysitting positions with families in ${BRAND.city}.`,
           message,
           `<strong>Here\u2019s what to do:</strong><br/>${instructions}`,
           'It only takes a few minutes to complete.',
@@ -663,13 +635,7 @@ ${paragraphs}
     <div style="text-align:center;margin-top:24px;">
       <a href="${appUrl}/nanny/verification" style="display:inline-block;background:#8b5cf6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">${ctaText}</a>
     </div>
-    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #e2e8f0;">
-      <p style="font-size:12px;color:#94a3b8;line-height:1.6;margin:0;">
-        Baby Bloom Sydney<br/>
-        <a href="https://babybloomsydney.com.au/legal/privacy-policy" style="color:#7c3aed;">Privacy Policy</a> |
-        <a href="https://babybloomsydney.com.au/legal/professional-terms" style="color:#7c3aed;">Terms</a>
-      </p>
-    </div>
+    ${emailFooter()}
   </div>
 </div>
 </body></html>`;

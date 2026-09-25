@@ -20,6 +20,7 @@
 import Stripe from "stripe";
 
 import type { StripeMode } from "@/types/payments";
+import { SITE_NAME, SITE_URL } from "@/lib/constants";
 
 const STRIPE_API_VERSION = "2026-04-22.dahlia" as const;
 
@@ -74,8 +75,8 @@ export function getStripeClient(): Stripe {
     apiVersion: STRIPE_API_VERSION,
     typescript: true,
     appInfo: {
-      name: "Baby Bloom Sydney",
-      url: "https://babybloomsydney.com.au",
+      name: SITE_NAME,
+      url: SITE_URL,
     },
   });
 

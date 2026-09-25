@@ -5,6 +5,7 @@ import { PipelineTabs } from "@/components/analytics/PipelineTabs";
 import { DateRangePicker } from "@/components/analytics/DateRangePicker";
 import { FilterBar } from "@/components/analytics/FilterBar";
 import { Suspense } from "react";
+import { SITE_DOMAIN } from "@/lib/constants";
 
 // Stages that represent a completed placement
 const PLACED_STAGES = new Set([34, 50, 51]);
@@ -420,7 +421,7 @@ async function fetchShared(admin: any) {
       admin.from("nanny_positions").select("id, parent_id, dfy_activated_at, dfy_tier, dfy_expires_at, source, created_at").not('dfy_activated_at', 'is', null).eq("source", "parent").then((r: any) => r).catch(() => ({ data: null })),
       // Test account identification (is_test flag + email domain fallback)
       admin.from("user_profiles").select("user_id").eq("is_test", true).then((r: any) => r).catch(() => ({ data: [] })),
-      admin.from("user_profiles").select("user_id").ilike("email", "%babybloomsydney.com.au"),
+      admin.from("user_profiles").select("user_id").ilike("email", `%${SITE_DOMAIN}`),
       // Full ID mappings for cross-referencing test entities
       admin.from("nannies").select("id, user_id"),
       admin.from("parents").select("id, user_id"),

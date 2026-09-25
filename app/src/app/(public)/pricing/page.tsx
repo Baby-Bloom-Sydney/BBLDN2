@@ -13,14 +13,17 @@ import {
   Palette,
   Handshake,
 } from "lucide-react";
+import { BRAND, HOURLY_RATE_BOUNDS, SITE_NAME } from "@/lib/constants";
+
+const PRICING_DESCRIPTION = `Personalised nanny matching for ${BRAND.city} families. Choose from DIY search or done-for-you matching with verified, background-checked nannies.`;
 
 export const metadata: Metadata = {
   title: 'Nanny Matching Plans & Pricing',
-  description: 'Personalised nanny matching for Sydney families. Choose from DIY search or done-for-you matching with verified, WWCC-checked nannies.',
+  description: PRICING_DESCRIPTION,
   alternates: { canonical: '/pricing' },
   openGraph: {
-    title: 'Nanny Matching Plans & Pricing | Baby Bloom Sydney',
-    description: 'Personalised nanny matching for Sydney families. Choose from DIY search or done-for-you matching with verified, WWCC-checked nannies.',
+    title: `Nanny Matching Plans & Pricing | ${SITE_NAME}`,
+    description: PRICING_DESCRIPTION,
   },
 };
 
@@ -99,10 +102,13 @@ const faqJsonLd = {
   mainEntity: [
     {
       '@type': 'Question',
-      name: 'How much does a nanny cost in Sydney?',
+      name: `How much does a nanny cost in ${BRAND.city}?`,
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Nanny rates in Sydney typically range from $34 to $40 per hour for permanent roles and $30 to $37 for casual babysitting in 2026. Rates vary by experience, qualifications, and suburb.',
+        // The one rate bound, read from config (Q-1 / Q-7). The old copy
+        // carried a second, separately-invented casual range; it is not
+        // reproduced because nothing sources it.
+        text: `Nanny rates in ${BRAND.city} typically range from £${HOURLY_RATE_BOUNDS.min} to £${HOURLY_RATE_BOUNDS.max} per hour. Rates vary by experience, qualifications, and location.`,
       },
     },
     {
@@ -110,7 +116,7 @@ const faqJsonLd = {
       name: 'Are Baby Bloom nannies WWCC verified?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Yes. Every nanny on Baby Bloom Sydney has a verified Working With Children Check (WWCC) and undergoes identity verification before being visible to families.',
+        text: `Yes. Every nanny on ${SITE_NAME} has a verified Working With Children Check (WWCC) and undergoes identity verification before being visible to families.`,
       },
     },
     {
@@ -152,7 +158,7 @@ export default function ServicesPage() {
               Services
             </span>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 leading-[1.1] tracking-tight">
-              Personalised nanny matching for Sydney families
+              Personalised nanny matching for {BRAND.city} families
             </h1>
             <p className="mt-6 text-lg md:text-xl text-slate-500 leading-relaxed max-w-2xl mx-auto">
               A suburb. A schedule. What matters most. Nannies matched across

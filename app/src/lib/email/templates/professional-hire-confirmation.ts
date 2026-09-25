@@ -1,3 +1,6 @@
+import { emailFooter } from "@/lib/email/brand";
+import { LEGAL_ENTITY } from "@/lib/constants";
+
 interface ProfessionalHireEmailParams {
   professionalName: string;
   clientName: string;
@@ -59,15 +62,7 @@ export function buildProfessionalHireConfirmationEmail(params: ProfessionalHireE
     <h3 style="font-size:15px;margin:16px 0 8px;">7. Data Retention</h3>
     <p style="font-size:14px;color:#475569;line-height:1.6;">Your placement data will be retained for 5 years after the placement ends, as required for regulatory and dispute resolution purposes. You can request deletion of non-essential data at any time.</p>
 
-    <div style="margin-top:32px;padding-top:24px;border-top:1px solid #e2e8f0;">
-      <p style="font-size:12px;color:#94a3b8;line-height:1.6;">
-        Baby Bloom Sydney<br/>
-        This email was sent because you confirmed a hire on Baby Bloom.<br/>
-        <a href="https://babybloomsydney.com.au/legal/privacy-policy" style="color:#7c3aed;">Privacy Policy</a> |
-        <a href="https://babybloomsydney.com.au/legal/professional-terms" style="color:#7c3aed;">Terms of Service</a><br/>
-        To unsubscribe from non-essential emails, update your <a href="https://babybloomsydney.com.au/nanny/settings" style="color:#7c3aed;">email preferences</a>.
-      </p>
-    </div>
+    ${emailFooter({ termsLabel: "Terms of Service", notice: "This email was sent because you confirmed a hire on Baby Bloom.", preferencesPath: "/nanny/settings" })}
 
   </div>
 </div>
@@ -82,7 +77,7 @@ Date: ${hireDate}
 
 Please check your email for the full Hire Summary PDF attachment.
 
-Baby Bloom Sydney Pty Ltd`;
+${LEGAL_ENTITY}`;
 
   return { subject, html, text };
 }

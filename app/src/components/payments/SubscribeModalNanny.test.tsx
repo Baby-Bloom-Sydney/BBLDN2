@@ -59,6 +59,7 @@ import {
   SubscribeModalNanny,
   type SubscribeModalNannyProps,
 } from "./SubscribeModalNanny";
+import { SITE_URL } from "@/lib/constants";
 
 function makeProps(
   overrides: Partial<SubscribeModalNannyProps> = {},
@@ -68,9 +69,8 @@ function makeProps(
     onClose: vi.fn(),
     childFirstName: "Lily",
     parentFirstName: "Sarah",
-    shareUrl: "https://babybloomsydney.com.au/subscribe-for/ABCD-2345",
-    shareText:
-      "Hi Sarah — Baby Bloom helps me support Lily's development. Subscribe to continue: https://babybloomsydney.com.au/subscribe-for/ABCD-2345",
+    shareUrl: `${SITE_URL}/subscribe-for/ABCD-2345`,
+    shareText: `Hi Sarah — Baby Bloom helps me support Lily's development. Subscribe to continue: ${SITE_URL}/subscribe-for/ABCD-2345`,
     ...overrides,
   };
 }

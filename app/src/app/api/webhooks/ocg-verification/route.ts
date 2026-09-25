@@ -5,6 +5,8 @@ import { syncNannyVerificationState } from '@/lib/actions/verification';
 import { parseOCGEmail } from '@/lib/verification/parse-ocg-email';
 import { sendEmail } from '@/lib/email/resend';
 import { getUserEmailInfo } from '@/lib/email/helpers';
+import { emailFooter } from "@/lib/email/brand";
+import { SENDERS, SITE_URL } from "@/lib/constants";
 
 // ── OCG Result Status Categories ──
 // These MUST match the exact strings from the OCG portal email
@@ -409,7 +411,7 @@ async function sendOCGResultEmails(
   const userInfo = await getUserEmailInfo(userId);
   if (!userInfo) return;
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app-babybloom.vercel.app';
+  const appUrl = SITE_URL;
   const baseStyle = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
   const btnStyle = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;
 
@@ -429,13 +431,7 @@ async function sendOCGResultEmails(
     <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">Hi ${userInfo.firstName}, following a check with the NSW Office of the Children's Guardian, your Working With Children Check status has been returned as barred.</p>
     <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">As a result, your Baby Bloom account has been suspended and your profile is no longer visible to families. This decision cannot be overridden through Baby Bloom.</p>
     <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">If you believe this is an error, please contact the Office of the Children's Guardian directly. You can also reply to this email if you need to speak with our team.</p>
-    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #e2e8f0;">
-      <p style="font-size:12px;color:#94a3b8;line-height:1.6;margin:0;">
-        Baby Bloom Sydney<br/>
-        <a href="https://babybloomsydney.com.au/legal/privacy-policy" style="color:#7c3aed;">Privacy Policy</a> |
-        <a href="https://babybloomsydney.com.au/legal/professional-terms" style="color:#7c3aed;">Terms</a>
-      </p>
-    </div>
+    ${emailFooter()}
   </div>
 </div>
 </body></html>`,
@@ -444,7 +440,7 @@ async function sendOCGResultEmails(
     });
 
     // VER-011: Admin notification
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@babybloomsydney.com.au';
+    const adminEmail = process.env.ADMIN_EMAIL || SENDERS.admin;
     await sendEmail({
       to: adminEmail,
       subject: `BARRED nanny account suspended: ${userInfo.firstName} ${userInfo.lastName}`,
@@ -528,13 +524,7 @@ async function sendOCGResultEmails(
     <div style="text-align:center;margin-top:24px;">
       <a href="${emailConfig.ctaUrl}" style="display:inline-block;background:#8b5cf6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">${emailConfig.cta}</a>
     </div>
-    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #e2e8f0;">
-      <p style="font-size:12px;color:#94a3b8;line-height:1.6;margin:0;">
-        Baby Bloom Sydney<br/>
-        <a href="https://babybloomsydney.com.au/legal/privacy-policy" style="color:#7c3aed;">Privacy Policy</a> |
-        <a href="https://babybloomsydney.com.au/legal/professional-terms" style="color:#7c3aed;">Terms</a>
-      </p>
-    </div>
+    ${emailFooter()}
   </div>
 </div>
 </body></html>`,

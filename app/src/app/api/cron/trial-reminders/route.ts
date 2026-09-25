@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
 import { buildTrialExpiryReminderEmail } from "@/lib/email/templates/trial-expiry-reminder";
+import { SITE_URL } from "@/lib/constants";
 
 /**
  * Cron — trial-reminders (S17).
@@ -71,7 +72,7 @@ export async function GET(request: NextRequest) {
   }
 
   const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL ?? "https://babybloomsydney.com.au";
+    SITE_URL;
 
   let reminded = 0;
   let errors = 0;

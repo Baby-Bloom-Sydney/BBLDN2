@@ -1,3 +1,6 @@
+import { emailFooter } from "@/lib/email/brand";
+import { LEGAL_ENTITY } from "@/lib/constants";
+
 interface ClientHireEmailParams {
   clientName: string;
   professionalName: string;
@@ -55,15 +58,7 @@ export function buildClientHireConfirmationEmail(params: ClientHireEmailParams):
     <h3 style="font-size:15px;margin:16px 0 8px;">5. Baby Bloom's Commitments to You</h3>
     <p style="font-size:14px;color:#475569;line-height:1.6;">We commit to maintaining the Platform, providing support, and ensuring that all professionals on the Platform have been WWCC and identity verified at onboarding.</p>
 
-    <div style="margin-top:32px;padding-top:24px;border-top:1px solid #e2e8f0;">
-      <p style="font-size:12px;color:#94a3b8;line-height:1.6;">
-        Baby Bloom Sydney<br/>
-        This email was sent to you because you confirmed a hire on Baby Bloom.<br/>
-        <a href="https://babybloomsydney.com.au/legal/privacy-policy" style="color:#7c3aed;">Privacy Policy</a> |
-        <a href="https://babybloomsydney.com.au/legal/client-terms" style="color:#7c3aed;">Terms of Service</a><br/>
-        To unsubscribe from non-essential emails, update your <a href="https://babybloomsydney.com.au/parent/settings" style="color:#7c3aed;">email preferences</a>.
-      </p>
-    </div>
+    ${emailFooter({ terms: "client", termsLabel: "Terms of Service", notice: "This email was sent to you because you confirmed a hire on Baby Bloom.", preferencesPath: "/parent/settings" })}
 
   </div>
 </div>
@@ -78,7 +73,7 @@ Date: ${hireDate}
 
 Please check your email for the full Hire Summary PDF attachment.
 
-Baby Bloom Sydney Pty Ltd`;
+${LEGAL_ENTITY}`;
 
   return { subject, html, text };
 }

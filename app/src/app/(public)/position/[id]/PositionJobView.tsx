@@ -18,6 +18,7 @@ import type { PublicPositionProfile } from "@/lib/actions/matching";
 import { applyToPosition } from "@/lib/actions/jobs";
 import { VerificationBanner } from "@/components/hub/VerificationBanner";
 import { VerificationRequiredModal } from "@/components/verification/VerificationRequiredModal";
+import { BRAND } from "@/lib/constants";
 
 function ageDisplay(months: number): string {
   if (months < 12) return `${months}mo`;
@@ -113,7 +114,7 @@ function buildSummaryIntro(p: PublicPositionProfile): string {
   const familyLabel = isAdminPosition
     ? p.parentFirstName // Already "The Mitchell Family"
     : `The ${p.parentLastName ?? p.parentFirstName} family`;
-  const suburb = p.suburb ?? "Sydney";
+  const suburb = p.suburb ?? BRAND.city;
 
   let childDesc = "";
   if (p.children.length === 1) {

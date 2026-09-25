@@ -2,16 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
+import { BRAND, SITE_NAME } from "@/lib/constants";
+
+const ABOUT_DESCRIPTION = `Baby Bloom connects ${BRAND.city} families with verified, education-focused nannies. Learn about our mission, our verification process, and why families trust us.`;
 
 export const metadata: Metadata = {
-  title: "About Us — Sydney's Trusted Nanny Platform",
-  description:
-    "Baby Bloom connects Sydney families with verified, education-focused nannies. Learn about our mission, our verification process, and why families trust us.",
+  title: `About Us — ${BRAND.city}'s Trusted Nanny Platform`,
+  description: ABOUT_DESCRIPTION,
   alternates: { canonical: "/about" },
   openGraph: {
-    title: "About Baby Bloom Sydney",
-    description:
-      "Baby Bloom connects Sydney families with verified, education-focused nannies. Learn about our mission, our verification process, and why families trust us.",
+    title: `About ${SITE_NAME}`,
+    description: ABOUT_DESCRIPTION,
   },
 };
 

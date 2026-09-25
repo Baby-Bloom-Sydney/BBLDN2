@@ -9,6 +9,7 @@ import { getMatchesForPosition } from "@/lib/actions/matching";
 import { getPosition } from "@/lib/actions/parent";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { BrowseMatchesClient } from "./BrowseMatchesClient";
+import { BRAND } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -209,7 +210,7 @@ export default async function ParentBrowsePage({
         )}
       </div>
       <p className="text-sm text-slate-500 mb-5">
-        Verified nannies in Sydney ready to join your family
+        Verified nannies in {BRAND.city} ready to join your family
       </p>
 
       {/* Controls row — only for "All" view (matches view renders its own via BrowseMatchesClient) */}

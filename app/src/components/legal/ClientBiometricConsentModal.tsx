@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { LEGAL_ENTITY, SENDERS } from "@/lib/constants";
 
 interface ClientBiometricConsentModalProps {
   open: boolean;
@@ -135,7 +136,7 @@ export function ClientBiometricConsentModal({ open, onComplete }: ClientBiometri
             <li>Is not bound by the AI&apos;s match score; human judgment overrides AI.</li>
           </ul>
 
-          <p><strong>Access to Your Records:</strong> You can request a copy of your verification audit trail at any time by contacting compliance@babybloomsydney.com.au. Baby Bloom will respond within 10 business days.</p>
+          <p><strong>Access to Your Records:</strong> You can request a copy of your verification audit trail at any time by contacting {SENDERS.compliance}. Baby Bloom will respond within 10 business days.</p>
 
           <p><strong>Appeal Process:</strong> If your verification is rejected, you can contact Baby Bloom within 14 days to request a detailed explanation, a manual review by a different staff member, or a copy of your AI match score. Baby Bloom will respond within 7 business days.</p>
 
@@ -167,13 +168,13 @@ export function ClientBiometricConsentModal({ open, onComplete }: ClientBiometri
             <li>Your account can be reactivated by re-consenting and re-verifying.</li>
             <li>Your biometric data is deleted immediately upon withdrawal.</li>
           </ul>
-          <p>To exercise any of these rights, contact compliance@babybloomsydney.com.au. Baby Bloom will respond within 30 days.</p>
+          <p>To exercise any of these rights, contact {SENDERS.compliance}. Baby Bloom will respond within 30 days.</p>
 
           <h3>What If Your Verification Is Rejected?</h3>
           <ul>
             <li>Request a detailed explanation within 7 days.</li>
             <li>Request re-verification at any time (free, up to 3 times).</li>
-            <li>Request manual escalation &mdash; contact compliance@babybloomsydney.com.au.</li>
+            <li>Request manual escalation &mdash; contact {SENDERS.compliance}.</li>
             <li>Lodge a complaint with the OAIC at www.oaic.gov.au.</li>
           </ul>
 
@@ -199,8 +200,8 @@ export function ClientBiometricConsentModal({ open, onComplete }: ClientBiometri
 
           <hr />
           <p className="text-xs text-slate-400">
-            Baby Bloom Sydney Pty Ltd | ABN: 17 463 812 867<br />
-            Compliance: compliance@babybloomsydney.com.au
+            {LEGAL_ENTITY}<br />
+            Compliance: {SENDERS.compliance}
           </p>
 
           {/* Sentinel for scroll detection */}

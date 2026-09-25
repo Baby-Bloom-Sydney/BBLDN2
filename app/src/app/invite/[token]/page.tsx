@@ -8,6 +8,7 @@ import {
 import { invitesDisabled } from "@/lib/invite/flags";
 import { getUserRole } from "@/lib/auth/actions";
 import { InviteLandingClient } from "./InviteLandingClient";
+import { BRAND } from "@/lib/constants";
 
 // Prevent token leakage via Referer headers when navigating away from
 // this page. Pair with `noindex` so search engines never crawl tokens.
@@ -87,7 +88,7 @@ function Shell({ children }: { children: React.ReactNode }) {
               <span className="text-slate-900">Baby</span>
               <span className="text-violet-500">Bloom</span>
             </div>
-            <p className="text-sm text-slate-500 mt-1">Sydney</p>
+            <p className="text-sm text-slate-500 mt-1">{BRAND.city}</p>
           </Link>
         </div>
         <div className="bg-white rounded-2xl shadow-xl shadow-violet-100/50 border border-violet-100 p-8">

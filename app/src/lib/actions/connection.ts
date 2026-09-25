@@ -33,6 +33,8 @@ import {
   checkPostTrialOutcomes,
 } from "./position-funnel";
 import { dispatchActionTriggeredInBackground } from "@/lib/chat/proactive/action-triggered";
+import { emailHeader } from "@/lib/email/brand";
+import { BRAND, SITE_URL } from "@/lib/constants";
 
 // ── Types ──
 
@@ -404,7 +406,7 @@ export async function createConnectionRequest(
         : "A family";
       const parentSuburb = parentProfile?.suburb || "";
       const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL || "https://app-babybloom.vercel.app";
+        SITE_URL;
       const baseStyle = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
       const btnStyle = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;
 
@@ -412,7 +414,7 @@ export async function createConnectionRequest(
         to: nannyInfo.email,
         subject: `New connection request from ${parentName}`,
         html: `<div style="${baseStyle}">
-          <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+          ${emailHeader()}
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">${parentName} from ${parentSuburb} would like to connect with you for a meet and greet. Review their request and respond within 3 days.</p>
           <p style="margin-top: 24px;"><a href="${appUrl}/nanny/inbox" style="${btnStyle}">View Request</a></p>
         </div>`,
@@ -438,7 +440,7 @@ export async function createConnectionRequest(
         recipientUserId: nanny.user_id,
         payload: {
           family_name: familyNameForTemplate,
-          suburb: parentProfile?.suburb ?? "Sydney",
+          suburb: parentProfile?.suburb ?? BRAND.city,
           connection_id: request.id,
         },
       });
@@ -605,7 +607,7 @@ export async function acceptConnectionRequest(
     const parentEmailInfo = await getUserEmailInfo(parentData.user_id);
     if (parentEmailInfo) {
       const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL || "https://app-babybloom.vercel.app";
+        SITE_URL;
       const baseStyle = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
       const btnStyle = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;
 
@@ -613,7 +615,7 @@ export async function acceptConnectionRequest(
         to: parentEmailInfo.email,
         subject: `${nannyName} accepted your connection request!`,
         html: `<div style="${baseStyle}">
-          <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+          ${emailHeader()}
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">Great news! ${nannyName} has accepted your connection request and shared their available times. Check their availability and pick a slot for your meet and greet.</p>
           <p style="color: #6B7280; font-size: 14px; margin-top: 8px;">You have 3 days to schedule a time.</p>
           <p style="margin-top: 24px;"><a href="${appUrl}/parent/connections" style="${btnStyle}">Pick a Time</a></p>
@@ -719,7 +721,7 @@ export async function scheduleConnectionTime(
     };
   }
 
-  // Construct UTC ISO string from Sydney date/time (server-side conversion)
+  // Construct UTC ISO string from local date/time (server-side conversion)
   const selectedTime = localToUTC(date, hour, minute);
 
   // Validate scheduled time is reasonable (24h–8d from now)
@@ -819,7 +821,7 @@ export async function scheduleConnectionTime(
     const parentEmailInfo = await getUserEmailInfo(parentUserData.user_id);
     if (parentEmailInfo) {
       const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL || "https://app-babybloom.vercel.app";
+        SITE_URL;
       const baseStyle = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
       const btnStyle = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;
 
@@ -827,7 +829,7 @@ export async function scheduleConnectionTime(
         to: parentEmailInfo.email,
         subject: `Meet and greet scheduled with ${nannyName}!`,
         html: `<div style="${baseStyle}">
-          <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+          ${emailHeader()}
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">Your meet and greet with ${nannyName} is confirmed.</p>
           <div style="background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 8px; padding: 16px; margin: 16px 0;">
             <p style="margin: 0; font-weight: 600; color: #166534;">Meet Time: ${confirmedDate}</p>
@@ -863,7 +865,7 @@ export async function scheduleConnectionTime(
       ? `${parentProfile.firstName} ${parentProfile.lastName}`
       : "the family";
     const appUrl =
-      process.env.NEXT_PUBLIC_APP_URL || "https://app-babybloom.vercel.app";
+      SITE_URL;
     const baseStyle = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
     const btnStyle = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;
 
@@ -871,7 +873,7 @@ export async function scheduleConnectionTime(
       to: nannyEmailInfo.email,
       subject: `Meet and greet scheduled with ${parentName}`,
       html: `<div style="${baseStyle}">
-        <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+        ${emailHeader()}
         <p style="color: #374151; font-size: 16px; line-height: 1.6;">Your meet and greet with ${parentName} is confirmed for ${confirmedDate}. Your contact details will be available to the family on their dashboard.</p>
         <p style="margin-top: 24px;"><a href="${appUrl}/nanny/inbox" style="${btnStyle}">View in Inbox</a></p>
       </div>`,
@@ -1011,7 +1013,7 @@ export async function declineConnectionRequest(
     const parentEmailInfo = await getUserEmailInfo(parentData.user_id);
     if (parentEmailInfo) {
       const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL || "https://app-babybloom.vercel.app";
+        SITE_URL;
       const baseStyle = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
       const btnStyle = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;
 
@@ -1019,7 +1021,7 @@ export async function declineConnectionRequest(
         to: parentEmailInfo.email,
         subject: `Update on your connection with ${nannyName}`,
         html: `<div style="${baseStyle}">
-          <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+          ${emailHeader()}
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">Unfortunately, ${nannyName} is unable to connect at this time. This could be due to scheduling or availability.</p>
           <p style="margin-top: 24px;"><a href="${appUrl}/parent/browse" style="${btnStyle}">Browse More Nannies</a></p>
         </div>`,

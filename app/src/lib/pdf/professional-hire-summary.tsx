@@ -1,4 +1,5 @@
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { SENDERS, SITE_DOMAIN, SITE_NAME } from '@/lib/constants';
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: 'Helvetica', fontSize: 11, color: '#1e293b' },
@@ -34,7 +35,7 @@ export function ProfessionalHireSummaryPDF({
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <Text style={styles.title}>Professional Hire Summary</Text>
-          <Text style={styles.subtitle}>Baby Bloom Sydney</Text>
+          <Text style={styles.subtitle}>{SITE_NAME}</Text>
         </View>
 
         <View style={styles.refBox}>
@@ -80,7 +81,7 @@ export function ProfessionalHireSummaryPDF({
 
         <Text style={styles.sectionTitle}>7. Data Retention</Text>
         <Text style={styles.paragraph}>
-          Your placement data will be retained for 5 years after the placement ends, as required for regulatory and dispute resolution purposes. You can request deletion of non-essential data at any time by contacting privacy@babybloomsydney.com.au.
+          Your placement data will be retained for 5 years after the placement ends, as required for regulatory and dispute resolution purposes. You can request deletion of non-essential data at any time by contacting {SENDERS.privacy}.
         </Text>
 
         <Text style={styles.sectionTitle}>8. Email Preferences</Text>
@@ -89,13 +90,13 @@ export function ProfessionalHireSummaryPDF({
         </Text>
 
         <Text style={styles.sectionTitle}>9. Important Links</Text>
-        <Text style={styles.listItem}>Professional Terms of Service: babybloomsydney.com.au/legal/professional-terms</Text>
-        <Text style={styles.listItem}>Privacy Policy: babybloomsydney.com.au/legal/privacy-policy</Text>
-        <Text style={styles.listItem}>Code of Conduct: babybloomsydney.com.au/legal/code-of-conduct</Text>
+        <Text style={styles.listItem}>Professional Terms of Service: {SITE_DOMAIN}/legal/professional-terms</Text>
+        <Text style={styles.listItem}>Privacy Policy: {SITE_DOMAIN}/legal/privacy-policy</Text>
+        <Text style={styles.listItem}>Code of Conduct: {SITE_DOMAIN}/legal/code-of-conduct</Text>
         <Text style={styles.listItem}>ATO ABN Registration: abr.business.gov.au</Text>
 
         <View style={styles.footer}>
-          <Text>Baby Bloom Sydney</Text>
+          <Text>{SITE_NAME}</Text>
           <Text>Document generated: {new Date().toLocaleDateString('en-GB')}</Text>
           <Text>This document is for your records. Please retain it for the duration of the arrangement.</Text>
         </View>

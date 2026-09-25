@@ -16,6 +16,7 @@ import {
   type ScreenshotCheckResult,
 } from "@/lib/ai/check-share-screenshot";
 import { activateBsr } from "@/lib/actions/babysitting";
+import { BRAND } from "@/lib/constants";
 // AUTOFIRE T-040: disabled — share-gate is dead path; matchmaking now autofires on position creation
 // via `autofireMatchmaking(positionId)` (see `./autofire-matchmaking.ts`). If reintroducing the
 // share-gate, route through THAT wrapper rather than calling `activateDfyPosition` directly.
@@ -825,7 +826,7 @@ export async function getPositionSharePageData(): Promise<{
       firstName: profile?.first_name ?? "Parent",
       lastName: profile?.last_name ?? null,
       profilePicUrl: profile?.profile_picture_url ?? null,
-      suburb: position.suburb ?? "Sydney",
+      suburb: position.suburb ?? BRAND.city,
       sharePost: null,
       children: (children ?? []).map((c) => ({
         ageMonths: c.age_months,

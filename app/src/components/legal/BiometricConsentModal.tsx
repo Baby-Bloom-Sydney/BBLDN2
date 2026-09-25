@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
+import { SENDERS } from "@/lib/constants";
 
 interface BiometricConsentModalProps {
   open: boolean;
@@ -165,7 +166,7 @@ export function BiometricConsentModal({ open, onComplete }: BiometricConsentModa
           <h3>Complaints About Your Privacy Rights</h3>
           <p>If you believe Baby Bloom has breached the Australian Privacy Principles in relation to your biometric data, you may:</p>
           <ol>
-            <li>Contact Baby Bloom&apos;s Privacy Officer at privacy@babybloomsydney.com.au</li>
+            <li>Contact Baby Bloom&apos;s Privacy Officer at {SENDERS.privacy}</li>
             <li>Lodge a complaint with the Office of the Australian Information Commissioner (OAIC) at www.oaic.gov.au</li>
           </ol>
 

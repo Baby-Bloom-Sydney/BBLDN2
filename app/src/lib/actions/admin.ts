@@ -24,6 +24,8 @@ import { getUserEmailInfo } from '@/lib/email/helpers';
 import { createInboxMessage } from '@/lib/actions/connection-helpers';
 import { openai } from '@/lib/ai/client';
 import { V2_SYSTEM_PROMPT, buildV2Prompt, parseAIProfileSections, generateV2Checklist } from '@/lib/ai/nanny-profile-prompts';
+import { emailHeader, emailFooter } from "@/lib/email/brand";
+import { ADMIN_FROM_ADDRESSES, SITE_URL } from "@/lib/constants";
 
 // ── Helper: require admin role ──
 
@@ -442,12 +444,12 @@ export async function adminVerifyParentIdentity(
   // PVER-004 email + PVINB-004 inbox
   const userInfo = await getUserEmailInfo(verification.user_id);
   if (userInfo) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app-babybloom.vercel.app';
+    const appUrl = SITE_URL;
     sendEmail({
       to: userInfo.email,
       subject: "You're verified on Baby Bloom!",
       html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-        <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+        ${emailHeader()}
         <p style="color: #374151; font-size: 16px; line-height: 1.6;">Great news, ${userInfo.firstName}! Your identity has been verified.</p>
         <p style="color: #374151; font-size: 16px; line-height: 1.6;">You can now connect with verified nannies and post babysitting requests on Baby Bloom.</p>
         <p style="margin-top: 24px;"><a href="${appUrl}/parent/browse" style="background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">Browse Nannies</a></p>
@@ -514,12 +516,12 @@ export async function adminRejectParentIdentity(
   setTimeout(async () => {
     const userInfo = await getUserEmailInfo(verification.user_id);
     if (userInfo) {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app-babybloom.vercel.app';
+      const appUrl = SITE_URL;
       sendEmail({
         to: userInfo.email,
         subject: 'Your ID verification needs resubmission',
         html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-          <h1 style="color: #8B5CF6; font-size: 24px; margin-bottom: 16px;">Baby Bloom Sydney</h1>
+          ${emailHeader()}
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${userInfo.firstName},</p>
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">Unfortunately, we were unable to verify your identity documents. ${reason.trim()}</p>
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">Please resubmit your documents to complete verification.</p>
@@ -697,15 +699,6 @@ export async function adminRegenerateNannyBio(
 
 // ── Admin: Send Email to User ──
 
-const ALLOWED_FROM_ADDRESSES = [
-  'no-reply@babybloomsydney.com.au',
-  'verification@babybloomsydney.com.au',
-  'nannies@babybloomsydney.com.au',
-  'support@babybloomsydney.com.au',
-  'contact@babybloomsydney.com.au',
-  'parents@babybloomsydney.com.au',
-];
-
 export async function adminSendEmail(params: {
   toEmail: string;
   toUserId: string;
@@ -722,7 +715,7 @@ export async function adminSendEmail(params: {
     return { success: false, error: 'Email, subject, and body are required' };
   }
 
-  if (!ALLOWED_FROM_ADDRESSES.includes(fromAddress)) {
+  if (!(ADMIN_FROM_ADDRESSES as readonly string[]).includes(fromAddress)) {
     return { success: false, error: 'Invalid from address' };
   }
 
@@ -736,13 +729,7 @@ export async function adminSendEmail(params: {
       <span style="font-size:20px;font-weight:700;"><span style="color:#0f172a;">Baby</span><span style="color:#8b5cf6;">Bloom</span></span>
     </div>
     <p style="font-size:15px;color:#475569;line-height:1.6;margin:0;">${bodyHtml}</p>
-    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #e2e8f0;">
-      <p style="font-size:12px;color:#94a3b8;line-height:1.6;margin:0;">
-        Baby Bloom Sydney<br/>
-        <a href="https://babybloomsydney.com.au/legal/privacy-policy" style="color:#7c3aed;">Privacy Policy</a> |
-        <a href="https://babybloomsydney.com.au/legal/professional-terms" style="color:#7c3aed;">Terms</a>
-      </p>
-    </div>
+    ${emailFooter()}
   </div>
 </div>
 </body></html>`;

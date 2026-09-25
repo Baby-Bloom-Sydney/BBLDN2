@@ -23,6 +23,7 @@
 import crypto from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ChildInviteDirection } from "@/types/bapp";
+import { SITE_URL } from "@/lib/constants";
 
 const TOKEN_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
@@ -38,7 +39,7 @@ function generateToken(): string {
 
 function buildInviteUrl(token: string): string {
   const base =
-    process.env.NEXT_PUBLIC_INVITE_BASE_URL ?? "https://babybloomsydney.com.au";
+    SITE_URL;
   return `${base}/invite/${token}`;
 }
 

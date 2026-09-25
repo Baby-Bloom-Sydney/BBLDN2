@@ -12,16 +12,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { adminSendEmail } from "@/lib/actions/admin";
+import { ADMIN_FROM_ADDRESSES } from "@/lib/constants";
 import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 
-const FROM_OPTIONS = [
-  { value: "no-reply@babybloomsydney.com.au", label: "no-reply@" },
-  { value: "verification@babybloomsydney.com.au", label: "verification@" },
-  { value: "nannies@babybloomsydney.com.au", label: "nannies@" },
-  { value: "support@babybloomsydney.com.au", label: "support@" },
-  { value: "contact@babybloomsydney.com.au", label: "contact@" },
-  { value: "parents@babybloomsydney.com.au", label: "parents@" },
-];
+// The server validates `fromAddress` against the same list (adminSendEmail);
+// one source is what keeps the picker's value acceptable to it.
+const FROM_OPTIONS: ReadonlyArray<{ value: string; label: string }> =
+  ADMIN_FROM_ADDRESSES.map((value) => ({
+    value,
+    label: `${value.split("@")[0]}@`,
+  }));
 
 interface ContactUserModalProps {
   userEmail: string;

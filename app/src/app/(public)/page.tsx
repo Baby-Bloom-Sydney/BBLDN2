@@ -7,14 +7,17 @@ import { NannyCTA } from "@/components/landing/NannyCTA";
 import { MissionTeaser } from "@/components/landing/MissionTeaser";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { NannyPreview } from "@/components/landing/NannyPreviewCard";
+import { BRAND, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/constants";
+
+const HOME_TITLE = `${SITE_NAME} — Verified Nannies for ${BRAND.city} Families`;
 
 export const metadata: Metadata = {
-  title: { absolute: 'Baby Bloom Sydney — Verified Nannies for Sydney Families' },
-  description: 'Find trusted, WWCC-verified nannies in Sydney. Baby Bloom matches families with background-checked, education-focused childcare professionals.',
+  title: { absolute: HOME_TITLE },
+  description: SITE_DESCRIPTION,
   alternates: { canonical: '/' },
   openGraph: {
-    title: 'Baby Bloom Sydney — Verified Nannies for Sydney Families',
-    description: 'Find trusted, WWCC-verified nannies in Sydney. Baby Bloom matches families with background-checked, education-focused childcare professionals.',
+    title: HOME_TITLE,
+    description: SITE_DESCRIPTION,
   },
 };
 
@@ -100,33 +103,33 @@ async function getTopNannies(limit: number): Promise<NannyPreview[]> {
 const websiteJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'WebSite',
-  name: 'Baby Bloom Sydney',
-  url: 'https://babybloomsydney.com.au',
+  name: SITE_NAME,
+  url: SITE_URL,
 };
 
 const serviceJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Service',
-  name: 'Verified Nanny Matching — Sydney',
+  name: `Verified Nanny Matching — ${BRAND.city}`,
   serviceType: 'Nanny and Childcare Matching Service',
-  description: 'Baby Bloom matches Sydney families with WWCC-verified, ID-checked nannies and babysitters.',
+  description: `Baby Bloom matches ${BRAND.city} families with background-checked, ID-verified nannies and babysitters.`,
   provider: {
     '@type': 'Organization',
-    name: 'Baby Bloom Sydney',
-    url: 'https://babybloomsydney.com.au',
+    name: SITE_NAME,
+    url: SITE_URL,
   },
   areaServed: {
     '@type': 'City',
-    name: 'Sydney',
-    addressRegion: 'NSW',
-    addressCountry: 'AU',
+    name: BRAND.city,
+    addressRegion: 'England',
+    addressCountry: BRAND.countryCode,
   },
   hasOfferCatalog: {
     '@type': 'OfferCatalog',
     name: 'Childcare Services',
     itemListElement: [
       { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Permanent Nanny Matching', description: 'Find a verified permanent nanny matched to your family\'s needs' } },
-      { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Part-Time Nanny Matching', description: 'Flexible part-time nanny arrangements for Sydney families' } },
+      { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Part-Time Nanny Matching', description: `Flexible part-time nanny arrangements for ${BRAND.city} families` } },
       { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Casual Babysitting', description: 'On-demand babysitting from verified sitters in your area' } },
       { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'After-School Care', description: 'Verified nannies for school pickups and after-school care' } },
     ],

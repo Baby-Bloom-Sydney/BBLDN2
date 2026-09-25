@@ -4,16 +4,20 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, ChevronLeft } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NannyPreviewCard, type NannyPreview } from "@/components/landing/NannyPreviewCard";
+import { BRAND, SITE_NAME } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
+const BROWSE_TITLE = `Browse Verified Nannies in ${BRAND.city}`;
+const BROWSE_DESCRIPTION = `Browse trusted, verified nannies available in ${BRAND.city}. Every nanny on ${SITE_NAME} is background-checked, ID-verified, and education-focused.`;
+
 export const metadata: Metadata = {
-  title: 'Browse Verified Nannies in Sydney',
-  description: 'Browse trusted, WWCC-verified nannies available in Sydney. Every nanny on Baby Bloom is background-checked, ID-verified, and education-focused.',
+  title: BROWSE_TITLE,
+  description: BROWSE_DESCRIPTION,
   alternates: { canonical: '/nannies' },
   openGraph: {
-    title: 'Browse Verified Nannies in Sydney | Baby Bloom',
-    description: 'Browse trusted, WWCC-verified nannies available in Sydney. Every nanny on Baby Bloom is background-checked, ID-verified, and education-focused.',
+    title: `${BROWSE_TITLE} | Baby Bloom`,
+    description: BROWSE_DESCRIPTION,
   },
 };
 
@@ -112,7 +116,7 @@ export default async function BrowseNanniesPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Our Top Nannies</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Our most experienced and qualified nannies in Sydney.
+          Our most experienced and qualified nannies in {BRAND.city}.
           Sign up to see availability and connect.
         </p>
       </div>
