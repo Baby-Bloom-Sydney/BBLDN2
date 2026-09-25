@@ -14,7 +14,7 @@ import { confirmPlacement } from "@/lib/actions/position-funnel";
 import { recordInformedAction } from "@/lib/legal/record-consent";
 import { CONNECTION_STAGE } from "@/lib/position/constants";
 import {
-  formatSydneyDate,
+  formatLondonDate,
   TIME_BRACKETS,
   BRACKET_KEYS,
   getBracketTimeOptions,
@@ -633,7 +633,7 @@ function ConnectionDetailModal({
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-green-600" />
                         <p className="text-sm font-medium text-green-800">
-                          {formatSydneyDate(request.confirmed_time)} (AEST)
+                          {formatLondonDate(request.confirmed_time)} (London time)
                         </p>
                       </div>
                       {request.nanny_phone_shared && (
@@ -719,7 +719,7 @@ function ConnectionDetailModal({
               )}
 
               <p className="text-xs text-slate-400">
-                Sent {formatSydneyDate(request.created_at)}
+                Sent {formatLondonDate(request.created_at)}
               </p>
             </>
           )}

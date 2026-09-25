@@ -10,7 +10,7 @@ import { DFY_TIERS, type DfyTier } from '@/lib/matching/constants';
 import { createInboxMessage, logConnectionEvent } from './connection-helpers';
 import { sendEmail, sendBatchEmails } from '@/lib/email/resend';
 import { getUserEmailInfo } from '@/lib/email/helpers';
-import { BRACKET_KEYS, formatSydneyDate } from '@/lib/timezone';
+import { BRACKET_KEYS, formatLondonDate } from '@/lib/timezone';
 import type { BracketKey } from '@/lib/timezone';
 import { CONNECTION_STAGE, HIDDEN_CONNECTION_STAGES, POSITION_STAGE, POSITION_STATUS } from '@/lib/position/constants';
 import { funnelLog } from '@/lib/position/logger';
@@ -331,7 +331,7 @@ export async function triggerDfyMatchmaking(): Promise<{ success: boolean; error
 
   if (positionData?.dfy_activated_at) {
     if (positionData.dfy_expires_at && new Date(positionData.dfy_expires_at) > new Date()) {
-      const expiryDate = formatSydneyDate(positionData.dfy_expires_at);
+      const expiryDate = formatLondonDate(positionData.dfy_expires_at);
       return { success: false, error: `Your search is still active until ${expiryDate}. You can boost again after it expires.` };
     }
     // Expired — run lazy cleanup before re-triggering

@@ -16,11 +16,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { compactDailyAllBots } from "@/lib/chat/memory/compaction";
 import { KATIE_ENABLED } from "@/lib/chat/flags";
+import { APP_TZ } from "@/lib/constants";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function yesterdayIso(timezone = "Australia/Sydney"): string {
+function yesterdayIso(timezone = APP_TZ): string {
   const now = new Date();
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const fmt = new Intl.DateTimeFormat("en-CA", {

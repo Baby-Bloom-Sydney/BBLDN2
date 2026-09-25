@@ -14,7 +14,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { fetchRecentLogs, type RecentLogEntry } from "./actions";
-import { formatSydneyDateTime } from "@/lib/leads/format";
+import { formatLeadDateTime } from "@/lib/leads/format";
 
 interface LeadRecentLogsModalProps {
   open: boolean;
@@ -99,7 +99,7 @@ export function LeadRecentLogsModal({
               >
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600">
                   <span className="font-medium text-slate-900">
-                    {formatSydneyDateTime(c.contacted_at)}
+                    {formatLeadDateTime(c.contacted_at)}
                   </span>
                   <span className="rounded bg-slate-100 px-1 text-[10px]">
                     {c.method}

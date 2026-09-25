@@ -1,8 +1,8 @@
 /**
  * Cron — audit-consent-expiry
  *
- * **Schedule:** daily at `5 21 * * *` UTC (5 min after release-payouts)
- *  = 07:05 AEST / 08:05 AEDT.
+ * **Schedule:** daily at `5 7 * * *` UTC (5 min after release-payouts)
+ *  = 07:05 London (08:05 during BST — Vercel cron is UTC-only).
  *
  * **Job (v1):** scans `consent_records` for the bundled per-child
  *  agreements (`PARENT-APP-CONSENT` + `NANNY-ATTESTATION`) and emits

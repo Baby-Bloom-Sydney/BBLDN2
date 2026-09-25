@@ -14,11 +14,11 @@ import {
 import { sendEmail } from "@/lib/email/resend";
 import { getUserEmailInfo } from "@/lib/email/helpers";
 import {
-  sydneyToUTC,
+  localToUTC,
   BRACKET_KEYS,
   TIME_BRACKETS,
   getBracketForHour,
-  formatSydneyDate,
+  formatLondonDate,
 } from "@/lib/timezone";
 import type { BracketKey } from "@/lib/timezone";
 import {
@@ -720,7 +720,7 @@ export async function scheduleConnectionTime(
   }
 
   // Construct UTC ISO string from Sydney date/time (server-side conversion)
-  const selectedTime = sydneyToUTC(date, hour, minute);
+  const selectedTime = localToUTC(date, hour, minute);
 
   // Validate scheduled time is reasonable (24h–8d from now)
   const t = new Date(selectedTime).getTime();
@@ -793,7 +793,7 @@ export async function scheduleConnectionTime(
     ? `${nannyEmailInfo.firstName} ${nannyEmailInfo.lastName}`
     : "Your nanny";
 
-  const confirmedDate = formatSydneyDate(selectedTime);
+  const confirmedDate = formatLondonDate(selectedTime);
 
   // Get parent user_id
   const { data: parentUserData } = await adminClient

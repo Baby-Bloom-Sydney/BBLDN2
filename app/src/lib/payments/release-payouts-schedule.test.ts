@@ -1,8 +1,9 @@
 /**
- * Schedule regression test — locks down the daily 7am-Sydney cron
+ * Schedule regression test — locks down the daily 7am-London cron
  * registration in `vercel.json`. Bailey 2026-05-14: payouts must
  * actually fire once a day. Without this test, someone re-ordering
- * vercel.json could silently drop the entry.
+ * vercel.json could silently drop the entry. Re-anchored from
+ * `0 21` (7am Sydney) to `0 7` (7am London) — 12.02, unit 2b.
  */
 
 import { describe, it, expect } from "vitest";
@@ -40,10 +41,10 @@ describe("vercel.json — release-payouts cron registration", () => {
     expect(hour).not.toContain("/");
   });
 
-  it("fires at 21:00 UTC = 07:00 AEST (or 08:00 AEDT under Sydney DST)", () => {
+  it("fires at 07:00 UTC = 07:00 London (08:00 under BST)", () => {
     const crons = readVercelCrons();
     const target = crons.find((c) => c.path === "/api/cron/release-payouts");
     if (!target) throw new Error("cron entry missing");
-    expect(target.schedule).toBe("0 21 * * *");
+    expect(target.schedule).toBe("0 7 * * *");
   });
 });
