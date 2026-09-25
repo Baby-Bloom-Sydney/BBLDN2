@@ -1,1 +1,51 @@
-[]
+[
+  {
+    "rule": "phone",
+    "file": "app/src/lib/stripe/connect.ts",
+    "match": "Normalise an AU phone number to E.164",
+    "owner": "money",
+    "note": "2e: the whole file is the money stage's (03-triage.md §5). Its +61 E.164 normaliser feeds Stripe Connect onboarding, not the app's own contact surfaces."
+  },
+  {
+    "rule": "phone",
+    "file": "app/src/lib/stripe/connect.ts",
+    "match": "local format like `0401510535`",
+    "owner": "money",
+    "note": "2e: same block as above."
+  },
+  {
+    "rule": "phone",
+    "file": "app/src/lib/stripe/connect.ts",
+    "match": "if (digits.startsWith(\"+61\")) return digits;",
+    "owner": "money",
+    "note": "2e: same block as above."
+  },
+  {
+    "rule": "phone",
+    "file": "app/src/lib/stripe/connect.ts",
+    "match": "Local-format with leading 0: 04XX, 02XX, 03XX, 07XX, 08XX.",
+    "owner": "money",
+    "note": "2e: same block as above."
+  },
+  {
+    "rule": "phone",
+    "file": "app/src/lib/stripe/connect.ts",
+    "match": "+61 is prepended.",
+    "owner": "money",
+    "note": "2e: same block as above."
+  },
+  {
+    "rule": "phone",
+    "file": "app/src/lib/stripe/connect.ts",
+    "match": "if (/^[234578]/.test(trunk)) return `+61${trunk}`;",
+    "owner": "money",
+    "note": "2e: same block as above."
+  },
+  {
+    "rule": "phone",
+    "file": "app/src/lib/stripe/connect.ts",
+    "match": "if (digits.length === 9 && /^[234578]/.test(digits)) return `+61${digits}`;",
+    "owner": "money",
+    "note": "2e: same block as above."
+  }
+]

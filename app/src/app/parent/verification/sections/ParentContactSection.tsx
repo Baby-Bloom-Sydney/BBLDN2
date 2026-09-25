@@ -7,26 +7,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { submitParentContactSection } from "@/lib/actions/parent-verification";
 import type { ParentVerificationData } from "@/types/parent";
-
-// Strip whitespace and normalize to 04XXXXXXXX format
-function normalisePhone(val: string): string {
-  let digits = val.replace(/\s+/g, "");
-  if (/^4\d{8}$/.test(digits)) {
-    digits = "0" + digits;
-  }
-  return digits;
-}
-
-const AU_MOBILE_REGEX = /^04\d{8}$/;
-
-/** Format normalised phone "04XXXXXXXX" → "+61 (0) 401 510 535" */
-function formatPhoneDisplay(raw: string): string {
-  const n = normalisePhone(raw);
-  if (!AU_MOBILE_REGEX.test(n)) return "";
-  // n = "0401510535" → strip leading 0 → "401510535" → "+61 (0) 401 510 535"
-  const digits = n.slice(1); // "401510535"
-  return `+61 (0) ${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
-}
+import { BRAND } from "@/lib/constants";
+import {
+  formatAddressLine,
+  formatUkMobile,
+  isUkMobile,
+  normaliseUkMobile,
+  parseUkAddress,
+  toTitleCase,
+  type ParsedAddress,
+} from "@/lib/uk-contact";
 
 interface AddressrResult {
   sla: string;
@@ -35,49 +25,10 @@ interface AddressrResult {
   score: number;
 }
 
-interface ParsedAddress {
-  street: string;
-  suburb: string;
-  postcode: string;
-}
-
 interface ParentContactSectionProps {
   verification: ParentVerificationData | null;
   locked: boolean;
   onSaved: () => void;
-}
-
-function toTitleCase(str: string): string {
-  return str.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-/** Parse GNAF single-line address into street, suburb, postcode */
-function parseGnafAddress(sla: string): ParsedAddress | null {
-  // SLA format: "STREET, SUBURB NSW POSTCODE" or "UNIT X, STREET, SUBURB NSW POSTCODE"
-  const match = sla.match(/^(.+),\s+([A-Z\s]+?)\s+NSW\s+(\d{4})$/);
-  if (!match) return null;
-
-  // The street is everything before the last comma + suburb chunk
-  // But there could be multiple commas (e.g. "UNIT 42, 115-119 BONDI RD, BONDI NSW 2026")
-  // So we need to find where the suburb starts
-  const postcode = match[3];
-  const fullBeforeState = sla
-    .substring(0, sla.lastIndexOf("NSW"))
-    .trim()
-    .replace(/,\s*$/, "");
-  // fullBeforeState is now "STREET, SUBURB" or "UNIT X, STREET, SUBURB"
-  // The suburb is the last comma-separated segment
-  const lastComma = fullBeforeState.lastIndexOf(",");
-  if (lastComma < 0) return null;
-
-  const street = fullBeforeState.substring(0, lastComma).trim();
-  const suburb = fullBeforeState.substring(lastComma + 1).trim();
-
-  return {
-    street: toTitleCase(street),
-    suburb: toTitleCase(suburb),
-    postcode,
-  };
 }
 
 export function ParentContactSection({
@@ -102,8 +53,9 @@ export function ParentContactSection({
   const [selectedAddress, setSelectedAddress] = useState<ParsedAddress | null>(
     verification?.address_line && verification?.city && verification?.postcode
       ? {
-          street: verification.address_line,
-          suburb: verification.city,
+          line1: verification.address_line,
+          line2: "",
+          town: verification.city,
           postcode: verification.postcode,
         }
       : null,
@@ -185,7 +137,7 @@ export function ParentContactSection({
   }
 
   function handleAddressSelect(result: AddressrResult) {
-    const parsed = parseGnafAddress(result.ssla || result.sla);
+    const parsed = parseUkAddress(result.ssla || result.sla);
     if (!parsed) {
       // Fallback — shouldn't happen for NSW results
       setShowAddressDropdown(false);
@@ -201,7 +153,7 @@ export function ParentContactSection({
       return;
     }
 
-    setAddressQuery(parsed.street);
+    setAddressQuery(parsed.line1);
     setSelectedAddress(parsed);
     setShowAddressDropdown(false);
     setAddressResults([]);
@@ -220,7 +172,7 @@ export function ParentContactSection({
     );
   }
 
-  const phoneValid = AU_MOBILE_REGEX.test(normalisePhone(phone));
+  const phoneValid = isUkMobile(phone);
   const canSave = phoneValid && selectedAddress;
 
   async function handleSave() {
@@ -230,12 +182,12 @@ export function ParentContactSection({
     try {
       const result = await Promise.race([
         submitParentContactSection({
-          phone_number: normalisePhone(phone),
-          address_line: selectedAddress!.street,
-          city: selectedAddress!.suburb,
+          phone_number: normaliseUkMobile(phone),
+          address_line: formatAddressLine(selectedAddress!),
+          city: selectedAddress!.town,
           state: "NSW",
           postcode: selectedAddress!.postcode,
-          country: "Australia",
+          country: BRAND.country,
         }),
         new Promise<never>((_, reject) =>
           setTimeout(
@@ -265,15 +217,15 @@ export function ParentContactSection({
     }
   }
 
-  const displayAddress = selectedAddress?.street ?? verification?.address_line;
-  const displaySuburb = selectedAddress?.suburb ?? verification?.city;
+  const displayAddress = selectedAddress?.line1 ?? verification?.address_line;
+  const displaySuburb = selectedAddress?.town ?? verification?.city;
   const displayPostcode = selectedAddress?.postcode ?? verification?.postcode;
 
   if (!editing && isCompleted) {
     return (
       <div className="space-y-4">
         <div className="space-y-1 text-sm text-green-700">
-          {phone && <p>{formatPhoneDisplay(phone) || phone}</p>}
+          {phone && <p>{formatUkMobile(phone)}</p>}
           {displayAddress && <p>{displayAddress}</p>}
           {displaySuburb && (
             <p>
@@ -310,20 +262,20 @@ export function ParentContactSection({
         </Label>
         <div className="flex gap-2">
           <div className="flex items-center rounded-md border border-input bg-slate-50 px-3 h-9 text-sm text-slate-700 flex-shrink-0">
-            <span>+61</span>
+            <span>+44</span>
           </div>
           <div className="flex-1 space-y-1">
             <Input
               id="parent_phone_number"
               type="tel"
-              placeholder="04XX XXX XXX"
+              placeholder="07XXX XXX XXX"
               value={phone}
               onChange={(e) => handlePhoneChange(e.target.value)}
               disabled={isSaving}
             />
             {phoneValid && (
               <p className="text-xs text-green-600 font-medium mt-1.5 flex items-center gap-1">
-                {formatPhoneDisplay(phone)}
+                {formatUkMobile(phone)}
                 <Check className="h-3 w-3" />
               </p>
             )}
@@ -376,7 +328,7 @@ export function ParentContactSection({
           )}
           {selectedAddress && (
             <p className="text-xs text-green-600 font-medium mt-1.5 flex items-center gap-1">
-              {selectedAddress.street}, {selectedAddress.suburb} NSW{" "}
+              {selectedAddress.line1}, {selectedAddress.town} NSW{" "}
               {selectedAddress.postcode}
               <Check className="h-3 w-3" />
             </p>
@@ -384,7 +336,7 @@ export function ParentContactSection({
           {notInArea && (
             <p className="text-xs text-amber-600 mt-1.5">
               This address is outside our service area. We currently only
-              operate in Greater Sydney, NSW.
+              operate in Greater London.
             </p>
           )}
         </div>

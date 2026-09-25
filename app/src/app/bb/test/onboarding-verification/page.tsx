@@ -3,6 +3,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { CompoundPageShell } from '@/app/(funnel)/apply/components/shared/CompoundPageShell';
 import { Lock, Upload, CheckCircle2, ShieldCheck, ChevronLeft, Loader2, Camera } from 'lucide-react';
+import {
+  formatAddressLine,
+  parseUkAddress,
+  toTitleCase,
+  type ParsedAddress,
+} from '@/lib/uk-contact';
 
 const PASSPORT_COUNTRIES = [
   "Australia", "Afghanistan", "Albania", "Algeria", "Andorra", "Angola",
@@ -280,31 +286,6 @@ interface AddressResult {
   score: number;
 }
 
-interface ParsedAddress {
-  street: string;
-  suburb: string;
-  postcode: string;
-}
-
-function toTitleCase(str: string): string {
-  return str.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function parseGnafAddress(sla: string): ParsedAddress | null {
-  const match = sla.match(/^(.+),\s+([A-Z\s]+?)\s+NSW\s+(\d{4})$/);
-  if (!match) return null;
-
-  const fullBeforeState = sla.substring(0, sla.lastIndexOf('NSW')).trim().replace(/,\s*$/, '');
-  const lastComma = fullBeforeState.lastIndexOf(',');
-  if (lastComma < 0) return null;
-
-  const street = fullBeforeState.substring(0, lastComma).trim();
-  const suburb = fullBeforeState.substring(lastComma + 1).trim();
-  const postcode = match[3];
-
-  return { street: toTitleCase(street), suburb: toTitleCase(suburb), postcode };
-}
-
 function LocationStep() {
   const [addressQuery, setAddressQuery] = useState('');
   const [selectedAddress, setSelectedAddress] = useState<ParsedAddress | null>(null);
@@ -374,7 +355,7 @@ function LocationStep() {
   }
 
   function handleAddressSelect(result: AddressResult) {
-    const parsed = parseGnafAddress(result.ssla || result.sla);
+    const parsed = parseUkAddress(result.ssla || result.sla);
     if (!parsed) {
       setShowDropdown(false);
       return;
@@ -388,7 +369,7 @@ function LocationStep() {
       return;
     }
 
-    setAddressQuery(parsed.street);
+    setAddressQuery(formatAddressLine(parsed));
     setSelectedAddress(parsed);
     setShowDropdown(false);
     setAddressResults([]);
@@ -447,7 +428,7 @@ function LocationStep() {
         <label className="text-sm font-medium text-slate-700">Suburb</label>
         <input
           type="text"
-          value={selectedAddress?.suburb ?? ''}
+          value={selectedAddress?.town ?? ''}
           readOnly
           placeholder=""
           className={`w-full h-11 rounded-lg border px-4 py-3 text-sm ${
@@ -768,7 +749,7 @@ function WWCCStep({ onNoWwccChange }: { onNoWwccChange: (noWwcc: boolean) => voi
       {/* No WWCC amber warning */}
       {noWwcc && (
         <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800 space-y-2">
-          <p className="font-medium">A WWCC is required to work with children in NSW.</p>
+          <p className="font-medium">An enhanced DBS check is required to work with children in the UK.</p>
           <p className="text-xs text-amber-700">
             You cannot proceed without a valid Working With Children Check. You can apply for one through the NSW Office of the Children&apos;s Guardian.
           </p>
@@ -1290,7 +1271,7 @@ export default function OnboardingVerificationTestPage() {
                   Working With Children Check
                 </h2>
                 <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">
-                  A valid WWCC is required by law for anyone working with children in NSW.
+                  An enhanced DBS check is required to work with children in the UK.
                 </p>
               </div>
               <div className="max-w-md mx-auto px-2 pb-20">

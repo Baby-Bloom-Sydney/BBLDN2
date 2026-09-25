@@ -32,7 +32,7 @@ import {
   ArrowRight,
   Check,
 } from "lucide-react";
-import { formatAuMobile, isAuMobile } from "@/lib/au-contact";
+import { formatUkMobile, isUkMobile } from "@/lib/uk-contact";
 
 const signupSchema = z
   .object({
@@ -42,8 +42,8 @@ const signupSchema = z
     mobile: z
       .string()
       .min(1, "Mobile number is required")
-      .refine((v) => isAuMobile(v), {
-        message: "Please enter a valid Australian mobile (04XX XXX XXX)",
+      .refine((v) => isUkMobile(v), {
+        message: "Please enter a valid UK mobile (07XXX XXX XXX)",
       }),
     password: z
       .string()
@@ -109,7 +109,7 @@ function SignupForm() {
     formData.append("firstName", data.firstName);
     formData.append("lastName", data.lastName);
     // Send raw user input — server is the canonical normalisation point
-    // (signUp() calls normaliseAuMobile + isAuMobile defence-in-depth).
+    // (signUp() calls normaliseUkMobile + isUkMobile defence-in-depth).
     formData.append("mobile_number", data.mobile);
     formData.append("role", "parent");
 
@@ -265,7 +265,7 @@ function SignupForm() {
                   control={form.control}
                   name="mobile"
                   render={({ field, fieldState }) => {
-                    const valid = isAuMobile(field.value);
+                    const valid = isUkMobile(field.value);
                     return (
                       <FormItem>
                         <FormLabel className="text-xs text-slate-500">
@@ -276,15 +276,15 @@ function SignupForm() {
                             aria-hidden="true"
                             className="flex h-10 flex-shrink-0 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700"
                           >
-                            +61
+                            +44
                           </div>
                           <FormControl>
                             <Input
                               type="tel"
                               inputMode="numeric"
                               autoComplete="tel-national"
-                              placeholder="04XX XXX XXX"
-                              maxLength={12}
+                              placeholder="07XXX XXX XXX"
+                              maxLength={13}
                               disabled={isLoading}
                               aria-invalid={fieldState.invalid}
                               {...field}
@@ -304,7 +304,7 @@ function SignupForm() {
                             role="status"
                             aria-live="polite"
                           >
-                            {formatAuMobile(field.value)}
+                            {formatUkMobile(field.value)}
                             <span className="sr-only">
                               {" "}
                               is a valid mobile number
