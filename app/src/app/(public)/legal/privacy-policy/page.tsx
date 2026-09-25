@@ -120,7 +120,7 @@ export default function PrivacyPolicyPage() {
         </ul>
         <p><strong>Timing:</strong> All data sharing occurs immediately after the respective party has provided explicit consent through the applicable Connection Agreement. Both parties receive notification of the data that has been shared.</p>
         <p><strong>Third-party data processors:</strong> We share personal data with service providers who process data on our behalf. See Section 9.</p>
-        <p><strong>Government bodies:</strong> We may disclose information to the NSW WWCC registry, the Document Verification Service, the NSW Department of Communities and Justice (for mandatory reporting), the eSafety Commissioner, or law enforcement agencies where required or authorised by law.</p>
+        <p><strong>Government bodies:</strong> We may disclose information to the NSW WWCC registry, the Document Verification Service, the eSafety Commissioner, or law enforcement agencies where required or authorised by law.</p>
         <p><strong>Authorised Baby Bloom staff:</strong> Your personal information may be accessed by authorised Baby Bloom staff for the purposes of platform operations, verification review, support, and incident management. Staff access is subject to internal access controls and all sensitive actions are logged.</p>
 
         <hr />
@@ -323,19 +323,6 @@ export default function PrivacyPolicyPage() {
         <p><strong>17.4 Right to Explanation</strong>: If you believe an automated decision has been made about you (e.g., matching algorithm, verification decision, content recommendation), you may request explanation by emailing <a href="mailto:contact@babybloomsydney.com.au">contact@babybloomsydney.com.au</a>. We will provide explanation within 10 business days.</p>
         <p><strong>17.5 Right to Human Review</strong>: You may request that a human review any automated decision and make a final determination. Human review is not a challenge to the automated decision but a right to have a qualified staff member consider your case.</p>
         <p><strong>17.6 Right to Opt-Out</strong>: If you do not wish to participate in algorithmic matching, you may request manual matching, which is subject to availability.</p>
-
-        <hr />
-
-        <h2>18. Organizational Reportable Conduct Obligations</h2>
-        <p>Baby Bloom acknowledges that under the Children&apos;s Guardian Act 2019 (NSW), organizations providing services to children must have systems to identify and respond to <strong>reportable conduct</strong> (conduct that could constitute a criminal offense, abuse, ill-treatment, psychological harm, grooming, or sexual misconduct involving children).</p>
-        <p>Baby Bloom&apos;s Head of Entity is required to:</p>
-        <ul>
-          <li>Establish systems to identify and manage reportable conduct</li>
-          <li>Notify the Office of Children&apos;s Guardian within 7 business days of becoming aware of an allegation of reportable conduct</li>
-          <li>Cooperate with any investigation by the Office of Children&apos;s Guardian</li>
-          <li>Implement preventive measures and training</li>
-        </ul>
-        <p>If you report to Baby Bloom a concern that a Childcare Professional may have engaged in reportable conduct (e.g., inappropriate touching, grooming, abuse), Baby Bloom will assess the allegation and notify the Office of Children&apos;s Guardian as required by law. This is a separate legal obligation from your personal mandatory reporting obligation (s.27) and does not replace your requirement to report directly to the Child Protection Helpline on 132 111.</p>
 
         <hr />
 

@@ -142,7 +142,6 @@ export default function ProfessionalTermsPage() {
         <p>Three no-shows within a rolling 12-month period will result in a <strong>temporary suspension</strong> from babysitting bookings for up to 14 days. This suspension is intended to manage booking reliability; it is not punitive.</p>
         <p><strong>Important</strong>: Suspensions are temporary and limited to babysitting bookings. You retain access to matchmaking connections and remain a Professional on the Platform.</p>
         <p>8.3. <strong>Appeal and Discretionary Review</strong>: If a babysitting suspension is applied, you have the right to appeal within 7 days. You may request a review by providing evidence of extenuating circumstances (e.g., medical certificate, emergency documentation, bereavement notice). Baby Bloom will exercise discretion and may reduce or waive the suspension based on the circumstances. We will also consider your overall cancellation history, reasons for cancellations, and your standing on the Platform when reviewing an appeal.</p>
-        <p>8.4. <strong>Emergency Protocol</strong>: In any medical emergency during a babysitting session, call <strong>000</strong> immediately. Baby Bloom is not an emergency service and the Platform must never be relied upon for emergency response.</p>
 
         <hr />
 
@@ -210,22 +209,6 @@ export default function ProfessionalTermsPage() {
           <li><strong>Marketing Emails</strong> (platform updates, new feature announcements): You may unsubscribe from these at any time</li>
         </ul>
         <p>14.4. <strong>Processing Timeline</strong>: We will process unsubscribe requests within 5 business days. If you unsubscribe from broadcast emails, you will not receive Connection requests, so you may wish to reactivate your broadcast preferences if you later wish to accept bookings.</p>
-
-        <hr />
-
-        <h2>15. Mandatory Reporting &amp; Reportable Conduct Scheme</h2>
-        <p>15.1. <strong>If You Are a Mandatory Reporter</strong>: If you are employed by or engaged with a regulated childcare service (e.g., long day care centre, preschool, family day care service), you are a mandatory reporter under the Children and Young Persons (Care and Protection) Act 1998 (NSW) s.27. You <strong>must</strong> report suspected Risk of Significant Harm (ROSH) directly to the NSW Department of Communities and Justice Child Protection Helpline on <strong>132 111</strong>.</p>
-        <p>15.2. <strong>If You Are an Independent Nanny/Babysitter</strong>: If you work independently as a nanny or babysitter and are not employed by a regulated childcare service, you are not a mandatory reporter under s.27. However, we strongly encourage you to report if you suspect a child is at serious risk of harm.</p>
-        <p>15.3. <strong>How to Report</strong>: Any report you make must be direct to the NSW DCJ on 132 111. You may also contact local NSW Police or call 000 in an emergency.</p>
-        <p>15.4. <strong>Important</strong>: Logging an incident through the Baby Bloom platform does <strong>not</strong> satisfy your legal obligation to report (if you are a mandatory reporter). You must report directly to DCJ.</p>
-        <p>15.5. <strong>Baby Bloom&apos;s Organizational Obligation &mdash; Reportable Conduct Scheme (Children&apos;s Guardian Act 2019)</strong>: Baby Bloom, as an organization providing services to children, is required to have systems to identify and respond to <strong>reportable conduct</strong> (conduct that could constitute a criminal offense, abuse, ill-treatment, psychological harm, grooming, or sexual misconduct involving children). Baby Bloom&apos;s Head of Entity is required to:</p>
-        <ul>
-          <li>Establish systems to identify and manage reportable conduct</li>
-          <li>Notify the Office of Children&apos;s Guardian within 7 business days of becoming aware of an allegation of reportable conduct</li>
-          <li>Cooperate with any investigation by the Office of Children&apos;s Guardian</li>
-        </ul>
-        <p><strong>Important for you</strong>: If Baby Bloom becomes aware that you may have engaged in reportable conduct (through a Client complaint, allegation, or other report), Baby Bloom must report this to the Office of Children&apos;s Guardian as required by law. This is separate from any disciplinary action Baby Bloom may take against you. You have rights to respond to any allegation and to appeal any decision.</p>
-        <p>15.6. <strong>Data Breach and Child Safety Reports</strong>: If Baby Bloom becomes aware of any data breach involving children&apos;s information, or if you report a safety concern about children&apos;s data (e.g., loss of device containing children&apos;s medical information), you agree to notify Baby Bloom immediately so we can assess whether the Office of Children&apos;s Guardian must be notified.</p>
 
         <hr />
 
