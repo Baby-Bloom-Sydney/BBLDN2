@@ -1,12 +1,12 @@
 /**
- * Deterministic AU date formatting — identical output on server (Node)
- * and client (browser).
+ * Deterministic day-month-year date formatting — identical output on
+ * server (Node) and client (browser).
  *
- * Why this file exists: `Date.toLocaleDateString("en-AU", ...)` is
- * non-deterministic across runtimes. Node 25's ICU returns "June" for
- * BOTH `month: "long"` and `month: "short"` on en-AU, while modern
- * browsers correctly produce "June" / "Jun". Mixing them in SSR
- * causes React hydration mismatches.
+ * Why this file exists: `Date.toLocaleDateString(locale, ...)` is
+ * non-deterministic across runtimes. A Node ICU build returned "June"
+ * for BOTH `month: "long"` and `month: "short"`, while modern browsers
+ * correctly produce "June" / "Jun". Mixing them in SSR causes React
+ * hydration mismatches.
  *
  * This helper is locale-data-free: short/long month names are hard-
  * coded English so they can never drift between platforms.
