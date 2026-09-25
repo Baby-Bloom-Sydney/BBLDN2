@@ -34,7 +34,7 @@ import {
 } from "./position-funnel";
 import { dispatchActionTriggeredInBackground } from "@/lib/chat/proactive/action-triggered";
 import { emailHeader } from "@/lib/email/brand";
-import { SITE_URL } from "@/lib/constants";
+import { BRAND, SITE_URL } from "@/lib/constants";
 
 // ── Types ──
 
@@ -440,7 +440,7 @@ export async function createConnectionRequest(
         recipientUserId: nanny.user_id,
         payload: {
           family_name: familyNameForTemplate,
-          suburb: parentProfile?.suburb ?? "Sydney",
+          suburb: parentProfile?.suburb ?? BRAND.city,
           connection_id: request.id,
         },
       });
@@ -721,7 +721,7 @@ export async function scheduleConnectionTime(
     };
   }
 
-  // Construct UTC ISO string from Sydney date/time (server-side conversion)
+  // Construct UTC ISO string from local date/time (server-side conversion)
   const selectedTime = localToUTC(date, hour, minute);
 
   // Validate scheduled time is reasonable (24h–8d from now)

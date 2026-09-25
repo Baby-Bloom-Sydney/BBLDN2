@@ -4,7 +4,7 @@ import { sendEmail } from '@/lib/email/resend';
 import { getUserEmailInfo } from '@/lib/email/helpers';
 import { createInboxMessage } from '@/lib/actions/connection-helpers';
 import { emailFooter } from "@/lib/email/brand";
-import { SENDERS, SITE_NAME, SITE_URL } from "@/lib/constants";
+import { BRAND, SENDERS, SITE_NAME, SITE_URL } from "@/lib/constants";
 
 /**
  * Cron endpoint: checks for verification failures older than 10 minutes
@@ -543,7 +543,7 @@ function getLcyContent(
         heading: group === 3 ? 'Quick fix needed' : 'Almost there!',
         bodyParagraphs: [
           `Hi ${firstName},`,
-          'Verify your account to be considered for nanny and babysitting positions with families in Sydney.',
+          `Verify your account to be considered for nanny and babysitting positions with families in ${BRAND.city}.`,
           message,
           `<strong>Here\u2019s what to do:</strong><br/>${instructions}`,
           'It only takes a few minutes to complete.',

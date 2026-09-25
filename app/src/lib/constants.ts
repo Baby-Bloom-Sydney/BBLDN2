@@ -78,7 +78,7 @@ export const SENDERS = {
 export const SUPPORT_INBOX = SENDERS.support;
 
 /**
- * The addresses the admin console may send "as". Sydney kept this list
+ * The addresses the admin console may send "as". The tree kept this list
  * twice — once server-side in `actions/admin.ts` and once client-side in
  * `ContactUserModal` — and the two had to stay byte-identical for the
  * server's validation to accept the modal's own picker value. It lives
