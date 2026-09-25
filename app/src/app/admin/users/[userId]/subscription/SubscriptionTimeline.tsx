@@ -8,6 +8,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { formatAuDate } from "@/lib/format/date";
+import { formatClockHourMinute } from "@/lib/timezone";
 import type { TimelineCategory, TimelineEntry } from "./build-timeline";
 
 interface Props {
@@ -112,9 +113,5 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
 function formatTimeOnly(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  const h = d.getHours();
-  const m = String(d.getMinutes()).padStart(2, "0");
-  const ampm = h >= 12 ? "pm" : "am";
-  const h12 = h % 12 || 12;
-  return `${h12}:${m} ${ampm}`;
+  return formatClockHourMinute(d.getHours(), d.getMinutes());
 }

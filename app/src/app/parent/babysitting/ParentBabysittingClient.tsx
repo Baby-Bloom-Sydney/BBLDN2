@@ -40,6 +40,10 @@ import {
 import Link from "next/link";
 import { recordInformedAction } from "@/lib/legal/record-consent";
 import {
+  formatClockHourMinute,
+  formatClockTime as formatTime,
+} from "@/lib/timezone";
+import {
   formatAddressLine,
   parseUkAddress,
   toTitleCase,
@@ -47,17 +51,14 @@ import {
   toServedPrefix,
 } from "@/lib/uk-contact";
 
-// ── Time options (15-min intervals, 6am to 11:45pm) ──
+// ── Time options (15-min intervals, 06:00 to 23:45) ──
 
 const TIME_OPTIONS: { value: string; label: string }[] = [];
 for (let h = 6; h < 24; h++) {
   for (let m = 0; m < 60; m += 15) {
     const hh = h.toString().padStart(2, "0");
     const mm = m.toString().padStart(2, "0");
-    const ampm = h >= 12 ? "pm" : "am";
-    const h12 = h > 12 ? h - 12 : h;
-    const label = m === 0 ? `${h12}${ampm}` : `${h12}:${mm}${ampm}`;
-    TIME_OPTIONS.push({ value: `${hh}:${mm}`, label });
+    TIME_OPTIONS.push({ value: `${hh}:${mm}`, label: formatClockHourMinute(h, m) });
   }
 }
 
@@ -116,15 +117,6 @@ function formatSlotDate(dateStr: string): string {
     day: "numeric",
     month: "short",
   });
-}
-
-function formatTime(time: string): string {
-  const [h, m] = time.split(":").map(Number);
-  const ampm = h >= 12 ? "pm" : "am";
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return m === 0
-    ? `${h12}${ampm}`
-    : `${h12}:${String(m).padStart(2, "0")}${ampm}`;
 }
 
 // ── GNAF Address Types ──

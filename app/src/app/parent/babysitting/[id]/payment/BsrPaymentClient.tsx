@@ -6,19 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Gift, MapPin, Calendar, Baby, PoundSterling, MoreVertical, X, Loader2 } from 'lucide-react';
 import { cancelBabysittingRequest } from '@/lib/actions/babysitting';
 import type { PublicBsrProfile } from '@/lib/actions/babysitting';
+import { formatClockTime as formatTime } from '@/lib/timezone';
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00');
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
-}
-
-function formatTime(time: string): string {
-  const [h, m] = time.split(':').map(Number);
-  const ampm = h >= 12 ? 'pm' : 'am';
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return m === 0 ? `${h12}${ampm}` : `${h12}:${String(m).padStart(2, '0')}${ampm}`;
 }
 
 function ageDisplay(months: number): string {

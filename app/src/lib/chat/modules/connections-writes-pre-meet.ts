@@ -19,6 +19,7 @@ import { BRAND } from "@/lib/constants";
 import {
   BRACKET_KEYS,
   TIME_BRACKETS,
+  formatClockHourMinute,
   getBracketForHour,
   type BracketKey,
 } from "@/lib/timezone";
@@ -453,7 +454,7 @@ function parseMeetTime(
     return {
       ok: false,
       error:
-        `Selected time is outside the available window (meet and greets run 8am–8pm ${BRAND.city} time).`,
+        `Selected time is outside the available window (meet and greets run 08:00–20:00 ${BRAND.city} time).`,
     };
   }
   return { ok: true, t: { date, hour, minute, bracket } };
@@ -464,10 +465,7 @@ function formatTimeForPreview(
   hour: number,
   minute: number,
 ): string {
-  const h12 = ((hour + 11) % 12) + 1;
-  const am = hour < 12 ? "AM" : "PM";
-  const mm = minute.toString().padStart(2, "0");
-  return `${date} ${h12}:${mm} ${am} ${BRAND.city} time`;
+  return `${date} ${formatClockHourMinute(hour, minute)} ${BRAND.city} time`;
 }
 
 async function proposeScheduleMeet(

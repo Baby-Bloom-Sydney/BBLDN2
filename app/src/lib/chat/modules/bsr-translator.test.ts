@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { formatClockTime } from "@/lib/timezone";
 import {
   nannyJobBucket,
   parentRequestBucket,
@@ -127,6 +128,13 @@ describe("distanceText", () => {
 });
 
 describe("formatSlot", () => {
+  // Retargeted by LDN2 unit 2k (W-12). These two asserted `6pm to 10pm` and
+  // `9:30am to 1:45pm` — the hand-rolled 12-hour clock Katie used to speak,
+  // while the rest of the app was already on one 24-hour clock (12.03,
+  // `LEDGER/2b.md` §3.2). The documented behaviour wins over the code the test
+  // happened to pin. The expected string is produced by the locale here rather
+  // than typed, so it follows `APP_LOCALE` instead of freezing today's format
+  // (`LEDGER/2-0.md` §8, lesson 3).
   it("renders London-local prose", () => {
     const out = formatSlot({
       slot_date: "2026-05-03",
@@ -134,7 +142,12 @@ describe("formatSlot", () => {
       end_time: "22:00",
     });
     // Don't pin the day-name since it depends on locale, just check shape.
-    expect(out).toMatch(/\w{3} 3 May — 6pm to 10pm/);
+    expect(out).toMatch(
+      new RegExp(
+        `\\w{3} 3 May — ${formatClockTime("18:00")} to ${formatClockTime("22:00")}`,
+      ),
+    );
+    expect(out).not.toMatch(/[ap]m/i);
   });
 
   it("handles minutes", () => {
@@ -143,7 +156,10 @@ describe("formatSlot", () => {
       start_time: "09:30",
       end_time: "13:45",
     });
-    expect(out).toContain("9:30am to 1:45pm");
+    expect(out).toContain(
+      `${formatClockTime("09:30")} to ${formatClockTime("13:45")}`,
+    );
+    expect(out).not.toMatch(/[ap]m/i);
   });
 });
 

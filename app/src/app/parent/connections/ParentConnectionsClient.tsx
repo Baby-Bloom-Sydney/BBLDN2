@@ -14,6 +14,7 @@ import { confirmPlacement } from "@/lib/actions/position-funnel";
 import { recordInformedAction } from "@/lib/legal/record-consent";
 import { CONNECTION_STAGE } from "@/lib/position/constants";
 import {
+  formatClockHourMinute,
   formatLondonDate,
   TIME_BRACKETS,
   BRACKET_KEYS,
@@ -329,15 +330,7 @@ function ConnectionDetailModal({
     if (!selectedDate || selectedHour === null || selectedMinute === null)
       return "";
     const { weekday, day } = formatDate(selectedDate);
-    const period = selectedHour >= 12 ? "PM" : "AM";
-    const displayHour =
-      selectedHour > 12
-        ? selectedHour - 12
-        : selectedHour === 0
-          ? 12
-          : selectedHour;
-    const displayMin = selectedMinute.toString().padStart(2, "0");
-    return `${weekday} ${day} at ${displayHour}:${displayMin} ${period}`;
+    return `${weekday} ${day} at ${formatClockHourMinute(selectedHour, selectedMinute)}`;
   };
 
   const handleSchedule = async () => {

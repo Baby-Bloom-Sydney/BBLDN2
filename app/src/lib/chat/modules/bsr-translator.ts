@@ -8,11 +8,12 @@
  *      Katie re-do the math.
  *   3. Distance: values < 1km render as the string "<1". Numbers
  *      rendered to one decimal place.
- *   4. Time slots render in London-local 12h format ("Sat 3 May —
- *      6pm to 10pm").
+ *   4. Time slots render in London-local 24h format ("Sat 3 May —
+ *      18:00 to 22:00").
  */
 
 import { APP_TZ } from "@/lib/constants";
+import { formatClockTime } from "@/lib/timezone";
 
 /**
  * Categorise a nanny's notification into the plain-English bucket
@@ -141,7 +142,7 @@ export function distanceText(km: number | null): string {
 
 /**
  * Format a babysitting time slot in London-local prose.
- * e.g. "Sat 3 May — 6pm to 10pm".
+ * e.g. "Sat 3 May — 18:00 to 22:00".
  */
 export function formatSlot(slot: {
   slot_date: string;
@@ -161,18 +162,6 @@ export function formatSlot(slot: {
   const start = formatClockTime(slot.start_time);
   const end = formatClockTime(slot.end_time);
   return `${day} ${date} — ${start} to ${end}`;
-}
-
-function formatClockTime(time: string): string {
-  const [hRaw, mRaw] = time.split(":");
-  const h = Number(hRaw);
-  const m = Number(mRaw);
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return time;
-  const ampm = h >= 12 ? "pm" : "am";
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return m === 0
-    ? `${h12}${ampm}`
-    : `${h12}:${String(m).padStart(2, "0")}${ampm}`;
 }
 
 /**
