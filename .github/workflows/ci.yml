@@ -102,14 +102,14 @@ jobs:
     # The LDN2 Stage 2 whole-tree gate: fails while any Australian artefact class the Stage 1 inventory named is
     # still present anywhere in the tree (LDN2/PLAN/05-gate.md). It needs no database and no secrets.
     #
-    # continue-on-error while Stage 2 is in flight: the gate is RED by design on the un-amended tree, and its whole
-    # purpose in W0 is to publish a falling per-rule count for the units that follow. Blocking now would block every
-    # one of them.
-    # required at W6 — see LDN2/PLAN/04-sequence.md
+    # Blocking since W6 (2026-09-26). It ran `continue-on-error: true` through W0-W5 because the gate was RED by
+    # design on the un-amended tree and its job was to publish a falling per-rule count for the units that followed.
+    # Every place rule is now 0 and the identity/jurisdiction residue is allow-listed to the stage that owns it, so
+    # the only way this job goes red again is a new Australian artefact or an allow entry that has outlived its
+    # reason. See LDN2/PLAN/LEDGER/W6-gate.md.
     name: London sweep
     needs: install
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
