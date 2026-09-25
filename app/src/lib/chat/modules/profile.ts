@@ -220,7 +220,7 @@ function nannyProfileTileBody(snap: NannySnapshot): string {
   // (not on truthy) preserves any intentional empty strings if a
   // future field ever needs them.
   const facts = [
-    `${snap.first_name} — ${snap.suburb ?? "no suburb on file"}`,
+    `${snap.first_name} — ${snap.suburb ?? "no area on file"}`,
     `Rate: ${snap.hourly_rate}`,
     snap.age_range ? `Age range: ${snap.age_range}` : null,
     snap.max_children != null ? `Max children: ${snap.max_children}` : null,
@@ -649,7 +649,7 @@ export const profileModule: BloomBotModule = {
     {
       name: "read_my_profile",
       description:
-        "Return a plain-English snapshot of the signed-in user's profile. For nannies: first name, suburb, hourly rate, age range, role types, availability days, photo count, and a visibility line (are parents currently able to see them, in plain English). For parents: home suburb, whether they have an active position, whether they have a placed nanny. Never leaks internal field names.",
+        "Return a plain-English snapshot of the signed-in user's profile. For nannies: first name, area, hourly rate, age range, role types, availability days, photo count, and a visibility line (are parents currently able to see them, in plain English). For parents: home area, whether they have an active position, whether they have a placed nanny. Never leaks internal field names.",
       parameters: { type: "object", properties: {}, required: [] },
       isPrefulfilled: isMyProfilePresent,
     },

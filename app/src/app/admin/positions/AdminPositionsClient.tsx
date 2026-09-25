@@ -223,7 +223,7 @@ export function AdminPositionsClient({ positions }: Props) {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search family or suburb..."
+                  placeholder="Search family or area..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   className="rounded-lg border border-slate-200 py-1.5 pl-9 pr-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500"
@@ -247,7 +247,7 @@ export function AdminPositionsClient({ positions }: Props) {
                 <TableRow>
                   <TableHead className="w-8" />
                   <TableHead>Family</TableHead>
-                  <TableHead>Suburb</TableHead>
+                  <TableHead>Area</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Source</TableHead>
                   <TableHead>Applicants</TableHead>

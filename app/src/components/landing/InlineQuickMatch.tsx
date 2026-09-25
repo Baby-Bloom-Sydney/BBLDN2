@@ -275,7 +275,7 @@ export function InlineQuickMatch() {
       {allDaysHaveBrackets && (
         <div className="space-y-2">
           <label className="text-xs font-medium text-slate-600 block">
-            What suburb are you in?
+            What area are you in?
           </label>
           <div className="relative" ref={dropdownRef}>
             <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 z-10" />
@@ -319,7 +319,7 @@ export function InlineQuickMatch() {
             return;
           }
           if (!selectedDistrict) {
-            setPrompt("Enter your suburb to get started");
+            setPrompt("Enter your area to get started");
             return;
           }
           setPrompt(null);

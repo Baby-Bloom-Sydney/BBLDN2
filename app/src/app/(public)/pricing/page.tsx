@@ -66,7 +66,7 @@ const HOW_IT_WORKS = [
     icon: Search,
     step: "01",
     title: "Share",
-    description: "Schedule. Suburb. What matters most.",
+    description: "Schedule. Area. What matters most.",
   },
   {
     icon: Brain,
@@ -161,7 +161,7 @@ export default function ServicesPage() {
               Personalised nanny matching for {BRAND.city} families
             </h1>
             <p className="mt-6 text-lg md:text-xl text-slate-500 leading-relaxed max-w-2xl mx-auto">
-              A suburb. A schedule. What matters most. Nannies matched across
+              An area. A schedule. What matters most. Nannies matched across
               location, experience, and approach to childcare. No fees for
               families.
             </p>
@@ -224,7 +224,7 @@ export default function ServicesPage() {
                 Less searching. Better matches.
               </h2>
               <p className="mt-4 text-slate-500 leading-relaxed">
-                Suburb. Schedule. Priorities. A handful of nannies matched across
+                Area. Schedule. Priorities. A handful of nannies matched across
                 12 factors — the strongest fits, contacted directly.
               </p>
 
@@ -294,7 +294,7 @@ export default function ServicesPage() {
               Find the right nanny
             </h2>
             <p className="mt-4 text-slate-400 leading-relaxed">
-              A suburb. A schedule. The rest is handled.
+              An area. A schedule. The rest is handled.
             </p>
             <div className="mt-8">
               <Button

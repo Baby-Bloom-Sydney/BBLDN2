@@ -457,7 +457,7 @@ export function UIShowcaseClient({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
-                    <TableHead>Suburb</TableHead>
+                    <TableHead>Area</TableHead>
                     <TableHead>Rate</TableHead>
                     <TableHead>Experience</TableHead>
                   </TableRow>

@@ -275,7 +275,7 @@ describe("listAdminPositions — full read access (T-044)", () => {
     expect(state.selectCounts.user_profiles ?? 0).toBe(1);
   });
 
-  it("falls back to '(Suburb)' when no resolvable last name (orphaned parent)", async () => {
+  it("falls back to '(<district>)' when no resolvable last name (orphaned parent)", async () => {
     state.positionsData = [makeParentPosition()];
     // No parents row + no user_profiles row -> name unresolvable
     const { listAdminPositions } = await import("./admin-positions");

@@ -86,7 +86,7 @@ export function N4FamilySearch({ state, dispatch, goNext }: StageProps) {
     if (residency.suburb) {
       items.push({
         label: 'Location',
-        value: `In ${residency.suburb} and surrounding suburbs...`,
+        value: `In ${residency.suburb} and surrounding areas...`,
       });
     }
 

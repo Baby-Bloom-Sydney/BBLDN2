@@ -260,7 +260,7 @@ export function StepReview({ data, goBack, onComplete, isSubmitting }: ReviewPro
           />
           {data.sydney_resident && (
             <>
-              <Row label="Suburb" value={data.suburb} />
+              <Row label="Area" value={data.suburb} />
               <Row label="Postcode" value={data.postcode} />
             </>
           )}

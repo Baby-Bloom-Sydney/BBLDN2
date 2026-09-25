@@ -900,7 +900,7 @@ function LocationStep({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium text-slate-700">Suburb</label>
+        <label className="text-sm font-medium text-slate-700">Area</label>
         <input
           type="text"
           value={selectedAddress?.town ?? ""}
