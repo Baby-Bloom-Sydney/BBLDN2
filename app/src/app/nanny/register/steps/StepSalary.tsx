@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StepProps } from "../NannyRegistrationFunnel";
+import { HOURLY_RATE_BOUNDS } from "@/lib/constants";
 
 const PAY_FREQUENCY_OPTIONS = ["Daily", "Weekly", "Fortnightly", "Monthly"];
 
@@ -45,14 +46,14 @@ function MultiSelectTags({
   );
 }
 
-/** Round up to nearest $0.25 */
+/** Round up to nearest £0.25 */
 function roundUpToQuarter(value: number): number {
   return Math.ceil(value * 4) / 4;
 }
 
 export function StepSalary({ data, updateData, goNext, goBack }: StepProps) {
   const [displayValue, setDisplayValue] = useState<string>(
-    data.hourly_rate_min ? data.hourly_rate_min.replace("$", "") : ""
+    data.hourly_rate_min ? data.hourly_rate_min.replace("£", "") : ""
   );
   const payFrequency: string[] = data.pay_frequency ?? [];
 
@@ -71,7 +72,7 @@ export function StepSalary({ data, updateData, goNext, goBack }: StepProps) {
 
     const num = parseFloat(raw);
     if (!isNaN(num) && num > 0) {
-      updateData({ hourly_rate_min: `$${num}` });
+      updateData({ hourly_rate_min: `£${num}` });
     }
   }
 
@@ -85,12 +86,11 @@ export function StepSalary({ data, updateData, goNext, goBack }: StepProps) {
       return;
     }
 
-    const min = 25;
-    const clamped = Math.max(num, min);
+    const clamped = Math.max(num, HOURLY_RATE_BOUNDS.min);
     const rounded = roundUpToQuarter(clamped);
     const formatted = rounded.toFixed(2);
     setDisplayValue(formatted);
-    updateData({ hourly_rate_min: `$${formatted}` });
+    updateData({ hourly_rate_min: `£${formatted}` });
   }
 
   return (
@@ -108,13 +108,13 @@ export function StepSalary({ data, updateData, goNext, goBack }: StepProps) {
             Minimum hourly rate you&apos;ll accept
           </Label>
           <div className="relative max-w-48">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-medium">$</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-medium">£</span>
             <Input
               id="hourly_rate"
               type="number"
-              min={25}
+              min={HOURLY_RATE_BOUNDS.min}
               step={0.25}
-              placeholder="40.00"
+              placeholder={HOURLY_RATE_BOUNDS.min.toFixed(2)}
               value={displayValue}
               onChange={handleRateChange}
               onBlur={handleRateBlur}
@@ -122,7 +122,7 @@ export function StepSalary({ data, updateData, goNext, goBack }: StepProps) {
             />
           </div>
           <p className="text-xs text-slate-500">
-            Minimum $25.00 — rounded up to the nearest $0.25
+            Minimum £{HOURLY_RATE_BOUNDS.min.toFixed(2)} — rounded up to the nearest £0.25
           </p>
         </div>
 

@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { APP_LOCALE, APP_TZ, SITE_URL } from "@/lib/constants";
+import { APP_LOCALE, APP_TZ, HOURLY_RATE_BOUNDS, SITE_URL } from "@/lib/constants";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { getParentId } from "./parent";
@@ -760,11 +760,15 @@ export async function createBabysittingRequest(data: {
     return { success: false, error: "Maximum 3 children allowed" };
   }
 
-  // Validate hourly rate ($35-$100)
-  if (!data.hourlyRate || data.hourlyRate < 35 || data.hourlyRate > 100) {
+  // Validate hourly rate against the one configured bound (Q-1/Q-7).
+  if (
+    !data.hourlyRate ||
+    data.hourlyRate < HOURLY_RATE_BOUNDS.min ||
+    data.hourlyRate > HOURLY_RATE_BOUNDS.max
+  ) {
     return {
       success: false,
-      error: "Hourly rate must be between $35 and $100",
+      error: `Hourly rate must be between £${HOURLY_RATE_BOUNDS.min} and £${HOURLY_RATE_BOUNDS.max}`,
     };
   }
 

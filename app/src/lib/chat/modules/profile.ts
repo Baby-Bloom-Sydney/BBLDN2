@@ -48,11 +48,12 @@ import { getPosition } from "@/lib/actions/parent";
 import { getParentPlacement } from "@/lib/actions/position-funnel";
 import { asUserFacingRole, type UserFacingRole } from "./utils";
 import { isMyProfilePresent } from "@/lib/chat/preload/predicates";
+import { HOURLY_RATE_BOUNDS } from "@/lib/constants";
 
 type ProfileRole = UserFacingRole;
 
-const RATE_MIN = 20;
-const RATE_MAX = 200;
+const RATE_MIN = HOURLY_RATE_BOUNDS.min;
+const RATE_MAX = HOURLY_RATE_BOUNDS.max;
 const AGE_MIN = 0;
 const AGE_MAX = 180;
 
@@ -487,7 +488,7 @@ function validateRate(
   if (rate < RATE_MIN || rate > RATE_MAX) {
     return {
       ok: false,
-      error: `Hourly rate must be between $${RATE_MIN} and $${RATE_MAX}/hour.`,
+      error: `Hourly rate must be between £${RATE_MIN} and £${RATE_MAX}/hour.`,
     };
   }
   // Quietly round to one decimal place — rates aren't usually more granular.
@@ -667,13 +668,13 @@ export const profileModule: BloomBotModule = {
     {
       name: "propose_update_rate",
       description:
-        "Preview changing the signed-in nanny's hourly rate (nanny-only). Validates $20-$200. Returns a preview line for the user to confirm. Does NOT hit the server.",
+        `Preview changing the signed-in nanny's hourly rate (nanny-only). Validates £${RATE_MIN}-£${RATE_MAX}. Returns a preview line for the user to confirm. Does NOT hit the server.`,
       parameters: {
         type: "object",
         properties: {
           hourly_rate: {
             type: "number",
-            description: "New hourly rate in AUD. 20 ≤ rate ≤ 200.",
+            description: `New hourly rate in GBP. ${RATE_MIN} ≤ rate ≤ ${RATE_MAX}.`,
           },
         },
         required: ["hourly_rate"],
@@ -751,7 +752,7 @@ export const profileModule: BloomBotModule = {
     "• NEVER refer to the V1 legacy fields `hobbies_interests`, `strengths_traits`, `skills_training`, `experience_details` — they're always null for current users.\n" +
     "• For a provisionally-verified nanny (what the product calls 'Verified'), the read tool returns 'Your profile is live' wording. DO NOT volunteer that a background check is still pending — that's the verification module's territory and only surfaces when the user specifically asks.\n\n" +
     "Writes (nanny only, both two-turn):\n" +
-    "• Change hourly rate → `propose_update_rate` → confirm → `apply_update_rate`. Rate must be $20-$200.\n" +
+    `• Change hourly rate → \`propose_update_rate\` → confirm → \`apply_update_rate\`. Rate must be £${RATE_MIN}-£${RATE_MAX}.\n` +
     "• Change preferred age range → `propose_update_age_range` → confirm → `apply_update_age_range`. Ages in MONTHS (0-180). The preview flags that this changes matchmaking visibility — read that back.\n\n" +
     "Not yet wired — route the user elsewhere if they ask:\n" +
     "• Rewrite bio / regenerate profile → point to /nanny/profile (the regen flow lives there; it's paid + 24h rate-limited).\n" +

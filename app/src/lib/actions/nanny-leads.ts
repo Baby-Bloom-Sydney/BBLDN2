@@ -40,7 +40,7 @@ function ageStringToMonths(s: string | null | undefined): number | null {
 
 function parseRate(s: string | null | undefined): number | null {
   if (!s) return null;
-  const n = parseFloat(s.replace("$", ""));
+  const n = parseFloat(s.replace("£", ""));
   return isNaN(n) ? null : n;
 }
 
