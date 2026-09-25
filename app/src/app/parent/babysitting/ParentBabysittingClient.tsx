@@ -44,6 +44,7 @@ import {
   parseUkAddress,
   toTitleCase,
   type ParsedAddress,
+  toServedPrefix,
 } from "@/lib/uk-contact";
 
 // ── Time options (15-min intervals, 6am to 11:45pm) ──
@@ -139,12 +140,12 @@ interface AddressrResult {
 
 interface ParentBabysittingClientProps {
   requests: BabysittingRequestWithSlots[];
-  suburbs: Array<{ suburb: string; postcode: string }>;
+  districts: Array<{ district: string; prefix: string; label: string }>;
 }
 
 export function ParentBabysittingClient({
   requests,
-  suburbs,
+  districts,
 }: ParentBabysittingClientProps) {
   const router = useRouter();
   const [view, setView] = useState<"list" | "create">("create");
@@ -234,9 +235,15 @@ export function ParentBabysittingClient({
       return;
     }
 
-    // Cross-reference with sydney_postcodes for canonical suburb name
-    const byPostcode = suburbs.filter((s) => s.postcode === parsed.postcode);
-    if (byPostcode.length === 0) {
+    // Cross-reference with london_districts for the canonical district name.
+    // ADR-188: the served unit is the prefix, so a sub-district postcode
+    // (SW1A 2AA) has to resolve to its parent prefix (SW1) first.
+    const servedPrefixes = new Set(districts.map((d) => d.prefix));
+    const prefix = toServedPrefix(parsed.postcode, servedPrefixes);
+    const byPrefix = prefix
+      ? districts.filter((d) => d.prefix === prefix)
+      : [];
+    if (byPrefix.length === 0) {
       setNotInArea(true);
       setSelectedAddress(null);
       setAddressQuery(toTitleCase(result.ssla || result.sla));
@@ -244,17 +251,17 @@ export function ParentBabysittingClient({
       return;
     }
 
-    const exact = byPostcode.find(
-      (s) => s.suburb.toLowerCase() === parsed.town.toLowerCase(),
+    const exact = byPrefix.find(
+      (d) => d.district.toLowerCase() === parsed.town.toLowerCase(),
     );
-    const canonical = exact || byPostcode[0];
+    const canonical = exact || byPrefix[0];
 
     setAddressQuery(formatAddressLine(parsed));
     setSelectedAddress({
       line1: formatAddressLine(parsed),
       line2: "",
-      town: canonical.suburb,
-      postcode: canonical.postcode,
+      town: canonical.district,
+      postcode: canonical.prefix,
     });
     setShowAddressDropdown(false);
     setAddressResults([]);

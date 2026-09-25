@@ -6,10 +6,10 @@
  * who previously verified their address sees the same UX here.
  *
  * Key invariants:
- *   - Only addresses parseable as NSW are offered.
- *   - The selection is rejected unless its postcode is in our
- *     Sydney service area (sourced from /api/sydney-postcodes).
- *   - The dialog persists ONLY suburb + postcode — settings doesn't
+ *   - Only addresses parseable as UK addresses are offered.
+ *   - The selection is rejected unless its postcode resolves to a
+ *     served London district (sourced from /api/london-districts).
+ *   - The dialog persists ONLY district + prefix — settings doesn't
  *     hold a street-line column for users.
  *
  * No manual override path: typed addresses that don't match any
@@ -34,6 +34,7 @@ import {
   parseUkAddress,
   toTitleCase,
   type ParsedAddress,
+  toServedPrefix,
 } from "@/lib/uk-contact";
 
 interface AddressApiResult {
@@ -76,7 +77,7 @@ export function AddressPickerDialog({
   const [notInArea, setNotInArea] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, startSaving] = useTransition();
-  const [sydneyPostcodes, setSydneyPostcodes] = useState<Set<string>>(
+  const [servedPrefixes, setServedPrefixes] = useState<Set<string>>(
     new Set(),
   );
 
@@ -99,10 +100,10 @@ export function AddressPickerDialog({
   }, [open]);
 
   useEffect(() => {
-    fetch("/api/sydney-postcodes")
+    fetch("/api/london-districts")
       .then((res) => res.json())
-      .then((data: { suburb: string; postcode: string }[]) => {
-        setSydneyPostcodes(new Set(data.map((d) => d.postcode)));
+      .then((data: { district: string; prefix: string; label: string }[]) => {
+        setServedPrefixes(new Set(data.map((d) => d.prefix)));
       })
       .catch(() => {
         // Service-area check fails closed when the API can't be
@@ -169,7 +170,10 @@ export function AddressPickerDialog({
       setShowDropdown(false);
       return;
     }
-    if (sydneyPostcodes.size > 0 && !sydneyPostcodes.has(parsed.postcode)) {
+    if (
+      servedPrefixes.size > 0 &&
+      toServedPrefix(parsed.postcode, servedPrefixes) === null
+    ) {
       setNotInArea(true);
       setSelected(null);
       setQuery(toTitleCase(result.ssla || result.sla));

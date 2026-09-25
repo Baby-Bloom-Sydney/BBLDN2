@@ -5,9 +5,23 @@ import { useRouter } from "next/navigation";
 import { Search, MapPin, Loader2, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface SuburbEntry {
-  suburb: string;
-  postcode: string;
+/** A row of `/api/london-districts` — district name, prefix, stored label. */
+interface DistrictEntry {
+  district: string;
+  prefix: string;
+  label: string;
+}
+
+// A prefix query like "E1" substring-matches SE1, E10, E11 … so an exact or
+// leading prefix match has to outrank them, or the district the family typed
+// never reaches the eight-row dropdown (ADR-188: prefixes are 2-4 characters,
+// unlike the 4-digit postcode this replaced, where `includes` was harmless).
+function rankDistrict(d: DistrictEntry, q: string): number {
+  const prefix = d.prefix.toLowerCase();
+  if (prefix === q) return 0;
+  if (prefix.startsWith(q)) return 1;
+  if (d.district.toLowerCase().startsWith(q)) return 2;
+  return 3;
 }
 
 // Matches parent form constants exactly
@@ -33,11 +47,11 @@ export function QuickMatch() {
   const router = useRouter();
 
   // Suburb autocomplete state
-  const [suburbs, setSuburbs] = useState<SuburbEntry[]>([]);
+  const [districts, setDistricts] = useState<DistrictEntry[]>([]);
   const [query, setQuery] = useState("");
-  const [filtered, setFiltered] = useState<SuburbEntry[]>([]);
+  const [filtered, setFiltered] = useState<DistrictEntry[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [selectedSuburb, setSelectedSuburb] = useState<SuburbEntry | null>(null);
+  const [selectedDistrict, setSelectedDistrict] = useState<DistrictEntry | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Availability state — matches parent form pattern: select days, then time blocks per day
@@ -101,11 +115,11 @@ export function QuickMatch() {
     };
   }, [isInputFocused, query.length]);
 
-  // Load suburbs on mount
+  // Load served districts on mount
   useEffect(() => {
-    fetch("/api/sydney-postcodes")
+    fetch("/api/london-districts")
       .then((res) => res.json())
-      .then((d: SuburbEntry[]) => setSuburbs(d))
+      .then((d: DistrictEntry[]) => setDistricts(d))
       .catch(() => {});
   }, []);
 
@@ -122,11 +136,20 @@ export function QuickMatch() {
 
   const handleSuburbChange = (val: string) => {
     setQuery(val);
-    setSelectedSuburb(null);
+    setSelectedDistrict(null);
     if (val.trim().length >= 2) {
       const q = val.toLowerCase().trim();
-      const matches = suburbs
-        .filter((s) => s.suburb.toLowerCase().includes(q) || s.postcode.includes(q))
+      const matches = districts
+        .filter(
+          (d) =>
+            d.district.toLowerCase().includes(q) ||
+            d.prefix.toLowerCase().includes(q)
+        )
+        .sort(
+          (a, b) =>
+            rankDistrict(a, q) - rankDistrict(b, q) ||
+            a.district.localeCompare(b.district)
+        )
         .slice(0, 8);
       setFiltered(matches);
       setShowDropdown(matches.length > 0);
@@ -136,10 +159,10 @@ export function QuickMatch() {
     }
   };
 
-  const handleSuburbSelect = (entry: SuburbEntry) => {
-    setQuery(`${entry.suburb}, ${entry.postcode}`);
+  const handleSuburbSelect = (entry: DistrictEntry) => {
+    setQuery(entry.label);
     setShowDropdown(false);
-    setSelectedSuburb(entry);
+    setSelectedDistrict(entry);
     setPrompt(null);
   };
 
@@ -190,10 +213,10 @@ export function QuickMatch() {
       return blocks.length > 0;
     });
 
-  const canSearch = selectedSuburb !== null && allDaysHaveBrackets;
+  const canSearch = selectedDistrict !== null && allDaysHaveBrackets;
 
   const handleSearch = () => {
-    if (!canSearch || !selectedSuburb) return;
+    if (!canSearch || !selectedDistrict) return;
 
     setLoading(true);
     setError(null);
@@ -201,8 +224,8 @@ export function QuickMatch() {
     sessionStorage.setItem(
       "bb-quick-match",
       JSON.stringify({
-        suburb: selectedSuburb.suburb,
-        postcode: selectedSuburb.postcode,
+        suburb: selectedDistrict.district,
+        postcode: selectedDistrict.prefix,
         availability,
       })
     );
@@ -257,12 +280,12 @@ export function QuickMatch() {
                   <div className="absolute z-50 bottom-full mb-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg max-h-48 overflow-y-auto">
                     {filtered.map((entry) => (
                       <button
-                        key={`${entry.suburb}-${entry.postcode}`}
+                        key={`${entry.district}-${entry.prefix}`}
                         type="button"
                         onClick={() => handleSuburbSelect(entry)}
                         className="w-full px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-violet-50 hover:text-violet-700 transition-colors"
                       >
-                        {entry.suburb}, {entry.postcode}
+                        {entry.label}
                       </button>
                     ))}
                   </div>
@@ -271,7 +294,7 @@ export function QuickMatch() {
             </div>
 
             {/* Day + time selection — matches parent form pattern */}
-            {selectedSuburb && (
+            {selectedDistrict && (
             <div className="space-y-4">
               <label className="text-sm font-medium text-slate-700 block text-center">
                 Which days do you need childcare?
@@ -386,7 +409,7 @@ export function QuickMatch() {
               className="w-full bg-violet-500 hover:bg-violet-600 h-11 text-sm"
               disabled={loading}
               onClick={() => {
-                if (!selectedSuburb) {
+                if (!selectedDistrict) {
                   setPrompt("Enter your suburb to get started");
                   return;
                 }

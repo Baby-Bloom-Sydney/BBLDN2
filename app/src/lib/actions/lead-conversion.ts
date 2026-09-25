@@ -125,7 +125,7 @@ export async function signUpAndConvertLead(
       language_preference_details:
         (fd.language_preference_details as string) ?? null,
       suburb: (fd.suburb as string) ?? null,
-      postcode: (fd.postcode as number) ?? null,
+      postcode: (fd.postcode as string) ?? null,
       schedule_type: (fd.schedule_type as string) ?? null,
       urgency: (fd.urgency as string) ?? null,
       start_date: (fd.start_date as string) ?? null,

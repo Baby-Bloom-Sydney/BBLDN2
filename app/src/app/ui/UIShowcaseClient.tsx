@@ -27,7 +27,7 @@ import {
   MOCK_POSITION_WITH_CHILDREN,
   MOCK_POSITION_SHARE_DATA,
   MOCK_PARENT_BSR_REQUESTS,
-  MOCK_SUBURBS,
+  MOCK_DISTRICTS,
   MOCK_BSR_PROFILE,
   MOCK_BSR_SHARE_DATA,
   MOCK_PARENT_VERIFICATION_DATA,
@@ -1123,7 +1123,7 @@ export function UIShowcaseClient({
 
           {/* CMP-064 ParentBabysittingClient */}
           <PageClientShowcase code="CMP-064" name="ParentBabysittingClient" slug="parent-babysitting">
-            <ParentBabysittingClient requests={MOCK_PARENT_BSR_REQUESTS} suburbs={MOCK_SUBURBS} />
+            <ParentBabysittingClient requests={MOCK_PARENT_BSR_REQUESTS} districts={MOCK_DISTRICTS} />
           </PageClientShowcase>
 
           {/* CMP-065 BsrPaymentClient */}

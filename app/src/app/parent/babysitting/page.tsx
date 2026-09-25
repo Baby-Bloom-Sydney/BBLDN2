@@ -1,12 +1,12 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
-import { getParentBabysittingRequests, getSydneySuburbs } from "@/lib/actions/babysitting";
+import { getParentBabysittingRequests, getLondonDistricts } from "@/lib/actions/babysitting";
 import { ParentBabysittingClient } from "./ParentBabysittingClient";
 
 export default async function ParentBabysittingPage() {
-  const [{ data: requests, error }, suburbs] = await Promise.all([
+  const [{ data: requests, error }, districts] = await Promise.all([
     getParentBabysittingRequests(),
-    getSydneySuburbs(),
+    getLondonDistricts(),
   ]);
 
   if (error) {
@@ -26,5 +26,5 @@ export default async function ParentBabysittingPage() {
     );
   }
 
-  return <ParentBabysittingClient requests={requests} suburbs={suburbs} />;
+  return <ParentBabysittingClient requests={requests} districts={districts} />;
 }

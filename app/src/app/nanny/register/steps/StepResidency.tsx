@@ -288,11 +288,11 @@ export function StepResidency({ data, updateData, goNext, goBack }: StepProps) {
   const sydneyResidentAnswered = sydneyResident !== null;
 
   const showSuburbPostcode = sydneyResident === true;
+  // ADR-188: a London postcode district prefix is 2-4 alphanumerics
+  // ("E1", "SW4", "SW20"), never a four-digit number, so there is no
+  // numeric range to bound it by.
   const suburbPostcodeValid =
-    !!data.suburb &&
-    !!data.postcode &&
-    Number(data.postcode) >= 2000 &&
-    Number(data.postcode) <= 2999;
+    !!data.suburb?.trim() && !!data.postcode?.trim();
 
   // Nav button: hidden unless sydney residency satisfied
   const canContinue =
@@ -403,11 +403,11 @@ export function StepResidency({ data, updateData, goNext, goBack }: StepProps) {
             <div className="space-y-4">
               <div className="space-y-2">
                 <p className="text-sm font-medium text-slate-700">
-                  Which suburb do you currently live?
+                  Which area do you currently live in?
                 </p>
                 <Input
                   type="text"
-                  placeholder="Eg: Bondi"
+                  placeholder="Eg: Clapham"
                   value={data.suburb ?? ""}
                   onChange={(e) =>
                     updateData({ suburb: e.target.value || null })
@@ -416,10 +416,8 @@ export function StepResidency({ data, updateData, goNext, goBack }: StepProps) {
               </div>
               <div className="space-y-2">
                 <Input
-                  type="number"
-                  placeholder="Eg: 2026"
-                  min={2000}
-                  max={2999}
+                  type="text"
+                  placeholder="Eg: SW4"
                   value={data.postcode ?? ""}
                   onChange={(e) =>
                     updateData({ postcode: e.target.value || null })

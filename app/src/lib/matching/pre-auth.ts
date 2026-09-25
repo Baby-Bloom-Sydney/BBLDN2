@@ -45,7 +45,7 @@ export async function runPreAuthMatching(leadId: string): Promise<MatchingResult
     schedule_type: (fd.schedule_type as string) ?? null,
     urgency: (fd.urgency as string) ?? null,
     suburb: (fd.suburb as string) ?? null,
-    postcode: (fd.postcode as number) ?? null,
+    postcode: (fd.postcode as string) ?? null,
     details: {
       child_needs: fd.child_needs_yn === 'Yes',
       focus_type: (fd.focus_type as string) ?? null,

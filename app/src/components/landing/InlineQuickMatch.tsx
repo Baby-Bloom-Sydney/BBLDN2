@@ -5,9 +5,23 @@ import { useRouter } from "next/navigation";
 import { Search, MapPin, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface SuburbEntry {
-  suburb: string;
-  postcode: string;
+/** A row of `/api/london-districts` — district name, prefix, stored label. */
+interface DistrictEntry {
+  district: string;
+  prefix: string;
+  label: string;
+}
+
+// A prefix query like "E1" substring-matches SE1, E10, E11 … so an exact or
+// leading prefix match has to outrank them, or the district the family typed
+// never reaches the eight-row dropdown (ADR-188: prefixes are 2-4 characters,
+// unlike the 4-digit postcode this replaced, where `includes` was harmless).
+function rankDistrict(d: DistrictEntry, q: string): number {
+  const prefix = d.prefix.toLowerCase();
+  if (prefix === q) return 0;
+  if (prefix.startsWith(q)) return 1;
+  if (d.district.toLowerCase().startsWith(q)) return 2;
+  return 3;
 }
 
 const DAY_OPTIONS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -32,11 +46,11 @@ export function InlineQuickMatch() {
   const router = useRouter();
 
   // Suburb
-  const [suburbs, setSuburbs] = useState<SuburbEntry[]>([]);
+  const [districts, setDistricts] = useState<DistrictEntry[]>([]);
   const [query, setQuery] = useState("");
-  const [filtered, setFiltered] = useState<SuburbEntry[]>([]);
+  const [filtered, setFiltered] = useState<DistrictEntry[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [selectedSuburb, setSelectedSuburb] = useState<SuburbEntry | null>(null);
+  const [selectedDistrict, setSelectedDistrict] = useState<DistrictEntry | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Availability
@@ -48,9 +62,9 @@ export function InlineQuickMatch() {
   const [prompt, setPrompt] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/sydney-postcodes")
+    fetch("/api/london-districts")
       .then((res) => res.json())
-      .then((d: SuburbEntry[]) => setSuburbs(d))
+      .then((d: DistrictEntry[]) => setDistricts(d))
       .catch(() => {});
   }, []);
 
@@ -66,11 +80,20 @@ export function InlineQuickMatch() {
 
   const handleSuburbChange = (val: string) => {
     setQuery(val);
-    setSelectedSuburb(null);
+    setSelectedDistrict(null);
     if (val.trim().length >= 2) {
       const q = val.toLowerCase().trim();
-      const matches = suburbs
-        .filter((s) => s.suburb.toLowerCase().includes(q) || s.postcode.includes(q))
+      const matches = districts
+        .filter(
+          (d) =>
+            d.district.toLowerCase().includes(q) ||
+            d.prefix.toLowerCase().includes(q)
+        )
+        .sort(
+          (a, b) =>
+            rankDistrict(a, q) - rankDistrict(b, q) ||
+            a.district.localeCompare(b.district)
+        )
         .slice(0, 8);
       setFiltered(matches);
       setShowDropdown(matches.length > 0);
@@ -80,10 +103,10 @@ export function InlineQuickMatch() {
     }
   };
 
-  const handleSuburbSelect = (entry: SuburbEntry) => {
-    setQuery(`${entry.suburb}, ${entry.postcode}`);
+  const handleSuburbSelect = (entry: DistrictEntry) => {
+    setQuery(entry.label);
     setShowDropdown(false);
-    setSelectedSuburb(entry);
+    setSelectedDistrict(entry);
     setPrompt(null);
   };
 
@@ -124,16 +147,16 @@ export function InlineQuickMatch() {
       return blocks.length > 0;
     });
 
-  const canSearch = selectedSuburb !== null && allDaysHaveBrackets;
+  const canSearch = selectedDistrict !== null && allDaysHaveBrackets;
 
   const handleSearch = () => {
-    if (!canSearch || !selectedSuburb) return;
+    if (!canSearch || !selectedDistrict) return;
     setLoading(true);
     sessionStorage.setItem(
       "bb-quick-match",
       JSON.stringify({
-        suburb: selectedSuburb.suburb,
-        postcode: selectedSuburb.postcode,
+        suburb: selectedDistrict.district,
+        postcode: selectedDistrict.prefix,
         availability,
       })
     );
@@ -261,19 +284,19 @@ export function InlineQuickMatch() {
               value={query}
               onChange={(e) => handleSuburbChange(e.target.value)}
               onFocus={() => { if (filtered.length > 0) setShowDropdown(true); }}
-              placeholder="Search suburb or postcode..."
+              placeholder="Search area or postcode..."
               className="w-full h-10 pl-10 pr-4 rounded-lg border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 transition-colors"
             />
             {showDropdown && filtered.length > 0 && (
               <div className="absolute z-50 bottom-full mb-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg max-h-48 overflow-y-auto">
                 {filtered.map((entry) => (
                   <button
-                    key={`${entry.suburb}-${entry.postcode}`}
+                    key={`${entry.district}-${entry.prefix}`}
                     type="button"
                     onClick={() => handleSuburbSelect(entry)}
                     className="w-full px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-violet-50 hover:text-violet-700 transition-colors"
                   >
-                    {entry.suburb}, {entry.postcode}
+                    {entry.label}
                   </button>
                 ))}
               </div>
@@ -295,7 +318,7 @@ export function InlineQuickMatch() {
             setPrompt("Choose time slots for your selected days");
             return;
           }
-          if (!selectedSuburb) {
+          if (!selectedDistrict) {
             setPrompt("Enter your suburb to get started");
             return;
           }

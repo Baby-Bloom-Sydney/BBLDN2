@@ -61,7 +61,7 @@ export interface Position {
 
   // Location
   suburb: string | null;
-  postcode: number | null;
+  postcode: string | null;
 
   // Details (JSONB)
   details: Record<string, unknown> | null;

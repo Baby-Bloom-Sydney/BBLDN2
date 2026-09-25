@@ -8,6 +8,7 @@ import {
   parseUkAddress,
   formatAddressLine,
   toTitleCase,
+  toServedPrefix,
 } from "@/lib/uk-contact";
 
 // P-5 (BAI 2026-09-25): accept 07… or +44… at input, normalise internally to
@@ -188,5 +189,41 @@ describe("formatAddressLine", () => {
   it("omits the separator when there is no second line", () => {
     const parsed = parseUkAddress("12 BAKER STREET, MARYLEBONE NW1 6XE");
     expect(formatAddressLine(parsed!)).toBe("12 Baker Street");
+  });
+});
+
+// ADR-188: the served unit is the postcode district prefix ("SW1"), never its
+// sub-district ("SW1A"). A real London postcode carries the sub-district, so a
+// service-area gate that compares the outward code to the stored set rejects
+// every valid central-London address unless the sub-district letter is dropped.
+describe("toServedPrefix", () => {
+  // The shape of the seeded set: plain prefixes, 2-4 alphanumerics.
+  const served = new Set(["E1", "SW1", "SW4", "SW20", "EC1", "W1", "WC2", "N1"]);
+
+  it.each([
+    ["a prefix that is already the outward code", "SW4 7AA", "SW4"],
+    ["a four-character prefix", "SW20 8JD", "SW20"],
+    ["a two-character prefix", "E1 6AN", "E1"],
+    ["a sub-district of a served prefix", "SW1A 2AA", "SW1"],
+    ["another sub-district", "EC1M 4DZ", "EC1"],
+    ["a W1 sub-district", "W1D 3QF", "W1"],
+    ["lower case and extra spacing", "  wc2n  5du ", "WC2"],
+  ])("resolves %s", (_label, postcode, expected) => {
+    expect(toServedPrefix(postcode, served)).toBe(expected);
+  });
+
+  it.each([
+    ["an unserved Greater London district", "BR1 1AA"],
+    ["an address outside London entirely", "GU9 7PB"],
+    ["a bare four-digit number, the shape this replaced", "9999"],
+    ["empty", ""],
+  ])("returns null for %s", (_label, postcode) => {
+    expect(toServedPrefix(postcode, served)).toBeNull();
+  });
+
+  it("never invents a prefix by trimming twice", () => {
+    // "SW1AB" is not a real code; one trim gives "SW1A", which is not served,
+    // and the function must stop there rather than trimming again to "SW1".
+    expect(toServedPrefix("SW1AB 2AA", served)).toBeNull();
   });
 });

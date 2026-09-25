@@ -15,7 +15,7 @@ export async function saveParentLead(
         id: leadId,
         form_data: formData,
         suburb: (formData.suburb as string) ?? null,
-        postcode: (formData.postcode as number) ?? null,
+        postcode: (formData.postcode as string) ?? null,
       },
       { onConflict: 'id' }
     );

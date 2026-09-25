@@ -14,6 +14,7 @@ import {
   parseUkAddress,
   toTitleCase,
   type ParsedAddress,
+  toServedPrefix,
 } from "@/lib/uk-contact";
 
 interface AddressrResult {
@@ -65,15 +66,15 @@ export function ContactSection({
   const addressDropdownRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // sydney_postcodes for service area validation
-  const [sydneyPostcodes, setSydneyPostcodes] = useState<Set<string>>(
+  // london_districts for service area validation
+  const [servedPrefixes, setServedPrefixes] = useState<Set<string>>(
     new Set(),
   );
   useEffect(() => {
-    fetch("/api/sydney-postcodes")
+    fetch("/api/london-districts")
       .then((res) => res.json())
-      .then((data: { suburb: string; postcode: string }[]) => {
-        setSydneyPostcodes(new Set(data.map((d) => d.postcode)));
+      .then((data: { district: string; prefix: string; label: string }[]) => {
+        setServedPrefixes(new Set(data.map((d) => d.prefix)));
       })
       .catch(() => {});
   }, []);
@@ -140,7 +141,10 @@ export function ContactSection({
       return;
     }
 
-    if (sydneyPostcodes.size > 0 && !sydneyPostcodes.has(parsed.postcode)) {
+    if (
+      servedPrefixes.size > 0 &&
+      toServedPrefix(parsed.postcode, servedPrefixes) === null
+    ) {
       setNotInArea(true);
       setSelectedAddress(null);
       setAddressQuery(toTitleCase(result.ssla || result.sla));
