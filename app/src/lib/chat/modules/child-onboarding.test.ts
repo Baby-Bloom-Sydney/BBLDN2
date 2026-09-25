@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { APP_TZ } from "@/lib/constants";
 import {
   childOnboardingModule,
   renderOnboardingStateBlock,
@@ -328,7 +329,7 @@ describe("child-onboarding module — skeleton (Unit 2)", () => {
         waking_hours: {
           start: "07:00",
           end: "22:00",
-          timezone: "Australia/Sydney",
+          timezone: APP_TZ,
         },
       };
       expect(childOnboardingModule.enabledForBot?.(settings)).toBe(true);
@@ -680,7 +681,7 @@ describe("child-onboarding module — skeleton (Unit 2)", () => {
         waking_hours: {
           start: "07:00",
           end: "22:00",
-          timezone: "Australia/Sydney",
+          timezone: APP_TZ,
         },
         effective_role: "nanny",
       });
@@ -693,7 +694,7 @@ describe("child-onboarding module — skeleton (Unit 2)", () => {
       expect(settings.waking_hours).toEqual({
         start: "07:00",
         end: "22:00",
-        timezone: "Australia/Sydney",
+        timezone: APP_TZ,
       });
       expect(settings.effective_role).toBe("nanny");
     });

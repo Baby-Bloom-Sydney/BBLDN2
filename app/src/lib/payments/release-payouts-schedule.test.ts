@@ -3,7 +3,7 @@
  * registration in `vercel.json`. Bailey 2026-05-14: payouts must
  * actually fire once a day. Without this test, someone re-ordering
  * vercel.json could silently drop the entry. Re-anchored from
- * `0 21` (7am Sydney) to `0 7` (7am London) — 12.02, unit 2b.
+ * the old zone's 7am to `0 7` (7am London) — 12.02, unit 2b.
  */
 
 import { describe, it, expect } from "vitest";

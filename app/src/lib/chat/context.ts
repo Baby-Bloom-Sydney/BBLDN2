@@ -25,6 +25,7 @@ import { createHash } from "node:crypto";
 import { formatRelativeTime, classifyGap } from "@/lib/chat/relative-time";
 import type { PreloadedContext } from "@/lib/chat/preload/types";
 import { renderPreloadBlock } from "@/lib/chat/preload/render";
+import { APP_LOCALE, APP_TZ, BRAND } from "@/lib/constants";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -438,12 +439,12 @@ function buildVariables(ctx: BotContext): Record<string, string> {
     user_name: ctx.userName || "there",
     user_role: ctx.effectiveRole,
     current_date: now.toISOString().slice(0, 10),
-    day_of_week: now.toLocaleString("en-AU", { weekday: "long" }),
-    current_time: now.toLocaleString("en-AU", {
+    day_of_week: now.toLocaleString(APP_LOCALE, { weekday: "long" }),
+    current_time: now.toLocaleString(APP_LOCALE, {
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
-      timeZone: "Australia/Sydney",
+      timeZone: APP_TZ,
     }),
   };
 }
@@ -453,14 +454,14 @@ function renderRuntimeHeader(ctx: BotContext): string {
   const now = new Date();
   lines.push(`Date: ${now.toISOString().slice(0, 10)}`);
   lines.push(
-    `Day: ${now.toLocaleString("en-AU", { weekday: "long", timeZone: "Australia/Sydney" })}`,
+    `Day: ${now.toLocaleString(APP_LOCALE, { weekday: "long", timeZone: APP_TZ })}`,
   );
   lines.push(
-    `Local time (Sydney): ${now.toLocaleString("en-AU", {
+    `Local time (${BRAND.city}): ${now.toLocaleString(APP_LOCALE, {
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
-      timeZone: "Australia/Sydney",
+      timeZone: APP_TZ,
     })}`,
   );
 

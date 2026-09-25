@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { APP_TZ } from "@/lib/constants";
 import { katieSchedulingModule } from "./katie-scheduling";
 import type { ChildSummary, ModuleContext } from "./types";
 
@@ -25,7 +26,7 @@ function makeCtx(init?: Partial<State>): {
       waking_hours: {
         start: "07:00",
         end: "22:00",
-        timezone: "Australia/Sydney",
+        timezone: APP_TZ,
       },
     },
   };
@@ -167,7 +168,7 @@ describe("katie-scheduling — create_schedule", () => {
         cron_expr: "0 8 * * *",
         mode: "ai-minimal",
         prompt_fragment: "Give a one-line morning nudge.",
-        timezone: "Australia/Sydney",
+        timezone: APP_TZ,
       },
       ctx,
     );
@@ -316,7 +317,7 @@ describe("katie-scheduling — update_schedule", () => {
           description: "x",
           cron_expr: "0 8 * * *",
           one_time_at: null,
-          timezone: "Australia/Sydney",
+          timezone: APP_TZ,
           next_run_at: "2026-05-01T22:00:00Z",
           mode: "template",
           template: "t",
@@ -340,14 +341,14 @@ describe("katie-scheduling — set_waking_hours", () => {
     const { ctx, state } = makeCtx();
     const r = await katieSchedulingModule.execute(
       "set_waking_hours",
-      { start: "06:30", end: "21:30", timezone: "Australia/Sydney" },
+      { start: "06:30", end: "21:30", timezone: APP_TZ },
       ctx,
     );
     expect(r.success).toBe(true);
     expect(state.botSettings.waking_hours).toEqual({
       start: "06:30",
       end: "21:30",
-      timezone: "Australia/Sydney",
+      timezone: APP_TZ,
     });
   });
 

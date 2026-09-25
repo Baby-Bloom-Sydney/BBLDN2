@@ -11,18 +11,19 @@
  *                       dispatcher knows when it's allowed to fire
  *
  * Cron expressions parsed via `cron-parser`. next_run_at is computed in
- * the caller's timezone (default Australia/Sydney) so Sydney users get
- * Sydney-local timing even when the server lives elsewhere.
+ * the caller's timezone (default `APP_TZ`) so users get local timing even
+ * when the server lives elsewhere.
  */
 
 import { CronExpressionParser } from "cron-parser";
 import type { BloomBotModule, ToolResult } from "./types";
 import { resolveChild } from "./utils";
+import { APP_TZ, BRAND } from "@/lib/constants";
 
 const MODES = ["template", "ai-minimal", "ai-full"] as const;
 type Mode = (typeof MODES)[number];
 
-const DEFAULT_TZ = "Australia/Sydney";
+const DEFAULT_TZ = APP_TZ;
 
 function nextRunFromCron(expr: string, tz: string): string {
   const it = CronExpressionParser.parse(expr, { tz });
@@ -450,7 +451,7 @@ export const katieSchedulingModule: BloomBotModule = {
           timezone: {
             type: "string",
             description:
-              "IANA timezone for cron_expr. Defaults to Australia/Sydney.",
+              `IANA timezone for cron_expr. Defaults to ${APP_TZ}.`,
           },
           mode: {
             type: "string",
@@ -531,7 +532,7 @@ export const katieSchedulingModule: BloomBotModule = {
           end: { type: "string", description: "HH:MM (24h), e.g. '22:00'." },
           timezone: {
             type: "string",
-            description: "IANA timezone. Default Australia/Sydney.",
+            description: `IANA timezone. Default ${APP_TZ}.`,
           },
         },
         required: ["start", "end"],
@@ -549,5 +550,5 @@ export const katieSchedulingModule: BloomBotModule = {
   },
 
   systemPromptFragment:
-    "You schedule your own proactive messages via `create_schedule`. Prefer cron_expr for routines (morning nudge, weekly overview) and one_time_at for specific reminders. Always pair each schedule with a clear `description` so future-you can reason about it via read_schedules. Respect the user's waking hours — ask once via `set_waking_hours` if they haven't set them; default is 07:00–22:00 Sydney.",
+    `You schedule your own proactive messages via \`create_schedule\`. Prefer cron_expr for routines (morning nudge, weekly overview) and one_time_at for specific reminders. Always pair each schedule with a clear \`description\` so future-you can reason about it via read_schedules. Respect the user's waking hours — ask once via \`set_waking_hours\` if they haven't set them; default is 07:00–22:00 ${BRAND.city}.`,
 };

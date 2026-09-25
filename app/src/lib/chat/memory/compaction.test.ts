@@ -1,12 +1,13 @@
 import { describe, it, expect } from "vitest";
+import { APP_TZ } from "@/lib/constants";
 import { dayWindow, summariseMessagesFallback } from "./compaction";
 
 describe("dayWindow", () => {
   it("returns start-of-day UTC and next-day-start UTC for a given ISO date", () => {
-    const w = dayWindow("2026-04-23", "Australia/Sydney");
-    // Sydney is UTC+10 on 2026-04-23 (AEST); local midnight = previous UTC 14:00
-    expect(w.startUtc).toBe("2026-04-22T14:00:00.000Z");
-    expect(w.endUtc).toBe("2026-04-23T14:00:00.000Z");
+    const w = dayWindow("2026-04-23", APP_TZ);
+    // London is UTC+1 on 2026-04-23 (BST); local midnight = previous UTC 23:00
+    expect(w.startUtc).toBe("2026-04-22T23:00:00.000Z");
+    expect(w.endUtc).toBe("2026-04-23T23:00:00.000Z");
     expect(w.dateIso).toBe("2026-04-23");
   });
 });

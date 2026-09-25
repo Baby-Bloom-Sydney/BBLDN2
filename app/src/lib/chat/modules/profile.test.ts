@@ -44,8 +44,8 @@ function nannyFixture(overrides: Record<string, unknown> = {}) {
     email: "jess@example.com",
     mobile_number: null,
     date_of_birth: null,
-    suburb: "Bondi",
-    postcode: "2026",
+    suburb: "Clapham",
+    postcode: "SW4",
     profile_picture_url: "https://example.com/pp.jpg",
     gender: null,
     nationality: null,
@@ -214,7 +214,7 @@ describe("profile module — read_my_profile (parent)", () => {
     vi.mocked(getPosition).mockResolvedValue({
       data: {
         id: "pos-1",
-        suburb: "Mosman",
+        suburb: "Chelsea",
         hours_per_week: 30,
         days_required: ["Monday", "Tuesday", "Wednesday"],
         hourly_rate: 40,
@@ -227,7 +227,7 @@ describe("profile module — read_my_profile (parent)", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data: {
         nannyName: "Jess Mahoney",
-        nannySuburb: "Bondi",
+        nannySuburb: "Clapham",
         weeklyHours: 30,
         hourlyRate: 45,
         hiredAt: "2026-03-01T00:00:00Z",
@@ -363,7 +363,7 @@ describe("profile module — tile emission (WU 8.18)", () => {
     vi.mocked(getPosition).mockResolvedValue({
       data: {
         id: "pos-1",
-        suburb: "Mosman",
+        suburb: "Chelsea",
         hours_per_week: 30,
         days_required: ["Mon", "Tue"],
         hourly_rate: 40,
@@ -375,7 +375,7 @@ describe("profile module — tile emission (WU 8.18)", () => {
     vi.mocked(getParentPlacement).mockResolvedValue({
       data: {
         nannyName: "Jess",
-        nannySuburb: "Bondi",
+        nannySuburb: "Clapham",
         weeklyHours: 30,
         hourlyRate: 45,
         hiredAt: "2026-03-01T00:00:00Z",
@@ -389,7 +389,7 @@ describe("profile module — tile emission (WU 8.18)", () => {
       makeCtx("parent"),
     );
     const td = expectKatieNoteTile(r.tile);
-    expect(td.body).toMatch(/Mosman/);
+    expect(td.body).toMatch(/Chelsea/);
     expect(td.body).toMatch(/Jess/);
     expect(td.action?.href).toBe("/parent");
   });
@@ -402,7 +402,7 @@ describe("profile module — tile emission (WU 8.18)", () => {
     vi.mocked(getPosition).mockResolvedValue({
       data: {
         id: "pos-1",
-        suburb: "Surry Hills",
+        suburb: "Islington",
         urgency: "As soon as possible",
         start_date: "2026-05-01",
         hours_per_week: 25,
@@ -454,7 +454,7 @@ describe("profile module — tile emission (WU 8.18)", () => {
       data: {
         id: "placement-1",
         nannyName: "Jess Mahoney",
-        nannySuburb: "Bondi",
+        nannySuburb: "Clapham",
         weeklyHours: 30,
         hourlyRate: 45,
         hiredAt: "2026-03-01T00:00:00Z",

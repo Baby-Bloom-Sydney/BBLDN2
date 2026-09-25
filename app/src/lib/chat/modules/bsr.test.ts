@@ -31,8 +31,8 @@ function buildNannyJob(overrides: Record<string, unknown> = {}) {
     id: "j1",
     title: "Saturday evening sitter",
     special_requirements: null,
-    suburb: "Bondi",
-    postcode: "2026",
+    suburb: "Clapham",
+    postcode: "SW4",
     address: null,
     hourly_rate: 45,
     estimated_total: 180,
@@ -185,7 +185,7 @@ describe("bsr module — read_my_requests (parent)", () => {
         {
           id: "r1",
           title: "Sat night",
-          suburb: "Mosman",
+          suburb: "Chelsea",
           hourly_rate: 50,
           estimated_total: 200,
           status: "active",
@@ -196,7 +196,7 @@ describe("bsr module — read_my_requests (parent)", () => {
         {
           id: "r2",
           title: "Paid one",
-          suburb: "Bondi",
+          suburb: "Clapham",
           hourly_rate: 45,
           estimated_total: 180,
           status: "pending_payment",
@@ -207,7 +207,7 @@ describe("bsr module — read_my_requests (parent)", () => {
         {
           id: "r3",
           title: "Past",
-          suburb: "Bondi",
+          suburb: "Clapham",
           hourly_rate: 40,
           estimated_total: 160,
           status: "completed",

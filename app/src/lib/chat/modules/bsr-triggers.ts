@@ -19,6 +19,7 @@
  */
 
 import type { ProactiveTrigger } from "./types";
+import { BRAND } from "@/lib/constants";
 
 function str(value: unknown, fallback: string): string {
   return typeof value === "string" && value.length > 0 ? value : fallback;
@@ -35,7 +36,7 @@ export const bsrTriggers: ProactiveTrigger[] = [
       "New babysitting invitation — {when} in {suburb}, about {distance}. Worth checking in your inbox before someone else gets it.",
     resolvePayload: async (event) => ({
       when: str(event.payload.when, "soon"),
-      suburb: str(event.payload.suburb, "Sydney"),
+      suburb: str(event.payload.suburb, BRAND.city),
       distance: str(event.payload.distance, "nearby"),
       bsr_id: str(event.payload.bsr_id, ""),
     }),

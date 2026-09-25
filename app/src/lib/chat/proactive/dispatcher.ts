@@ -7,7 +7,7 @@
  *
  * Policy:
  *   - Only fire when now() is inside bot.settings.waking_hours
- *     (default 07:00–22:00 Australia/Sydney).
+ *     (default 07:00–22:00 `APP_TZ`).
  *   - Template mode renders verbatim with {child_name}/{today}
  *     interpolation. No AI cost.
  *   - ai-minimal mode makes one Gemini call with a minimal system
@@ -37,6 +37,7 @@ import { updateDailyCost } from "@/lib/chat/cost-tracker";
 import { getUserChildren } from "@/lib/chat/bot";
 import { runScheduledAgenticLoop } from "./agentic-loop";
 import type { BotSettings } from "@/types/bapp";
+import { APP_TZ } from "@/lib/constants";
 
 export interface WakingHours {
   start: string; // HH:MM
@@ -47,7 +48,7 @@ export interface WakingHours {
 const DEFAULT_WAKING: WakingHours = {
   start: "07:00",
   end: "22:00",
-  timezone: "Australia/Sydney",
+  timezone: APP_TZ,
 };
 
 function parseHHMMToMinutes(s: string): number | null {

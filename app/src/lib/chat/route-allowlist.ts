@@ -17,6 +17,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { BotRole } from "@/lib/ai/model-selector";
+import { SENDERS } from "@/lib/constants";
 
 interface ManifestPage {
   path: string;
@@ -141,7 +142,7 @@ export function buildRouteAllowlistPrompt(role: BotRole): string {
     "",
     '2. **Features.** Your capabilities are defined by the **What You Can Do** section above and each module\'s tool list and **Not yet wired** notes. If the user asks for something that is not in those, the feature is NOT BUILT YET. Do NOT invent a UI affordance (e.g. "toggle Hidden in your profile") to make it sound plausible — there have been hallucinated toggles before, and they break user trust when the user goes looking and the toggle is not there.',
     "",
-    "When the request is not buildable from the allowed URLs and capabilities: acknowledge it, say it is not available yet, and suggest emailing support@babybloomsydney.com.au if they need it now. Do not pretend.",
+    `When the request is not buildable from the allowed URLs and capabilities: acknowledge it, say it is not available yet, and suggest emailing ${SENDERS.support} if they need it now. Do not pretend.`,
     "",
   ];
 

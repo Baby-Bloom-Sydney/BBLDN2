@@ -22,7 +22,7 @@ BEGIN;
 
 DO $$
 DECLARE
-  target_email   text := 'nannies@babybloomsydney.com.au';  -- ← edit me
+  target_email   text := 'nannies@babybloomlondon.co.uk';  -- ← edit me
   v_user_id      uuid;
   v_parent_id    uuid;
   v_position_ids uuid[];
@@ -76,5 +76,5 @@ COMMIT;
 -- Verify afterwards (should return 0 rows):
 --
 --   SELECT id, email FROM auth.users
---   WHERE email = 'nannies@babybloomsydney.com.au';
+--   WHERE email = 'nannies@babybloomlondon.co.uk';
 -- ─────────────────────────────────────────────────────────────────────

@@ -11,6 +11,7 @@
  */
 
 import type { ProactiveTrigger } from "./types";
+import { BRAND } from "@/lib/constants";
 
 /**
  * Type-safe payload read — returns the string value only when the
@@ -32,7 +33,7 @@ export const connectionsTriggers: ProactiveTrigger[] = [
       "New request from {family_name}. They're in {suburb} and want to meet. You've got 3 days to respond — want me to walk you through accept or decline?",
     resolvePayload: async (event) => ({
       family_name: str(event.payload.family_name, "a family"),
-      suburb: str(event.payload.suburb, "Sydney"),
+      suburb: str(event.payload.suburb, BRAND.city),
       connection_id: str(event.payload.connection_id, ""),
     }),
   },

@@ -42,8 +42,8 @@ function buildNannyJob(overrides: Record<string, unknown> = {}) {
     id: "j1",
     title: null,
     special_requirements: null,
-    suburb: "Bondi",
-    postcode: "2026",
+    suburb: "Clapham",
+    postcode: "SW4",
     address: null,
     hourly_rate: 45,
     estimated_total: 180,
@@ -80,7 +80,7 @@ function buildParentRow(overrides: Record<string, unknown> = {}) {
   return {
     id: "r1",
     title: "Saturday sitter",
-    suburb: "Mosman",
+    suburb: "Chelsea",
     hourly_rate: 50,
     estimated_total: 200,
     status: "active",
@@ -491,7 +491,7 @@ describe("bsr module — accept_nanny (mandatory 2-turn + phone reveal)", () => 
       success: true,
       error: null,
       nannyFirstName: "Jessica",
-      nannyPhone: "0412 345 678",
+      nannyPhone: "07700 900123",
     });
     const r = await bsrModule.execute(
       "apply_accept_nanny",
@@ -502,8 +502,8 @@ describe("bsr module — accept_nanny (mandatory 2-turn + phone reveal)", () => 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data = r.data as any;
     expect(data.nanny_first_name).toBe("Jessica");
-    expect(data.nanny_phone).toBe("0412 345 678");
-    expect(String(data.message)).toContain("0412 345 678");
+    expect(data.nanny_phone).toBe("07700 900123");
+    expect(String(data.message)).toContain("07700 900123");
   });
 });
 

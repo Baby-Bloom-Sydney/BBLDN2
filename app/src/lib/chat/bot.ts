@@ -7,6 +7,7 @@ import type { BotRole } from "@/lib/ai/model-selector";
 import type { ChildSummary } from "@/lib/chat/context";
 import type { BotSettings } from "@/types/bapp";
 import { seedDefaultSchedules } from "@/lib/chat/proactive/seed-defaults";
+import { APP_TZ } from "@/lib/constants";
 
 export interface BotRecord {
   id: string;
@@ -57,7 +58,7 @@ export async function getOrCreateBot(
         waking_hours: {
           start: "07:00",
           end: "22:00",
-          timezone: "Australia/Sydney",
+          timezone: APP_TZ,
         },
       },
     })
@@ -99,7 +100,7 @@ export async function getOrCreateBot(
     const children = await getUserChildren(userId, role);
     const tz =
       (created.settings as { waking_hours?: { timezone?: string } } | null)
-        ?.waking_hours?.timezone ?? "Australia/Sydney";
+        ?.waking_hours?.timezone ?? APP_TZ;
     await seedDefaultSchedules(admin, created.id, children, tz);
   } catch (e) {
     console.warn("[bloombot] seed default schedules failed", e);

@@ -119,7 +119,7 @@ function makeAdminPosition(): Row {
     id: ADMIN_POSITION_ID,
     parent_id: SYSTEM_PARENT_ID,
     family_display_name: "Test Admin Family",
-    suburb: "Bondi",
+    suburb: "Clapham",
     hourly_rate: 38,
     hours_per_week: 25,
     schedule_type: "Fixed",
@@ -147,7 +147,7 @@ function makeParentPosition(): Row {
     id: PARENT_POSITION_ID,
     parent_id: REAL_PARENT_ID,
     family_display_name: null,
-    suburb: "Surry Hills",
+    suburb: "Islington",
     hourly_rate: 42,
     hours_per_week: 30,
     schedule_type: "Flexible",
@@ -235,7 +235,7 @@ describe("listAdminPositions — full read access (T-044)", () => {
     const result = await listAdminPositions({});
 
     expect((result.positions[0] as Row).family_display_name).toBe(
-      "Smith (Surry Hills)",
+      "Smith (Islington)",
     );
   });
 
@@ -282,7 +282,7 @@ describe("listAdminPositions — full read access (T-044)", () => {
     const result = await listAdminPositions({});
 
     expect((result.positions[0] as Row).family_display_name).toBe(
-      "(Surry Hills)",
+      "(Islington)",
     );
   });
 });
@@ -327,7 +327,7 @@ describe("getAdminPosition — full read access (T-044)", () => {
     const result = await getAdminPosition(PARENT_POSITION_ID);
 
     expect((result.position as Row).family_display_name).toBe(
-      "Smith (Surry Hills)",
+      "Smith (Islington)",
     );
   });
 

@@ -64,7 +64,7 @@ describe("onboarding module — read_onboarding_progress", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data: {
         id: "p1",
-        suburb: "Bondi",
+        suburb: "Clapham",
         hours_per_week: 30,
         days_required: ["Monday"],
         hourly_rate: null, // missing
@@ -94,7 +94,7 @@ describe("onboarding module — read_onboarding_progress", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data: {
         id: "p1",
-        suburb: "Bondi",
+        suburb: "Clapham",
         hours_per_week: 30,
         days_required: ["Monday", "Tuesday"],
         hourly_rate: 45,
@@ -121,7 +121,7 @@ describe("onboarding module — read_onboarding_progress", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data: {
         id: "p1",
-        suburb: "Bondi",
+        suburb: "Clapham",
         hours_per_week: 30,
         days_required: ["Monday"],
         hourly_rate: 45,
@@ -148,7 +148,7 @@ describe("onboarding module — read_onboarding_progress", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data: {
         id: "p1",
-        suburb: "Bondi",
+        suburb: "Clapham",
         hours_per_week: null,
         days_required: null,
         hourly_rate: null,
@@ -186,7 +186,7 @@ describe("onboarding module — read_next_step", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data: {
         id: "p1",
-        suburb: "Bondi",
+        suburb: "Clapham",
         hours_per_week: 30,
         days_required: ["Monday"],
         hourly_rate: 45,

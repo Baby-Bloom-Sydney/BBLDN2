@@ -23,7 +23,7 @@ import {
 // Test fixtures
 // ---------------------------------------------------------------------------
 
-const NOW = new Date("2026-06-01T12:00:00+10:00");
+const NOW = new Date("2026-06-01T12:00:00+01:00");
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 interface ChildRow {

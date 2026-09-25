@@ -15,6 +15,7 @@
  */
 
 import type { BloomBotModule, ToolDefinition, ToolResult } from "./types";
+import { BRAND } from "@/lib/constants";
 import {
   preMeetWriteTools,
   tryExecutePreMeetWrite,
@@ -51,7 +52,7 @@ export const writeSystemPromptFragment =
   "• `propose_decline_connection` / `apply_decline_connection` — nanny-only; only while pending. Sends INT-004 (neutral, no reason shared).\n" +
   "• `propose_cancel_connection` / `apply_cancel_connection` — either side; any active connection. Inbox notification only.\n" +
   "• `propose_accept_connection` / `apply_accept_connection` — nanny-only; only while pending. Needs ≥5 slots in `YYYY-MM-DD_bracket` form spanning ≥3 days and all 4 brackets (morning/midday/afternoon/evening). The preview groups slots by day — read that back so the user can double-check. Sends the INT-002 acceptance email.\n" +
-  "• `propose_schedule_meet` / `apply_schedule_meet` — parent-only; connection must be at ACCEPTED. date is Sydney-local YYYY-MM-DD; hour 0-23, minute 0-59. The chosen date+bracket must match one of the nanny's proposed brackets. Scheduling SHARES the nanny's phone with the parent — always say that in the preview. Sends INT-002/INT-003.\n" +
+  `• \`propose_schedule_meet\` / \`apply_schedule_meet\` — parent-only; connection must be at ACCEPTED. date is ${BRAND.city}-local YYYY-MM-DD; hour 0-23, minute 0-59. The chosen date+bracket must match one of the nanny's proposed brackets. Scheduling SHARES the nanny's phone with the parent — always say that in the preview. Sends INT-002/INT-003.\n` +
   "• `propose_report_outcome` / `apply_report_outcome` — either side; post-meet stages. Nanny outcomes: hired|not_hired|awaiting|trial|incomplete. Parent outcomes: hired|not_hired|awaiting|trial. For `hired` and `trial`, pass an optional `date` (YYYY-MM-DD). `hired` triggers the hire flow; read back the consequence ('family will be asked to confirm, your other candidates will be released') in the preview.\n" +
   "• `propose_confirm_placement` / `apply_confirm_placement` — connection must be OFFERED. If the nanny initiated (Path A), only parent can confirm. If the parent initiated (Path B), only nanny can confirm. MANDATORY explicit restate of consequences (placement created, PDFs sent, other candidates released) — never skip.\n" +
   "• `propose_send_connection_request` / `apply_send_connection_request` — parent-only. Needs the nanny_id (the nanny's nannies.id, not their user id — users pick this up from a profile page). Pre-checks the 5-pending cap + duplicate. Message is optional, ≤ 1000 chars. Sends INT-001.\n\n" +

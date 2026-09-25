@@ -80,7 +80,7 @@ describe("funnelReducer — RESTORE_STATE deep-merge (T-023 §4.2)", () => {
     first_name: "Returning",
     last_name: "User",
     email: "returning@example.com",
-    phone: "0412345678",
+    phone: "07700900123",
     identity: DEFAULT_FUNNEL_STATE.identity,
     experience: {
       ...DEFAULT_FUNNEL_STATE.experience,

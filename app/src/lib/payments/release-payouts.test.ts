@@ -16,9 +16,9 @@ import type { SendTransferInput, SendTransferOutput } from "@/lib/stripe/types";
 // Test fixtures
 // ---------------------------------------------------------------------------
 
-const NOW = new Date("2026-06-01T12:00:00+10:00");
-const PAST = new Date("2026-05-30T00:00:00+10:00").toISOString();
-const FUTURE = new Date("2026-07-01T00:00:00+10:00").toISOString();
+const NOW = new Date("2026-06-01T12:00:00+01:00");
+const PAST = new Date("2026-05-30T00:00:00+01:00").toISOString();
+const FUTURE = new Date("2026-07-01T00:00:00+01:00").toISOString();
 
 type Status =
   | "pending"

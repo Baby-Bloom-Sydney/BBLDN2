@@ -33,7 +33,7 @@ function buildNotification(overrides: Record<string, unknown> = {}) {
     viewedAt: null,
     respondedAt: null,
     position: {
-      suburb: "Mosman",
+      suburb: "Chelsea",
       scheduleType: "regular",
       hourlyRate: 45,
       hoursPerWeek: 30,
@@ -110,7 +110,7 @@ describe("job-search module — read_my_job_matches", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data = r.data as any;
     expect(data.count).toBe(1);
-    expect(data.matches[0].suburb).toBe("Mosman");
+    expect(data.matches[0].suburb).toBe("Chelsea");
     expect(data.matches[0].distance).toMatch(/3\.2 km/);
     expect(data.matches[0].requirements).toEqual(
       expect.arrayContaining([
