@@ -26,7 +26,7 @@ export function AccountTotalTile({
         <p className="text-xs font-medium uppercase tracking-wide text-violet-700">
           Earned to date
         </p>
-        <p className="text-3xl font-bold text-slate-900">A${totalAud}</p>
+        <p className="text-3xl font-bold text-slate-900">£{totalAud}</p>
         <p className="text-sm text-slate-600">
           {familyCount === 0
             ? "No families yet — onboard a child to start earning."

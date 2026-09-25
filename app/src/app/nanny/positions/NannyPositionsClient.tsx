@@ -13,7 +13,7 @@ import {
 import {
   MapPin,
   Clock,
-  DollarSign,
+  PoundSterling,
   Calendar,
   Users,
   ChevronRight,
@@ -710,10 +710,10 @@ export function NannyPositionsClient({
                       {/* Hourly Rate */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 text-sm text-slate-600">
-                          <DollarSign className="h-4 w-4 text-slate-400" />
+                          <PoundSterling className="h-4 w-4 text-slate-400" />
                           {editingRate ? (
                             <div className="flex items-center gap-1.5">
-                              <span className="text-slate-400">$</span>
+                              <span className="text-slate-400">£</span>
                               <input
                                 type="number"
                                 step="0.50"
@@ -752,7 +752,7 @@ export function NannyPositionsClient({
                           ) : (
                             <>
                               {placement.hourlyRate
-                                ? `$${placement.hourlyRate}/hr`
+                                ? `£${placement.hourlyRate}/hr`
                                 : "Rate not set"}
                             </>
                           )}
@@ -870,7 +870,7 @@ export function NannyPositionsClient({
                       {placement.hourlyRate && placement.weeklyHours && (
                         <div className="rounded-lg bg-green-50 border border-green-100 px-3 py-2 mt-1">
                           <p className="text-sm font-medium text-green-700">
-                            ~$
+                            ~£
                             {(
                               placement.hourlyRate * placement.weeklyHours
                             ).toFixed(0)}
@@ -1299,7 +1299,7 @@ export function NannyPositionsClient({
                             )}
                             {intro.position?.hourlyRate && (
                               <span className="flex items-center gap-1">
-                                <DollarSign className="h-3 w-3" />$
+                                <PoundSterling className="h-3 w-3" />£
                                 {intro.position.hourlyRate}/hr
                               </span>
                             )}
@@ -1400,7 +1400,7 @@ export function NannyPositionsClient({
                               )}
                               {notification.position.hourlyRate && (
                                 <span className="flex items-center gap-1">
-                                  <DollarSign className="h-3 w-3" />$
+                                  <PoundSterling className="h-3 w-3" />£
                                   {notification.position.hourlyRate}/hr
                                 </span>
                               )}
@@ -1868,7 +1868,7 @@ function PlacementCard({
               )}
               {placement.hourlyRate && (
                 <span className="flex items-center gap-1">
-                  <DollarSign className="h-3.5 w-3.5 text-slate-400" />$
+                  <PoundSterling className="h-3.5 w-3.5 text-slate-400" />£
                   {placement.hourlyRate}/hr
                 </span>
               )}

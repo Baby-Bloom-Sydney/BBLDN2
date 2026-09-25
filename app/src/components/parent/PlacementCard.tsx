@@ -33,7 +33,7 @@ import {
   ArrowRight,
   Calendar,
   Clock,
-  DollarSign,
+  PoundSterling,
   MapPin,
   ShieldCheck,
 } from "lucide-react";
@@ -149,9 +149,9 @@ function Stat({
 
 function defaultStatValueRate(placement: PlacementData) {
   const value = placement.hourlyRate
-    ? `$${placement.hourlyRate}/hr`
+    ? `£${placement.hourlyRate}/hr`
     : placement.nannyHourlyRate
-      ? `$${placement.nannyHourlyRate}/hr`
+      ? `£${placement.nannyHourlyRate}/hr`
       : "Not set";
   return <span>{value}</span>;
 }
@@ -184,13 +184,13 @@ function StartDateValue({ startDate }: { startDate: string | null }) {
 
 function defaultRateNode(placement: PlacementData) {
   const value = placement.hourlyRate
-    ? `$${placement.hourlyRate}/hr`
+    ? `£${placement.hourlyRate}/hr`
     : placement.nannyHourlyRate
-      ? `$${placement.nannyHourlyRate}/hr`
+      ? `£${placement.nannyHourlyRate}/hr`
       : "Rate not set";
   return (
     <div className="flex items-center justify-end gap-1">
-      <DollarSign className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
+      <PoundSterling className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
       <span className="text-sm text-slate-600 font-medium">{value}</span>
     </div>
   );
@@ -404,7 +404,7 @@ export function PlacementCard({
             graphical-contrast threshold on the slate-50 cell background. */}
         <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
           <Stat
-            icon={<DollarSign className="h-4 w-4 text-slate-500" />}
+            icon={<PoundSterling className="h-4 w-4 text-slate-500" />}
             label="Rate"
             valueNode={rateNode ?? defaultStatValueRate(placement)}
           />

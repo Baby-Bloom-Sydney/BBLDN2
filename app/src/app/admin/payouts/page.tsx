@@ -167,7 +167,7 @@ export default async function AdminNannyPayoutsPage() {
                           r.nanny_user_id.slice(0, 8)}
                       </td>
                       <td className="px-4 py-3 text-slate-700">
-                        A${(r.amount_aud_cents / 100).toFixed(2)}
+                        £{(r.amount_aud_cents / 100).toFixed(2)}
                       </td>
                       <td className="px-4 py-3 text-slate-500">{r.status}</td>
                       <td className="px-4 py-3 text-slate-500">
@@ -246,7 +246,7 @@ function SummaryTile({
         <p className="text-2xl font-bold text-slate-900">{count}</p>
         {totalCents !== undefined && (
           <p className="text-sm text-slate-600">
-            A${(totalCents / 100).toFixed(2)}
+            £{(totalCents / 100).toFixed(2)}
           </p>
         )}
       </CardContent>

@@ -1,6 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { formatAuDate } from "@/lib/format/date";
 import type { ChildWithEvents, ParentSubscriptionRow } from "./page";
+import { APP_LOCALE } from "@/lib/constants";
 
 interface Props {
   sub: ParentSubscriptionRow | null;
@@ -90,10 +91,10 @@ export function SubscriptionStatsGrid({
         />
         <StatCard
           label="Cumulative spend"
-          value={`A$${cumulativeSpendAud.toLocaleString("en-AU")}`}
+          value={`£${cumulativeSpendAud.toLocaleString(APP_LOCALE)}`}
           sub={
             refundedTotalAud > 0
-              ? `A$${refundedTotalAud.toFixed(0)} refunded`
+              ? `£${refundedTotalAud.toFixed(0)} refunded`
               : null
           }
           tone={refundedTotalAud > 0 ? "muted" : undefined}

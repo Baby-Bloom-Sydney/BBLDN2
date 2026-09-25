@@ -74,7 +74,7 @@ export function generateBsrPost(input: BsrPostInput): string {
     '',
     ...slotLines,
     ...childLines,
-    `💰 $${hourlyRate}/hr (est~$${estTotal})`,
+    `💰 £${hourlyRate}/hr (est~£${estTotal})`,
     '',
     `💜 If you have experience babysitting/nannying and your WWCC please apply below!`,
   ];

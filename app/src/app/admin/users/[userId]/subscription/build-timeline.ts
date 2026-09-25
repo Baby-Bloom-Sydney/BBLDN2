@@ -97,7 +97,7 @@ export function buildTimelineEntries(args: BuildArgs): TimelineEntry[] {
         id: `payout:${p.id}:paid`,
         timestampIso: p.paid_at,
         category: "commission",
-        title: `Payout paid to nanny — A$${(p.amount_aud_cents / 100).toFixed(0)}`,
+        title: `Payout paid to nanny — £${(p.amount_aud_cents / 100).toFixed(0)}`,
         detail: `Period ${p.period_start} → ${p.period_end}`,
       });
     }
@@ -106,7 +106,7 @@ export function buildTimelineEntries(args: BuildArgs): TimelineEntry[] {
         id: `payout:${p.id}:frozen`,
         timestampIso: p.frozen_at,
         category: "commission",
-        title: `Payout frozen — A$${(p.amount_aud_cents / 100).toFixed(0)}`,
+        title: `Payout frozen — £${(p.amount_aud_cents / 100).toFixed(0)}`,
         detail: p.failure_reason ?? "frozen on cancel",
       });
     }
@@ -127,7 +127,7 @@ export function buildTimelineEntries(args: BuildArgs): TimelineEntry[] {
         id: `refund:${r.id}:processed`,
         timestampIso: r.refund_processed_at,
         category: "refund",
-        title: `Refund processed — A$${(amount / 100).toFixed(0)}`,
+        title: `Refund processed — £${(amount / 100).toFixed(0)}`,
         detail: r.stripe_refund_id ?? undefined,
       });
     }
@@ -244,7 +244,7 @@ function extractDetail(log: ActivityLogRow): string | undefined {
   if (typeof d.reason === "string") parts.push(`Reason: ${d.reason}`);
   if (typeof d.cycle_index === "number") parts.push(`Cycle ${d.cycle_index}`);
   if (typeof d.amount_aud_cents === "number") {
-    parts.push(`A$${(d.amount_aud_cents / 100).toFixed(0)}`);
+    parts.push(`£${(d.amount_aud_cents / 100).toFixed(0)}`);
   }
   if (typeof d.frozen_count === "number") {
     parts.push(`${d.frozen_count} row${d.frozen_count === 1 ? "" : "s"}`);

@@ -9,7 +9,7 @@
  * Value definition:
  *  - `realTotalCents`: sum of real `paid|pending|held` rows for current
  *    cycle (`period_start <= today`).
- *  - `trialTeaserAudCents`: $100 per connected family currently in trial
+ *  - `trialTeaserAudCents`: £100 per connected family currently in trial
  *    state. Loss-aversion engine — nanny sees money waiting before
  *    parent subscribes.
  *

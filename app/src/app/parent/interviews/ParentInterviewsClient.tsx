@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { InterviewRequestWithDetails, cancelInterviewRequest } from "@/lib/actions/interview";
-import { MapPin, DollarSign, Clock, X, Loader2 } from "lucide-react";
+import { MapPin, PoundSterling, Clock, X, Loader2 } from "lucide-react";
 
 interface ParentInterviewsClientProps {
   requests: InterviewRequestWithDetails[];
@@ -45,8 +45,8 @@ export function ParentInterviewsClient({ requests }: ParentInterviewsClientProps
               </span>
               {request.nanny?.hourly_rate_min && (
                 <span className="flex items-center gap-1">
-                  <DollarSign className="h-3 w-3" />
-                  ${request.nanny.hourly_rate_min}/hr
+                  <PoundSterling className="h-3 w-3" />
+                  £{request.nanny.hourly_rate_min}/hr
                 </span>
               )}
             </CardDescription>

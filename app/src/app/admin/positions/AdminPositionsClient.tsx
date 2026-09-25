@@ -418,7 +418,7 @@ function PositionDetail({ position, onOpenUser }: { position: AdminPosition; onO
 
       {/* Position details row */}
       <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-slate-600">
-        {position.hourly_rate != null && <span><strong>Rate:</strong> ${position.hourly_rate}/hr</span>}
+        {position.hourly_rate != null && <span><strong>Rate:</strong> £{position.hourly_rate}/hr</span>}
         {position.hours_per_week != null && <span><strong>Hours:</strong> {position.hours_per_week}h/wk</span>}
         {position.schedule_type && <span><strong>Schedule:</strong> {position.schedule_type}</span>}
         {position.days_required && <span><strong>Days:</strong> {position.days_required.join(', ')}</span>}

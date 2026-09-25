@@ -34,7 +34,7 @@ import {
   MoreVertical,
   ArrowRight,
   Check,
-  DollarSign,
+  PoundSterling,
   Mail,
   Sparkles,
   Baby,
@@ -688,7 +688,7 @@ export function PositionPageClient({
             rateNode={
               editingRate ? (
                 <div className="flex items-center justify-end gap-1">
-                  <span className="text-xs text-slate-400">$</span>
+                  <span className="text-xs text-slate-400">£</span>
                   <input
                     type="number"
                     step="0.50"
@@ -1181,7 +1181,7 @@ export function PositionPageClient({
                                     )}
                                     {conn.nanny.hourlyRateMin && (
                                       <span className="flex items-center gap-1">
-                                        <DollarSign className="w-2.5 h-2.5" />$
+                                        <PoundSterling className="w-2.5 h-2.5" />£
                                         {conn.nanny.hourlyRateMin}/hr
                                       </span>
                                     )}
@@ -1923,7 +1923,7 @@ export function PositionPageClient({
                 })()}
                 {selectedBsr.hourly_rate && (
                   <div className="flex items-center gap-2">
-                    <DollarSign className="h-3.5 w-3.5" />$
+                    <PoundSterling className="h-3.5 w-3.5" />£
                     {selectedBsr.hourly_rate}/hr
                     {(() => {
                       let mins = 0;
@@ -1936,7 +1936,7 @@ export function PositionPageClient({
                       }
                       const hrs = Math.round((mins / 60) * 10) / 10;
                       const est = Math.round(hrs * selectedBsr.hourly_rate!);
-                      return hrs > 0 ? <span> (est. ${est})</span> : null;
+                      return hrs > 0 ? <span> (est. £{est})</span> : null;
                     })()}
                   </div>
                 )}

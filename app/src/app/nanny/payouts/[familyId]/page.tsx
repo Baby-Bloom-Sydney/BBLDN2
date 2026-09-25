@@ -93,7 +93,7 @@ export default async function FamilyPayoutDetailPage({
                   className="flex items-center justify-between py-3 text-sm"
                 >
                   <span className="font-medium text-slate-900">
-                    A${(p.amount_aud_cents / 100).toFixed(2)}
+                    £{(p.amount_aud_cents / 100).toFixed(2)}
                   </span>
                   <span className="text-slate-500">
                     {p.status === "paid" && p.paid_at

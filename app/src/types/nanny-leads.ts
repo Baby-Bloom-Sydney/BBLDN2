@@ -62,7 +62,7 @@ export interface NannyLeadAvailability {
 }
 
 export interface NannyLeadSalary {
-  hourly_rate_min: string | null; // "$40.00"
+  hourly_rate_min: string | null; // "£40.00" — the symbol should not be in the string; see LEDGER/2d.md §1 Group C
   pay_frequency: string[];
 }
 

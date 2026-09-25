@@ -7,7 +7,7 @@
  * - Default header (no nanny-invite) — generic copy
  * - Personalised header (nanny-invite) — surfaces nanny + child names
  * - Card order: Upfront FIRST (anchoring), Monthly second
- * - Reciprocity footer "A$100 of every payment supports your nanny's work"
+ * - Reciprocity footer "£100 of every payment supports your nanny's work"
  * - Trial banner renders when trialAvailable === true
  * - Banned terminology ("track") absent
  */
@@ -83,18 +83,18 @@ describe("SubscribeClient — card order (anchoring psychology)", () => {
     expect(cards[1]).toHaveAttribute("data-testid", "plan-card-monthly");
   });
 
-  it("displays A$2,000 upfront + A$200/month", () => {
+  it("displays £2,000 upfront + £200/month", () => {
     renderClient();
-    expect(screen.getByText(/A\$2,000/)).toBeInTheDocument();
-    expect(screen.getByText(/A\$200/)).toBeInTheDocument();
+    expect(screen.getByText(/£2,000/)).toBeInTheDocument();
+    expect(screen.getByText(/£200/)).toBeInTheDocument();
   });
 });
 
 describe("SubscribeClient — reciprocity footer", () => {
-  it("renders the locked-in 'A$100 supports your nanny' line", () => {
+  it("renders the locked-in '£100 supports your nanny' line", () => {
     renderClient();
     expect(
-      screen.getByText(/A\$100 of every payment supports your nanny/i),
+      screen.getByText(/£100 of every payment supports your nanny/i),
     ).toBeInTheDocument();
   });
 });

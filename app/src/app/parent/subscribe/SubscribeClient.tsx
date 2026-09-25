@@ -97,7 +97,7 @@ export function SubscribeClient({
       )}
 
       {/* Upfront card shown FIRST as the high anchor. Per spec §S7
-          psychology — A$2,000 sets the anchor; A$200/month appearing
+          psychology — £2,000 sets the anchor; £200/month appearing
           second reads as "reasonable" by comparison. Reversing the
           order makes the monthly look expensive on its own.
           Locked-in copy: "Pay once. Done until {child} is 5." moves
@@ -115,7 +115,7 @@ export function SubscribeClient({
               <p className="text-sm font-medium uppercase tracking-wide text-slate-500">
                 Upfront
               </p>
-              <p className="mt-2 text-3xl font-bold text-slate-900">A$2,000</p>
+              <p className="mt-2 text-3xl font-bold text-slate-900">£2,000</p>
             </div>
             <p className="text-sm text-slate-600">
               Pay once. Done until your child&apos;s 5th birthday. Best value if
@@ -149,7 +149,7 @@ export function SubscribeClient({
                 Monthly
               </p>
               <p className="mt-2 text-3xl font-bold text-slate-900">
-                A$200
+                £200
                 <span className="text-base font-normal text-slate-500">
                   /month
                 </span>
@@ -187,11 +187,10 @@ export function SubscribeClient({
           psychological levers in the whole spec (§S7 + COPY-AND-
           FRAMING §5 first-bill receipt). */}
       <p className="mt-8 text-sm font-medium text-slate-700">
-        A$100 of every payment supports your nanny&apos;s work.
+        £100 of every payment supports your nanny&apos;s work.
       </p>
       <p className="mt-2 text-xs text-slate-500">
-        GST included. Australian customers only. By subscribing you agree to our
-        terms of service.
+        VAT included. By subscribing you agree to our terms of service.
       </p>
     </div>
   );

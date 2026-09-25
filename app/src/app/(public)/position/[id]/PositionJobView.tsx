@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   MapPin,
   Clock,
-  DollarSign,
+  PoundSterling,
   Baby,
   ArrowRight,
   ArrowLeft,
@@ -268,7 +268,7 @@ function buildWhatYouGet(p: PublicPositionProfile): string[] {
 
   // Rate — only for parent positions
   if (p.hourlyRate && (!p.source || p.source === "parent")) {
-    items.push(`Competitive pay at $${p.hourlyRate}/hr`);
+    items.push(`Competitive pay at £${p.hourlyRate}/hr`);
   }
 
   // Family vibe
@@ -502,9 +502,9 @@ export function PositionJobView({
           {/* Rate — hidden for AI/admin positions */}
           {position.hourlyRate && position.source === "parent" && (
             <div className="flex items-center gap-2">
-              <DollarSign className="h-3.5 w-3.5 text-violet-500 flex-shrink-0" />
+              <PoundSterling className="h-3.5 w-3.5 text-violet-500 flex-shrink-0" />
               <p className="text-sm font-medium text-slate-800">
-                ${position.hourlyRate}/hr
+                £{position.hourlyRate}/hr
               </p>
             </div>
           )}

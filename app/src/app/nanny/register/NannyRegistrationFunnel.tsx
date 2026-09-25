@@ -14,6 +14,7 @@ import { StepResidency } from "./steps/StepResidency";
 import { StepAboutYou } from "./steps/StepAboutYou";
 import { StepReview } from "./steps/StepReview";
 import { createNannyProfile, CreateNannyProfileData } from "@/lib/actions/nanny";
+import { HOURLY_RATE_BOUNDS } from "@/lib/constants";
 import { isLiveMode } from "@/components/dev/DevToolbar";
 import { DevPrefill } from "@/components/dev/DevPrefill";
 
@@ -57,7 +58,7 @@ export interface NannyRegistrationData {
   end_date: string | null;                // ISO date (if "Until a certain date")
 
   // Step 6 — Salary Expectations
-  hourly_rate_min: string | null;          // "$35" | "$40" | "$45" | "$50"
+  hourly_rate_min: string | null;          // "£15" | "£20" | "£25" | "£30"
   pay_frequency: string[];                 // multi-select tags
 
   // Step 7 — Helpful Information
@@ -128,7 +129,7 @@ const DEV_MOCK_DATA: Partial<NannyRegistrationData> = {
   placement_ongoing: "Yes",
   end_date: null,
   // Step 6
-  hourly_rate_min: "$40.00",
+  hourly_rate_min: `£${HOURLY_RATE_BOUNDS.min.toFixed(2)}`,
   pay_frequency: ["Weekly"],
   // Step 7
   date_of_birth: "1998-03-15",
@@ -243,7 +244,7 @@ export function NannyRegistrationFunnel({ initialData }: NannyRegistrationFunnel
   function toCreateData(fd: Partial<NannyRegistrationData>): CreateNannyProfileData {
     const parseRate = (s: string | null | undefined): number | null => {
       if (!s) return null;
-      const n = parseFloat(s.replace("$", ""));
+      const n = parseFloat(s.replace("£", ""));
       return isNaN(n) ? null : n;
     };
 

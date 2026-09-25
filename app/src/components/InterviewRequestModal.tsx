@@ -108,7 +108,7 @@ export function InterviewRequestModal({ isOpen, onClose, nanny }: InterviewReque
                   </div>
                   {nanny.hourly_rate_min && (
                     <div className="ml-auto text-right">
-                      <p className="font-bold">${nanny.hourly_rate_min}</p>
+                      <p className="font-bold">£{nanny.hourly_rate_min}</p>
                       <p className="text-xs text-slate-500">/hour</p>
                     </div>
                   )}

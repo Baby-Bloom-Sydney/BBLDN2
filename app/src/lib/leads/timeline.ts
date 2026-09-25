@@ -174,7 +174,7 @@ export async function fetchActivityTimeline(
 
   // Payouts.
   for (const row of payoutsRes.data ?? []) {
-    const amount = `$${(row.amount_aud_cents / 100).toFixed(2)}`;
+    const amount = `£${(row.amount_aud_cents / 100).toFixed(2)}`;
     let title = `Payout ${row.status}`;
     let when = row.created_at;
     if (row.paid_at) {

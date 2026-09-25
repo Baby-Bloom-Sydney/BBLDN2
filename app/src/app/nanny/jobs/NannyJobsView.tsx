@@ -4,7 +4,7 @@ import Link from "next/link";
 import {
   MapPin,
   Clock,
-  DollarSign,
+  PoundSterling,
   Baby,
 } from "lucide-react";
 
@@ -208,9 +208,9 @@ function PositionTile({ position, applied }: { position: OpenPosition; applied?:
         {position.hourly_rate &&
           (!position.source || position.source === "parent") && (
             <div className="flex items-center gap-2">
-              <DollarSign className="h-3.5 w-3.5 text-violet-500 flex-shrink-0" />
+              <PoundSterling className="h-3.5 w-3.5 text-violet-500 flex-shrink-0" />
               <p className="text-sm font-medium text-slate-800">
-                ${position.hourly_rate}/hr
+                £{position.hourly_rate}/hr
               </p>
             </div>
           )}

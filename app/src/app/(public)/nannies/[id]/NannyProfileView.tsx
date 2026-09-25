@@ -263,7 +263,7 @@ export function NannyProfileView({
             )}
             {nanny.hourly_rate_min && (
               <p className="mt-2 text-sm font-medium text-violet-600">
-                From ${nanny.hourly_rate_min}/hr
+                From £{nanny.hourly_rate_min}/hr
               </p>
             )}
           </div>
@@ -471,7 +471,7 @@ export function NannyProfileView({
                   <div><span className="text-slate-500">Max Children</span><p className="font-medium text-slate-700">{nanny.max_children}</p></div>
                 )}
                 {nanny.hourly_rate_min && (
-                  <div><span className="text-slate-500">Hourly Rate</span><p className="font-medium text-slate-700">From ${nanny.hourly_rate_min}</p></div>
+                  <div><span className="text-slate-500">Hourly Rate</span><p className="font-medium text-slate-700">From £{nanny.hourly_rate_min}</p></div>
                 )}
                 {nanny.pay_frequency && nanny.pay_frequency.length > 0 && (
                   <div><span className="text-slate-500">Pay Frequency</span><p className="font-medium text-slate-700">{nanny.pay_frequency.join(", ")}</p></div>

@@ -13,7 +13,7 @@ export async function GET(
   }
 
   const suburb = bsr.suburb ?? BRAND.city;
-  const rate = bsr.hourly_rate ? `$${bsr.hourly_rate}/hr` : "";
+  const rate = bsr.hourly_rate ? `£${bsr.hourly_rate}/hr` : "";
   const childCount = bsr.children.length;
   const childLabel = childCount === 1 ? "1 child" : `${childCount} children`;
   const refCode = params.id.slice(-5);

@@ -4,14 +4,14 @@
  * NannyEarningsBadge — small wallet tile rendered next to the avatar
  * in `DashboardNav` for nanny role only.
  *
- * Spec: DSS §8 Q2 (Bailey 2026-05-12) — nanny sees the total A$ value
+ * Spec: DSS §8 Q2 (Bailey 2026-05-12) — nanny sees the total £ value
  * + wallet icon, on every page, from the moment they add their first
  * child. Clicking routes to `/nanny/payouts` where the breakdown
  * lives (next payout, this month, per family).
  *
  * Copy rules:
- *  - Just the A$ value. NO "across N families" text per Bailey.
- *  - Format: `A$N` (no decimals; values are always whole hundreds).
+ *  - Just the £ value. NO "across N families" text per Bailey.
+ *  - Format: `£N` (no decimals; values are always whole hundreds).
  *
  * Fetch model: a single `/api/nanny/earnings-badge` GET on mount.
  * The value moves slowly (a new family is a manual user action), so
@@ -53,7 +53,7 @@ export function NannyEarningsBadge() {
     };
   }, []);
 
-  // Hide until data lands AND there's something earned. Showing A$0
+  // Hide until data lands AND there's something earned. Showing £0
   // would be noise; the wallet appears when the nanny has actual
   // money paid + accruing (Bailey correction 2026-05-13).
   if (!data || data.totalAud === 0) return null;
@@ -68,10 +68,10 @@ export function NannyEarningsBadge() {
         })
       }
       className="flex h-8 items-center gap-1.5 rounded-full bg-emerald-50 px-3 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
-      aria-label={`Open contributions dashboard — current cycle total A$${data.totalAud}`}
+      aria-label={`Open contributions dashboard — current cycle total £${data.totalAud}`}
     >
       <Wallet className="h-4 w-4" aria-hidden="true" />
-      <span>A${data.totalAud}</span>
+      <span>£{data.totalAud}</span>
     </Link>
   );
 }

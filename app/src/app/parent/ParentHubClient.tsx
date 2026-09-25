@@ -32,7 +32,7 @@ import {
   MoreVertical,
   ArrowRight,
   Check,
-  DollarSign,
+  PoundSterling,
   Mail,
   Sparkles,
   Baby,
@@ -1063,7 +1063,7 @@ export function ParentHubClient({
                             {editingRate ? (
                               <div className="flex items-center justify-end gap-1">
                                 <span className="text-xs text-slate-400">
-                                  $
+                                  £
                                 </span>
                                 <input
                                   type="number"
@@ -1088,12 +1088,12 @@ export function ParentHubClient({
                               </div>
                             ) : (
                               <div className="flex items-center justify-end gap-1">
-                                <DollarSign className="h-3.5 w-3.5 text-slate-400" />
+                                <PoundSterling className="h-3.5 w-3.5 text-slate-400" />
                                 <span className="text-sm text-slate-600 font-medium">
                                   {placement.hourlyRate
-                                    ? `$${placement.hourlyRate}/hr`
+                                    ? `£${placement.hourlyRate}/hr`
                                     : placement.nannyHourlyRate
-                                      ? `$${placement.nannyHourlyRate}/hr`
+                                      ? `£${placement.nannyHourlyRate}/hr`
                                       : "Rate not set"}
                                 </span>
                               </div>
@@ -1646,8 +1646,8 @@ export function ParentHubClient({
                                             )}
                                             {conn.nanny.hourlyRateMin && (
                                               <span className="flex items-center gap-1">
-                                                <DollarSign className="w-2.5 h-2.5" />
-                                                ${conn.nanny.hourlyRateMin}/hr
+                                                <PoundSterling className="w-2.5 h-2.5" />
+                                                £{conn.nanny.hourlyRateMin}/hr
                                               </span>
                                             )}
                                           </div>
@@ -2501,7 +2501,7 @@ export function ParentHubClient({
                 })()}
                 {selectedBsr.hourly_rate && (
                   <div className="flex items-center gap-2">
-                    <DollarSign className="h-3.5 w-3.5" />$
+                    <PoundSterling className="h-3.5 w-3.5" />£
                     {selectedBsr.hourly_rate}/hr
                     {(() => {
                       let mins = 0;
@@ -2514,7 +2514,7 @@ export function ParentHubClient({
                       }
                       const hrs = Math.round((mins / 60) * 10) / 10;
                       const est = Math.round(hrs * selectedBsr.hourly_rate!);
-                      return hrs > 0 ? <span> (est. ${est})</span> : null;
+                      return hrs > 0 ? <span> (est. £{est})</span> : null;
                     })()}
                   </div>
                 )}

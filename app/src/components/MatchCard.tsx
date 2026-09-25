@@ -80,7 +80,7 @@ export function MatchCard({ match, actions }: MatchCardProps) {
               )}
               {nanny.hourly_rate_min != null && (
                 <span className="text-sm text-slate-400 shrink-0 ml-auto">
-                  ${nanny.hourly_rate_min}/hr
+                  £{nanny.hourly_rate_min}/hr
                 </span>
               )}
             </div>

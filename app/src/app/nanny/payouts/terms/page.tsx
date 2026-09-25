@@ -29,7 +29,7 @@ export default function NannyPayoutsTermsPage() {
         <h2 className="text-base font-semibold text-slate-900">Monthly plan</h2>
         <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
           <li>
-            <span className="font-medium text-slate-900">A$100</span> for every
+            <span className="font-medium text-slate-900">£100</span> for every
             month of continued developmental support with a family.
           </li>
           <li>
@@ -37,7 +37,7 @@ export default function NannyPayoutsTermsPage() {
             window against refunds and chargebacks.
           </li>
           <li>
-            A family paying on the 1st of the month means your A$100 lands on
+            A family paying on the 1st of the month means your £100 lands on
             the 15th.
           </li>
         </ul>
@@ -47,25 +47,25 @@ export default function NannyPayoutsTermsPage() {
         <h2 className="text-base font-semibold text-slate-900">Upfront plan</h2>
         <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
           <li>
-            <span className="font-medium text-slate-900">A$1,000</span> for
+            <span className="font-medium text-slate-900">£1,000</span> for
             assisting families that pre-plan for long-term development, released
             across three instalments after the upfront payment clears:
           </li>
           <li>
-            <span className="font-medium text-slate-900">A$500</span> — 30 days
+            <span className="font-medium text-slate-900">£500</span> — 30 days
             after the upfront payment.
           </li>
           <li>
-            <span className="font-medium text-slate-900">A$300</span> — 60 days
+            <span className="font-medium text-slate-900">£300</span> — 60 days
             after the upfront payment.
           </li>
           <li>
-            <span className="font-medium text-slate-900">A$200</span> — 90 days
+            <span className="font-medium text-slate-900">£200</span> — 90 days
             after the upfront payment.
           </li>
           <li>
             The family continues with you until the child&apos;s 5th birthday,
-            but the full A$1,000 contribution has already been delivered.
+            but the full £1,000 contribution has already been delivered.
           </li>
         </ul>
       </section>
