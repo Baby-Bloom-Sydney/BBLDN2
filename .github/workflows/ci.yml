@@ -97,3 +97,25 @@ jobs:
           cache-dependency-path: app/package-lock.json
       - run: npm ci
       - run: npm run build
+
+  london-sweep:
+    # The LDN2 Stage 2 whole-tree gate: fails while any Australian artefact class the Stage 1 inventory named is
+    # still present anywhere in the tree (LDN2/PLAN/05-gate.md). It needs no database and no secrets.
+    #
+    # continue-on-error while Stage 2 is in flight: the gate is RED by design on the un-amended tree, and its whole
+    # purpose in W0 is to publish a falling per-rule count for the units that follow. Blocking now would block every
+    # one of them.
+    # required at W6 — see LDN2/PLAN/04-sequence.md
+    name: London sweep
+    needs: install
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - run: npm run check:london
