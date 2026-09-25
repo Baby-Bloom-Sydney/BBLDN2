@@ -7,7 +7,7 @@ import { NannyCTA } from "@/components/landing/NannyCTA";
 import { MissionTeaser } from "@/components/landing/MissionTeaser";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { NannyPreview } from "@/components/landing/NannyPreviewCard";
-import { BRAND, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/constants";
+import { BRAND, OG_LOCALE, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/constants";
 
 const HOME_TITLE = `${SITE_NAME} — Verified Nannies for ${BRAND.city} Families`;
 
@@ -16,6 +16,7 @@ export const metadata: Metadata = {
   description: SITE_DESCRIPTION,
   alternates: { canonical: '/' },
   openGraph: {
+    locale: OG_LOCALE,
     title: HOME_TITLE,
     description: SITE_DESCRIPTION,
   },

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, ChevronLeft } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NannyPreviewCard, type NannyPreview } from "@/components/landing/NannyPreviewCard";
-import { BRAND, SITE_NAME } from "@/lib/constants";
+import { BRAND, OG_LOCALE, SITE_NAME } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +16,7 @@ export const metadata: Metadata = {
   description: BROWSE_DESCRIPTION,
   alternates: { canonical: '/nannies' },
   openGraph: {
+    locale: OG_LOCALE,
     title: `${BROWSE_TITLE} | Baby Bloom`,
     description: BROWSE_DESCRIPTION,
   },

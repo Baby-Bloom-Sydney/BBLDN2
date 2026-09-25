@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
-import { BRAND, SITE_NAME } from "@/lib/constants";
+import { BRAND, OG_LOCALE, SITE_NAME } from "@/lib/constants";
 
 const ABOUT_DESCRIPTION = `Baby Bloom connects ${BRAND.city} families with verified, education-focused nannies. Learn about our mission, our verification process, and why families trust us.`;
 
@@ -11,6 +11,7 @@ export const metadata: Metadata = {
   description: ABOUT_DESCRIPTION,
   alternates: { canonical: "/about" },
   openGraph: {
+    locale: OG_LOCALE,
     title: `About ${SITE_NAME}`,
     description: ABOUT_DESCRIPTION,
   },

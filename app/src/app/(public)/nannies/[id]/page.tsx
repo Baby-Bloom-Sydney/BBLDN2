@@ -6,7 +6,7 @@ import { ParentNannyProfileView } from "@/app/parent/browse/[id]/ParentNannyProf
 import { parseFunnelSource, parseFunnelLead } from "@/lib/funnel/source";
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
-import { BRAND, SITE_NAME, SITE_URL } from "@/lib/constants";
+import { BRAND, OG_LOCALE, SITE_NAME, SITE_URL } from "@/lib/constants";
 
 export async function generateMetadata({
   params,
@@ -47,6 +47,7 @@ export async function generateMetadata({
     description,
     alternates: { canonical: `/nannies/${params.id}` },
     openGraph: {
+      locale: OG_LOCALE,
       title,
       description,
       type: "profile",

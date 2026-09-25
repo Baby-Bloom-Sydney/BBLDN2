@@ -13,7 +13,7 @@ import {
   Palette,
   Handshake,
 } from "lucide-react";
-import { BRAND, HOURLY_RATE_BOUNDS, SITE_NAME } from "@/lib/constants";
+import { BRAND, HOURLY_RATE_BOUNDS, OG_LOCALE, SITE_NAME } from "@/lib/constants";
 
 const PRICING_DESCRIPTION = `Personalised nanny matching for ${BRAND.city} families. Choose from DIY search or done-for-you matching with verified, background-checked nannies.`;
 
@@ -22,6 +22,7 @@ export const metadata: Metadata = {
   description: PRICING_DESCRIPTION,
   alternates: { canonical: '/pricing' },
   openGraph: {
+    locale: OG_LOCALE,
     title: `Nanny Matching Plans & Pricing | ${SITE_NAME}`,
     description: PRICING_DESCRIPTION,
   },

@@ -5,7 +5,7 @@ import { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CONNECTION_STAGE } from "@/lib/position/constants";
-import { BRAND, SITE_NAME, SITE_URL } from "@/lib/constants";
+import { BRAND, OG_LOCALE, SITE_NAME, SITE_URL } from "@/lib/constants";
 
 export async function generateMetadata({
   params,
@@ -45,6 +45,7 @@ export async function generateMetadata({
     title,
     description,
     openGraph: {
+      locale: OG_LOCALE,
       title,
       description,
       type: "website",
