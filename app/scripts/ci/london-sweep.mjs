@@ -27,8 +27,12 @@
 //
 // `match` is a plain substring, never a second regex, so an allow entry cannot quietly widen itself.
 //
-// **Ratchet.** An entry that silences nothing — the hit it was written for no longer exists — FAILS. The list may
-// only shrink. An allow-file cannot outlive its reason.
+// **Ratchet.** An entry that silences nothing — no line of that rule, in that file, contains its `match` any more —
+// FAILS. The list may only shrink. An allow-file cannot outlive its reason. Two entries may overlap on a line; both
+// are live as long as each silences something.
+//
+// `match` is compared against the **whole** trimmed line. (Until W6 it was compared against the 140-character
+// snippet the report prints, so an entry whose `match` sat past character 140 silenced nothing and failed as stale.)
 //
 // **`safeguarding` is refused.** Any entry whose rule is `safeguarding` is an error before a single file is read
 // (LDN1 ADR-172: a wrong child-safety instruction is deleted the day it is found, never translated, never deferred).
@@ -133,6 +137,30 @@ const acronym = (word) => {
  * They are caught wherever an NSW postcode or another Sydney name shares the line (the `geography` postcode rule
  * below, and the `PLACEHOLDER_SUBURBS` array, do exactly that); `LEDGER/2-gate.md` records the residue by file.
  */
+/**
+ * An emergency number as a number, never as part of one. The guards are the seed's, plus `#` and the currency signs
+ * added at W6: `A$1,000` and `£1,000` keep their comma guard, `#000` / `#000000` are colours, `20 000` is a count (the
+ * space-after-a-digit guard is W6's — the seed's comma guard alone let it through once the verb stopped being
+ * required),
+ * and `0000` is neither. Case-insensitivity comes from the rule's own `i` flag.
+ */
+const EMERGENCY_NUMBER =
+  "(?<!\\d)(?<!\\d[,. ])(?<![A-Fa-f#])(?:000|999|112)\\b(?!\\d)(?![,.]\\d)";
+
+/** The words that turn a three-digit number into a child-safety instruction (W6 T1). */
+const EMERGENCY_CONTEXT = [
+  "emergency",
+  "immediate danger",
+  "in danger",
+  "in active danger",
+  "being harmed",
+  "harm(?:ed)?\\b",
+  "child(?:ren)?(?:['\\u2019]s)? safety",
+  "safety concern",
+  "police",
+  "ambulance",
+].join("|");
+
 const SYDNEY_PLACES = [
   "Surry Hills",
   "Bondi",
@@ -195,13 +223,34 @@ export const RULES = [
   // 12.03 — locale. Word-boundaried so `en-CA` (correct, left alone per 04 §2 2c) and `en-US` cannot match.
   { rule: "locale", pattern: /(?<![A-Za-z0-9])en[-_]AU(?![A-Za-z0-9])/i },
 
-  // 12.04 — currency, the display half. A bare `$` is deliberately NOT here: it reddens every USD Gemini/OpenAI cost
-  // line and every template literal, and `05-gate.md` names only these forms. The behaviour half (Stripe, price IDs,
-  // `*_aud_cents` columns) is allow-listed to the money stage — the rule exists so that list stays visible.
+  // 12.04 — currency, the display half. The behaviour half (Stripe, price IDs, `*_aud_cents` columns) is
+  // allow-listed to the money stage — the rule exists so that list stays visible.
   {
     rule: "currency",
     pattern:
-      /A\$|(?<![A-Za-z0-9])AUD(?![A-Za-z0-9])|(?<![A-Za-z0-9])aud(?![A-Za-z0-9])|[a-z]Aud(?![a-z])|currency\s*[:=]\s*["'`]aud["'`]/,
+      /A\$|(?<![A-Za-z0-9])AUD(?![A-Za-z0-9])|[a-z]Aud(?![a-z])|currency\s*[:=]\s*["'`]aud["'`]/,
+  },
+  // W6 (T2a, `LEDGER/2d.md` §9): the lower-case `aud` alternation used to stand alone, and could not tell a currency
+  // from a JWT **audience** claim or a local variable holding a route's audience. It cost four allow entries that
+  // existed only because the rule cried wolf — a rule defect written down as a deferral. It now has to stand next to
+  // a money token. Nothing real was lost: every true hit in this tree carries `AUD`, `A$`, `_aud_cents`, `…Aud`, or
+  // `currency: "aud"`, and the last of those is matched above in its own right.
+  {
+    rule: "currency",
+    pattern: near(
+      "currency|amount|cents|price|fee|total|payout|charge|refund|balance|\\$|£",
+      "(?<![A-Za-z0-9])aud(?![A-Za-z0-9])",
+    ),
+  },
+  // W6 (T2b, `LEDGER/2d.md` §9): a bare `$` before a digit — the display half of a price, which the rule could not
+  // see at all, so `$38/hr` shipped on `/ui` with `currency` at 0. **Bounded to rendered `.tsx` under `src/app` and
+  // `src/components`**: repo-wide it would redden every USD Gemini/OpenAI cost line in `lib/`, every `$1` regex
+  // replacement and every shell snippet, and a rule that cries wolf is how allow-files grow. `${…}` is untouched —
+  // the pattern needs a digit, not a brace.
+  {
+    rule: "currency",
+    path: /src\/(?:app|components)\/[^\n]*\.tsx$/,
+    pattern: /\$\d/,
   },
 
   // 12.05 — phone and mobile-validation copy.
@@ -222,15 +271,20 @@ export const RULES = [
     pattern: new RegExp([acronym("OCG"), acronym("ABN")].join("|")),
   },
 
-  // 12.07 — brand, domain, senders. The bare word `Sydney` is here (it is brand copy), with three guards that keep
-  // the same token from being counted twice under two rules: the left `(?<![A-Za-z0-9])` drops `getSydneySuburbs`
-  // and `formatSydneyDate` (geography and timezone own those), `(?<!Australia\/)` drops the IANA zone `Australia/
-  // Sydney` — measured at 48 of 670 brand lines, every one of them 2b's timezone work and none of them 2f's — and
-  // the trailing `(?![-_]postcode)` drops `sydney_postcodes` / `sydney-postcodes`.
+  // 12.07 — brand, domain, senders. The bare word `Sydney` is here (it is brand copy), with guards that keep the same
+  // token from being counted twice under two rules: the left `(?<![A-Za-z0-9])` drops `getSydneySuburbs` and
+  // `formatSydneyDate` (geography and timezone own those), `(?<!Australia\/)` drops the IANA zone `Australia/Sydney`
+  // — measured at 48 of 670 brand lines, every one of them 2b's timezone work and none of them 2f's — and the
+  // trailing guards drop `sydney_postcodes` / `sydney-postcodes` (geography's) and `sydneyToUTC` (timezone's).
+  //
+  // W6 (T3a, `LEDGER/2h.md` §6 and its log): there used to be a trailing `(?![A-Za-z0-9])` here, and `#SydneyNanny`
+  // and `#SydneyBabysitter` therefore rendered on `/ui` with `brand` at **0** — the render proof caught what the gate
+  // could not. A city name glued to the next word is still the city name, so the general boundary is gone and only
+  // the two named identifier forms are excluded, by name.
   {
     rule: "brand",
     pattern:
-      /babybloomsydney|babybloom\.com\.au|app-babybloom|babybloom\.dev|(?<![A-Za-z0-9])(?<!Australia\/)sydney(?![A-Za-z0-9])(?![-_]postcode)/i,
+      /babybloomsydney|babybloom\.com\.au|app-babybloom|babybloom\.dev|(?<![A-Za-z0-9])(?<!Australia\/)sydney(?![-_]postcode)(?!ToUTC)/i,
   },
 
   // 12.08 — jurisdiction facts in application code. Legal-page bodies are NOT excluded by the rule; the legal stage
@@ -273,7 +327,15 @@ export const RULES = [
         "children[\\u2019']?s social care",
         "\\b132\\s?111\\b",
         "\\b1800\\s?55\\s?1800\\b",
-        "\\b(?:call|dial|phone|ring|contact)\\b[^\\n]{0,30}(?<!\\d)(?<!\\d[,.])(?:000|999|112)\\b(?!\\d)(?![,.]\\d)",
+        `\\b(?:call|dial|phone|ring|contact)\\b[^\\n]{0,30}${EMERGENCY_NUMBER}`,
+        // W6 (T1, `LEDGER/2s.md` §4.2b and §7.2): the verb form above is not how the number usually appears. On
+        // `legal/disclaimer/page.tsx:273` it read "**000** for immediate danger (child is injured, in active danger,
+        // or being harmed NOW)" — an instruction with no verb in front of it, under an "IMMEDIATE Child Safety
+        // Concern?" heading, directly above the flagged `132 111`. The rule caught the neighbour and missed it.
+        // Deleting only the flagged line would have left an Australian emergency number as the sole surviving
+        // child-safety instruction. A number standing next to a danger or child-safety phrase IS the instruction, so
+        // it is caught either way round now, verb or no verb.
+        near(EMERGENCY_CONTEXT, EMERGENCY_NUMBER).source,
       ].join("|"),
       "i",
     ),
@@ -339,6 +401,11 @@ export function listFiles(root) {
 
 function scanFile(file, rules) {
   const path = relPath(file);
+  // A rule may carry a `path` regex, tested against the repo-relative path, so a pattern that is only safe in one
+  // part of the tree can be written without widening it everywhere (W6 T2b: a bare `$` before a digit is a price in
+  // rendered tsx and a USD cost note in `lib/`).
+  const applicable = rules.filter(({ path: scope }) => !scope || scope.test(path));
+  if (applicable.length === 0) return [];
   let source;
   try {
     source = readFileSync(file, "utf8");
@@ -348,14 +415,22 @@ function scanFile(file, rules) {
   const hits = [];
   source.split("\n").forEach((line, index) => {
     const matched = new Set(
-      rules.filter(({ pattern }) => pattern.test(line)).map(({ rule }) => rule),
+      applicable
+        .filter(({ pattern }) => pattern.test(line))
+        .map(({ rule }) => rule),
     );
+    const text = line.trim();
     for (const rule of matched) {
       hits.push({
         rule,
         file: path,
         line: index + 1,
-        snippet: line.trim().slice(0, 140),
+        // `text` is the whole line and is what an allow entry's `match` is compared against; `snippet` is the
+        // report's truncated copy. W6 (T3b, `LEDGER/2h.md` §6): these used to be one field, so an allow entry whose
+        // `match` fell past character 140 silenced nothing and failed as stale — two of 2h's entries did, silently,
+        // until they were re-anchored. Truncation is a display concern and now stays one.
+        text,
+        snippet: text.slice(0, 140),
       });
     }
   });
@@ -439,7 +514,7 @@ export function loadAllow(file = ALLOW_FILE) {
 const silences = (entry, hit) =>
   entry.rule === hit.rule &&
   entry.file === hit.file &&
-  hit.snippet.includes(entry.match);
+  (hit.text ?? hit.snippet).includes(entry.match);
 
 /**
  * The whole decision, pure: hits in, verdict out. `main()` only prints it and exits, so the spec proves the exit
@@ -449,9 +524,19 @@ export function evaluate({ hits, filesScanned, allow, only = null }) {
   const used = new Set();
   const remaining = [];
   for (const hit of hits) {
-    const index = allow.findIndex((entry) => silences(entry, hit));
-    if (index === -1) remaining.push(hit);
-    else used.add(index);
+    let silenced = false;
+    // **Every** entry that matches this hit is marked used, not just the first. W6 (T3b): the ratchet's rule is
+    // "an entry whose hit no longer exists fails". First-match accounting said something narrower — "an entry no
+    // other entry beat it to" — and two overlapping entries on one file made the broader one report the narrower
+    // one stale. Comparing against the whole line (above) widened the broad entries and turned 22 live legal- and
+    // removals-stage entries stale overnight, every one of them still silencing a real hit. Deleting them would
+    // have thrown away another stage's record for a reason that was never the ratchet's.
+    allow.forEach((entry, index) => {
+      if (!silences(entry, hit)) return;
+      used.add(index);
+      silenced = true;
+    });
+    if (!silenced) remaining.push(hit);
   }
   const stale = allow
     .map((entry, index) => ({ entry, index }))

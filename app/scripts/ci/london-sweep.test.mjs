@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 
 import {
   RULES,
@@ -256,6 +256,166 @@ describe("the allow-file", () => {
   it("reads the committed allow-file without throwing", () => {
     // Cheap standing check on every later unit's edits: the file stays valid JSON, with known rules and known owners.
     expect(Array.isArray(loadAllow(ALLOW_FILE))).toBe(true);
+  });
+});
+
+// ── W6 tightenings ────────────────────────────────────────────────────────────────────────────────────────────
+// Four defects, each found by a unit running the gate rather than reading it (LEDGER/2s.md §4.2b, 2d.md §9,
+// 2h.md §6). Each case below was written and watched fail before the pattern it pins was changed.
+
+/** Scan one throwaway file at a chosen repo-relative-ish sub-path, so a path-scoped rule can be driven. */
+const sweepLines = (relative, lines) => {
+  const dir = mkdtempSync(join(tmpdir(), "london-sweep-case-"));
+  const file = join(dir, ...relative.split("/"));
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, `${lines.join("\n")}\n`, "utf8");
+  try {
+    return scanTree({ dirs: [dir], files: [] }).hits;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+const rulesFiring = (relative, line) =>
+  sweepLines(relative, [line]).map((hit) => hit.rule);
+
+describe("W6 T1 — `safeguarding` sees an emergency number given as guidance, not only after a verb", () => {
+  it("catches a bare `000` beside a child-danger phrase (LEDGER/2s.md §4.2b, disclaimer:273)", () => {
+    // The exact line 2s deleted. The rule missed it because no instruction verb precedes the number.
+    expect(
+      rulesFiring(
+        "src/app/legal/page.tsx",
+        '<li><strong>000</strong> for immediate danger (child is injured, in active danger, or being harmed NOW)</li>',
+      ),
+    ).toContain("safeguarding");
+  });
+
+  it("still catches the verb form, and the England-and-Wales numbers", () => {
+    expect(rulesFiring("src/a.ts", 'const help = "call 000 immediately";')).toContain("safeguarding");
+    expect(
+      rulesFiring("src/a.tsx", "<p>Ring 999 if a child is in immediate danger.</p>"),
+    ).toContain("safeguarding");
+  });
+
+  it("does not fire on money, hex colours or grouped digits near the same words", () => {
+    for (const line of [
+      'const cap = "A$1,000 emergency fund";',
+      'const border = "1px solid #000"; // danger state',
+      'const swatch = "#000000"; // emergency banner',
+      "const population = 20 000; // harm index",
+      'const fee = "£1,000 emergency call-out";',
+    ])
+      expect(rulesFiring("src/app/x.tsx", line), line).not.toContain("safeguarding");
+  });
+});
+
+describe("W6 T2a — `currency` no longer reads a JWT audience claim as money (LEDGER/2d.md §9)", () => {
+  it("ignores a bare `aud` outside a money context", () => {
+    for (const line of [
+      'const session = { aud: "authenticated", role: "nanny" };',
+      "const aud = route.startsWith(\"/nanny\") ? \"nanny\" : \"parent\";",
+    ])
+      expect(rulesFiring("src/lib/auth.ts", line), line).not.toContain("currency");
+  });
+
+  it("still catches `aud` beside a money token, and every spelled-out form", () => {
+    for (const line of [
+      'await stripe.transfers.create({ amount, currency: "aud" });',
+      "const totalAud = sum(amount_aud_cents);",
+      'const label = "A$50";',
+      "// amounts are stored in AUD cents",
+    ])
+      expect(rulesFiring("src/lib/pay.ts", line), line).toContain("currency");
+  });
+});
+
+describe("W6 T2b — `currency` sees a bare `$` before a digit in rendered tsx (LEDGER/2d.md §9)", () => {
+  it("fires on a `$` price inside src/app and src/components tsx", () => {
+    expect(rulesFiring("src/app/ui/Showcase.tsx", '<span>$38/hr</span>')).toContain("currency");
+    expect(rulesFiring("src/components/rate/Card.tsx", 'value="$35"')).toContain("currency");
+  });
+
+  it("is bounded — a `$` cost line in lib, in a .ts file, or a template placeholder stays green", () => {
+    expect(rulesFiring("src/lib/ai/cost.ts", "// Gemini Flash: $0.075 per 1M input tokens")).not.toContain("currency");
+    expect(rulesFiring("src/app/api/x/route.ts", "const usd = \"$12.50\";")).not.toContain("currency");
+    expect(rulesFiring("src/app/ui/Rate.tsx", "const label = `${rate}/hr`;")).not.toContain("currency");
+  });
+});
+
+describe("W6 T3a — `brand` sees a city glued to the next word (LEDGER/2h.md §6)", () => {
+  it("catches the hashtags the render proof caught and the gate did not", () => {
+    for (const line of ["<p>#SydneyNanny</p>", "const tag = \"#SydneyBabysitter\";"])
+      expect(rulesFiring("src/app/ui/Share.tsx", line), line).toContain("brand");
+  });
+
+  it("still leaves the other rules' identifiers to them", () => {
+    expect(rulesFiring("src/a.ts", 'const zone = "Australia/Sydney";')).toEqual(["timezone"]);
+    expect(rulesFiring("src/a.ts", 'fetch("/api/sydney-postcodes");')).toEqual(["geography"]);
+    expect(rulesFiring("src/a.ts", "export function getSydneySuburbs() {}")).toEqual(["geography"]);
+    expect(rulesFiring("src/a.ts", "export const sydneyToUTC = (d) => d;")).toEqual(["timezone"]);
+  });
+});
+
+describe("W6 T3b — an allow entry is compared against the whole line, not a 140-character snippet", () => {
+  it("silences a hit whose `match` sits past character 140 (LEDGER/2h.md §6)", () => {
+    const padding = "x".repeat(200);
+    const line = `// ${padding} wwcc`;
+    const hits = sweepLines("src/long.ts", [line]);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].snippet.length).toBe(140);
+    expect(hits[0].snippet).not.toContain("wwcc");
+    expect(hits[0].text).toBe(line);
+
+    const result = evaluate({
+      hits,
+      filesScanned: 1,
+      allow: [
+        {
+          rule: "identity",
+          file: hits[0].file,
+          match: "wwcc",
+          owner: "identity",
+          note: "fixture",
+        },
+      ],
+    });
+    expect(result.hits).toHaveLength(0);
+    expect(result.stale).toHaveLength(0);
+    expect(result.exitCode).toBe(0);
+  });
+});
+
+describe("W6 T3b — overlapping allow entries are both live; the ratchet means the hit is gone, nothing narrower", () => {
+  it("does not report a narrow entry stale because a broader one matched the same line first", () => {
+    const hits = sweepLines("src/legal.tsx", [
+      'const notice = "Baby Bloom, Sydney — babybloomsydney.com.au";',
+    ]);
+    expect(hits.map((hit) => hit.rule)).toEqual(["brand"]);
+    const base = { rule: "brand", file: hits[0].file, owner: "legal", note: "fixture" };
+    const result = evaluate({
+      hits,
+      filesScanned: 1,
+      allow: [
+        { ...base, match: "Sydney" },
+        { ...base, match: "babybloomsydney.com.au" },
+      ],
+    });
+    expect(result.stale).toHaveLength(0);
+    expect(result.exitCode).toBe(0);
+  });
+
+  it("still fails an entry that silences nothing at all", () => {
+    const hits = sweepLines("src/legal.tsx", ['const notice = "Baby Bloom, Sydney";']);
+    const result = evaluate({
+      hits,
+      filesScanned: 1,
+      allow: [
+        { rule: "brand", file: hits[0].file, match: "Sydney", owner: "legal", note: "live" },
+        { rule: "brand", file: hits[0].file, match: "Melbourne", owner: "legal", note: "stale" },
+      ],
+    });
+    expect(result.stale.map((entry) => entry.match)).toEqual(["Melbourne"]);
+    expect(result.exitCode).toBe(1);
   });
 });
 
