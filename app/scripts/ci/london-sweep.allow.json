@@ -1,1 +1,23 @@
-[]
+[
+  {
+    "rule": "region",
+    "file": "app/src/app/(public)/legal/privacy-policy/page.tsx",
+    "match": "Processing location",
+    "owner": "legal",
+    "note": "Q-6: in-DB policy says ap-southeast-2, page says ap-northeast-1 — London writes eu-west-2 in both at the legal stage"
+  },
+  {
+    "rule": "region",
+    "file": "app/supabase/migrations/T-017-load-v2-policies.sql",
+    "match": "is held in **Supabase**",
+    "owner": "legal",
+    "note": "Q-6: in-DB policy says ap-southeast-2, page says ap-northeast-1 — London writes eu-west-2 in both at the legal stage"
+  },
+  {
+    "rule": "region",
+    "file": "app/supabase/migrations/lead-signals.sql",
+    "match": "Apply via: Supabase SQL Editor",
+    "owner": "cleanup",
+    "note": "project ref in a SQL comment; 03-triage.md section 11 fate: leave"
+  }
+]

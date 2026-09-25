@@ -5,7 +5,30 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
+import { SUPABASE_REGION } from "@/lib/constants";
 import { Settings, Shield, Bell, Database } from "lucide-react";
+
+/** Shown instead of a guess when the environment cannot answer. */
+const UNKNOWN_VALUE = "—";
+
+/**
+ * The Supabase project this console is pointed at — the first label of
+ * `NEXT_PUBLIC_SUPABASE_URL`'s host, read at render time.
+ *
+ * It used to be typed into the JSX. Typed in, it cannot follow a
+ * deployment, and it did not: the card named one project while the app
+ * talked to another (LDN2 12.NEW). Derived, it is either right or it is
+ * `—` — never quietly wrong.
+ */
+function supabaseProjectRef(): string {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url) return UNKNOWN_VALUE;
+  try {
+    return new URL(url).hostname.split(".")[0] || UNKNOWN_VALUE;
+  } catch {
+    return UNKNOWN_VALUE;
+  }
+}
 
 export default function AdminSettingsPage() {
   const { profile, role } = useAuth();
@@ -155,15 +178,16 @@ export default function AdminSettingsPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-slate-500">Project</span>
-                <span className="font-mono text-sm">umkqevipzmoovyrnynrf</span>
+                <span
+                  className="font-mono text-sm"
+                  data-testid="supabase-project-ref"
+                >
+                  {supabaseProjectRef()}
+                </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-slate-500">Region</span>
-                <span className="font-mono text-sm">ap-northeast-1 (Tokyo)</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">PostgreSQL Version</span>
-                <span className="font-mono text-sm">17.6</span>
+                <span className="font-mono text-sm">{SUPABASE_REGION}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-slate-500">Tables</span>
