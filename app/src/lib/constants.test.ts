@@ -11,8 +11,11 @@
  * BB-LDN-2-0-250926, 2026-09-25.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
+  ADMIN_FROM_ADDRESSES,
+  EMAIL_FROM_DOMAIN,
+  fromAddress,
   SITE_NAME,
   SITE_DESCRIPTION,
   SITE_URL,
@@ -176,5 +179,80 @@ describe("SUPABASE_REGION — the hosting region (12.NEW)", () => {
 
   it("is not BRAND.region — a data centre is not a place families live", () => {
     expect(SUPABASE_REGION).not.toBe(BRAND.region);
+  });
+});
+
+/**
+ * The From-host override (BAI 2026-10-01). London's own domain is not yet
+ * verified with Resend (B-50), so every real send is refused while the
+ * envelope sits on `SITE_DOMAIN`. `EMAIL_FROM_DOMAIN` moves the **From**
+ * host — and nothing else — onto a domain that is already verified.
+ *
+ * The fixture below is deliberately neutral. The real override value lives
+ * only in the environment: writing it into a test would put a live domain
+ * in a public repo and would itself be a london-sweep hit
+ * (`LEDGER/2-0.md` §8(3)).
+ *
+ * This whole block is deleted when B-50 lands.
+ */
+describe("EMAIL_FROM_DOMAIN — BAI 2026-10-01, removed at B-50", () => {
+  const OVERRIDE = "example-sender.test";
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("defaults to SITE_DOMAIN when the env var is unset", () => {
+    // The shipped default must be byte-identical to having no override at
+    // all, so landing this change cannot move anything on its own.
+    if (!process.env.EMAIL_FROM_DOMAIN) {
+      expect(EMAIL_FROM_DOMAIN).toBe(SITE_DOMAIN);
+      expect(fromAddress(SENDERS.noreply)).toBe(SENDERS.noreply);
+    }
+  });
+
+  it("with the env var set, the From host is the override and nothing else moves", async () => {
+    vi.stubEnv("EMAIL_FROM_DOMAIN", OVERRIDE);
+    vi.resetModules();
+    const fresh = await import("./constants");
+    const { DEFAULT_FROM } = await import("./email/resend");
+
+    // the envelope moves …
+    expect(fresh.EMAIL_FROM_DOMAIN).toBe(OVERRIDE);
+    expect(DEFAULT_FROM).toBe(`${fresh.SITE_NAME} <noreply@${OVERRIDE}>`);
+    expect(DEFAULT_FROM.split("@")[1]).toBe(`${OVERRIDE}>`);
+
+    // … and the product does not. Links, body addresses, the reply inbox
+    // and the display name all stay on London's own domain.
+    expect(fresh.SITE_DOMAIN).toBe(SITE_DOMAIN);
+    expect(fresh.SITE_URL).toBe(SITE_URL);
+    expect(new URL(fresh.SITE_URL).host).not.toBe(OVERRIDE);
+    expect(fresh.SENDERS).toEqual(SENDERS);
+    expect(fresh.SUPPORT_INBOX).toBe(SUPPORT_INBOX);
+    expect(fresh.SITE_NAME).toBe(SITE_NAME);
+  });
+
+  it("ADMIN_FROM_ADDRESSES follows the From host — it is a From allowlist", async () => {
+    vi.stubEnv("EMAIL_FROM_DOMAIN", OVERRIDE);
+    vi.resetModules();
+    const fresh = await import("./constants");
+
+    expect(fresh.ADMIN_FROM_ADDRESSES).toHaveLength(
+      ADMIN_FROM_ADDRESSES.length,
+    );
+    for (const [i, address] of fresh.ADMIN_FROM_ADDRESSES.entries()) {
+      // same local parts, in the same order, on the override host
+      expect(address.split("@")[0]).toBe(ADMIN_FROM_ADDRESSES[i].split("@")[0]);
+      expect(address.split("@")[1]).toBe(OVERRIDE);
+    }
+  });
+
+  it("fromAddress re-hosts only the host, keeping the local part", () => {
+    for (const address of Object.values(SENDERS)) {
+      const rehosted = fromAddress(address);
+      expect(rehosted.split("@")[0]).toBe(address.split("@")[0]);
+      expect(rehosted.split("@")[1]).toBe(EMAIL_FROM_DOMAIN);
+    }
   });
 });
