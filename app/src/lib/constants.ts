@@ -64,6 +64,34 @@ export const BRAND = {
   countryCode: "GB",
 } as const;
 
+/**
+ * The host every outbound **From** address is sent on — `SITE_DOMAIN` unless
+ * `EMAIL_FROM_DOMAIN` overrides it.
+ *
+ * BAI 2026-10-01: London's own domain is not yet verified with the email
+ * provider (B-50), so a From on `SITE_DOMAIN` is refused and no real email can
+ * leave the app. Until B-50 lands, the envelope is sent on a domain that *is*
+ * already verified while everything the recipient reads stays London's: the
+ * From display name is `SITE_NAME`, and every link, body address, reply inbox
+ * and `mailto:` keeps reading `SENDERS` / `SITE_URL` directly.
+ *
+ * **Removed when B-50 lands.** Unset the variable and the default restores
+ * today's behaviour with no diff; then this constant, `fromAddress()` and
+ * their test block are deleted and the two From sites point back at
+ * `SENDERS.*`.
+ */
+export const EMAIL_FROM_DOMAIN = process.env.EMAIL_FROM_DOMAIN ?? SITE_DOMAIN;
+
+/**
+ * The sending form of an address: same local part, re-hosted on
+ * `EMAIL_FROM_DOMAIN`. Use it in a `from:` and **nowhere else** — a body
+ * address, a reply-to, a `mailto:` or a recipient reads `SENDERS` directly, so
+ * the product stays on its own domain. With no override set this is the
+ * identity function.
+ */
+export const fromAddress = (address: string): string =>
+  `${address.split("@")[0]}@${EMAIL_FROM_DOMAIN}`;
+
 /** Every outbound address, built from the one domain. 12.07. */
 export const SENDERS = {
   noreply: `noreply@${SITE_DOMAIN}`,
@@ -87,14 +115,18 @@ export const SUPPORT_INBOX = SENDERS.support;
  *
  * The four local parts that are not in `SENDERS` exist only on this
  * console; they are built from the one domain so they cannot drift.
+ *
+ * This list is a **From** allowlist — `adminSendEmail` refuses any address
+ * not in it and then sends with it — so it is built on `EMAIL_FROM_DOMAIN`,
+ * not `SITE_DOMAIN`. BAI 2026-10-01; removed when B-50 lands.
  */
 export const ADMIN_FROM_ADDRESSES = [
-  SENDERS.noreply,
-  `verification@${SITE_DOMAIN}`,
-  `nannies@${SITE_DOMAIN}`,
-  SENDERS.support,
-  `contact@${SITE_DOMAIN}`,
-  `parents@${SITE_DOMAIN}`,
+  fromAddress(SENDERS.noreply),
+  `verification@${EMAIL_FROM_DOMAIN}`,
+  `nannies@${EMAIL_FROM_DOMAIN}`,
+  fromAddress(SENDERS.support),
+  `contact@${EMAIL_FROM_DOMAIN}`,
+  `parents@${EMAIL_FROM_DOMAIN}`,
 ] as const;
 
 /**

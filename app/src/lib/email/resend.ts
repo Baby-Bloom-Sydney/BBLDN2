@@ -1,10 +1,16 @@
 import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { SENDERS, SITE_NAME } from "@/lib/constants";
+import { fromAddress, SENDERS, SITE_NAME } from "@/lib/constants";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const DEFAULT_FROM = `${SITE_NAME} <${SENDERS.noreply}>`;
+/**
+ * The From of every email in the tree. The display name is London's brand;
+ * the address is re-hosted on `EMAIL_FROM_DOMAIN` because the provider only
+ * accepts a verified sending domain (BAI 2026-10-01). Exported so
+ * `constants.test.ts` can pin the host. Reverts to `SENDERS.noreply` at B-50.
+ */
+export const DEFAULT_FROM = `${SITE_NAME} <${fromAddress(SENDERS.noreply)}>`;
 
 export interface SendEmailParams {
   to: string | string[];
