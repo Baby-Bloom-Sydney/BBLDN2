@@ -71,18 +71,16 @@ import { AvailabilityGrid } from "@/components/profile/AvailabilityGrid";
 import { ProfilePhotoViewer } from "@/components/profile/ProfilePhotoViewer";
 import { computeAge, ageRangeToFriendly, childrenCountLabel, BADGE_ICONS } from "@/components/profile/profile-helpers";
 import { checkAllFields } from "@/lib/profanity";
+import { QUALIFICATION_LADDER, CERTIFICATE_OPTIONS, ASSURANCE_OPTIONS, byOptionOrder } from "@/lib/nanny-options";
+import { qualificationBadgeLabel } from "@/lib/matching/qualification-display";
 import { showsEnhancedDbsBadge } from "@/lib/dbs/nanny-display";
 
 // ── Option constants ──
 
-const QUALIFICATION_OPTIONS = [
-  "Certificate III in Early Childhood Education and Care",
-  "Certificate IV in Education Support",
-  "Diploma of Early Childhood Education and Care",
-  "Bachelor of Early Childhood Education (Or Equivalent)",
-  "No Qualifications",
-];
-const CERTIFICATE_OPTIONS = ["CPR", "First Aid", "First Aid in Education & Care Setting", "Child Protection"];
+// E-2 / P-2: qualification, certificate and assurance lists are 3a's (lib/nanny-options.ts); array order = display order
+const QUALIFICATION_VALUES = QUALIFICATION_LADDER.map((q) => q.value);
+const CERTIFICATE_TAGS: string[] = [...CERTIFICATE_OPTIONS];
+const ASSURANCE_TAGS = [...ASSURANCE_OPTIONS];
 const ROLE_TYPE_OPTIONS = ["Mothers Help", "Back-to-Work Support", "Pick Up & Drop Off", "Child Development", "Home Management"];
 const LEVEL_OF_SUPPORT_OPTIONS = ["Supervision", "Engagement and Play", "Educational Support", "Developmental Assistance"];
 const LANGUAGE_OPTIONS = ["English", "Foreign Language", "Multiple"];
@@ -113,7 +111,6 @@ const MOTIVATION_OPTIONS = [
   "Making a real difference",
   "Other",
 ];
-const ASSURANCE_OPTIONS = ["National Police Check", "References"];
 const PERSONALITY_TRAIT_OPTIONS = [
   "Patient", "Creative", "Energetic", "Nurturing", "Calm", "Organised",
   "Warm", "Reliable", "Adaptable", "Empathetic", "Playful", "Attentive",
@@ -464,13 +461,9 @@ export function NannyMyProfile({ profile }: { profile: NannyProfile }) {
     traitBadges.push({ icon: "Baby", label: `Toddlers, ${profile.under_3_experience_years}${profile.under_3_experience_years === 1 ? 'yr' : 'yrs'}`, primary: true });
   if (profile.newborn_experience_years && profile.newborn_experience_years > 0)
     traitBadges.push({ icon: "Baby", label: `Babies, ${profile.newborn_experience_years}${profile.newborn_experience_years === 1 ? 'yr' : 'yrs'}`, primary: true });
-  if (profile.highest_qualification) {
-    let qual = profile.highest_qualification;
-    if (qual.startsWith("Bachelor")) qual = "Bachelors";
-    else if (qual.startsWith("Diploma")) qual = "Diploma";
-    else if (qual.startsWith("Certificate IV")) qual = "Cert IV";
-    else if (qual.startsWith("Certificate III")) qual = "Cert III";
-    traitBadges.push({ icon: "GraduationCap", label: qual });
+  const qualBadge = qualificationBadgeLabel(profile.highest_qualification);
+  if (qualBadge) {
+    traitBadges.push({ icon: "GraduationCap", label: qualBadge });
   }
 
   // Stat boxes
@@ -1260,7 +1253,7 @@ export function NannyMyProfile({ profile }: { profile: NannyProfile }) {
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-violet-500 focus:ring-1 focus:ring-violet-500 outline-none"
                   >
                     <option value="">Select...</option>
-                    {QUALIFICATION_OPTIONS.map((q) => <option key={q} value={q}>{q}</option>)}
+                    {QUALIFICATION_VALUES.map((q) => <option key={q} value={q}>{q}</option>)}
                   </select>
                 </div>
                 <div>
@@ -1358,15 +1351,11 @@ export function NannyMyProfile({ profile }: { profile: NannyProfile }) {
 
           {/* 3. Safety & Assurance */}
           {(() => {
-            const CERT_ORDER = [
-              "First Aid in Education & Care Setting",
-              "First Aid",
-              "CPR",
-              "Child Protection",
-            ];
             const currentCerts = editMode ? form.certificates : profile.certificates;
-            const orderedCerts = CERT_ORDER.filter((c) => currentCerts.includes(c));
-            const otherCerts = currentCerts.filter((c) => !CERT_ORDER.includes(c));
+            // P-2: CERTIFICATE_OPTIONS order; values not on the list follow in stored order
+            const sortedCerts = [...currentCerts].sort(byOptionOrder(CERTIFICATE_OPTIONS));
+            const orderedCerts = sortedCerts.filter((c) => CERTIFICATE_TAGS.includes(c));
+            const otherCerts = sortedCerts.filter((c) => !CERTIFICATE_TAGS.includes(c));
             const currentVax = editMode ? form.vaccination_status : profile.vaccination_status;
             const currentNonSmoker = editMode ? form.non_smoker : profile.non_smoker;
             const showDbsGlance = showsEnhancedDbsBadge(profile.verification_level);
@@ -1382,11 +1371,11 @@ export function NannyMyProfile({ profile }: { profile: NannyProfile }) {
                   <div className="space-y-4">
                     <div>
                       <Label className="text-xs text-slate-500 mb-1.5 block">Certificates</Label>
-                      <MultiSelectTags options={CERTIFICATE_OPTIONS} selected={form.certificates} onChange={(v) => update("certificates", v)} />
+                      <MultiSelectTags options={CERTIFICATE_TAGS} selected={form.certificates} onChange={(v) => update("certificates", v)} />
                     </div>
                     <div>
                       <Label className="text-xs text-slate-500 mb-1.5 block">Assurances</Label>
-                      <MultiSelectTags options={ASSURANCE_OPTIONS} selected={form.assurances} onChange={(v) => update("assurances", v)} />
+                      <MultiSelectTags options={ASSURANCE_TAGS} selected={form.assurances} onChange={(v) => update("assurances", v)} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>

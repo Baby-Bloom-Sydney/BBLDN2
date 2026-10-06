@@ -49,6 +49,9 @@ import {
   BADGE_ICONS,
 } from "@/components/profile/profile-helpers";
 import type { FunnelSource } from "@/lib/funnel/source";
+import { CERTIFICATE_OPTIONS, byOptionOrder } from "@/lib/nanny-options";
+
+const KNOWN_CERTIFICATES: readonly string[] = CERTIFICATE_OPTIONS;
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -161,15 +164,10 @@ export function ParentNannyProfileView({
       label: "Years Newborns",
     });
 
-  // ── Safety cert ordering ──
-  const CERT_ORDER = [
-    "First Aid in Education & Care Setting",
-    "First Aid",
-    "CPR",
-    "Child Protection",
-  ];
-  const orderedCerts = CERT_ORDER.filter((c) => nanny.certificates.includes(c));
-  const otherCerts = nanny.certificates.filter((c) => !CERT_ORDER.includes(c));
+  // ── Safety cert ordering — P-2: CERTIFICATE_OPTIONS order; values not on the list follow in stored order ──
+  const sortedCerts = [...nanny.certificates].sort(byOptionOrder(CERTIFICATE_OPTIONS));
+  const orderedCerts = sortedCerts.filter((c) => KNOWN_CERTIFICATES.includes(c));
+  const otherCerts = sortedCerts.filter((c) => !KNOWN_CERTIFICATES.includes(c));
 
   return (
     <>

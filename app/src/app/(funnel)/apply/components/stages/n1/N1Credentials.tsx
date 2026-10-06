@@ -1,5 +1,18 @@
 'use client';
 
+/**
+ * Funnel page 6 (0-based) — "Your credentials": qualification, extra certificates, the enhanced-DBS gate.
+ * Unit 3e (BB-LDN-3e-061026) implements:
+ *  - E-2: the qualification options are 3a's `QUALIFICATION_LADDER` values minus "No Qualifications" (a "No" to the
+ *    first question writes nothing — that rung is profile-only).
+ *  - P-2 / E-7: the certificate options are 3a's `CERTIFICATE_OPTIONS`, in array (= display) order.
+ *  - E-5: the no-DBS card links to `DBS_LINKS.getEnhanced`.
+ *  - D-1 / E-6: the gate is unchanged — Yes auto-advances after 400 ms; No refuses with no Continue. No Update Service
+ *    question here (3b owns the DBS step).
+ *  - D-4: the DBS answer is still written to the `qualifications.wwcc` key (rename owned by `cleanup`).
+ * Never: declares its own qualification or certificate list; lets a "No" to the DBS question continue.
+ */
+
 import { useCallback, useEffect, useRef } from 'react';
 import { StageProps } from '../../FunnelOrchestrator';
 import { YesNoTags } from '../../shared/YesNoTags';
@@ -7,9 +20,15 @@ import { MultiSelectTags } from '../../shared/MultiSelectTags';
 import { SingleSelectTags } from '../../shared/SingleSelectTags';
 import { ProgressiveReveal } from '../../shared/ProgressiveReveal';
 import { CompoundPageShell } from '../../shared/CompoundPageShell';
-import { QUALIFICATION_OPTIONS, CERTIFICATE_OPTIONS } from '@/types/nanny-leads';
+import { QUALIFICATION_LADDER, CERTIFICATE_OPTIONS } from '@/lib/nanny-options';
+import { DBS_LINKS } from '@/lib/constants';
 import { Label } from '@/components/ui/label';
 import { AlertTriangle } from 'lucide-react';
+
+// E-2: the funnel offers the ladder minus its rank-0 "No Qualifications" rung (a "No" to question a writes nothing)
+const FUNNEL_QUALIFICATIONS = QUALIFICATION_LADDER.filter((q) => q.score > 0).map((q) => q.value);
+// P-2: CPR → First Aid → Emergency Paediatric First Aid (6-hour) → Paediatric First Aid (12-hour)
+const FUNNEL_CERTIFICATES = [...CERTIFICATE_OPTIONS];
 
 export function N1Credentials({ state, dispatch, goNext, goBack, progress, questionNumber }: StageProps) {
   const { qualifications } = state;
@@ -21,11 +40,12 @@ export function N1Credentials({ state, dispatch, goNext, goBack, progress, quest
     [dispatch]
   );
 
-  const wwccBlocked = qualifications.wwcc === false;
-  // Start as true if WWCC already answered (restored state) — prevents auto-advance on back-nav
+  // `qualifications.wwcc` holds the enhanced-DBS answer — key name kept per D-4; rename in cleanup
+  const dbsBlocked = qualifications.wwcc === false;
+  // Start as true if the DBS question is already answered (restored state) — prevents auto-advance on back-nav
   const autoAdvanced = useRef(qualifications.wwcc === true);
 
-  // Auto-advance when WWCC is answered "Yes" (only on fresh tap, not page restore)
+  // Auto-advance when the DBS question is answered "Yes" (only on fresh tap, not page restore)
   useEffect(() => {
     if (qualifications.wwcc === true && !autoAdvanced.current) {
       autoAdvanced.current = true;
@@ -43,7 +63,7 @@ export function N1Credentials({ state, dispatch, goNext, goBack, progress, quest
     qualifications.has_qualifications === false ||
     (qualifications.has_qualifications === true && qualifications.highest_qualification !== null);
   const showCertificates = qualifications.has_certificates === true;
-  const showWwcc =
+  const showDbs =
     qualifications.has_certificates === false ||
     (qualifications.has_certificates === true && qualifications.certificates.length > 0);
 
@@ -82,7 +102,7 @@ export function N1Credentials({ state, dispatch, goNext, goBack, progress, quest
               What is the highest childcare qualification you currently hold?
             </Label>
             <SingleSelectTags
-              options={QUALIFICATION_OPTIONS}
+              options={FUNNEL_QUALIFICATIONS}
               selected={qualifications.highest_qualification}
               onChange={(val) => {
                 update({
@@ -122,15 +142,15 @@ export function N1Credentials({ state, dispatch, goNext, goBack, progress, quest
               Which certificates do you hold?
             </Label>
             <MultiSelectTags
-              options={CERTIFICATE_OPTIONS}
+              options={FUNNEL_CERTIFICATES}
               selected={qualifications.certificates}
               onChange={(val) => update({ certificates: val })}
             />
           </div>
         </ProgressiveReveal>
 
-        {/* WWCC */}
-        <ProgressiveReveal show={showWwcc}>
+        {/* Enhanced DBS gate — Yes auto-advances, No refuses (D-1, E-6) */}
+        <ProgressiveReveal show={showDbs}>
           <div className="flex flex-col gap-2 pt-2">
             <Label className="text-sm font-medium text-slate-700">
               Do you hold an enhanced DBS check?
@@ -142,8 +162,8 @@ export function N1Credentials({ state, dispatch, goNext, goBack, progress, quest
           </div>
         </ProgressiveReveal>
 
-        {/* WWCC blocked */}
-        {wwccBlocked && (
+        {/* No enhanced DBS — hard stop, no Continue */}
+        {dbsBlocked && (
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg flex gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div className="flex flex-col gap-1">
@@ -154,7 +174,7 @@ export function N1Credentials({ state, dispatch, goNext, goBack, progress, quest
                 Baby Bloom can only accept childcare professionals who hold a valid enhanced DBS check.
                 You can apply for one at{' '}
                 <a
-                  href="https://www.gov.uk/dbs-check-applicant-criminal-record"
+                  href={DBS_LINKS.getEnhanced}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline font-medium"

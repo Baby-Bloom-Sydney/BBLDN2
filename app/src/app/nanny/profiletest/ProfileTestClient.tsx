@@ -34,6 +34,9 @@ import {
   Languages,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CERTIFICATE_OPTIONS, byOptionOrder } from "@/lib/nanny-options";
+
+const KNOWN_CERTIFICATES: readonly string[] = CERTIFICATE_OPTIONS;
 
 // ╔══════════════════════════════════════════════════════════════════════════════╗
 // ║  MOCK DATA                                                                 ║
@@ -97,7 +100,7 @@ const MOCK_AI_VALUES = "<p>I encourage independence, so your child builds confid
 // ai_content.bio_summary.background — childcare background narrative (~40-50 words)
 // Draws from: experience.childcare_roles, qualifications.highest_qualification
 // Tone: first-person, contextualises qualification + roles into a story
-const MOCK_AI_BACKGROUND = "<p>I hold a Diploma of Early Childhood Education and Care, which gave me a strong foundation in child development and age-appropriate learning. Over the past 7 years I've worked across nannying, daycare and after-school care — each role teaching me something different about how children learn, play and grow.</p>";
+const MOCK_AI_BACKGROUND = "<p>I hold a Level 5 foundation degree in early years, which gave me a strong foundation in child development and age-appropriate learning. Over the past 7 years I've worked across nannying, daycare and after-school care — each role teaching me something different about how children learn, play and grow.</p>";
 
 // NOTE: Safety & Assurance is NOT ai-generated — it is computer-generated
 // from structured data (verification_level, certificates, vaccination_status)
@@ -164,13 +167,11 @@ const MOCK_CHILDCARE_ROLES = [
 ];
 
 // qualifications (from nanny_credentials table)
-// Qualification options: "Certificate III in Early Childhood Education and Care",
-//   "Certificate IV in Education Support", "Diploma of Early Childhood Education and Care",
-//   "Bachelor of Early Childhood Education (Or Equivalent)"
+// Qualification options: QUALIFICATION_LADDER values (lib/nanny-options.ts, E-2)
 const MOCK_QUALIFICATIONS = {
-  highest_qualification: "Diploma of Early Childhood Education and Care",
-  // Certificate options: "CPR", "First Aid", "First Aid in Education & Care Setting", "Child Protection"
-  certificates: ["CPR", "First Aid", "Child Protection"],
+  highest_qualification: "Level 5 / foundation degree in early years",
+  // Certificate options: CERTIFICATE_OPTIONS (lib/nanny-options.ts, P-2)
+  certificates: ["CPR", "First Aid", "Paediatric First Aid (12-hour)"],
 };
 
 // preferences (from nannies table)
@@ -697,16 +698,11 @@ export function ProfileTestClient() {
               </div>
 
               {/* 3. Safety & Assurance — NOT ai-generated, computer-generated from structured data */}
-              {/* Order: WWCC > First Aid in Childcare > First Aid > CPR > Child Protection > other > Vaccinated > Non-Smoker */}
+              {/* Order: verification badge > CERTIFICATE_OPTIONS (P-2) > other > Vaccinated > Non-Smoker */}
               {(() => {
-                const CERT_ORDER = [
-                  "First Aid in Education & Care Setting",
-                  "First Aid",
-                  "CPR",
-                  "Child Protection",
-                ];
-                const orderedCerts = CERT_ORDER.filter((c) => MOCK_QUALIFICATIONS.certificates.includes(c));
-                const otherCerts = MOCK_QUALIFICATIONS.certificates.filter((c) => !CERT_ORDER.includes(c));
+                const sortedCerts = [...MOCK_QUALIFICATIONS.certificates].sort(byOptionOrder(CERTIFICATE_OPTIONS));
+                const orderedCerts = sortedCerts.filter((c) => KNOWN_CERTIFICATES.includes(c));
+                const otherCerts = sortedCerts.filter((c) => !KNOWN_CERTIFICATES.includes(c));
                 const hasItems = MOCK_HERO.verificationLevel >= 3 || orderedCerts.length > 0 || otherCerts.length > 0 || MOCK_GOOD_TO_KNOW.vaccination_status || MOCK_GOOD_TO_KNOW.non_smoker;
                 if (!hasItems) return null;
                 return (
@@ -998,10 +994,10 @@ export function ProfileTestClient() {
 // │     - 2-column grid of GlanceItem (variant="green")                         │
 // │     - Fixed display order:                                                  │
 // │       a. WWCC (if verification_level >= 3) — ShieldCheck icon               │
-// │       b. First Aid in Education & Care Setting — Award icon                 │
+// │       b. CPR — Award icon                                                   │
 // │       c. First Aid — Award icon                                             │
-// │       d. CPR — Award icon                                                   │
-// │       e. Child Protection — Award icon                                      │
+// │       d. Emergency Paediatric First Aid (6-hour) — Award icon               │
+// │       e. Paediatric First Aid (12-hour) — Award icon                        │
 // │       f. Any other certificates — Award icon                                │
 // │       g. Fully Vaccinated — Stethoscope icon                                │
 // │       h. Non-Smoker — CigaretteOff icon                                     │

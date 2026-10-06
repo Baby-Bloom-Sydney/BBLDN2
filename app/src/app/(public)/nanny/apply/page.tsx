@@ -35,7 +35,7 @@ export default async function NannyApplyPage() {
 
         if (!profileComplete) {
           userState = 'nanny_incomplete';
-          ctaHref = '/nanny/register';
+          ctaHref = '/apply';
           ctaLabel = 'Complete your profile';
         } else if (!nanny.identity_verified || !nanny.wwcc_verified) {
           userState = 'nanny_unverified';

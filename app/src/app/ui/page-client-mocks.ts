@@ -379,7 +379,7 @@ export const MOCK_NANNY_SHARE_DATA = {
   profilePicUrl: null as string | null,
   suburb: "Clapham",
   parentPitch:
-    "Bailey is a warm, experienced nanny with a genuine passion for helping children learn and grow. With 4 years of dedicated nanny experience and a Certificate III in Early Childhood, she brings both expertise and heart to every family she works with. Book a free interview today!",
+    "Bailey is a warm, experienced nanny with a genuine passion for helping children learn and grow. With 4 years of dedicated nanny experience and a Level 3 early years qualification, she brings both expertise and heart to every family she works with. Book a free interview today!",
   share: null,
 };
 
@@ -463,8 +463,8 @@ export const MOCK_POSITION_WITH_CHILDREN = {
     placementLength: "6 months+",
     reasonForNanny: ["Return to work"],
     languagePreference: "English",
-    qualificationRequirement: "Certificate III or higher",
-    certificateRequirements: ["First Aid", "CPR"],
+    qualificationRequirement: "Level 3 or higher",
+    certificateRequirements: ["CPR", "First Aid"],
     vaccinationRequired: true,
     driversLicenseRequired: true,
     carRequired: false,

@@ -920,120 +920,36 @@
     "rule": "brand",
     "file": "app/src/app/(funnel)/apply/components/stages/n1/N1Location.tsx",
     "match": "sydney_resident",
-    "owner": "identity",
-    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
-  },
-  {
-    "rule": "brand",
-    "file": "app/src/app/(funnel)/apply/components/stages/n1/N1Location.tsx",
-    "match": "not in Sydney",
-    "owner": "identity",
-    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
-  },
-  {
-    "rule": "brand",
-    "file": "app/src/app/(funnel)/apply/components/stages/n1/N1Location.tsx",
-    "match": "Sydney resident",
-    "owner": "identity",
-    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
-  },
-  {
-    "rule": "brand",
-    "file": "app/src/app/(funnel)/apply/components/stages/n1/N1Location.tsx",
-    "match": "Not in Sydney message",
-    "owner": "identity",
-    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
-  },
-  {
-    "rule": "brand",
-    "file": "app/src/app/nanny/register/NannyRegistrationFunnel.tsx",
-    "match": "sydney_resident",
-    "owner": "identity",
-    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
-  },
-  {
-    "rule": "brand",
-    "file": "app/src/app/nanny/register/steps/StepResidency.tsx",
-    "match": "sydney_resident",
-    "owner": "identity",
-    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
-  },
-  {
-    "rule": "brand",
-    "file": "app/src/app/nanny/register/steps/StepResidency.tsx",
-    "match": "sydney residency",
-    "owner": "identity",
-    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
-  },
-  {
-    "rule": "brand",
-    "file": "app/src/app/nanny/register/steps/StepResidency.tsx",
-    "match": "Sydney Resident",
-    "owner": "identity",
-    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
-  },
-  {
-    "rule": "brand",
-    "file": "app/src/app/nanny/register/steps/StepResidency.tsx",
-    "match": "living in Sydney?",
-    "owner": "identity",
-    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
-  },
-  {
-    "rule": "brand",
-    "file": "app/src/app/nanny/register/steps/StepResidency.tsx",
-    "match": "Not-Sydney note",
-    "owner": "identity",
-    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
-  },
-  {
-    "rule": "brand",
-    "file": "app/src/app/nanny/register/steps/StepResidency.tsx",
-    "match": "soon to be living) in Sydney",
-    "owner": "identity",
-    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
-  },
-  {
-    "rule": "brand",
-    "file": "app/src/app/nanny/register/steps/StepReview.tsx",
-    "match": "Sydney resident",
-    "owner": "identity",
-    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
-  },
-  {
-    "rule": "brand",
-    "file": "app/src/app/nanny/register/steps/StepReview.tsx",
-    "match": "sydney_resident",
-    "owner": "identity",
-    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+    "owner": "cleanup",
+    "note": "`sydney_resident` (\"living in London?\") — column name kept per D-4; rename in cleanup. Re-owned from identity by unit 3e (BB-LDN-3e-061026): the question and its copy are London; only the key name is left."
   },
   {
     "rule": "brand",
     "file": "app/src/lib/actions/nanny-leads.ts",
     "match": "sydney_resident",
-    "owner": "identity",
-    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+    "owner": "cleanup",
+    "note": "`sydney_resident` (\"living in London?\") — column name kept per D-4; rename in cleanup. Re-owned from identity by unit 3e (BB-LDN-3e-061026): the question and its copy are London; only the key name is left."
   },
   {
     "rule": "brand",
     "file": "app/src/lib/actions/nanny.ts",
     "match": "sydney_resident",
-    "owner": "identity",
-    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+    "owner": "cleanup",
+    "note": "`sydney_resident` (\"living in London?\") — column name kept per D-4; rename in cleanup. Re-owned from identity by unit 3e (BB-LDN-3e-061026): the question and its copy are London; only the key name is left."
   },
   {
     "rule": "brand",
     "file": "app/src/types/nanny-leads.ts",
     "match": "sydney_resident",
-    "owner": "identity",
-    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+    "owner": "cleanup",
+    "note": "`sydney_resident` (\"living in London?\") — column name kept per D-4; rename in cleanup. Re-owned from identity by unit 3e (BB-LDN-3e-061026): the question and its copy are London; only the key name is left."
   },
   {
     "rule": "brand",
     "file": "app/src/lib/chat/modules/profile.test.ts",
     "match": "sydney_resident",
-    "owner": "identity",
-    "note": "`sydney_resident` is a COLUMN NAME and the right-to-work gate it drives, not copy. 04 §4 identity keeps the whole residency ladder (incl. the HIGH 2e recorded on apply page 7) for the identity stage; renaming the field or rewording the question is a gate change, not a place change."
+    "owner": "cleanup",
+    "note": "`sydney_resident` (\"living in London?\") — column name kept per D-4; rename in cleanup. Re-owned from identity by unit 3e (BB-LDN-3e-061026): the question and its copy are London; only the key name is left."
   },
   {
     "rule": "brand",
@@ -1193,22 +1109,8 @@
     "rule": "identity",
     "file": "app/src/app/(funnel)/apply/components/stages/n1/N1Credentials.tsx",
     "match": "wwcc",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 11 hit(s): lines 24, 26, 30, 35, 38, 72, 92, 111, 139, 140, 146]"
-  },
-  {
-    "rule": "identity",
-    "file": "app/src/app/(funnel)/apply/components/stages/n1/N1Credentials.tsx",
-    "match": "WWCC",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 4 hit(s): lines 25, 28, 132, 145]"
-  },
-  {
-    "rule": "identity",
-    "file": "app/src/app/(funnel)/apply/components/stages/n1/N1Credentials.tsx",
-    "match": "Wwcc",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 2 hit(s): lines 46, 133]"
+    "owner": "cleanup",
+    "note": "`qualifications.wwcc` (the enhanced-DBS answer) — column name kept per D-4; rename in cleanup. Re-owned from identity by unit 3e (BB-LDN-3e-061026): the question and its copy are London; only the key name is left."
   },
   {
     "rule": "identity",
@@ -2009,13 +1911,6 @@
     "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 5 hit(s): lines 638, 700, 720, 1000, 1132]"
   },
   {
-    "rule": "brand",
-    "file": "app/src/app/nanny/register/steps/StepResidency.tsx",
-    "match": "sydney",
-    "owner": "identity",
-    "note": "`sydneyResident` — the funnel's Australian-residency gate, in camelCase, surfaced at W6 by the `brand` boundary fix (LEDGER/2h.md §6). The question itself is the identity stage's (04-sequence.md §4, HIGH from 2e); the identifier moves with it. Fate row 12.07.  [W6, 6 hit(s): lines 288, 290, 302, 303, 396, 431]"
-  },
-  {
     "rule": "identity",
     "file": "app/src/app/nanny/settings/page.tsx",
     "match": "wwcc",
@@ -2803,8 +2698,8 @@
     "rule": "identity",
     "file": "app/src/types/nanny-leads.ts",
     "match": "wwcc",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 2 hit(s): lines 34, 340]"
+    "owner": "cleanup",
+    "note": "`qualifications.wwcc` (the enhanced-DBS answer) — column name kept per D-4; rename in cleanup. Re-owned from identity by unit 3e (BB-LDN-3e-061026): the question and its copy are London; only the key name is left."
   },
   {
     "rule": "jurisdiction",

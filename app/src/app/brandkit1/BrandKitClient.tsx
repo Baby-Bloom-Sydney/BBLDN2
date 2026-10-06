@@ -153,7 +153,7 @@ export function BrandKitClient({ profilePicUrl }: BrandKitClientProps) {
       "Experienced and warm nanny with a passion for early childhood development. 4 years of dedicated experience across South West London.",
     bio: "Hi, I\u2019m Bailey! I\u2019m a passionate and experienced nanny based in Clapham with 4 years of dedicated childcare experience. I believe every child deserves a nurturing environment where they feel safe to explore, learn, and grow. My approach combines structured activities with plenty of creative play \u2014 I love getting outside, reading together, and finding little moments of magic in everyday routines. I\u2019m reliable, warm, and genuinely love what I do.",
     about:
-      "Originally from Yorkshire, I moved to London three years ago and fell in love with the city and the families I\u2019ve had the privilege of working with. I hold a Certificate III in Early Childhood Education and have completed my First Aid and CPR training. When I\u2019m not with the kids, you\u2019ll find me on the Common, trying new recipes, or exploring London\u2019s hidden caf\u00e9s.",
+      "Originally from Yorkshire, I moved to London three years ago and fell in love with the city and the families I\u2019ve had the privilege of working with. I hold a Level 3 early years educator qualification and have completed my First Aid and CPR training. When I\u2019m not with the kids, you\u2019ll find me on the Common, trying new recipes, or exploring London\u2019s hidden caf\u00e9s.",
     experience:
       "6 years total childcare experience including 4 years as a dedicated nanny. I\u2019ve worked with children from newborn through to 8 years old across a variety of family setups \u2014 single children, twins, and families with up to 3 kids. I\u2019m experienced with school and daycare drop-offs/pickups, meal preparation, bath and bedtime routines, and managing activities and playdates.",
     strengths:
@@ -170,7 +170,7 @@ export function BrandKitClient({ profilePicUrl }: BrandKitClientProps) {
     comfortable_with_pets: true,
     vaccination_status: true,
     non_smoker: true,
-    highest_qualification: "Certificate III in Early Childhood Education",
+    highest_qualification: "Level 3 early years educator (incl. NNEB / CACHE diploma)",
     certificates: ["First Aid & CPR", "Working With Children Check"],
     role_types: ["Nanny", "Babysitter"],
     support_levels: ["Sole charge", "Shared care"],

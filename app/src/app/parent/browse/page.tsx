@@ -10,6 +10,7 @@ import { getPosition } from "@/lib/actions/parent";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { BrowseMatchesClient } from "./BrowseMatchesClient";
 import { BRAND } from "@/lib/constants";
+import { qualificationRank } from "@/lib/nanny-options";
 
 export const dynamic = "force-dynamic";
 
@@ -22,14 +23,6 @@ const SORT_OPTIONS = [
 ] as const;
 
 type SortKey = (typeof SORT_OPTIONS)[number]["key"];
-
-const QUAL_RANK: Record<string, number> = {
-  "Bachelor of Early Childhood Education (Or Equivalent)": 5,
-  "Diploma of Early Childhood Education and Care": 4,
-  "Certificate IV in Education Support": 3,
-  "Certificate III in Early Childhood Education and Care": 2,
-  "No Qualifications": 1,
-};
 
 async function getNannies(sortBy: SortKey = "newest", page: number = 1): Promise<{ nannies: NannyCardData[]; total: number }> {
   const supabase = createAdminClient();
@@ -108,8 +101,8 @@ async function getNannies(sortBy: SortKey = "newest", page: number = 1): Promise
     });
   } else if (sortBy === "qualification") {
     sorted = [...mapped].sort((a, b) => {
-      const rankA = (a.highest_qualification && QUAL_RANK[a.highest_qualification]) || 0;
-      const rankB = (b.highest_qualification && QUAL_RANK[b.highest_qualification]) || 0;
+      const rankA = qualificationRank(a.highest_qualification);
+      const rankB = qualificationRank(b.highest_qualification);
       return rankB - rankA;
     });
   }

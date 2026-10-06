@@ -3,15 +3,11 @@
 import { useState, useRef, useLayoutEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { qualificationBadgeLabel } from "@/lib/matching/qualification-display";
 
-/** Abbreviate qualification strings for badge display */
+/** Badge text for a qualification — the ladder short label (E-2); "No Qualifications" / off-ladder show nothing */
 export function abbreviateQualification(qual: string): string {
-  if (qual.startsWith("Bachelor")) return "Bachelors";
-  if (qual.startsWith("Diploma")) return "Diploma";
-  if (qual.startsWith("Certificate IV")) return "Cert IV";
-  if (qual.startsWith("Certificate III")) return "Cert III";
-  if (qual === "No Qualifications") return "";
-  return qual;
+  return qualificationBadgeLabel(qual);
 }
 
 export interface TraitBadge {

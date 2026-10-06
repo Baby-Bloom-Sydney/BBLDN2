@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { MapPin, ShieldCheck, Clock, Baby, GraduationCap } from "lucide-react";
+import { qualificationBadgeLabel } from "@/lib/matching/qualification-display";
 
 export interface NannyPreview {
   id: string;
@@ -17,13 +18,6 @@ export interface NannyPreview {
   verified: boolean;
   ai_headline: string | null;
 }
-
-const QUAL_ABBREV: Record<string, string> = {
-  "Bachelor of Early Childhood Education (Or Equivalent)": "Bachelors",
-  "Diploma of Early Childhood Education and Care": "Diploma",
-  "Certificate IV in Education Support": "Cert IV",
-  "Certificate III in Early Childhood Education and Care": "Cert III",
-};
 
 interface NannyPreviewCardProps {
   nanny: NannyPreview;
@@ -67,11 +61,11 @@ export function NannyPreviewCard({
       label: `Babies, ${nanny.newborn_experience_years}${nanny.newborn_experience_years === 1 ? "yr" : "yrs"}`,
       primary: true,
     });
-  if (nanny.highest_qualification)
+  const qualLabel = qualificationBadgeLabel(nanny.highest_qualification);
+  if (qualLabel)
     traitBadges.push({
       icon: GraduationCap,
-      label:
-        QUAL_ABBREV[nanny.highest_qualification] || nanny.highest_qualification,
+      label: qualLabel,
       primary: false,
     });
 

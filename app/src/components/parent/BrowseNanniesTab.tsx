@@ -25,6 +25,7 @@ import { getMatchesForPosition } from "@/lib/actions/matching";
 import { getPosition } from "@/lib/actions/parent";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import type { MatchResult } from "@/lib/matching/types";
+import { qualificationRank } from "@/lib/nanny-options";
 
 /* ─── Constants ─── */
 
@@ -48,21 +49,6 @@ const MATCH_SORT_OPTIONS: { key: MatchSortKey; label: string; icon: LucideIcon }
 
 type ViewType = "all" | "matches";
 
-const QUAL_RANK: Record<string, number> = {
-  "Bachelor of Early Childhood Education (Or Equivalent)": 5,
-  "Diploma of Early Childhood Education and Care": 4,
-  "Certificate IV in Education Support": 3,
-  "Certificate III in Early Childhood Education and Care": 2,
-  "No Qualifications": 1,
-};
-
-const MATCH_QUAL_RANK: Record<string, number> = {
-  "Bachelor of Early Childhood Education (Or Equivalent)": 4,
-  "Diploma of Early Childhood Education and Care": 3,
-  "Certificate IV in Education Support": 2,
-  "Certificate III in Early Childhood Education and Care": 1,
-};
-
 /* ─── Sort helpers ─── */
 
 function sortNannies(nannies: NannyCardData[], sortBy: AllSortKey): NannyCardData[] {
@@ -76,8 +62,8 @@ function sortNannies(nannies: NannyCardData[], sortBy: AllSortKey): NannyCardDat
     });
   } else if (sortBy === "qualification") {
     sorted.sort((a, b) => {
-      const rankA = (a.highest_qualification && QUAL_RANK[a.highest_qualification]) || 0;
-      const rankB = (b.highest_qualification && QUAL_RANK[b.highest_qualification]) || 0;
+      const rankA = qualificationRank(a.highest_qualification);
+      const rankB = qualificationRank(b.highest_qualification);
       return rankB - rankA;
     });
   }
@@ -99,8 +85,8 @@ function sortMatches(matches: MatchResult[], sortBy: MatchSortKey): MatchResult[
       });
     case "qualification":
       return sorted.sort((a, b) => {
-        const qa = a.highestQualification ? (MATCH_QUAL_RANK[a.highestQualification] ?? 0) : 0;
-        const qb = b.highestQualification ? (MATCH_QUAL_RANK[b.highestQualification] ?? 0) : 0;
+        const qa = qualificationRank(a.highestQualification);
+        const qb = qualificationRank(b.highestQualification);
         return qb - qa;
       });
     default:

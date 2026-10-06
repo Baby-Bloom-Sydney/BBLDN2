@@ -5,6 +5,7 @@ import { ArrowRight, ChevronLeft } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NannyPreviewCard, type NannyPreview } from "@/components/landing/NannyPreviewCard";
 import { BRAND, OG_LOCALE, SITE_NAME } from "@/lib/constants";
+import { qualificationRank } from "@/lib/nanny-options";
 
 export const dynamic = "force-dynamic";
 
@@ -20,14 +21,6 @@ export const metadata: Metadata = {
     title: `${BROWSE_TITLE} | Baby Bloom`,
     description: BROWSE_DESCRIPTION,
   },
-};
-
-const QUAL_RANK: Record<string, number> = {
-  "Bachelor of Early Childhood Education (Or Equivalent)": 5,
-  "Diploma of Early Childhood Education and Care": 4,
-  "Certificate IV in Education Support": 3,
-  "Certificate III in Early Childhood Education and Care": 2,
-  "No Qualifications": 1,
 };
 
 function computeAge(dob: string | null | undefined): number | null {
@@ -93,8 +86,8 @@ async function getTopNannies(): Promise<NannyPreview[]> {
   mapped.sort((a, b) => {
     const expDiff = (b.total_experience_years ?? 0) - (a.total_experience_years ?? 0);
     if (expDiff !== 0) return expDiff;
-    const qualA = a.highest_qualification ? (QUAL_RANK[a.highest_qualification] ?? 0) : 0;
-    const qualB = b.highest_qualification ? (QUAL_RANK[b.highest_qualification] ?? 0) : 0;
+    const qualA = qualificationRank(a.highest_qualification);
+    const qualB = qualificationRank(b.highest_qualification);
     return qualB - qualA;
   });
 
