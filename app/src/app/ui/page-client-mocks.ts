@@ -858,10 +858,35 @@ const MOCK_ADMIN_DBS_ROW: PendingDbsCheck = {
   api_down_since: null,
 };
 
+const MOCK_ADMIN_DBS_NON_BLANK: PendingDbsCheck = {
+  ...MOCK_ADMIN_DBS_ROW, id: "mock-dbs-check-002", user_id: "mock-user-006", first_name: "Sophie", last_name: "Taylor",
+  email: "sophie@example.com", ocg_result_status: "NON_BLANK_NO_NEW_INFO",
+};
+const MOCK_ADMIN_DBS_API_DOWN: PendingDbsCheck = {
+  ...MOCK_ADMIN_DBS_ROW, id: "mock-dbs-check-003", user_id: "mock-user-007", first_name: "Grace", last_name: "Hughes",
+  email: "grace@example.com", verification_status: 20, cross_check_status: "pending", ocg_result_status: null,
+  ocg_result_text: null, ocg_verified_at: null, api_down_since: "2026-03-10T11:05:00Z",
+};
+const MOCK_ADMIN_DBS_REVIEW: PendingDbsCheck = {
+  ...MOCK_ADMIN_DBS_ROW, id: "mock-dbs-check-004", user_id: "mock-user-008", first_name: "Olivia", last_name: "Brown",
+  email: "olivia@example.com", verification_status: 21, cross_check_status: "review",
+  cross_check_issues: ["Surname mismatch: passport \"Brown\" vs certificate \"Browne\""], extracted_wwcc_surname: "Browne",
+  ocg_result_status: null, ocg_result_text: null, ocg_verified_at: null,
+};
+const MOCK_ADMIN_DBS_RECHECK: PendingDbsCheck = {
+  ...MOCK_ADMIN_DBS_ROW, id: "mock-dbs-check-005", user_id: "mock-user-009", first_name: "Amelia", last_name: "Clarke",
+  email: "amelia@example.com", verification_status: 23, wwcc_status: "expired", cross_check_status: "not_started",
+  ocg_result_status: "NEW_INFO", wwcc_verified_at: "2026-02-01T10:00:00Z",
+};
+const MOCK_ADMIN_DBS_BARRED: PendingDbsCheck = {
+  ...MOCK_ADMIN_DBS_ROW, id: "mock-dbs-check-006", user_id: "mock-user-010", first_name: "Chloe", last_name: "Walker",
+  email: "chloe@example.com", verification_status: 27, wwcc_status: "barred",
+};
+
 export const MOCK_ADMIN_DBS_QUEUES: DbsQueues<PendingDbsCheck> = {
-  awaiting: [MOCK_ADMIN_DBS_ROW],
-  needsPerson: [],
-  recheckAlerts: [],
-  barred: [],
-  badgeCount: 1,
+  awaiting: [MOCK_ADMIN_DBS_ROW, MOCK_ADMIN_DBS_NON_BLANK],
+  needsPerson: [MOCK_ADMIN_DBS_REVIEW, MOCK_ADMIN_DBS_API_DOWN],
+  recheckAlerts: [MOCK_ADMIN_DBS_RECHECK],
+  barred: [MOCK_ADMIN_DBS_BARRED],
+  badgeCount: 4,
 };

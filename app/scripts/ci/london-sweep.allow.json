@@ -3197,5 +3197,12 @@
     "match": "nsw",
     "owner": "cleanup",
     "note": "D-4 kept name (wwcc_* / ocg_* columns, adminVerifyWWCC / adminRejectWWCC, wwcc_service_nsw_screenshot_url) in unit 3d's admin DBS files; renaming the columns is cleanup's. Not user-visible text. [3d, 2 hit(s): lines 197, 269]"
+  },
+  {
+    "rule": "jurisdiction",
+    "file": "app/src/lib/admin/dbs-queues.test.ts",
+    "match": "nsw",
+    "owner": "cleanup",
+    "note": "D-4 kept column name wwcc_service_nsw_screenshot_url (the certificate path) in unit 3d fixtures; renaming the column is cleanup's. Not user-visible text. [3d, 2 hit(s): lines 144, 146]"
   }
 ]
