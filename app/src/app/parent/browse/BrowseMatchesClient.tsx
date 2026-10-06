@@ -5,6 +5,7 @@ import { NannyMatchCardBK } from "@/app/brandkit1/NannyMatchCardBK";
 import { Sparkles, MapPin, Clock, GraduationCap } from "lucide-react";
 import type { MatchResult } from "@/lib/matching/types";
 import type { LucideIcon } from "lucide-react";
+import { qualificationRank } from "@/lib/nanny-options";
 
 type SortKey = "score" | "distance" | "experience" | "qualification";
 
@@ -14,13 +15,6 @@ const SORT_OPTIONS: { key: SortKey; label: string; icon: LucideIcon }[] = [
   { key: "experience", label: "Experience", icon: Clock },
   { key: "qualification", label: "Qualifications", icon: GraduationCap },
 ];
-
-const QUAL_RANK: Record<string, number> = {
-  "Bachelor of Early Childhood Education (Or Equivalent)": 4,
-  "Diploma of Early Childhood Education and Care": 3,
-  "Certificate IV in Education Support": 2,
-  "Certificate III in Early Childhood Education and Care": 1,
-};
 
 function sortMatches(matches: MatchResult[], sortBy: SortKey): MatchResult[] {
   const sorted = [...matches];
@@ -47,8 +41,8 @@ function sortMatches(matches: MatchResult[], sortBy: SortKey): MatchResult[] {
       });
     case "qualification":
       return sorted.sort((a, b) => {
-        const qa = a.highestQualification ? (QUAL_RANK[a.highestQualification] ?? 0) : 0;
-        const qb = b.highestQualification ? (QUAL_RANK[b.highestQualification] ?? 0) : 0;
+        const qa = qualificationRank(a.highestQualification);
+        const qb = qualificationRank(b.highestQualification);
         return qb - qa;
       });
     default:

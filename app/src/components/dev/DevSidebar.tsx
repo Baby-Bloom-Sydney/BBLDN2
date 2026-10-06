@@ -39,7 +39,6 @@ const SECTIONS = [
     color: 'text-violet-500',
     routes: [
       { path: '/nanny', label: 'Hub', icon: LayoutDashboard },
-      { path: '/nanny/register', label: 'Registration Form', icon: FileText },
       { path: '/nanny/profile', label: 'Edit Profile', icon: Users },
       { path: '/nanny/verification', label: 'Verification', icon: Shield },
       { path: '/nanny/verify', label: 'ID Verification', icon: FileCheck },

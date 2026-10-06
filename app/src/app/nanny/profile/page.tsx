@@ -7,7 +7,7 @@ import { NannyMyProfile } from "./NannyMyProfile";
 export default async function NannyProfilePage() {
   const complete = await isProfileComplete();
   if (!complete) {
-    redirect("/nanny/register");
+    redirect("/apply");
   }
 
   const { data: profile, error } = await getNannyProfile();

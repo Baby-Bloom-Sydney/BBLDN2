@@ -61,6 +61,9 @@ import {
   childrenCountLabel,
   BADGE_ICONS,
 } from "@/components/profile/profile-helpers";
+import { CERTIFICATE_OPTIONS, byOptionOrder } from "@/lib/nanny-options";
+
+const KNOWN_CERTIFICATES: readonly string[] = CERTIFICATE_OPTIONS;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -750,17 +753,15 @@ export function NannyHubClient({
 
               {/* 3. Safety & Assurance */}
               {(() => {
-                const CERT_ORDER = [
-                  "First Aid in Education & Care Setting",
-                  "First Aid",
-                  "CPR",
-                  "Child Protection",
-                ];
-                const orderedCerts = CERT_ORDER.filter((c) =>
-                  p.certificates.includes(c),
+                // P-2: CERTIFICATE_OPTIONS order; values not on the list follow in stored order
+                const sortedCerts = [...p.certificates].sort(
+                  byOptionOrder(CERTIFICATE_OPTIONS),
                 );
-                const otherCerts = p.certificates.filter(
-                  (c) => !CERT_ORDER.includes(c),
+                const orderedCerts = sortedCerts.filter((c) =>
+                  KNOWN_CERTIFICATES.includes(c),
+                );
+                const otherCerts = sortedCerts.filter(
+                  (c) => !KNOWN_CERTIFICATES.includes(c),
                 );
                 const hasItems =
                   verificationLevel >= 3 ||

@@ -23,6 +23,8 @@ import {
   DISPLAY_MIN,
   DISPLAY_MAX,
 } from './constants';
+import { isHigherQualification, qualificationRank } from '@/lib/nanny-options';
+import { ladderShortLabel, displayCertificates } from './qualification-display';
 
 // ── Layer 1: Quality Base (0-100) ──
 
@@ -384,7 +386,7 @@ export function calculateOverQualifiedMultiplier(
       if (qs > bestQualScore) { bestQualScore = qs; bestQual = c.qualification_type; }
     }
   }
-  if (bestQual?.includes('Diploma') || bestQual?.includes('Bachelor')) {
+  if (isHigherQualification(bestQual)) {
     multiplier *= OQ_BONUSES.higherQualification;
   }
 
@@ -456,25 +458,14 @@ export function calculateOverQualifiedMultiplier(
     bonuses.push(`${ageOver} ${ageOver === 1 ? 'yr' : 'yrs'} older`);
   }
 
-  // 3 — Qualifications
-  if (bestQual && bestQual !== 'No Qualifications' && bestQual !== 'Other') {
-    const shortQual = bestQual
-      .replace('Certificate III in Early Childhood Education and Care', 'Cert III Childcare')
-      .replace('Certificate IV in Education Support', 'Cert IV Childcare')
-      .replace('Diploma of Early Childhood Education and Care', 'Diploma in Childcare')
-      .replace('Bachelor of Early Childhood Education (Or Equivalent)', 'Bachelors in Childcare');
-    bonuses.push(shortQual);
+  // 3 — Qualifications (ladder short label; rank 0 — none / other / off-ladder — shows nothing)
+  if (bestQual && qualificationRank(bestQual) > 0) {
+    bonuses.push(ladderShortLabel(bestQual));
   }
 
-  // 4 — Certifications (drop "certified" suffix)
-  if (certs.length > 0) {
-    const hasChildFA = certs.some((c) => c.toLowerCase().includes('childcare') || c.toLowerCase().includes('child first aid'));
-    const displayCerts = certs
-      .map((c) => (c.toLowerCase().includes('childcare') ? 'Child First Aid' : c))
-      .filter((c) => !(hasChildFA && c === 'First Aid'));
-    for (const cert of displayCerts) {
-      bonuses.push(cert);
-    }
+  // 4 — Certifications (P-2 order; paediatric collapse)
+  for (const cert of displayCertificates(certs)) {
+    bonuses.push(cert);
   }
 
   // 5 — Languages (non-English only)

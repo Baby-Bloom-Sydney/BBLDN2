@@ -4,8 +4,8 @@
  * bonus = Level 5 and Level 6), P-2 (certificate + assurance order = array order) and E-7 (the paediatric collapse).
  * The static block proves no reader redeclares a list 3a owns.
  *
- * The stale-data guard uses a neutral label not on the ladder rather than a retired Sydney label: the build never
- * writes an Australian literal to assert its absence (LEDGER/2-0.md §8(3)); any off-ladder value takes the same path.
+ * The stale-data guard uses a neutral label not on the ladder rather than a retired pre-London label: the build never
+ * writes such a literal to assert its absence (LEDGER/2-0.md §8(3)); any off-ladder value takes the same path.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';

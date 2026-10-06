@@ -1,5 +1,8 @@
 // ── Nanny Leads TypeScript Interfaces ──
 // Matches the nanny_leads table schema + V2 form structure
+// Qualification, certificate and right-to-work lists live in 3a's lib/nanny-options.ts (unit 3e imports them).
+
+import type { RightToWorkKey } from "@/lib/nanny-options";
 
 export interface NannyLeadIdentity {
   motivation: string | null;
@@ -36,9 +39,9 @@ export interface NannyLeadQualifications {
 
 export interface NannyLeadResidency {
   nationality: string | null;
-  residency_status: string | null;
+  residency_status: RightToWorkKey | null; // 3a's RIGHT_TO_WORK_OPTIONS key (E-1, E-3)
   right_to_work: boolean | null;
-  sydney_resident: boolean | null;
+  sydney_resident: boolean | null; // "living in London?" — column name kept per D-4; rename in cleanup
   suburb: string | null;
   postcode: string | null;
 }
@@ -231,20 +234,6 @@ export const CHILDCARE_ROLE_OPTIONS = [
   "Other",
 ];
 
-export const QUALIFICATION_OPTIONS = [
-  "Certificate III in Early Childhood Education and Care",
-  "Certificate IV in Education Support",
-  "Diploma of Early Childhood Education and Care",
-  "Bachelor of Early Childhood Education (Or Equivalent)",
-];
-
-export const CERTIFICATE_OPTIONS = [
-  "CPR",
-  "First Aid",
-  "First Aid in Education & Care Setting",
-  "Child Protection",
-];
-
 export const ROLE_TYPE_OPTIONS = [
   "Mothers Help",
   "Back-to-Work Support",
@@ -301,13 +290,6 @@ export const PAY_FREQUENCY_OPTIONS = [
 ];
 
 export const LANGUAGE_OPTIONS = ["English", "Foreign Language", "Multiple"];
-
-export const RESIDENCY_STATUS_OPTIONS = [
-  "Australian Citizen",
-  "Permanent Resident",
-  "Working Holiday",
-  "Other",
-];
 
 // ── Default State ──
 

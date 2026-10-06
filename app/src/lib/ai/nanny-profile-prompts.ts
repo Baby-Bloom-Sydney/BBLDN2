@@ -5,6 +5,7 @@
  */
 
 import { BRAND, SITE_NAME } from "@/lib/constants";
+import { CERTIFICATE_OPTIONS, byOptionOrder } from "@/lib/nanny-options";
 
 // ── V2 System Prompt (8-section profile + Facebook bio) ──
 
@@ -67,7 +68,7 @@ Example: "<p>I encourage independence, so your child builds confidence at their 
 Childcare background narrative for the "Background" tile (~40-50 words).
 Use ONLY the Highest Qualification and Childcare Roles (with durations).
 Contextualise the qualification and role history into a cohesive story about how the nanny's training and diverse experience shaped her abilities. Do NOT list roles — weave them into a narrative.
-Example: "<p>I hold a Diploma of Early Childhood Education and Care, which gave me a strong foundation in child development and age-appropriate learning. Over the past 7 years I've worked across nannying, daycare and after-school care — each role teaching me something different about how children learn, play and grow.</p>"
+Example: "<p>I hold a Level 3 early years educator qualification, which gave me a strong foundation in child development and age-appropriate learning. Over the past 7 years I've worked across nannying, daycare and after-school care — each role teaching me something different about how children learn, play and grow.</p>"
 </background>
 
 <what_i_offer>
@@ -317,9 +318,9 @@ export function generateV2Checklist(data: V2ChecklistData): string {
     }
   }
 
-  // Accreditations
+  // Accreditations — P-2: CERTIFICATE_OPTIONS order, values not on the list last
   const accreds: string[] = [];
-  for (const cert of data.certificates) {
+  for (const cert of [...data.certificates].sort(byOptionOrder(CERTIFICATE_OPTIONS))) {
     accreds.push(`✅ ${cert}`);
   }
   if (accreds.length) {

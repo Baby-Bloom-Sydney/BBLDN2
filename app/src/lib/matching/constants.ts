@@ -1,3 +1,5 @@
+import { QUALIFICATION_LADDER } from "@/lib/nanny-options";
+
 // ── Matching algorithm constants ──
 
 // Quality base weights (must sum to 1.0)
@@ -44,15 +46,10 @@ export const NANNY_BLOCK_MAP: Record<string, string> = {
   "Evening (6pm-10pm)": "evening",
 };
 
-// Qualification scoring (highest wins)
-export const QUAL_SCORES: Record<string, number> = {
-  "No Qualifications": 0,
-  "Other": 10,
-  "Certificate III in Early Childhood Education and Care": 30,
-  "Certificate IV in Education Support": 50,
-  "Diploma of Early Childhood Education and Care": 75,
-  "Bachelor of Early Childhood Education (Or Equivalent)": 100,
-};
+// Qualification scoring (highest wins) — derived from 3a's ladder (E-2); never a local list (unit 3e)
+export const QUAL_SCORES: Record<string, number> = Object.fromEntries(
+  QUALIFICATION_LADDER.map((q) => [q.value, q.score]),
+);
 
 // Location distance scoring brackets
 export const DISTANCE_BRACKETS: Array<{ maxKm: number; score: number }> = [
@@ -97,7 +94,7 @@ export const OQ_BONUSES = {
   extraExperienceCap: 1.15,        // max from experience alone
   certificationPer: 1.04,          // per certification held
   certificationCap: 1.12,          // max from certs alone
-  higherQualification: 1.05,       // Diploma or Bachelor
+  higherQualification: 1.05,       // Level 5 or Level 6 (P-6, isHigherQualification)
   carUnrequired: 1.03,             // has car even if not required
   immediateStart: 1.05,            // ASAP match
   languageMatch: 1.04,             // language alignment

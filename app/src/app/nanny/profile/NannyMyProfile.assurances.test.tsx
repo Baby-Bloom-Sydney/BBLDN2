@@ -1,7 +1,7 @@
 /**
  * Profile edit tags read 3a's lists (unit 3e, BB-LDN-3e-061026) — BUILD-PLAN P-2 (two ascending lists, array order =
  * display order) and E-2 (the qualification edit list is the ladder). Exact-list equality also proves the dropped
- * Sydney entries are gone without writing them here (LEDGER/2-0.md §8(3)).
+ * entries are gone without writing them here (LEDGER/2-0.md §8(3)).
  */
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
@@ -22,7 +22,7 @@ import { NannyMyProfile } from './NannyMyProfile';
 const profile = {
   first_name: 'Test',
   last_name: 'Nanny',
-  email: 'admin+3e@babybloomsydney.com.au',
+  email: 'nanny-3e@example.test',
   suburb: 'Camden',
   postcode: 'NW1',
   languages: [],

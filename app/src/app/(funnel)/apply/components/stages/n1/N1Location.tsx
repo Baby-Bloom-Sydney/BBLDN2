@@ -6,31 +6,36 @@ import { SingleSelectTags } from '../../shared/SingleSelectTags';
 import { YesNoTags } from '../../shared/YesNoTags';
 import { ProgressiveReveal } from '../../shared/ProgressiveReveal';
 import { CompoundPageShell } from '../../shared/CompoundPageShell';
-import { RESIDENCY_STATUS_OPTIONS } from '@/types/nanny-leads';
+import {
+  RIGHT_TO_WORK_OPTIONS,
+  RTW_AUTO_NATIONALITIES,
+  rightToWorkFor,
+  type RightToWorkKey,
+} from '@/lib/nanny-options';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { MapPin } from 'lucide-react';
 
-// Full nationality list — most common at top, then alphabetical
+// Full nationality list — British and Irish first (E-1: they skip the right-to-work question), then alphabetical
 const COUNTRIES = [
-  'Australian', 'British', 'New Zealander', 'American', 'Canadian',
-  'Afghan', 'Albanian', 'Algerian', 'Andorran', 'Angolan', 'Argentine', 'Armenian', 'Austrian', 'Azerbaijani',
+  ...RTW_AUTO_NATIONALITIES,
+  'Afghan', 'Albanian', 'Algerian', 'American', 'Andorran', 'Angolan', 'Argentine', 'Armenian', 'Australian', 'Austrian', 'Azerbaijani',
   'Bahraini', 'Bangladeshi', 'Belarusian', 'Belgian', 'Belizean', 'Beninese', 'Bhutanese', 'Bolivian',
   'Bosnian', 'Botswanan', 'Brazilian', 'Bruneian', 'Bulgarian', 'Burkinabe', 'Burundian',
-  'Cambodian', 'Cameroonian', 'Cape Verdean', 'Central African', 'Chadian', 'Chilean', 'Chinese',
+  'Cambodian', 'Cameroonian', 'Canadian', 'Cape Verdean', 'Central African', 'Chadian', 'Chilean', 'Chinese',
   'Colombian', 'Comorian', 'Congolese', 'Costa Rican', 'Croatian', 'Cuban', 'Cypriot', 'Czech',
   'Danish', 'Djiboutian', 'Dominican',
   'Ecuadorean', 'Egyptian', 'Emirati', 'Equatorial Guinean', 'Eritrean', 'Estonian', 'Ethiopian',
   'Fijian', 'Finnish', 'French',
   'Gabonese', 'Gambian', 'Georgian', 'German', 'Ghanaian', 'Greek', 'Guatemalan', 'Guinean', 'Guyanese',
   'Haitian', 'Honduran', 'Hungarian',
-  'Icelandic', 'Indian', 'Indonesian', 'Iranian', 'Iraqi', 'Irish', 'Israeli', 'Italian', 'Ivorian',
+  'Icelandic', 'Indian', 'Indonesian', 'Iranian', 'Iraqi', 'Israeli', 'Italian', 'Ivorian',
   'Jamaican', 'Japanese', 'Jordanian',
   'Kazakhstani', 'Kenyan', 'Korean', 'Kuwaiti', 'Kyrgyz',
   'Laotian', 'Latvian', 'Lebanese', 'Liberian', 'Libyan', 'Liechtensteiner', 'Lithuanian', 'Luxembourgish',
   'Macedonian', 'Malagasy', 'Malawian', 'Malaysian', 'Maldivian', 'Malian', 'Maltese', 'Mauritanian',
   'Mauritian', 'Mexican', 'Moldovan', 'Mongolian', 'Montenegrin', 'Moroccan', 'Mozambican',
-  'Namibian', 'Nepalese', 'Nicaraguan', 'Nigerian', 'Norwegian',
+  'Namibian', 'Nepalese', 'New Zealander', 'Nicaraguan', 'Nigerian', 'Norwegian',
   'Omani',
   'Pakistani', 'Palauan', 'Palestinian', 'Panamanian', 'Paraguayan', 'Peruvian', 'Filipino', 'Polish', 'Portuguese',
   'Qatari',
@@ -132,29 +137,56 @@ export function N1Location({ state, dispatch, goNext, goBack, progress, question
     update({ suburb: entry.district, postcode: entry.prefix });
   };
 
-  const isAustralian = residency.nationality === 'Australian';
-  const notInSydney = residency.sydney_resident === false;
+  // E-1: British / Irish are stored as `citizen` with the right to work and skip the question
+  const isAutoRightToWork = (RTW_AUTO_NATIONALITIES as readonly string[]).includes(residency.nationality ?? '');
+  const notInLondon = residency.sydney_resident === false;
 
-  // Right to work is auto-yes for Australian, Permanent Resident, or Australian Citizen
-  const autoRightToWork =
-    isAustralian ||
-    residency.residency_status === 'Permanent Resident' ||
-    residency.residency_status === 'Australian Citizen';
+  // Fail closed on state restored from before the UK question: an answer outside the four keys is never carried
+  // forward; British / Irish are re-stamped as `citizen` (E-1)
+  const statusIsKey = RIGHT_TO_WORK_OPTIONS.some((o) => o.key === residency.residency_status);
+  useEffect(() => {
+    if (residency.residency_status === null || statusIsKey) return;
+    if (isAutoRightToWork) {
+      update({ residency_status: 'citizen', right_to_work: rightToWorkFor('citizen') });
+      return;
+    }
+    update({ residency_status: null, right_to_work: null, sydney_resident: null, suburb: null, postcode: null });
+    setSuburbQuery('');
+  }, [residency.residency_status, statusIsKey, isAutoRightToWork, update]);
 
   // Show conditions — cascade
-  const showResidency = residency.nationality !== null && !isAustralian;
-  const showRightToWork = !autoRightToWork && (isAustralian || residency.residency_status !== null);
-  const showSydney = autoRightToWork || residency.right_to_work !== null;
+  const showRightToWork = residency.nationality !== null && !isAutoRightToWork;
+  const showLondon = statusIsKey;
   const showSuburb = residency.sydney_resident === true;
 
-  // Continue only after last logical question answered — NOT if not in Sydney
+  // Continue once the last question is answered — a `no_rtw` answer still continues (E-1); not living in London stops
   const canContinue =
     residency.nationality !== null &&
-    (isAustralian || residency.residency_status !== null) &&
-    (autoRightToWork || residency.right_to_work !== null) &&
+    statusIsKey &&
     residency.sydney_resident === true &&
     residency.suburb !== null &&
     residency.suburb.trim() !== '';
+
+  const rtwLabels = RIGHT_TO_WORK_OPTIONS.map((o) => o.label);
+  const rtwSelectedLabel =
+    RIGHT_TO_WORK_OPTIONS.find((o) => o.key === residency.residency_status)?.label ?? null;
+
+  const resetLondon = () => {
+    setSuburbQuery('');
+    setFiltered([]);
+  };
+
+  const pickRightToWork = (label: string | null) => {
+    const key: RightToWorkKey | null = RIGHT_TO_WORK_OPTIONS.find((o) => o.label === label)?.key ?? null;
+    update({
+      residency_status: key,
+      right_to_work: key ? rightToWorkFor(key) : null,
+      sydney_resident: null,
+      suburb: null,
+      postcode: null,
+    });
+    resetLondon();
+  };
 
   return (
     <CompoundPageShell
@@ -175,17 +207,17 @@ export function N1Location({ state, dispatch, goNext, goBack, progress, question
             value={residency.nationality || ''}
             onChange={(e) => {
               const val = e.target.value || null;
+              const auto = (RTW_AUTO_NATIONALITIES as readonly string[]).includes(val ?? '');
               // Cascade reset all downstream
               update({
                 nationality: val,
-                residency_status: null,
-                right_to_work: val === 'Australian' ? true : null,
+                residency_status: auto ? 'citizen' : null,
+                right_to_work: auto ? rightToWorkFor('citizen') : null,
                 sydney_resident: null,
                 suburb: null,
                 postcode: null,
               });
-              setSuburbQuery('');
-              setFiltered([]);
+              resetLondon();
             }}
             className="w-full h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 outline-none"
           >
@@ -196,55 +228,22 @@ export function N1Location({ state, dispatch, goNext, goBack, progress, question
           </select>
         </div>
 
-        {/* Residency status (non-Australian) */}
-        <ProgressiveReveal show={showResidency}>
-          <div className="flex flex-col gap-2 pt-2">
-            <Label className="text-sm font-medium text-slate-700">
-              What is your residency status in Australia?
-            </Label>
-            <SingleSelectTags
-              options={RESIDENCY_STATUS_OPTIONS}
-              selected={residency.residency_status}
-              onChange={(val) => {
-                const isAutoWork = val === 'Permanent Resident' || val === 'Australian Citizen';
-                update({
-                  residency_status: val,
-                  right_to_work: isAutoWork ? true : null,
-                  sydney_resident: null,
-                  suburb: null,
-                  postcode: null,
-                });
-                setSuburbQuery('');
-                setFiltered([]);
-              }}
-            />
-          </div>
-        </ProgressiveReveal>
-
-        {/* Right to work (only if not auto-yes) */}
+        {/* Right to work in the UK — everyone but British / Irish (E-1); four options, no "Not sure" (E-3) */}
         <ProgressiveReveal show={showRightToWork}>
           <div className="flex flex-col gap-2 pt-2">
             <Label className="text-sm font-medium text-slate-700">
               Do you have the right to work in the UK?
             </Label>
-            <YesNoTags
-              selected={residency.right_to_work}
-              onChange={(val) => {
-                update({
-                  right_to_work: val,
-                  sydney_resident: null,
-                  suburb: null,
-                  postcode: null,
-                });
-                setSuburbQuery('');
-                setFiltered([]);
-              }}
+            <SingleSelectTags
+              options={rtwLabels}
+              selected={rtwSelectedLabel}
+              onChange={pickRightToWork}
             />
           </div>
         </ProgressiveReveal>
 
-        {/* Sydney resident */}
-        <ProgressiveReveal show={showSydney}>
+        {/* Living in London — `sydney_resident` key kept per D-4 */}
+        <ProgressiveReveal show={showLondon}>
           <div className="flex flex-col gap-2 pt-2">
             <Label className="text-sm font-medium text-slate-700">
               Are you currently living in London?
@@ -257,15 +256,14 @@ export function N1Location({ state, dispatch, goNext, goBack, progress, question
                   suburb: null,
                   postcode: null,
                 });
-                setSuburbQuery('');
-                setFiltered([]);
+                resetLondon();
               }}
             />
           </div>
         </ProgressiveReveal>
 
-        {/* Not in Sydney message — no continue */}
-        {notInSydney && (
+        {/* Not living in London — hard stop, no Continue (E-6) */}
+        {notInLondon && (
           <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg flex gap-3">
             <MapPin className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
             <div className="flex flex-col gap-1">

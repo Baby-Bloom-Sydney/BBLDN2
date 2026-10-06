@@ -139,7 +139,6 @@ import { ConnectModal } from "@/components/ConnectModal";
 // ── Page Clients ──
 
 import { MatchResultsClient } from "@/app/parent/matches/MatchResultsClient";
-import { NannyRegistrationFunnel } from "@/app/nanny/register/NannyRegistrationFunnel";
 import { NannyInterviewsClient } from "@/app/nanny/interviews/NannyInterviewsClient";
 import { NannyBabysittingClient } from "@/app/nanny/babysitting/NannyBabysittingClient";
 import { NannyInboxClient } from "@/app/nanny/inbox/NannyInboxClient";
@@ -329,7 +328,7 @@ export function UIShowcaseClient({
     { id: "providers", title: "Providers", range: "CMP-040", count: 1 },
     { id: "devtools", title: "Dev Tools", range: "CMP-041 to CMP-043", count: 3 },
     { id: "features", title: "Feature Components", range: "CMP-044 to CMP-048", count: 5 },
-    { id: "pageclients", title: "Page Clients", range: "CMP-049 to CMP-069", count: 21 },
+    { id: "pageclients", title: "Page Clients", range: "CMP-050 to CMP-069", count: 20 },
   ];
 
   return (
@@ -953,7 +952,6 @@ export function UIShowcaseClient({
             <ShowcaseCard code="CMP-043" name="DevPrefill">
               <p className="text-sm text-slate-500">
                 Auto-fill button for registration forms. Only renders when NEXT_PUBLIC_DEV_MODE=true.
-                Used in NannyRegistrationFunnel.
               </p>
             </ShowcaseCard>
           </div>
@@ -1019,18 +1017,10 @@ export function UIShowcaseClient({
         </section>
 
         {/* ════════════════════════════════════════════════════════════ */}
-        {/* 11. PAGE CLIENTS — CMP-049 to CMP-069                    */}
+        {/* 11. PAGE CLIENTS — CMP-050 to CMP-069                    */}
         {/* ════════════════════════════════════════════════════════════ */}
         <section>
-          <SectionHeader id="pageclients" title="Page Clients" range="CMP-049 to CMP-069" count={21} />
-
-          {/* CMP-049 NannyRegistrationFunnel */}
-          <PageClientShowcase code="CMP-049" name="NannyRegistrationFunnel" slug="nanny-registration">
-            <NannyRegistrationFunnel
-              userId="mock-user-001"
-              initialData={{ first_name: "Bailey", last_name: "Wright", email: "bailey@example.com" }}
-            />
-          </PageClientShowcase>
+          <SectionHeader id="pageclients" title="Page Clients" range="CMP-050 to CMP-069" count={20} />
 
           {/* CMP-050 NannyInterviewsClient */}
           <PageClientShowcase code="CMP-050" name="NannyInterviewsClient" slug="nanny-interviews">

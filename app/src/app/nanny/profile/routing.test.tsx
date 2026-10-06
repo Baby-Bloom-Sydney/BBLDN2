@@ -1,6 +1,6 @@
 /**
  * The dead register flow is gone and its two entry links point at the funnel (unit 3e, BB-LDN-3e-061026) —
- * QUESTIONS.md E-4: an incomplete nanny is sent to `/apply`, which ends the `/nanny/profile` ↔ `/nanny/register` loop.
+ * QUESTIONS.md E-4: an incomplete nanny is sent to `/apply`, which ends the profile ↔ old-register-page redirect loop.
  */
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -53,7 +53,6 @@ describe('register flow removed — entry points go to /apply (E-4)', () => {
     h.nanny = {
       visible_in_bsr: false,
       identity_verified: false,
-      wwcc_verified: false,
       total_experience_years: null,
       hourly_rate_min: null,
     };

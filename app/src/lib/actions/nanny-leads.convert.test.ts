@@ -50,9 +50,9 @@ function leadWith(residency: Row, qualifications: Row): Row {
     id: 'lead-1',
     first_name: 'test',
     last_name: 'nanny',
-    email: 'admin+3e@babybloomsydney.com.au',
+    email: 'nanny-3e@example.test',
     phone: null,
-    residency: { nationality: 'Polish', sydney_resident: true, suburb: 'Camden', postcode: 'NW1', ...residency },
+    residency: { nationality: 'Polish', suburb: 'Camden', postcode: 'NW1', ...residency },
     qualifications,
   };
 }

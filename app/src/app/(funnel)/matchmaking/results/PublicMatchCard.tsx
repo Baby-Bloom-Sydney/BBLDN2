@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { calcAge, getScoreBadgeStyle } from "@/components/match/match-helpers";
 import { BADGE_ICONS } from "@/components/profile/profile-helpers";
 import type { MatchResult } from "@/lib/matching/types";
+import { qualificationBadgeLabel } from "@/lib/matching/qualification-display";
 
 interface PublicMatchCardProps {
   match: MatchResult;
@@ -45,14 +46,7 @@ export function PublicMatchCard({ match }: PublicMatchCardProps) {
     traitBadges.push({ icon: "Baby", label: `Toddlers, ${nanny.under_3_experience_years}${nanny.under_3_experience_years === 1 ? 'yr' : 'yrs'}`, primary: true });
   if (nanny.newborn_experience_years && nanny.newborn_experience_years > 0)
     traitBadges.push({ icon: "Baby", label: `Babies, ${nanny.newborn_experience_years}${nanny.newborn_experience_years === 1 ? 'yr' : 'yrs'}`, primary: true });
-  let qualLabel: string | null = null;
-  if (match.highestQualification && match.highestQualification.toLowerCase() !== "no qualification") {
-    qualLabel = match.highestQualification;
-    if (qualLabel.startsWith("Bachelor")) qualLabel = "Bachelors";
-    else if (qualLabel.startsWith("Diploma")) qualLabel = "Diploma";
-    else if (qualLabel.startsWith("Certificate IV")) qualLabel = "Cert IV";
-    else if (qualLabel.startsWith("Certificate III")) qualLabel = "Cert III";
-  }
+  const qualLabel: string | null = qualificationBadgeLabel(match.highestQualification) || null;
 
   return (
     <div className="relative h-full rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col @container">

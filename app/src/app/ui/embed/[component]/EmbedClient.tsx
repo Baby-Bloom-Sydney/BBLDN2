@@ -33,7 +33,6 @@ import {
 import { MOCK_MATCH_RESULT, MOCK_DFY_STATUS } from "../../mock-data";
 
 // ── Page Client Components ──
-import { NannyRegistrationFunnel } from "@/app/nanny/register/NannyRegistrationFunnel";
 import { NannyInterviewsClient } from "@/app/nanny/interviews/NannyInterviewsClient";
 import { NannyBabysittingClient } from "@/app/nanny/babysitting/NannyBabysittingClient";
 import { NannyInboxClient } from "@/app/nanny/inbox/NannyInboxClient";
@@ -64,15 +63,6 @@ function ClientOnly({ children }: { children: React.ReactNode }) {
 const matchResult = MOCK_MATCH_RESULT as unknown as MatchResult;
 
 const COMPONENTS: Record<string, { name: string; render: () => React.ReactNode }> = {
-  "nanny-registration": {
-    name: "NannyRegistrationFunnel",
-    render: () => (
-      <NannyRegistrationFunnel
-        userId="mock-user-001"
-        initialData={{ first_name: "Bailey", last_name: "Wright", email: "bailey@example.com" }}
-      />
-    ),
-  },
   "nanny-interviews": {
     name: "NannyInterviewsClient",
     render: () => <NannyInterviewsClient requests={MOCK_INTERVIEW_REQUESTS} />,

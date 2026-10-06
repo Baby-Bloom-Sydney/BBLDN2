@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NannyMyProfile } from "@/app/nanny/profile/NannyMyProfile";
 import type { NannyProfile } from "@/lib/actions/nanny";
+import { ASSURANCE_OPTIONS, CERTIFICATE_OPTIONS, byOptionOrder } from "@/lib/nanny-options";
 
 export default async function AdminViewerProfilePage({
   params,
@@ -75,11 +76,12 @@ export default async function AdminViewerProfilePage({
     const certificates = (credsRes.data || [])
       .filter((c: { credential_category: string }) => c.credential_category === "certification")
       .map((c: { certification_type: string }) => c.certification_type)
-      .filter((t: string | null): t is string => t !== null);
+      .filter((t: string | null): t is string => t !== null)
+      .sort(byOptionOrder(CERTIFICATE_OPTIONS)); // P-2: array order = display order
 
-    const assurances = (assurRes.data || []).map(
-      (a: { assurance_type: string }) => a.assurance_type
-    );
+    const assurances = (assurRes.data || [])
+      .map((a: { assurance_type: string }) => a.assurance_type)
+      .sort(byOptionOrder(ASSURANCE_OPTIONS)); // P-2
 
     const nannyProfile: NannyProfile = {
       ...profile,

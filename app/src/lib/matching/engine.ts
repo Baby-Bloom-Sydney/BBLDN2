@@ -21,6 +21,7 @@ import {
   calculateFinalScore,
 } from './scoring';
 import { QUAL_SCORES } from './constants';
+import { displayCertificates } from './qualification-display';
 
 /**
  * Shared scoring pipeline: fetches all eligible nannies, scores them against
@@ -189,16 +190,8 @@ export async function fetchAndScoreNannies(
     const rawCerts = nannyCredentials
       .filter((c) => c.credential_category === 'certification' && c.certification_type)
       .map((c) => c.certification_type!);
-    // "First Aid in Childcare Setting" → "Child First Aid" and takes priority over plain "First Aid"
-    const hasChildFirstAid = rawCerts.some((c) =>
-      c.toLowerCase().includes('childcare') || c.toLowerCase().includes('child first aid')
-    );
-    const certifications = rawCerts
-      .map((c) => {
-        if (c.toLowerCase().includes('childcare')) return 'Child First Aid';
-        return c;
-      })
-      .filter((c) => !(hasChildFirstAid && c === 'First Aid'));
+    // P-2 order; either paediatric course shows as "Paediatric First Aid" and hides plain "First Aid" (E-7)
+    const certifications = displayCertificates(rawCerts);
 
     results.push({
       nannyId: nanny.id,

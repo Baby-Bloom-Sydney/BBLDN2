@@ -24,8 +24,8 @@ const DISTRICTS = [{ district: 'Camden', prefix: 'NW1', label: 'Camden, NW1' }];
 let latest: NannyLeadFunnelState = DEFAULT_FUNNEL_STATE;
 const goNext = vi.fn();
 
-function Harness() {
-  const [state, dispatch] = useReducer(funnelReducer, DEFAULT_FUNNEL_STATE);
+function Harness({ initial = DEFAULT_FUNNEL_STATE }: { initial?: NannyLeadFunnelState }) {
+  const [state, dispatch] = useReducer(funnelReducer, initial);
   latest = state;
   return (
     <N1Location
@@ -152,5 +152,41 @@ describe('N1Location — UK right to work (E-1, E-3)', () => {
       .map((o) => (o as HTMLOptionElement).value)
       .filter(Boolean);
     expect(values.slice(0, 2)).toEqual(['British', 'Irish']);
+  });
+
+  // Fail closed on state restored from before the UK question (localStorage): an answer that is not one of the four
+  // keys is cleared, never carried to conversion. A neutral stale value stands in (LEDGER/2-0.md §8(3)).
+  it('clears a restored residency status that is not a UK key, and does not offer Continue', () => {
+    const restored: NannyLeadFunnelState = {
+      ...DEFAULT_FUNNEL_STATE,
+      residency: {
+        ...DEFAULT_FUNNEL_STATE.residency,
+        nationality: 'Polish',
+        residency_status: 'a-retired-answer' as never,
+        right_to_work: true,
+        suburb: 'Camden',
+        postcode: 'NW1',
+      },
+    };
+    render(<Harness initial={restored} />);
+    expect(latest.residency.residency_status).toBeNull();
+    expect(latest.residency.right_to_work).toBeNull();
+    expect(isShown(RTW_QUESTION)).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
+  });
+
+  it('restores British with a stale status as citizen with the right to work', () => {
+    const restored: NannyLeadFunnelState = {
+      ...DEFAULT_FUNNEL_STATE,
+      residency: {
+        ...DEFAULT_FUNNEL_STATE.residency,
+        nationality: 'British',
+        residency_status: 'a-retired-answer' as never,
+        right_to_work: null,
+      },
+    };
+    render(<Harness initial={restored} />);
+    expect(latest.residency.residency_status).toBe('citizen');
+    expect(latest.residency.right_to_work).toBe(true);
   });
 });

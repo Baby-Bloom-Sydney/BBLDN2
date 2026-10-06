@@ -39,13 +39,9 @@ const SRC = path.resolve(__dirname, "..");
  *
  *   • Q-12's availability brackets (`"Morning (6am-10am)"` …, stored in
  *     `day_times`) live in `src/types/nanny-leads.ts`, `admin/leads/actions.ts`,
- *     `nanny/register/steps/StepAvailability.tsx`,
- *     `nanny/register/NannyRegistrationFunnel.tsx`,
  *     `nanny/profile/NannyMyProfile.tsx` and `nanny/profiletest/`. They are
  *     whole literal strings, never assembled from an hour, so the patterns
  *     below do not reach them.
- *   • `nanny/register/steps/StepReview.tsx` abbreviates those bracket *names*
- *     to `"AM"`/`"PM"`. Also a literal; also out of reach.
  *
  * Adding an entry is therefore a decision to be argued in a ledger, not a way
  * to quiet a failure.
