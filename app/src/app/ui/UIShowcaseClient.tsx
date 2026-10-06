@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * UI showcase (dev surface). Unit 3d: the admin users block renders the DBS queues mock
+ * (`MOCK_ADMIN_DBS_QUEUES`) instead of the deleted regulator queue mock. Never: reads real data.
+ */
 import { useState, useEffect, Suspense } from "react";
 import type { NannyCardData } from "@/components/NannyCard";
 import type { MockParentData } from "./mock-data";
@@ -34,7 +38,7 @@ import {
   MOCK_ADMIN_USER_STATS,
   MOCK_ADMIN_VERIFICATION_STATS,
   MOCK_ADMIN_IDENTITY_CHECKS,
-  MOCK_ADMIN_WWCC_CHECKS,
+  MOCK_ADMIN_DBS_QUEUES,
 } from "./page-client-mocks";
 import { ShowcaseErrorBoundary } from "./ErrorBoundary";
 
@@ -1136,7 +1140,7 @@ export function UIShowcaseClient({
                 userStats={MOCK_ADMIN_USER_STATS}
                 verificationStats={MOCK_ADMIN_VERIFICATION_STATS}
                 identityChecks={MOCK_ADMIN_IDENTITY_CHECKS}
-                wwccChecks={MOCK_ADMIN_WWCC_CHECKS}
+                dbsQueues={MOCK_ADMIN_DBS_QUEUES}
               />
             </Suspense>
           </PageClientShowcase>

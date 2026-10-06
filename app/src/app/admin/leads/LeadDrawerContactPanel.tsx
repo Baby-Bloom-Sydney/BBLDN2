@@ -136,7 +136,7 @@ export function LeadDrawerContactPanel({
           value={dobDisplay}
           copyValue={dob}
         />
-        <ContactRow icon={ShieldCheck} label="WWCC number" value={wwccNumber} />
+        <ContactRow icon={ShieldCheck} label="DBS certificate no." value={wwccNumber} />
         {address && (
           <div className="sm:col-span-2">
             <ContactRow icon={Home} label="Address" value={address} />

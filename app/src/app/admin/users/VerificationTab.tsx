@@ -1,7 +1,12 @@
 "use client";
 
+/**
+ * Admin "Nanny Verification" tab: stat cards + two sub-tabs — ID (unchanged) and DBS (unit 3d: lists A–D in
+ * `DbsQueueTab`, decisions in `DBSCheckModal`). The OCG portal button, Confirm stamp, DD/MM/YYYY copy cells and the
+ * method column are gone (spec §4). Stat numbers come from `fetchVerificationStats` (`ADMIN_PENDING_CODES`, S1).
+ * Never: computes a status list of its own (3a owns code sets).
+ */
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { IDCheckModal } from "./IDCheckModal";
-import { adminConfirmWWCC } from "@/lib/actions/admin";
+import { DbsQueueTab } from "./DbsQueueTab";
 import {
   ShieldCheck,
   Clock,
@@ -27,61 +32,13 @@ import {
   XCircle,
   IdCard,
   FileText,
-  ExternalLink,
-  Copy,
-  Check,
-  Plus,
-  Loader2,
 } from "lucide-react";
-import type { VerificationStats, PendingIdentityCheck, PendingWWCCCheck } from "./page";
+import type { VerificationStats, PendingIdentityCheck, DbsQueues, PendingDbsCheck } from "./page";
 
 interface VerificationTabProps {
   stats: VerificationStats;
   identityChecks: PendingIdentityCheck[];
-  wwccChecks: PendingWWCCCheck[];
-}
-
-// ── Copy-to-clipboard cell ──
-
-function CopyCell({ value }: { value: string | null }) {
-  const [copied, setCopied] = useState(false);
-  if (!value) return <span className="text-slate-400">-</span>;
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(value);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-
-  return (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        handleCopy();
-      }}
-      className="group flex items-center gap-1 text-left hover:text-violet-600 transition-colors"
-      title="Click to copy"
-    >
-      <span>{value}</span>
-      {copied ? (
-        <Check className="h-3 w-3 text-green-600" />
-      ) : (
-        <Copy className="h-3 w-3 text-slate-300 group-hover:text-violet-400" />
-      )}
-    </button>
-  );
-}
-
-// ── Format DOB for OCG portal (DD/MM/YYYY) ──
-
-function formatDobForCopy(dateStr: string | null): string | null {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return dateStr;
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  return `${dd}/${mm}/${yyyy}`;
+  dbsQueues: DbsQueues<PendingDbsCheck>;
 }
 
 // ── Status badge variant for verification status integer ──
@@ -91,27 +48,8 @@ function getStatusBadgeVariant(status: number): "pending" | "verified" | "inacti
   return tone === "unattempted" ? "pending" : tone;
 }
 
-export function VerificationTab({ stats, identityChecks, wwccChecks }: VerificationTabProps) {
-  const router = useRouter();
+export function VerificationTab({ stats, identityChecks, dbsQueues }: VerificationTabProps) {
   const [selectedIdCheck, setSelectedIdCheck] = useState<PendingIdentityCheck | null>(null);
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
-  const [loadingId, setLoadingId] = useState<string | null>(null);
-  // Optimistic UI: track IDs confirmed this session to prevent flash before router.refresh() lands
-  const [justConfirmed, setJustConfirmed] = useState<Set<string>>(new Set());
-
-  async function handleConfirmWWCC(checkId: string) {
-    setLoadingId(checkId);
-    const result = await adminConfirmWWCC(checkId);
-    setLoadingId(null);
-
-    if (result.success) {
-      setJustConfirmed((prev) => { const next = new Set(Array.from(prev)); next.add(checkId); return next; });
-      setConfirmingId(null);
-      router.refresh();
-    } else {
-      alert(`Error: ${result.error}`);
-    }
-  }
 
   return (
     <div className="space-y-6">
@@ -171,7 +109,7 @@ export function VerificationTab({ stats, identityChecks, wwccChecks }: Verificat
         </Card>
       </div>
 
-      {/* Sub-tabs: ID / WWCC */}
+      {/* Sub-tabs: ID / DBS */}
       <Tabs defaultValue="id" className="space-y-4">
         <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         <TabsList className="w-max sm:w-auto">
@@ -185,13 +123,12 @@ export function VerificationTab({ stats, identityChecks, wwccChecks }: Verificat
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="wwcc" className="gap-2">
+          <TabsTrigger value="dbs" className="gap-2">
             <FileText className="h-4 w-4" />
-            <span className="hidden sm:inline">WWCC Verification</span>
-            <span className="sm:hidden">WWCC</span>
-            {wwccChecks.length > 0 && (
+            <span>DBS</span>
+            {dbsQueues.badgeCount > 0 && (
               <span className="ml-1 rounded-full bg-yellow-500 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                {wwccChecks.length}
+                {dbsQueues.badgeCount}
               </span>
             )}
           </TabsTrigger>
@@ -274,168 +211,9 @@ export function VerificationTab({ stats, identityChecks, wwccChecks }: Verificat
           </Card>
         </TabsContent>
 
-        {/* WWCC Sub-tab */}
-        <TabsContent value="wwcc">
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <CardTitle>Pending WWCC Checks</CardTitle>
-                  <CardDescription>
-                    Verify WWCC numbers via the OCG portal ({wwccChecks.length} pending)
-                  </CardDescription>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() =>
-                    window.open(
-                      "https://wwccemployer.ocg.nsw.gov.au/Login?ReturnUrl=%2FVerifyEmployee",
-                      "_blank"
-                    )
-                  }
-                >
-                  Open OCG Portal
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {wwccChecks.length > 0 ? (
-                <div className="overflow-x-auto -mx-4 sm:mx-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>User</TableHead>
-                      <TableHead>Surname</TableHead>
-                      <TableHead>DOB</TableHead>
-                      <TableHead>WWCC #</TableHead>
-                      <TableHead>Method</TableHead>
-                      <TableHead>Submitted</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-center">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {wwccChecks.map((check) => {
-                      const name = `${check.first_name || ""} ${check.last_name || ""}`.trim() || "Unknown";
-                      const isConfirmed = check.wwcc_ocg_submitted_at !== null || justConfirmed.has(check.id);
-                      const isConfirming = confirmingId === check.id;
-                      const isLoading = loadingId === check.id;
-
-                      const methodLabels: Record<string, string> = {
-                        grant_email: "Grant Email",
-                        service_nsw_app: "Service NSW",
-                        manual_entry: "Manual",
-                      };
-
-                      return (
-                        <TableRow
-                          key={check.id}
-                          className={isConfirmed ? "bg-green-50" : undefined}
-                        >
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <UserAvatar
-                                name={name}
-                                imageUrl={check.profile_picture_url || undefined}
-                                className="h-7 w-7"
-                              />
-                              <div>
-                                <p className="text-sm font-medium">{name}</p>
-                                <p className="text-xs text-slate-400">{check.email}</p>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <CopyCell value={check.surname} />
-                          </TableCell>
-                          <TableCell>
-                            <CopyCell value={formatDobForCopy(check.date_of_birth)} />
-                          </TableCell>
-                          <TableCell>
-                            <CopyCell value={check.wwcc_number} />
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-sm text-slate-600">
-                              {check.wwcc_verification_method
-                                ? methodLabels[check.wwcc_verification_method] || check.wwcc_verification_method
-                                : "-"}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-sm text-slate-500">
-                              {formatRelativeTime(check.created_at)}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <StatusBadge
-                              variant={
-                                isConfirmed
-                                  ? "verified"
-                                  : getStatusBadgeVariant(check.verification_status)
-                              }
-                            >
-                              {isConfirmed
-                                ? "Confirmed"
-                                : STATUS_LABELS[check.verification_status] || `Unknown (${check.verification_status})`}
-                            </StatusBadge>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {isConfirmed ? (
-                              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-white mx-auto">
-                                <Check className="h-4 w-4" />
-                              </div>
-                            ) : isConfirming ? (
-                              <div className="flex items-center gap-1 justify-center">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 px-2 text-xs text-green-600 hover:bg-green-50"
-                                  disabled={isLoading}
-                                  onClick={() => handleConfirmWWCC(check.id)}
-                                >
-                                  {isLoading ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                  ) : (
-                                    "Yes"
-                                  )}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 px-2 text-xs"
-                                  onClick={() => setConfirmingId(null)}
-                                >
-                                  No
-                                </Button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => setConfirmingId(check.id)}
-                                className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white hover:bg-emerald-600 transition-colors mx-auto"
-                                title="Mark as verified"
-                              >
-                                <Plus className="h-4 w-4" />
-                              </button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-                </div>
-              ) : (
-                <EmptyState
-                  icon={FileText}
-                  title="No pending WWCC checks"
-                  description="All WWCC verifications have been confirmed."
-                />
-              )}
-            </CardContent>
-          </Card>
+        {/* DBS Sub-tab — lists A–D (unit 3d) */}
+        <TabsContent value="dbs">
+          <DbsQueueTab queues={dbsQueues} />
         </TabsContent>
       </Tabs>
 

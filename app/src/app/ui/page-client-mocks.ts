@@ -18,7 +18,8 @@ import type {
   UserStats,
   VerificationStats,
   PendingIdentityCheck,
-  PendingWWCCCheck,
+  PendingDbsCheck,
+  DbsQueues,
 } from "@/app/admin/users/page";
 
 // ── Interview Requests (CMP-050, CMP-057) ──────────────────────────
@@ -816,23 +817,76 @@ export const MOCK_ADMIN_IDENTITY_CHECKS: PendingIdentityCheck[] = [
   },
 ];
 
-export const MOCK_ADMIN_WWCC_CHECKS: PendingWWCCCheck[] = [
-  {
-    id: "mock-wwcc-check-001",
-    user_id: "mock-user-005",
-    surname: "Taylor",
-    given_names: "Emma Louise",
-    date_of_birth: "2000-11-03",
-    wwcc_number: "PLACEHOLDER-NOT-A-REAL-CHECK",
-    wwcc_verification_method: "dbs_certificate",
-    wwcc_verified: false,
-    wwcc_rejection_reason: null,
-    verification_status: 0,
-    created_at: "2026-03-10T11:00:00Z",
-    first_name: "Emma",
-    last_name: "Taylor",
-    email: "emma@example.com",
-    profile_picture_url: null,
-    wwcc_ocg_submitted_at: null,
-  },
-];
+// Unit 3d: one list-A row (awaiting approval) for the admin DBS sub-tab showcase. Synthetic values only.
+const MOCK_ADMIN_DBS_ROW: PendingDbsCheck = {
+  id: "mock-dbs-check-001",
+  user_id: "mock-user-005",
+  verification_status: 30,
+  identity_status: "verified",
+  wwcc_status: "doc_verified",
+  wwcc_status_at: "2026-03-10T11:00:00Z",
+  cross_check_status: "passed",
+  cross_check_reasoning: "Surname + DOB match; Update Service: BLANK_NO_NEW_INFO",
+  cross_check_issues: null,
+  wwcc_user_guidance: { confidence: "high", reason_code: "PASS" },
+  ocg_result_status: "BLANK_NO_NEW_INFO",
+  ocg_result_text: "<statusCheckResult>mock</statusCheckResult>",
+  ocg_verified_at: "2026-03-10T11:01:00Z",
+  wwcc_verified_at: null,
+  wwcc_verified_by: null,
+  extracted_wwcc_clearance_type: JSON.stringify({ level: "Enhanced", childrens_barred_list: "none_recorded", has_disclosed_content: false }),
+  certificate_url: null,
+  is_pdf: false,
+  extracted_wwcc_number: "000000000000",
+  extracted_wwcc_surname: "Taylor",
+  extracted_wwcc_first_name: "Emma Louise",
+  extracted_wwcc_other_names: null,
+  extracted_wwcc_dob: "2000-11-03",
+  extracted_wwcc_expiry: "2025-01-10",
+  extracted_surname: "Taylor",
+  extracted_given_names: "Emma Louise",
+  extracted_dob: "2000-11-03",
+  wwcc_ai_reasoning: "Enhanced, child workforce, Children's Barred List checked.",
+  wwcc_ai_issues: "[]",
+  wwcc_rejection_reason: null,
+  first_name: "Emma",
+  last_name: "Taylor",
+  email: "emma@example.com",
+  profile_picture_url: null,
+  created_at: "2026-03-10T11:00:00Z",
+  history: [],
+  api_down_since: null,
+};
+
+const MOCK_ADMIN_DBS_NON_BLANK: PendingDbsCheck = {
+  ...MOCK_ADMIN_DBS_ROW, id: "mock-dbs-check-002", user_id: "mock-user-006", first_name: "Sophie", last_name: "Taylor",
+  email: "sophie@example.com", ocg_result_status: "NON_BLANK_NO_NEW_INFO",
+};
+const MOCK_ADMIN_DBS_API_DOWN: PendingDbsCheck = {
+  ...MOCK_ADMIN_DBS_ROW, id: "mock-dbs-check-003", user_id: "mock-user-007", first_name: "Grace", last_name: "Hughes",
+  email: "grace@example.com", verification_status: 20, cross_check_status: "pending", ocg_result_status: null,
+  ocg_result_text: null, ocg_verified_at: null, api_down_since: "2026-03-10T11:05:00Z",
+};
+const MOCK_ADMIN_DBS_REVIEW: PendingDbsCheck = {
+  ...MOCK_ADMIN_DBS_ROW, id: "mock-dbs-check-004", user_id: "mock-user-008", first_name: "Olivia", last_name: "Brown",
+  email: "olivia@example.com", verification_status: 21, cross_check_status: "review",
+  cross_check_issues: ["Surname mismatch: passport \"Brown\" vs certificate \"Browne\""], extracted_wwcc_surname: "Browne",
+  ocg_result_status: null, ocg_result_text: null, ocg_verified_at: null,
+};
+const MOCK_ADMIN_DBS_RECHECK: PendingDbsCheck = {
+  ...MOCK_ADMIN_DBS_ROW, id: "mock-dbs-check-005", user_id: "mock-user-009", first_name: "Amelia", last_name: "Clarke",
+  email: "amelia@example.com", verification_status: 23, wwcc_status: "expired", cross_check_status: "not_started",
+  ocg_result_status: "NEW_INFO", wwcc_verified_at: "2026-02-01T10:00:00Z",
+};
+const MOCK_ADMIN_DBS_BARRED: PendingDbsCheck = {
+  ...MOCK_ADMIN_DBS_ROW, id: "mock-dbs-check-006", user_id: "mock-user-010", first_name: "Chloe", last_name: "Walker",
+  email: "chloe@example.com", verification_status: 27, wwcc_status: "barred",
+};
+
+export const MOCK_ADMIN_DBS_QUEUES: DbsQueues<PendingDbsCheck> = {
+  awaiting: [MOCK_ADMIN_DBS_ROW, MOCK_ADMIN_DBS_NON_BLANK],
+  needsPerson: [MOCK_ADMIN_DBS_REVIEW, MOCK_ADMIN_DBS_API_DOWN],
+  recheckAlerts: [MOCK_ADMIN_DBS_RECHECK],
+  barred: [MOCK_ADMIN_DBS_BARRED],
+  badgeCount: 4,
+};

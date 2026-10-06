@@ -1,11 +1,16 @@
 "use client";
 
+/**
+ * Admin "view as user" bar. Unit 3d: the level badge reads 3a's LEVEL_LABELS instead of a local copy
+ * (brief change 14). Never: shows verification to a parent (3h).
+ */
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { UserAvatar } from "@/components/dashboard/UserAvatar";
 import { ChevronUp, ChevronDown, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LEVEL_LABELS } from "@/lib/verification";
 
 interface TargetUser {
   userId: string;
@@ -17,13 +22,7 @@ interface TargetUser {
   verificationLevel: number;
 }
 
-const LEVEL_LABELS: Record<number, string> = {
-  0: "Unverified",
-  1: "Level 1",
-  2: "Level 2",
-  3: "Level 3",
-  4: "Level 4",
-};
+// 3d: the level labels are 3a's (`lib/verification.ts`), not a local copy.
 
 export function AdminViewerBar({ user }: { user: TargetUser }) {
   const [collapsed, setCollapsed] = useState(false);

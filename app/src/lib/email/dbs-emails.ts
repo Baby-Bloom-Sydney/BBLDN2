@@ -6,7 +6,8 @@
  * paragraph); 3g writes the final copy as builders in `lib/email/templates/dbs-nanny-emails.ts` and rewires the nanny
  * senders here. Later units add their senders to this file: 3d `sendDbsRejectedEmail`, 3i `sendDbsRecheckAdminAlert`.
  *
- * `sendBarredEmails` has no caller in 3c — 3d's Bar is its caller.
+ * `sendBarredEmails` — caller: 3d's Bar (`adminBarDbs`). `sendDbsRejectedEmail` — 3d (README P-4): the admin's Reject
+ * tells her the reason and how to get approved; there was no such email before. Placeholder body; 3g writes the copy.
  *
  * Contract
  * - Input: a user id; name and address come from `getUserEmailInfo`. Output: Resend sends; nothing when no profile.
@@ -86,4 +87,29 @@ export async function sendBarredEmails(userId: string): Promise<void> {
     ),
     emailType: "admin_notification",
   });
+}
+
+/**
+ * P-4 — the admin rejected her certificate (status 22). From the default sender with replies to hello@,
+ * `emailType: 'verification_rejected'`. Caller: the admin Reject action (lib/actions/admin.ts), once, after its write succeeded.
+ * PLACEHOLDER body (one paragraph: the reason + the two next steps); 3g replaces it with its builder (W4).
+ * `reason` is admin-typed text — escaped here. Throws on a send failure so the caller can report it.
+ */
+export async function sendDbsRejectedEmail(userId: string, reason: string): Promise<void> {
+  const info = await getUserEmailInfo(userId);
+  if (!info) return;
+  const result = await sendEmail({
+    to: info.email,
+    subject: "Your DBS certificate needs another look",
+    html: placeholder(
+      "Your DBS certificate needs another look",
+      `Hi ${esc(info.firstName)}, we reviewed your DBS certificate and couldn't approve it yet. The reason: ${esc(reason)}. ` +
+        "To be approved, upload page 1 of your certificate again (Edit & Resubmit), or ask us for a manual review.",
+      { label: "Go to verification", href: `${SITE_URL}/nanny/verification` },
+    ),
+    emailType: "verification_rejected",
+    recipientUserId: userId,
+    replyTo: SENDERS.hello,
+  });
+  if (!result.success) throw new Error(`reject email not sent: ${result.error ?? "unknown"}`);
 }

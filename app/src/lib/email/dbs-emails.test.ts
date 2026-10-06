@@ -9,7 +9,7 @@ const h = vi.hoisted(() => ({ sendEmail: vi.fn(async () => ({ success: true })),
 vi.mock("./resend", () => ({ sendEmail: h.sendEmail }));
 vi.mock("./helpers", () => ({ getUserEmailInfo: vi.fn(async () => h.info) }));
 
-import { sendDbsManualReviewEmail, sendBarredEmails } from "./dbs-emails";
+import { sendDbsManualReviewEmail, sendBarredEmails, sendDbsRejectedEmail } from "./dbs-emails";
 import { SENDERS } from "@/lib/constants";
 
 type Sent = { to: string; subject: string; html: string; emailType: string; recipientUserId?: string; replyTo?: string };
@@ -55,4 +55,21 @@ describe("lib/email/dbs-emails", () => {
     await sendBarredEmails("u1");
     expect(h.sendEmail).not.toHaveBeenCalled();
   });
+
+  // Unit 3d (BB-LDN-3d-061026, README P-4)
+  it("P-4 reject email goes to her with the reason escaped, the two next steps and a link to her verification page", async () => {
+    await sendDbsRejectedEmail("u1", "Surname <b>differs</b>");
+    const [m] = sent();
+    expect(m).toMatchObject({ to: "jane.doe@example.test", emailType: "verification_rejected", recipientUserId: "u1", replyTo: SENDERS.hello });
+    expect(m.html).toContain("Surname &lt;b&gt;differs&lt;/b&gt;");
+    expect(m.html).toMatch(/Edit &amp; Resubmit|Edit & Resubmit/);
+    expect(m.html).toMatch(/manual review/);
+    expect(m.html).toContain("/nanny/verification");
+  });
+
+  it("P-4 reject email throws when the send fails, so the caller can warn", async () => {
+    h.sendEmail.mockResolvedValueOnce({ success: false, error: "down" } as never);
+    await expect(sendDbsRejectedEmail("u1", "r")).rejects.toThrow(/down/);
+  });
 });
+
