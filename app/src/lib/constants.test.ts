@@ -256,3 +256,16 @@ describe("EMAIL_FROM_DOMAIN — BAI 2026-10-01, removed at B-50", () => {
     }
   });
 });
+
+// Unit 3a (BB-LDN-3a-061026) — 00-RULINGS #14, QUESTIONS E-5: one constant for the two DBS links; 3b and 3e import it.
+describe("DBS_LINKS", () => {
+  it("DBS_LINKS.getEnhanced is the gov.uk self-employed guidance URL and joinUpdateService is gov.uk/dbs-update-service, both https", async () => {
+    const { DBS_LINKS } = await import("./constants");
+    expect(DBS_LINKS.getEnhanced).toBe(
+      "https://www.gov.uk/guidance/dbs-checks-for-self-employed-people-and-personal-employees",
+    );
+    expect(DBS_LINKS.joinUpdateService).toBe("https://www.gov.uk/dbs-update-service");
+    for (const href of Object.values(DBS_LINKS)) expect(new URL(href).protocol).toBe("https:");
+    expect(Object.keys(DBS_LINKS).sort()).toEqual(["getEnhanced", "joinUpdateService"]);
+  });
+});

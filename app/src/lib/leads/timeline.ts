@@ -8,15 +8,16 @@ import type { TimelineEvent, TimelineEventCategory } from "./types";
 const TIMELINE_DEFAULT_LIMIT = 80;
 
 // Subset of activity_logs.action_type values meaningful to an operator.
-const OPERATOR_RELEVANT_ACTIONS = new Set([
+// 3a (#33): the two DBS types replace the expiry-era pair dropped with the expiry SQL.
+export const OPERATOR_RELEVANT_ACTIONS: ReadonlySet<string> = new Set([
   "signup",
   "profile_updated",
   "profile_deactivated",
   "nanny_profile_created",
   "nanny_verification_submitted",
   "nanny_tier_upgraded",
-  "wwcc_expired",
-  "wwcc_renewed",
+  "dbs_status_check",
+  "dbs_page2_requested",
   "admin_override",
   "verification_approved",
   "verification_rejected",
@@ -44,7 +45,7 @@ const OPERATOR_RELEVANT_ACTIONS = new Set([
   "abn_push_flagged_for_admin",
 ]);
 
-function activityCategory(actionType: string): TimelineEventCategory {
+export function activityCategory(actionType: string): TimelineEventCategory {
   if (
     actionType === "signup" ||
     actionType.startsWith("nanny_profile") ||
@@ -53,7 +54,7 @@ function activityCategory(actionType: string): TimelineEventCategory {
     return "profile";
   if (
     actionType.includes("verification") ||
-    actionType.startsWith("wwcc") ||
+    actionType.startsWith("dbs_") ||
     actionType.includes("identity")
   )
     return "verification";

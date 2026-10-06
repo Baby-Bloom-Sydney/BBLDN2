@@ -177,3 +177,13 @@ export const BSR_NOTIFICATION_LIMIT = 20;
  * Distinct from `BRAND.region`, which is where families live.
  */
 export const SUPABASE_REGION = "eu-west-2";
+
+/**
+ * The two DBS links (00-RULINGS #14, #22; QUESTIONS E-5). One constant: 3b's fail cards and 3e's funnel "no DBS"
+ * link import it, and the DBS guidance in `lib/verification.ts` carries it. Both URLs verified live on 2026-10-02
+ * (04-integration-design.md §4.1). BB-LDN-3a-061026.
+ */
+export const DBS_LINKS = {
+  getEnhanced: "https://www.gov.uk/guidance/dbs-checks-for-self-employed-people-and-personal-employees",
+  joinUpdateService: "https://www.gov.uk/dbs-update-service",
+} as const;

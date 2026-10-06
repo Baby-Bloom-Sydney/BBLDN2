@@ -202,9 +202,9 @@ async function getVerificationStats(): Promise<VerificationStats> {
   // Rejected = status 12 or 22 (ID or WWCC rejected)
   // Total verified = status 40 (fully verified)
   const [pendingResult, approvedTodayResult, rejectedTodayResult, totalVerifiedResult] = await Promise.all([
-    supabase.from('verifications').select('*', { count: 'exact', head: true }).in('verification_status', [10, 11, 20, 21, 24, 25, 26, 27, 28, 29]),
+    supabase.from('verifications').select('*', { count: 'exact', head: true }).in('verification_status', [10, 11, 20, 21, 24, 25, 26, 27, 29]), // 28 deleted (3a); 3d re-points this count at ADMIN_PENDING_CODES
     supabase.from('verifications').select('*', { count: 'exact', head: true }).in('verification_status', [30, 40]).gte('updated_at', today.toISOString()),
-    supabase.from('verifications').select('*', { count: 'exact', head: true }).in('verification_status', [12, 22, 23, 24]).gte('updated_at', today.toISOString()),
+    supabase.from('verifications').select('*', { count: 'exact', head: true }).in('verification_status', [12, 22, 23, 24, 27]).gte('updated_at', today.toISOString()), // 27 = barred since 3a (was 22); 3d sets the final list
     supabase.from('verifications').select('*', { count: 'exact', head: true }).eq('verification_status', 40),
   ]);
 

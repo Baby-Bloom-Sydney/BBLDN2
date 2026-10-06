@@ -15,7 +15,7 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { UserAvatar } from "@/components/dashboard/UserAvatar";
 import { formatRelativeTime } from "@/lib/utils";
-import { LEVEL_LABELS, STATUS_LABELS } from "@/lib/verification";
+import { LEVEL_LABELS, STATUS_LABELS, statusTone } from "@/lib/verification";
 import { Search, Users, X, Baby } from "lucide-react";
 import {
   Table,
@@ -50,27 +50,7 @@ function getLevelVariant(
   return "verified";
 }
 
-// ── Status badge variant ──
-
-function getStatusVariant(
-  status: number | null,
-): "unattempted" | "pending" | "failed" | "verified" | "active" | "info" {
-  if (status === null) return "unattempted";
-  if (status === 0) return "unattempted";
-  if (status === 20) return "info";
-  if (
-    status === 12 ||
-    status === 22 ||
-    status === 23 ||
-    status === 26 ||
-    status === 27 ||
-    status === 28
-  )
-    return "failed";
-  if (status === 30) return "active";
-  if (status === 40) return "verified";
-  return "pending";
-}
+// ── Status badge variant: statusTone from lib/verification.ts (3a; no local code map) ──
 
 // ── Filter matching ──
 
@@ -219,7 +199,7 @@ export function UsersTab({ users, stats }: UsersTabProps) {
             >
               <option value="all">All Status</option>
               <option value="id_stage">ID Stage (10-12)</option>
-              <option value="wwcc_stage">WWCC Stage (20-28)</option>
+              <option value="wwcc_stage">DBS Stage (20-29)</option>
               <option value="verified">Verified (30-40)</option>
               <option value="rejected">Rejected</option>
             </select>
@@ -307,7 +287,7 @@ export function UsersTab({ users, stats }: UsersTabProps) {
                           {user.role === "nanny" &&
                           user.verification_status !== null ? (
                             <StatusBadge
-                              variant={getStatusVariant(
+                              variant={statusTone(
                                 user.verification_status,
                               )}
                             >
