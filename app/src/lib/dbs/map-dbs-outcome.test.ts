@@ -162,6 +162,10 @@ describe("applyDbsResult — admin_result_only + recheck", () => {
     expect(updates()).toHaveLength(0);
   });
 
+  it("AR2 admin_result_only throws when the database refuses the write", async () => {
+    await expect(apply(ok("BLANK", { status: "SOMETHING" } as Partial<DbsCheckResult>), "admin_result_only")).rejects.toThrow(/check constraint/);
+  });
+
   it("recheck is 3i's and throws until 3i implements it", async () => {
     await expect(apply(ok("BLANK"), "recheck")).rejects.toThrow("not implemented: 3i");
   });

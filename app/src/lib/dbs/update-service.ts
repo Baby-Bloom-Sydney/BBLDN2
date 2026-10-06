@@ -7,7 +7,7 @@
  *
  * Fail closed: anything that is not a well-formed SUCCESS with one of the four known statuses is `ERROR`, and an
  * `ERROR` is never written as a result (the caller writes nothing to the result columns on it). `NO_MATCH` is a
- * result, not an error. Two attempts (Sydney's pattern); a real result is never retried.
+ * result, not an error. Two attempts (the pipeline's existing pattern); a real result is never retried.
  *
  * Old-TLS note: the DBS host is a 2013 Oracle server; NI-Jam's Python client needed `SECLEVEL=1`. Node's default
  * `fetch` is used until live test T9 says otherwise. If it fails there, swap the transport INSIDE THIS FILE for a
@@ -45,12 +45,12 @@ export type DbsErrorReason =
 export type DbsCheckResult =
   | {
       result: DbsResultKind;
-      /** The raw DBS enum, stored verbatim in `ocg_result_status`. */
+      /** The raw DBS enum, stored verbatim as the row's Update Service result. */
       status: DbsApiResult;
       forename: string | null;
       surname: string | null;
       printDate: string | null;
-      /** The exact response body, stored in `ocg_result_text`. */
+      /** The exact response body, stored beside the result. */
       raw: string;
     }
   | { result: "ERROR"; reason: DbsErrorReason; raw?: string };

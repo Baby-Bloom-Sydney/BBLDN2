@@ -13,7 +13,7 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: () => ({ auth: { getUser
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/ai/verification-pipeline", () => ({ triggerCrossCheck: vi.fn() }));
 vi.mock("@/lib/email/resend", () => ({ sendEmail: h.sendEmail }));
-vi.mock("@/lib/email/helpers", () => ({ getUserEmailInfo: vi.fn(async () => ({ email: "admin+3c@babybloomsydney.com.au", firstName: "Jane", lastName: "Doe", userId: "u1" })) }));
+vi.mock("@/lib/email/helpers", () => ({ getUserEmailInfo: vi.fn(async () => ({ email: "jane.doe@example.test", firstName: "Jane", lastName: "Doe", userId: "u1" })) }));
 vi.mock("./connection-helpers", () => ({ createInboxMessage: vi.fn() }));
 
 import { submitIdentityForManualReview } from "./verification";
@@ -21,7 +21,7 @@ import { submitIdentityForManualReview } from "./verification";
 beforeEach(() => {
   vi.clearAllMocks();
   h.db = createMemoryDb({
-    verifications: [{ id: "v1", user_id: "u1", updated_at: "x", identity_status: "failed", wwcc_status: "not_started", cross_check_status: "not_started", verification_status: 11 }],
+    verifications: [{ id: "v1", user_id: "u1", updated_at: "x", identity_status: "failed", cross_check_status: "not_started", verification_status: 11 }],
     nannies: [{ id: "n1", user_id: "u1", verification_level: 1 }],
   });
 });

@@ -251,6 +251,42 @@ describe("checkDbsStatus — retry", () => {
   });
 });
 
+describe("checkDbsStatus — edge branches (100 % branch pins)", () => {
+  it("A22 returns invalid_input for a non-string number or surname and for an impossible calendar date", async () => {
+    const f = respond(fixture("blank.xml"));
+    expect(await call(f, { ...INPUT, certificateNumber: 1234567890 as unknown as string })).toEqual({ result: "ERROR", reason: "invalid_input" });
+    expect(await call(f, { ...INPUT, surname: null as unknown as string })).toEqual({ result: "ERROR", reason: "invalid_input" });
+    expect(await call(f, { ...INPUT, dateOfBirth: undefined as unknown as string })).toEqual({ result: "ERROR", reason: "invalid_input" });
+    expect(await call(f, { ...INPUT, dateOfBirth: "1990-02-30" })).toEqual({ result: "ERROR", reason: "invalid_input" });
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("A23 returns ERROR parse when a field appears twice inside the one result block", async () => {
+    const body = fixture("blank.xml").replace("<status>BLANK_NO_NEW_INFO</status>", "<status>BLANK_NO_NEW_INFO</status><status>NEW_INFO</status>");
+    expect(await call(respond(body))).toMatchObject({ result: "ERROR", reason: "parse" });
+  });
+
+  it("A24 returns ERROR parse when the block has no result type, and nulls for absent names", async () => {
+    expect(await call(respond("<statusCheckResult><status>BLANK_NO_NEW_INFO</status></statusCheckResult>"))).toMatchObject({ result: "ERROR", reason: "parse" });
+    const bare = "<statusCheckResult><statusCheckResultType>SUCCESS</statusCheckResultType><status>BLANK_NO_NEW_INFO</status><forename></forename></statusCheckResult>";
+    expect(await call(respond(bare))).toMatchObject({ result: "BLANK", forename: null, surname: null, printDate: null });
+  });
+
+  it("A25 returns an ERROR when the body cannot be read, and treats AbortError as timeout", async () => {
+    const broken = vi.fn(async () => ({ status: 200, headers: new Headers(), text: async () => { throw new Error("socket hang up"); } }) as unknown as Response);
+    expect(await call(broken)).toMatchObject({ result: "ERROR", reason: "network" });
+    const aborted = vi.fn(async () => { throw Object.assign(new Error("aborted"), { name: "AbortError" }); });
+    expect(await call(aborted)).toEqual({ result: "ERROR", reason: "timeout" });
+  });
+
+  it("A26 uses a real delay between attempts when no sleep is injected", async () => {
+    const f = respond("x", 500);
+    const r = await checkDbsStatus(INPUT, { fetch: f as unknown as typeof fetch, config: { ...CONFIG, retryDelayMs: 1 } });
+    expect(r).toMatchObject({ result: "ERROR", reason: "http_500" });
+    expect(f).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("isApiPass + config", () => {
   it("isApiPass is true only for BLANK and NON_BLANK", () => {
     const base = { status: "x", forename: null, surname: null, printDate: null, raw: "" };

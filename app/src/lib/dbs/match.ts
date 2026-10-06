@@ -1,5 +1,5 @@
 /**
- * Surname / forename / date matching for the DBS cross-check (00-RULINGS #21): Sydney's case-insensitive + trimmed
+ * Surname / forename / date matching for the DBS cross-check (00-RULINGS #21): the existing case-insensitive + trimmed
  * compare, plus common sense — accents ignored; hyphen, space and apostrophe treated as equal.
  */
 

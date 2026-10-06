@@ -224,7 +224,7 @@ describe("verifyDBS — references, transport, fixture seam", () => {
     expect(complete).not.toHaveBeenCalled();
   });
 
-  it("uses the same model as the Sydney certificate reader, with a JSON response format", async () => {
+  it("uses the same model as the certificate reader it replaces, with a JSON response format", async () => {
     expect(DBS_MODEL).toBe("gpt-5.4-nano");
   });
 

@@ -5,9 +5,9 @@
  * `submitIdentityForManualReview`). Kept in its own file so 3b's edits to `lib/actions/verification.ts` never collide;
  * 3b's button imports this export.
  *
- * Allowed only after a failure she can act on — 24 (`failed`), 23 (`expired` = new info), 26 (`ocg_not_found` =
- * no Update Service match) — or the API-down state (`doc_verified` + cross-check `pending`). Anything else: an error,
- * no write. No attempt count: a second request after a failed resubmit is allowed.
+ * Allowed only after a failure she can act on — 24 (document failed), 23 (new information), 26 (no Update Service
+ * match) — or the API-down state (`doc_verified` + cross-check `pending`). Anything else: an error, no write.
+ * No attempt count: a second request after a failed resubmit is allowed.
  */
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -16,9 +16,7 @@ import {
   CROSS_CHECK_STATUS,
   WWCC_STATUS,
   deriveOverallStatus,
-  type CrossCheckStatus,
   type IdentityStatus,
-  type WwccStatus,
 } from '@/lib/verification';
 import { syncNannyVerificationState } from './verification';
 import { sendDbsManualReviewEmail } from '@/lib/email/dbs-emails';
@@ -64,8 +62,8 @@ export async function submitDbsForManualReview(): Promise<{ success: boolean; er
       cross_check_at: null,
       verification_status: deriveOverallStatus(
         existing.identity_status as IdentityStatus,
-        WWCC_STATUS.REVIEW as WwccStatus,
-        CROSS_CHECK_STATUS.NOT_STARTED as CrossCheckStatus,
+        WWCC_STATUS.REVIEW,
+        CROSS_CHECK_STATUS.NOT_STARTED,
       ),
       updated_at: now,
     })

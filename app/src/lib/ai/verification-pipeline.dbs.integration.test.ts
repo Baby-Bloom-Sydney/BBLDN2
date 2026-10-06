@@ -22,7 +22,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("./client", () => ({ openai: { chat: { completions: { create: h.create } } } }));
 vi.mock("@/lib/email/resend", () => ({ sendEmail: h.sendEmail }));
 vi.mock("@/lib/email/helpers", () => ({
-  getUserEmailInfo: vi.fn(async () => ({ email: "admin+3c@babybloomsydney.com.au", firstName: "Jane", lastName: "Doe", userId: "u1" })),
+  getUserEmailInfo: vi.fn(async () => ({ email: "jane.doe@example.test", firstName: "Jane", lastName: "Doe", userId: "u1" })),
 }));
 
 import { runWWCCDocPhase } from "./verification-pipeline";

@@ -556,8 +556,7 @@ async function setIdentityReview(supabase: any, verificationId: string, issues: 
   if (userId) await syncNannyVerificationState(userId);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function setWwccReview(supabase: any, verificationId: string, issues: string[], guidance: UserGuidance, identityStatus: IdentityStatus, userId: string) {
+async function setWwccReview(supabase: ReturnType<typeof createAdminClient>, verificationId: string, issues: string[], guidance: UserGuidance, identityStatus: IdentityStatus, userId: string) {
   await supabase.from('verifications').update({
     wwcc_status: WWCC_STATUS.REVIEW,
     wwcc_status_at: new Date().toISOString(),

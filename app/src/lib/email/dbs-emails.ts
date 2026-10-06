@@ -34,7 +34,7 @@ function placeholder(heading: string, paragraph: string, cta?: { label: string; 
 </body></html>`;
 }
 
-/** VER-004-DBS — she asked for a manual review of her certificate. Turnaround string kept from Sydney (#18). */
+/** VER-004-DBS — she asked for a manual review of her certificate. Turnaround string kept as it is today (#18). */
 export async function sendDbsManualReviewEmail(userId: string): Promise<void> {
   const info = await getUserEmailInfo(userId);
   if (!info) return;
