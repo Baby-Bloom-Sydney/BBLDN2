@@ -21,8 +21,21 @@ export async function POST(request: NextRequest) {
     phase = body.phase ?? null;
   } catch { /* no body */ }
 
-  if (!verificationId || !phase) {
+  if (typeof verificationId !== 'string' || !verificationId || typeof phase !== 'string' || !phase) {
     return NextResponse.json({ error: 'Missing verificationId or phase' }, { status: 400 });
+  }
+
+  // Ownership: a caller may only run her own verification row. Read with the session client (RLS applies too);
+  // not found, someone else's or a failed read → 403 (fail closed). 04-integration-design §7.
+  const { data: owned, error: ownErr } = await supabase
+    .from('verifications')
+    .select('id')
+    .eq('id', verificationId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (ownErr || !owned) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   try {
@@ -30,7 +43,8 @@ export async function POST(request: NextRequest) {
       console.log(`[run-verification] Starting identity phase for ${verificationId}`);
       await runIdentityPhase(verificationId);
     } else if (phase === 'wwcc') {
-      console.log(`[run-verification] Starting WWCC doc phase for ${verificationId}`);
+      // Phase name kept (D-4): the DBS certificate phase.
+      console.log(`[run-verification] Starting DBS certificate phase for ${verificationId}`);
       await runWWCCDocPhase(verificationId);
     } else {
       return NextResponse.json({ error: `Unknown phase: ${phase}` }, { status: 400 });
