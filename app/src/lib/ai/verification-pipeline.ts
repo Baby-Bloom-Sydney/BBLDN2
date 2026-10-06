@@ -2,12 +2,12 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email/resend';
 import { getUserEmailInfo } from '@/lib/email/helpers';
 import {
-  VERIFICATION_LEVEL,
   VERIFICATION_STATUS,
   IDENTITY_STATUS,
   WWCC_STATUS,
   CROSS_CHECK_STATUS,
   GUIDANCE_MESSAGES,
+  DBS_CERTIFICATE_NUMBER_PATTERN,
   deriveOverallStatus,
   type IdentityStatus,
   type WwccStatus,
@@ -17,7 +17,12 @@ import {
 import { capitalizeName } from '@/lib/utils';
 import { syncNannyVerificationState } from '@/lib/actions/verification';
 import { verifyPassport } from './verify-passport';
-import { verifyWWCC } from './verify-wwcc';
+import { verifyDBS, type VerifyDbsResult } from './verify-dbs';
+import { checkDbsStatus, type DbsCheckResult } from '@/lib/dbs/update-service';
+import { applyDbsResult, type DbsApplyOutcome } from '@/lib/dbs/map-dbs-outcome';
+import { logDbsStatusCheck } from '@/lib/dbs/log';
+import { datesMatch, surnamesMatch } from '@/lib/dbs/match';
+import { DBS_FALLBACK_GUIDANCE, DBS_REVIEW_GUIDANCE } from '@/lib/dbs/reason-guidance';
 import { emailFooter } from "@/lib/email/brand";
 import { SITE_URL } from "@/lib/constants";
 
@@ -195,7 +200,54 @@ export async function runIdentityPhase(verificationId: string): Promise<void> {
   }
 }
 
-// ── Phase 2: WWCC Document Verification (Service NSW AI only) ──
+// ── Phase 2: DBS certificate — verify-dbs reads page 1 (image or PDF) ──
+// Export name kept (D-4): run-verification calls it by name.
+
+function nameOrNull(s: string | null): string | null {
+  return s ? capitalizeName(s) : null;
+}
+
+/** Columns written from the certificate read (D-4 names; 03-alignment-gaps §5 meanings). */
+function certificateColumns(result: VerifyDbsResult, issues: string[]): Record<string, unknown> {
+  const e = result.extracted;
+  const number = e.certificate_number;
+  const issueDate = e.issue_date;
+  return {
+    extracted_wwcc_surname: nameOrNull(e.surname),
+    extracted_wwcc_first_name: nameOrNull(e.forenames),
+    extracted_wwcc_other_names: nameOrNull(e.other_names),
+    extracted_wwcc_number: number,
+    extracted_wwcc_dob: e.date_of_birth,
+    extracted_wwcc_expiry: issueDate, // re-meant by 3a: the certificate's issue date
+    extracted_wwcc_clearance_type: JSON.stringify({
+      level: e.level,
+      page: e.page,
+      workforce: e.workforce,
+      position_applied_for: e.position_applied_for,
+      employer_name: e.employer_name,
+      registered_body: e.registered_body,
+      countersignatory: e.countersignatory,
+      police_records: e.police_records,
+      s142_list: e.s142_list,
+      childrens_barred_list: e.childrens_barred_list,
+      adults_barred_list: e.adults_barred_list,
+      other_police_info: e.other_police_info,
+      statutory_statement_section: e.statutory_statement_section,
+      has_disclosed_content: e.has_disclosed_content,
+    }),
+    wwcc_ai_reasoning: result.reasoning,
+    wwcc_ai_issues: JSON.stringify(issues),
+    // Only a well-formed value reaches the checked / typed columns (chk_wwcc_number_dbs; date column).
+    ...(number && DBS_CERTIFICATE_NUMBER_PATTERN.test(number) ? { wwcc_number: number } : {}),
+    ...(issueDate && datesMatch(issueDate, issueDate) ? { wwcc_expiry_date: issueDate.slice(0, 10) } : {}),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+/** #24: reason_code + confidence ride inside the guidance JSON. */
+function withReason(base: UserGuidance, result: VerifyDbsResult): UserGuidance {
+  return { ...base, ...(result.reason_code ? { reason_code: result.reason_code } : {}), confidence: result.confidence };
+}
 
 export async function runWWCCDocPhase(verificationId: string): Promise<void> {
   const supabase = createAdminClient();
@@ -211,66 +263,68 @@ export async function runWWCCDocPhase(verificationId: string): Promise<void> {
     })
     .eq('id', verificationId)
     .eq('wwcc_status', WWCC_STATUS.PENDING)
-    .select('id, user_id, surname, given_names, wwcc_number, wwcc_verification_method, wwcc_service_nsw_screenshot_url, identity_status')
+    .select('id, user_id, extracted_surname, extracted_dob, wwcc_service_nsw_screenshot_url, identity_status')
     .single();
 
   if (!claimed) {
-    console.log(`[WWCC] Skipping — could not claim`);
+    console.log(`[DBS] Skipping — could not claim`);
     return;
   }
 
-  const wwccDocPath = claimed.wwcc_service_nsw_screenshot_url;
-  if (!wwccDocPath) {
-    await setWwccFailed(supabase, verificationId, ['Missing WWCC document'], null, claimed.identity_status as IdentityStatus, claimed.user_id);
+  const docPath: string | null = claimed.wwcc_service_nsw_screenshot_url;
+  if (!docPath) {
+    await setWwccFailed(supabase, verificationId, ['Missing DBS certificate'], null, claimed.identity_status as IdentityStatus, claimed.user_id);
     return;
   }
 
-  const wwccUrlResult = await supabase.storage
+  const docUrlResult = await supabase.storage
     .from('verification-documents')
-    .createSignedUrl(wwccDocPath, 3600);
+    .createSignedUrl(docPath, 3600);
 
-  if (wwccUrlResult.error || !wwccUrlResult.data?.signedUrl) {
-    await setWwccFailed(supabase, verificationId, ['Could not access WWCC document'], null, claimed.identity_status as IdentityStatus, claimed.user_id);
+  if (docUrlResult.error || !docUrlResult.data?.signedUrl) {
+    await setWwccFailed(supabase, verificationId, ['Could not access DBS certificate'], null, claimed.identity_status as IdentityStatus, claimed.user_id);
     return;
   }
 
-  const submittedData = {
-    surname: claimed.surname ?? '',
-    given_names: claimed.given_names ?? '',
-    wwcc_number: claimed.wwcc_number ?? '',
+  const options = {
+    isPdf: /\.pdf$/i.test(docPath),
+    passportSurname: claimed.extracted_surname ?? '',
+    passportDob: claimed.extracted_dob ?? '',
+    documentPath: docPath,
   };
 
   // ── 2-attempt retry ──
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       const result = await withTimeout(
-        verifyWWCC(wwccUrlResult.data.signedUrl, 'service_nsw_app', submittedData, false),
+        verifyDBS(docUrlResult.data.signedUrl, options),
         AI_ATTEMPT_TIMEOUT,
-        `WWCC AI (attempt ${attempt})`
+        `DBS AI (attempt ${attempt})`
       );
 
-      // Write extraction results
-      await supabase.from('verifications').update({
-        extracted_wwcc_surname: capitalizeName(result.extracted.surname),
-        extracted_wwcc_first_name: capitalizeName(result.extracted.first_name),
-        extracted_wwcc_other_names: capitalizeName(result.extracted.other_names),
-        extracted_wwcc_number: result.extracted.wwcc_number,
-        extracted_wwcc_clearance_type: result.extracted.clearance_type,
-        extracted_wwcc_expiry: result.extracted.expiry,
-        wwcc_ai_reasoning: result.reasoning,
-        wwcc_ai_issues: JSON.stringify(result.issues),
-        ...(result.extracted.wwcc_number ? { wwcc_number: result.extracted.wwcc_number } : {}),
-        ...(result.extracted.expiry ? { wwcc_expiry_date: result.extracted.expiry } : {}),
-        updated_at: new Date().toISOString(),
-      }).eq('id', verificationId);
+      const issues = [
+        ...result.issues,
+        ...result.tamper_flags,
+        ...(result.outcome === 'pass' ? [`confidence:${result.confidence}`] : []), // #31
+      ];
+      const { error: extractErr } = await supabase.from('verifications')
+        .update(certificateColumns(result, issues))
+        .eq('id', verificationId);
+      if (extractErr) console.error('[DBS] Could not store the certificate read:', extractErr.message);
 
-      if (!result.pass) {
-        await setWwccFailed(supabase, verificationId, result.issues, result.user_guidance ?? null, claimed.identity_status as IdentityStatus, claimed.user_id);
-        console.log(`[WWCC] FAILED — AI found issues`);
+      if (result.outcome === 'fail') {
+        await setWwccFailed(supabase, verificationId, issues, withReason(result.user_guidance ?? DBS_FALLBACK_GUIDANCE, result), claimed.identity_status as IdentityStatus, claimed.user_id);
+        console.log(`[DBS] FAILED — ${result.reason_code}`);
         return;
       }
 
-      // WWCC doc passed
+      if (result.outcome === 'review') {
+        await setWwccReview(supabase, verificationId, issues, withReason(result.user_guidance ?? DBS_REVIEW_GUIDANCE, result), claimed.identity_status as IdentityStatus, claimed.user_id);
+        console.log(`[DBS] REVIEW — sent to a person`);
+        return;
+      }
+
+      // Certificate read passed
       await supabase.from('verifications').update({
         wwcc_status: WWCC_STATUS.DOC_VERIFIED,
         wwcc_status_at: new Date().toISOString(),
@@ -281,15 +335,15 @@ export async function runWWCCDocPhase(verificationId: string): Promise<void> {
         updated_at: new Date().toISOString(),
       }).eq('id', verificationId);
 
-      console.log(`[WWCC] Doc PASSED`);
+      console.log(`[DBS] Certificate read PASSED`);
 
       // Always attempt cross-check — triggerCrossCheck re-reads current DB state,
-      // so it handles the race where identity finished during WWCC processing
+      // so it handles the race where identity finished during the certificate read
       await triggerCrossCheck(verificationId);
       return;
 
     } catch (error) {
-      console.error(`[WWCC] Attempt ${attempt} error:`, error);
+      console.error(`[DBS] Attempt ${attempt} error:`, error);
 
       if (attempt === 1) {
         await supabase.from('verifications').update({
@@ -311,18 +365,48 @@ export async function runWWCCDocPhase(verificationId: string): Promise<void> {
       }).eq('id', verificationId);
 
       await syncNannyVerificationState(claimed.user_id);
-      console.log(`[WWCC] Both attempts failed technically — set back to pending`);
+      console.log(`[DBS] Both attempts failed technically — set back to pending`);
       return;
     }
   }
 }
 
-// ── Phase 3: Cross-Check (string comparison, no AI) ──
+// ── Phase 3: Cross-check (passport vs certificate: surname + DOB) → DBS Update Service ──
+// `passed` (→ 30, level 3) is written only after an Update Service pass (#30); the meanings live in
+// lib/dbs/map-dbs-outcome.ts. API down → cross-check stays `pending` (level 2), retried on her next poll.
 
-export async function runCrossCheckPhase(verificationId: string): Promise<void> {
+export type CrossCheckTrigger = 'first' | 'retry' | 'admin';
+
+interface CrossCheckRow {
+  extracted_surname: string | null;
+  extracted_dob: string | null;
+  extracted_wwcc_surname: string | null;
+  extracted_wwcc_dob: string | null;
+}
+
+/** Why passport and certificate disagree (empty = they match). C5–C9: any problem → review, no API call. */
+function crossCheckProblems(r: CrossCheckRow): string[] {
+  const missing = [
+    !r.extracted_surname && 'passport surname',
+    !r.extracted_dob && 'passport date of birth',
+    !r.extracted_wwcc_surname && 'certificate surname',
+    !r.extracted_wwcc_dob && 'certificate date of birth',
+  ].filter(Boolean);
+  if (missing.length > 0) return [`Missing data for cross-check: ${missing.join(', ')}`];
+  const problems: string[] = [];
+  if (!surnamesMatch(r.extracted_surname, r.extracted_wwcc_surname)) {
+    problems.push(`Surname mismatch: passport "${r.extracted_surname}" vs certificate "${r.extracted_wwcc_surname}"`);
+  }
+  if (!datesMatch(r.extracted_dob, r.extracted_wwcc_dob)) {
+    problems.push(`Date of birth mismatch: passport "${r.extracted_dob}" vs certificate "${r.extracted_wwcc_dob}"`);
+  }
+  return problems;
+}
+
+export async function runCrossCheckPhase(verificationId: string, trigger: CrossCheckTrigger = 'first'): Promise<void> {
   const supabase = createAdminClient();
 
-  // Atomic claim
+  // Atomic claim — also what stops two polls calling DBS twice
   const { data: claimed } = await supabase
     .from('verifications')
     .update({
@@ -332,7 +416,7 @@ export async function runCrossCheckPhase(verificationId: string): Promise<void> 
     })
     .eq('id', verificationId)
     .eq('cross_check_status', CROSS_CHECK_STATUS.PENDING)
-    .select('id, user_id, extracted_surname, extracted_wwcc_surname, identity_status, wwcc_status')
+    .select('id, user_id, identity_status, wwcc_status, extracted_surname, extracted_dob, extracted_wwcc_surname, extracted_wwcc_first_name, extracted_wwcc_dob, extracted_wwcc_number, extracted_wwcc_expiry')
     .single();
 
   if (!claimed) {
@@ -340,60 +424,71 @@ export async function runCrossCheckPhase(verificationId: string): Promise<void> 
     return;
   }
 
-  const passportSurname = (claimed.extracted_surname ?? '').toLowerCase().trim();
-  const wwccSurname = (claimed.extracted_wwcc_surname ?? '').toLowerCase().trim();
-
-  if (!passportSurname || !wwccSurname) {
-    // Missing data — can't cross-check, send to review
+  const identityStatus = claimed.identity_status as IdentityStatus;
+  const problems = crossCheckProblems(claimed);
+  if (problems.length > 0) {
     await supabase.from('verifications').update({
       cross_check_status: CROSS_CHECK_STATUS.REVIEW,
-      cross_check_reasoning: `Missing data for cross-check: passport surname="${claimed.extracted_surname}", WWCC surname="${claimed.extracted_wwcc_surname}"`,
+      cross_check_reasoning: problems.join('; '),
+      cross_check_issues: problems,
       cross_check_at: new Date().toISOString(),
-      verification_status: deriveOverallStatus(claimed.identity_status as IdentityStatus, claimed.wwcc_status as WwccStatus, CROSS_CHECK_STATUS.REVIEW as CrossCheckStatus),
+      verification_status: deriveOverallStatus(identityStatus, claimed.wwcc_status as WwccStatus, CROSS_CHECK_STATUS.REVIEW as CrossCheckStatus),
       updated_at: new Date().toISOString(),
-    }).eq('id', verificationId);
+    }).eq('id', verificationId).eq('cross_check_status', CROSS_CHECK_STATUS.PROCESSING);
 
     await syncNannyVerificationState(claimed.user_id);
+    console.log(`[CrossCheck] REVIEW — passport and certificate disagree; no Update Service call`);
     return;
   }
 
-  if (passportSurname !== wwccSurname) {
-    // Name mismatch
-    await supabase.from('verifications').update({
-      cross_check_status: CROSS_CHECK_STATUS.REVIEW,
-      cross_check_reasoning: `Surname mismatch: passport "${claimed.extracted_surname}" vs WWCC "${claimed.extracted_wwcc_surname}"`,
-      cross_check_issues: JSON.stringify([`Surname mismatch: passport "${claimed.extracted_surname}" vs WWCC "${claimed.extracted_wwcc_surname}"`]),
-      cross_check_at: new Date().toISOString(),
-      verification_status: deriveOverallStatus(claimed.identity_status as IdentityStatus, claimed.wwcc_status as WwccStatus, CROSS_CHECK_STATUS.REVIEW as CrossCheckStatus),
-      updated_at: new Date().toISOString(),
-    }).eq('id', verificationId);
-
-    await syncNannyVerificationState(claimed.user_id);
-    console.log(`[CrossCheck] MISMATCH — passport="${claimed.extracted_surname}" vs WWCC="${claimed.extracted_wwcc_surname}"`);
-    return;
+  let result: DbsCheckResult;
+  try {
+    result = await checkDbsStatus({
+      certificateNumber: claimed.extracted_wwcc_number ?? '',
+      surname: claimed.extracted_wwcc_surname ?? '',
+      dateOfBirth: claimed.extracted_wwcc_dob ?? '',
+    });
+  } catch (err) {
+    console.error('[CrossCheck] Update Service adapter threw:', err instanceof Error ? err.message : 'unknown');
+    result = { result: 'ERROR', reason: 'exception' };
   }
 
-  // Cross-check passed — provisionally verified
-  await supabase.from('verifications').update({
-    cross_check_status: CROSS_CHECK_STATUS.PASSED,
-    cross_check_reasoning: `Surname match confirmed: "${claimed.extracted_surname}"`,
-    cross_check_at: new Date().toISOString(),
-    verification_status: deriveOverallStatus(claimed.identity_status as IdentityStatus, claimed.wwcc_status as WwccStatus, CROSS_CHECK_STATUS.PASSED as CrossCheckStatus),
-    updated_at: new Date().toISOString(),
-  }).eq('id', verificationId);
+  const ctx = {
+    identityStatus,
+    certificateIssueDate: claimed.extracted_wwcc_expiry,
+    certificateSurname: claimed.extracted_wwcc_surname,
+    certificateForenames: claimed.extracted_wwcc_first_name,
+  };
+  let outcome: DbsApplyOutcome;
+  try {
+    ({ outcome } = await applyDbsResult(supabase, verificationId, claimed.user_id, ctx, result, { mode: 'first' }));
+  } catch (err) {
+    // Fail closed: a refused write leaves her at level 2 with the retry guidance, never at 30.
+    console.error('[CrossCheck] Result write refused:', err instanceof Error ? err.message : 'unknown');
+    ({ outcome } = await applyDbsResult(supabase, verificationId, claimed.user_id, ctx, { result: 'ERROR', reason: 'exception' }, { mode: 'first' })
+      .catch(() => ({ outcome: 'api_error' as DbsApplyOutcome })));
+  }
 
   await syncNannyVerificationState(claimed.user_id);
+  await logDbsStatusCheck(
+    claimed.user_id,
+    { trigger, result: result.result, ...(result.result === 'ERROR' ? { reason: result.reason } : {}) },
+    supabase,
+  );
+  console.log(`[CrossCheck] Update Service → ${outcome}`);
 
-  console.log(`[CrossCheck] PASSED — level 3, provisionally verified`);
+  if (outcome === 'passed') await sendVerifiedEmail(claimed.user_id);
+}
 
-  // VER-001: Provisionally Verified email
-  const userInfo = await getUserEmailInfo(claimed.user_id);
-  if (userInfo) {
-    const appUrl = SITE_URL;
-    sendEmail({
-      to: userInfo.email,
-      subject: "You're verified! Welcome to Baby Bloom 🎉",
-      html: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+/** VER-001 — only after an Update Service pass with no mismatch (copy stays for 3g). */
+async function sendVerifiedEmail(userId: string): Promise<void> {
+  const userInfo = await getUserEmailInfo(userId);
+  if (!userInfo) return;
+  const appUrl = SITE_URL;
+  sendEmail({
+    to: userInfo.email,
+    subject: "You're verified! Welcome to Baby Bloom 🎉",
+    html: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1e293b;background:#f8fafc;">
 <div style="max-width:600px;margin:0 auto;padding:32px 16px;">
   <div style="background:#fff;border-radius:16px;border:1px solid #e2e8f0;padding:32px;">
@@ -411,10 +506,9 @@ export async function runCrossCheckPhase(verificationId: string): Promise<void> 
   </div>
 </div>
 </body></html>`,
-      emailType: 'verification_approved',
-      recipientUserId: claimed.user_id,
-    }).catch(err => console.error('[CrossCheck] VER-001 email error:', err));
-  }
+    emailType: 'verification_approved',
+    recipientUserId: userId,
+  }).catch(err => console.error('[CrossCheck] VER-001 email error:', err));
 }
 
 // ── Trigger cross-check if both phases are ready ──
@@ -460,6 +554,20 @@ async function setIdentityReview(supabase: any, verificationId: string, issues: 
   }).eq('id', verificationId);
 
   if (userId) await syncNannyVerificationState(userId);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function setWwccReview(supabase: any, verificationId: string, issues: string[], guidance: UserGuidance, identityStatus: IdentityStatus, userId: string) {
+  await supabase.from('verifications').update({
+    wwcc_status: WWCC_STATUS.REVIEW,
+    wwcc_status_at: new Date().toISOString(),
+    wwcc_ai_issues: JSON.stringify(issues),
+    wwcc_user_guidance: guidance,
+    verification_status: deriveOverallStatus(identityStatus, WWCC_STATUS.REVIEW as WwccStatus, CROSS_CHECK_STATUS.NOT_STARTED as CrossCheckStatus),
+    updated_at: new Date().toISOString(),
+  }).eq('id', verificationId);
+
+  await syncNannyVerificationState(userId);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

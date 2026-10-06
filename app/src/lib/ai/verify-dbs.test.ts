@@ -15,10 +15,11 @@ import { DBS_REASON_GUIDANCE } from "@/lib/dbs/reason-guidance";
 const fx = (name: string) => readFileSync(resolve(__dirname, "__fixtures__/dbs-extractions", `${name}.json`), "utf8");
 
 const OPTS = { isPdf: false, passportSurname: "Doe", passportDob: "1990-03-05" };
-const NO_REFS = { DBS_REFERENCE_ENHANCED_PATH: undefined, DBS_REFERENCE_STANDARD_PATH: undefined } as NodeJS.ProcessEnv;
+type Env = Record<string, string | undefined>;
+const NO_REFS: Env = { DBS_REFERENCE_ENHANCED_PATH: undefined, DBS_REFERENCE_STANDARD_PATH: undefined };
 
 function model(name: string) {
-  return vi.fn(async () => fx(name));
+  return vi.fn(async (_req: unknown) => fx(name));
 }
 
 async function run(name: string, opts = OPTS) {
@@ -169,7 +170,7 @@ describe("verifyDBS — references, transport, fixture seam", () => {
   it("V22b sends three images (A, B, submitted) when both reference paths are set", async () => {
     const complete = model("page1-pass");
     const signReference = vi.fn(async (p: string) => `https://storage.test/signed/${p}`);
-    const env = { DBS_REFERENCE_ENHANCED_PATH: "_reference/enhanced-p1.png", DBS_REFERENCE_STANDARD_PATH: "_reference/standard-p1.png" } as NodeJS.ProcessEnv;
+    const env = { DBS_REFERENCE_ENHANCED_PATH: "_reference/enhanced-p1.png", DBS_REFERENCE_STANDARD_PATH: "_reference/standard-p1.png" } as Env;
     const r = await verifyDBS("https://x/1-c.jpg", OPTS, { complete, signReference, env });
     const { system, content } = complete.mock.calls[0][0] as unknown as { system: string; content: { type: string; image_url?: { url: string } }[] };
     const urls = content.filter((c) => c.type === "image_url").map((c) => c.image_url?.url);
@@ -184,7 +185,7 @@ describe("verifyDBS — references, transport, fixture seam", () => {
 
   it("V22c falls back to no references when a reference path cannot be signed", async () => {
     const complete = model("page1-pass");
-    const env = { DBS_REFERENCE_ENHANCED_PATH: "_reference/a.png", DBS_REFERENCE_STANDARD_PATH: "_reference/b.png" } as NodeJS.ProcessEnv;
+    const env = { DBS_REFERENCE_ENHANCED_PATH: "_reference/a.png", DBS_REFERENCE_STANDARD_PATH: "_reference/b.png" } as Env;
     const r = await verifyDBS("https://x/1-c.jpg", OPTS, { complete, signReference: vi.fn(async () => null), env });
     expect(r.issues).toContain("refs:none");
   });
@@ -212,7 +213,7 @@ describe("verifyDBS — references, transport, fixture seam", () => {
 
   it("fixture mode returns the named fixture through the same code-enforced rule, never calling the model", async () => {
     const complete = vi.fn();
-    const env = { ...NO_REFS, DBS_AI_FIXTURE_MODE: "1" } as NodeJS.ProcessEnv;
+    const env = { ...NO_REFS, DBS_AI_FIXTURE_MODE: "1" } as Env;
     const pass = await verifyDBS("https://x", { ...OPTS, documentPath: "user-1/1728000000000-page1-pass.pdf" }, { complete, env });
     expect(pass.outcome).toBe("pass");
     expect(pass.extracted.certificate_number).toBe("200000000001");

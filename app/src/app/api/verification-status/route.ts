@@ -3,6 +3,11 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { IDENTITY_STATUS, WWCC_STATUS, CROSS_CHECK_STATUS, GUIDANCE_MESSAGES, deriveOverallStatus, type IdentityStatus, type WwccStatus, type CrossCheckStatus } from '@/lib/verification';
 import { syncNannyVerificationState } from '@/lib/actions/verification';
+import { runCrossCheckPhase } from '@/lib/ai/verification-pipeline';
+import { getDbsConfig } from '@/lib/dbs/config';
+
+// Two 15 s Update Service attempts + the 5 s delay between them, when a poll retries a pending check (#30).
+export const maxDuration = 60;
 
 // If a section has been 'processing' for this long, escalate to 'review'.
 const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
@@ -15,10 +20,8 @@ export async function GET() {
     return NextResponse.json({ status: null }, { status: 401 });
   }
 
-  const { data } = await supabase
-    .from('verifications')
-    .select(`
-      verification_status,
+  const SELECT = `
+      id, verification_status,
       identity_status, wwcc_status, contact_status, cross_check_status,
       identity_status_at, wwcc_status_at,
       identity_verified, identity_rejection_reason, identity_user_guidance,
@@ -29,9 +32,9 @@ export async function GET() {
       ocg_result_status, ocg_verified_at,
       cross_check_reasoning, cross_check_at,
       updated_at
-    `)
-    .eq('user_id', user.id)
-    .single();
+    `;
+  const read = () => supabase.from('verifications').select(SELECT).eq('user_id', user.id).single();
+  let { data } = await read();
 
   if (!data) {
     return NextResponse.json({ status: null });
@@ -76,6 +79,26 @@ export async function GET() {
       await syncNannyVerificationState(user.id);
       wwcc_status = WWCC_STATUS.REVIEW;
       console.log(`[verification-status] WWCC stale for user ${user.id} — escalated to review`);
+    }
+  }
+
+  // API down at the first check (#30): cross-check left `pending` → retry on her poll, once per cooldown.
+  // The phase's atomic claim (pending → processing) stops concurrent polls calling DBS twice.
+  if (
+    identity_status === IDENTITY_STATUS.VERIFIED &&
+    wwcc_status === WWCC_STATUS.DOC_VERIFIED &&
+    data.cross_check_status === CROSS_CHECK_STATUS.PENDING &&
+    (!data.cross_check_at || now - new Date(data.cross_check_at).getTime() > getDbsConfig().retryCooldownMs)
+  ) {
+    try {
+      await runCrossCheckPhase(data.id, 'retry');
+      const { data: fresh } = await read();
+      if (fresh) {
+        data = fresh;
+        wwcc_status = fresh.wwcc_status;
+      }
+    } catch (err) {
+      console.error('[verification-status] DBS retry failed:', err instanceof Error ? err.message : 'unknown');
     }
   }
 

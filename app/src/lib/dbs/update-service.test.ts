@@ -26,7 +26,7 @@ const CONFIG: DbsConfig = {
 const INPUT = { certificateNumber: "001234567890", surname: "DOE", dateOfBirth: "1990-03-05" };
 
 function respond(body: string, status = 200, type = "application/xhtml+xml") {
-  return vi.fn(async () => new Response(body, { status, headers: { "Content-Type": type } }));
+  return vi.fn(async (_url: string, _init?: RequestInit) => new Response(body, { status, headers: { "Content-Type": type } }));
 }
 
 const sleep = vi.fn(async () => {});
