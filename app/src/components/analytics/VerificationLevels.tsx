@@ -1,5 +1,9 @@
 'use client';
 
+/**
+ * Verification-levels chart. Unit 3d re-labels the five levels to 3a's ladder (0 Unverified · 1 Registered ·
+ * 2 ID verified · 3 Provisional, awaiting approval · 4 Fully verified). Never: computes levels itself.
+ */
 import { useState } from 'react';
 
 interface LevelData {
@@ -15,9 +19,9 @@ interface VerificationLevelsProps {
 
 const LABELS = [
   'Level 0 — Unverified',
-  'Level 1 — ID Verified',
-  'Level 2 — WWCC Verified',
-  'Level 3 — Provisionally Verified',
+  'Level 1 — Registered',
+  'Level 2 — ID Verified',
+  'Level 3 — Provisional (awaiting approval)',
   'Level 4 — Fully Verified',
 ];
 

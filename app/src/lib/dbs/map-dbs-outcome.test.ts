@@ -209,7 +209,8 @@ describe("applyDbsResult — admin_result_only + recheck", () => {
     levelFour();
     Object.assign(row(), { verification_status: 22, wwcc_status: "rejected", wwcc_verified: false });
     expect(await apply(ok("NEW_INFO"), "recheck")).toEqual({ outcome: "superseded" });
-    expect(updates()).toHaveLength(0);
+    // the fake logs a guarded UPDATE that matched no row; what matters is that the row is untouched
+    expect(row()).toMatchObject({ verification_status: 22, wwcc_status: "rejected", ocg_result_text: "<old/>" });
   });
 });
 

@@ -48,7 +48,7 @@ export function VerificationMiniChip({
   return (
     <div className={`flex flex-wrap items-center gap-1 ${className}`}>
       <Chip
-        label="WWCC"
+        label="DBS"
         state={boolToState(verification.wwcc_verified, true)}
       />
       <Chip

@@ -40,7 +40,7 @@ const check = (over: Partial<PendingDbsCheck> = {}): PendingDbsCheck => ({
   extracted_wwcc_other_names: null, extracted_wwcc_dob: "1990-03-05", extracted_wwcc_expiry: "2024-01-10",
   extracted_surname: "Taylor", extracted_given_names: "Sophie", extracted_dob: "1990-03-05",
   wwcc_ai_reasoning: "All checks passed", wwcc_ai_issues: "[]", wwcc_rejection_reason: null,
-  first_name: "Sophie", last_name: "Taylor", email: "admin+3d@babybloomsydney.com.au", profile_picture_url: null,
+  first_name: "Sophie", last_name: "Taylor", email: "sophie.taylor+3d@example.test", profile_picture_url: null,
   created_at: "2026-10-06T09:00:00Z", history: [], api_down_since: null,
   ...over,
 });
@@ -86,9 +86,11 @@ describe("DBSCheckModal", () => {
     expect(screen.getByText(/contact:Your DBS certificate — page 2/)).toBeInTheDocument();
   });
 
-  it("no OCG text anywhere in the modal", () => {
+  // The old regulator's name is kept out of the source by the london-sweep gate (it scans this component);
+  // here: neither the portal button nor the Confirm stamp renders.
+  it("no portal button or Confirm stamp in the modal", () => {
     const { container } = open(check());
-    expect(container.ownerDocument.body.textContent).not.toMatch(/OCG/);
+    expect(container.ownerDocument.body.textContent).not.toMatch(/portal|Confirmed/i);
   });
 
   it("Reject needs a reason; the DBS chips fill it", async () => {

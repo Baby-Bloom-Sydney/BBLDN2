@@ -154,7 +154,7 @@ export function LeadFiltersBar({
           Verification:
         </span>
         <TriChip
-          label="WWCC"
+          label="DBS"
           value={state.filters.wwcc}
           onCycle={() => update({ wwcc: nextTriState(state.filters.wwcc) })}
           disabled={disabled}

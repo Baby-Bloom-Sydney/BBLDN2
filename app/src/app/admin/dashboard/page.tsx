@@ -1,3 +1,8 @@
+/**
+ * Admin dashboard: headline counts and recent activity. Unit 3d: the "Pending verifications" count reads 3a's
+ * ADMIN_PENDING_CODES [10,11,21,30] (it filtered an integer column on the string 'pending', so it was always 0) — the
+ * same number as the Verification tab and analytics (S1). Never: keeps a status list of its own.
+ */
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { StatsCard } from "@/components/dashboard/StatsCard";
@@ -23,6 +28,7 @@ import {
   UserPlus,
   Phone,
 } from "lucide-react";
+import { ADMIN_PENDING_CODES } from "@/lib/verification";
 
 interface RecentUser {
   user_id: string;
@@ -74,7 +80,7 @@ async function getDashboardStats() {
     supabase
       .from("verifications")
       .select("*", { count: "exact", head: true })
-      .eq("verification_status", "pending"),
+      .in("verification_status", [...ADMIN_PENDING_CODES]), // 3d: same codes as the Verification tab (S1)
     supabase
       .from("nanny_placements")
       .select("*", { count: "exact", head: true })

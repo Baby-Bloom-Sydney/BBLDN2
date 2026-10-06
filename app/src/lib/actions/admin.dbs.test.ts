@@ -109,7 +109,7 @@ describe("adminRejectWWCC — Reject → 22 (#11, #26)", () => {
 });
 
 describe("D8 — Ask for page 2 (#27)", () => {
-  const base = { toEmail: "admin+3d@babybloomsydney.com.au", toUserId: "nanny-u", fromAddress: ADMIN_FROM_ADDRESSES[0], subject: "Your DBS certificate — page 2", body: "Please reply with a photo of page 2." };
+  const base = { toEmail: "sophie.taylor+3d@example.test", toUserId: "nanny-u", fromAddress: ADMIN_FROM_ADDRESSES[0], subject: "Your DBS certificate — page 2", body: "Please reply with a photo of page 2." };
 
   it("sends one email via adminSendEmail, writes one dbs_page2_requested row and changes no status", async () => {
     seed();

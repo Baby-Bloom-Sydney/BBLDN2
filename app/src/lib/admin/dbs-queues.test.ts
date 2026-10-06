@@ -2,7 +2,7 @@
  * Unit 3d (BB-LDN-3d-061026) — the DBS queue split (Q1, Q2; brief change 9, #30, #35) and the stat counts (S1, S2;
  * brief change 10, spec §1.3).
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
@@ -126,5 +126,46 @@ describe("stats", () => {
     expect(queries[3]).toMatchObject({ eq: 40 });
     expect(queries[3].gte).toBeUndefined();
     expect(s).toEqual({ pending: 1, approvedToday: 1, rejectedToday: 1, totalVerified: 1 });
+  });
+});
+
+describe("getDbsQueues (fetch)", () => {
+  it("Q3 one query → lists, 1-hour signed certificate URL (never the path), is_pdf, profile, last 10 history rows, API-down time", async () => {
+    const { createMemoryDb } = await import("../../../tests/fakes/memory-supabase");
+    const { getDbsQueues } = await import("./dbs-queues");
+    const logs = Array.from({ length: 12 }, (_, i) => ({
+      user_id: "u2", action_type: "dbs_status_check", action_details: { trigger: "retry", result: "ERROR", reason: "timeout" },
+      created_at: `2026-10-06T0${Math.floor(i / 2)}:${i % 2 ? "30" : "00"}:00Z`,
+    }));
+    const db = createMemoryDb({
+      verifications: [
+        { id: "v1", user_id: "u1", created_at: "2026-10-06T00:00:00Z", verification_status: 30, identity_status: "verified", wwcc_status: "doc_verified",
+          wwcc_status_at: "2026-10-06T01:00:00Z", cross_check_status: "passed", ocg_result_status: "BLANK_NO_NEW_INFO",
+          wwcc_service_nsw_screenshot_url: "u1/123-page1.pdf", wwcc_ai_issues: ["confidence:high"], cross_check_issues: "[\"x\"]" },
+        { id: "v2", user_id: "u2", created_at: "2026-10-06T00:00:00Z", verification_status: 20, identity_status: "verified", wwcc_status: "doc_verified",
+          cross_check_status: "pending", wwcc_service_nsw_screenshot_url: "u2/9-page1.png" },
+        { id: "v3", user_id: "u3", created_at: "2026-10-06T00:00:00Z", verification_status: 40, wwcc_status: "doc_verified" },
+      ],
+      user_profiles: [{ user_id: "u1", first_name: "Sophie", last_name: "Taylor", email: "sophie.taylor+3d@example.test", profile_picture_url: null }],
+      activity_logs: logs,
+    });
+    const q = await getDbsQueues(db.client() as never);
+    expect(q.awaiting).toHaveLength(1);
+    expect(q.awaiting[0]).toMatchObject({ first_name: "Sophie", is_pdf: true, certificate_url: "https://storage.test/signed/u1/123-page1.pdf", wwcc_ai_issues: "[\"confidence:high\"]", cross_check_issues: ["x"] });
+    expect(q.needsPerson.map((r) => r.id)).toEqual(["v2"]);
+    expect(q.needsPerson[0].is_pdf).toBe(false);
+    expect(q.needsPerson[0].history).toHaveLength(10);
+    expect(q.needsPerson[0].api_down_since).toBe("2026-10-06T05:30:00Z");
+    expect(JSON.stringify(q)).not.toContain("\"u1/123-page1.pdf\"");
+    expect(q.badgeCount).toBe(2);
+  });
+
+  it("Q3 a failed query yields empty lists (the page still renders)", async () => {
+    const { getDbsQueues } = await import("./dbs-queues");
+    const broken = { from: () => ({ select: () => ({ in: () => ({ not: () => ({ order: () => ({ limit: async () => ({ data: null, error: { message: "boom" } }) }) }) }) }) }) };
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const q = await getDbsQueues(broken as never);
+    spy.mockRestore();
+    expect(q).toEqual({ awaiting: [], needsPerson: [], recheckAlerts: [], barred: [], badgeCount: 0 });
   });
 });

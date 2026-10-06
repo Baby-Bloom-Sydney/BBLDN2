@@ -1,5 +1,10 @@
 'use server';
 
+/**
+ * Nanny verification server actions + `syncNannyVerificationState` (the one place nannies.verification_level is
+ * derived; body pinned by G5). Unit 3d changed only `cleanupPendingConnections`: a dropped held request now expires
+ * silently for the parent (README P-9). Never: tells a parent why a connection was dropped.
+ */
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
@@ -298,6 +303,13 @@ async function promotePendingConnections(
 
 // ── Silent Hold: Cleanup pending connections on BARRED ──
 
+/**
+ * Drops her held connections when she is barred (level 3+ → 0). Stage 4 (applications the parent never saw) and DFY
+ * stage 9 are deleted. A parent-initiated stage 9 — which the parent sees as "Request Sent" (G7) — expires silently
+ * to the neutral REQUEST_EXPIRED state, exactly as an unanswered request times out (`expireStaleRequests`).
+ * README P-9 (BAI 2026-10-06, unit 3d): dropped connections are silent to parents — no reason, no DBS wording, no
+ * parent message. Supersedes the interim "DECLINED + nanny unable to proceed" message.
+ */
 async function cleanupPendingConnections(
   admin: ReturnType<typeof createAdminClient>,
   nannyId: string,
@@ -326,34 +338,15 @@ async function cleanupPendingConnections(
         .delete()
         .eq('id', acc.id);
     } else {
-      // Parent-initiated: move to DECLINED — parent sees "nanny unable to proceed"
+      // Parent-initiated: the parent saw "Request Sent" — it now reads as an expired request (P-9: no message)
       await admin
         .from('connection_requests')
         .update({
-          connection_stage: CONNECTION_STAGE.DECLINED,
-          status: 'declined',
+          connection_stage: CONNECTION_STAGE.REQUEST_EXPIRED,
+          status: 'expired',
           updated_at: now,
         })
         .eq('id', acc.id);
-
-      // Notify parent naturally
-      const { data: parentData } = await admin
-        .from('parents')
-        .select('user_id')
-        .eq('id', acc.parent_id)
-        .single();
-
-      if (parentData) {
-        await createInboxMessage({
-          userId: parentData.user_id,
-          type: 'connection_declined',
-          title: 'Connection update',
-          body: 'Unfortunately, the nanny was unable to proceed with this connection.',
-          actionUrl: '/parent/connections',
-          referenceId: acc.id,
-          referenceType: 'connection_request',
-        });
-      }
     }
   }
 }

@@ -16,7 +16,7 @@ const TAB_LABEL: Record<WorklistTab, string> = {
   never_contacted: "Never contacted",
   snoozed_today: "Snoozed today",
   cold_7d: "Cold > 7d",
-  verification_stuck: "Verification stuck",
+  verification_stuck: "ID verified, DBS not yet approved",
   responded: "Responded",
   activated: "Activated",
   dormant: "Dormant",

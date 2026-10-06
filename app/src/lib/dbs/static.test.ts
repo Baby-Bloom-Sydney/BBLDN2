@@ -2,7 +2,7 @@
 /**
  * Unit 3c (BB-LDN-3c-061026) — static gates (brief "Static" tests).
  * 1. Exactly one application file under src writes `wwcc_verified: true` — 3d's Approve (`lib/actions/admin-dbs.ts`,
- *    D3). 0 after 3c (the OCG webhook is gone); 3d made it 1. Tests and UI mock fixtures are not writers.
+ *    D3). 0 after 3c (the regulator webhook is gone); 3d made it 1. Tests and UI mock fixtures are not writers.
  * 2. The five deleted routes / modules do not exist.
  */
 import { describe, it, expect } from "vitest";
