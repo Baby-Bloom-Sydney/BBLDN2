@@ -11,7 +11,7 @@
 //   0 — AccountSecured interstitial
 //   1 — Location
 //   2 — Identity
-//   3 — WWCC
+//   3 — DBS certificate
 //   4 — Processing
 //
 // Malformed `?startAt=` values (non-numeric, negative, out-of-range,

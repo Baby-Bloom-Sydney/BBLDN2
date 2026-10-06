@@ -1,8 +1,14 @@
 "use client";
 
+/**
+ * SectionStatusBadge — the small pill beside each verification step title.
+ * Unit 3b (BB-LDN-3b-061026, copy deck §2.5): the "Expired" variant is gone; the DBS new-information (23) and
+ * no-match (26) states use the `failed` variant, "Action needed". Callers map their state to a variant
+ * (`VerificationPageClient` `dbsBadge`). Never: decides state itself.
+ */
 import { Loader2, CheckCircle2, XCircle, Clock, AlertTriangle } from "lucide-react";
 
-type BadgeVariant = "pending" | "processing" | "verified" | "failed" | "review" | "rejected" | "expired" | "saved";
+type BadgeVariant = "pending" | "processing" | "verified" | "failed" | "review" | "rejected" | "saved";
 
 const BADGE_CONFIG: Record<BadgeVariant, { icon: React.ReactNode; label: string; className: string }> = {
   pending: {
@@ -33,11 +39,6 @@ const BADGE_CONFIG: Record<BadgeVariant, { icon: React.ReactNode; label: string;
   rejected: {
     icon: <XCircle className="h-4 w-4" />,
     label: "Rejected",
-    className: "bg-red-100 text-red-700",
-  },
-  expired: {
-    icon: <XCircle className="h-4 w-4" />,
-    label: "Expired",
     className: "bg-red-100 text-red-700",
   },
   saved: {

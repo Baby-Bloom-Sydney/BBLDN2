@@ -1,5 +1,16 @@
 'use client';
 
+/*
+ * DISABLED — kept for reference, never deleted (BAI instruction P-5, 2026-10-06).
+ * What it was: a dev copy of the original onboarding wizard, including its old certificate step (method chooser,
+ * number/date entry, emailed-PDF upload) — a mirror for design work, with no inbound link.
+ * Why it is disabled: London replaced step 3 with the DBS step in unit 3b (page-1 upload + consent); this copy no
+ * longer matches the product. The route now 404s via notFound(); the old component below is left unexported, so
+ * nothing in it runs. Revert unit 3b's PR to restore it.
+ * BB-LDN-3b-061026, 2026-10-06.
+ */
+import { notFound } from 'next/navigation';
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { CompoundPageShell } from '@/app/(funnel)/apply/components/shared/CompoundPageShell';
 import { Lock, Upload, CheckCircle2, ShieldCheck, ChevronLeft, Loader2, Camera } from 'lucide-react';
@@ -1140,7 +1151,9 @@ function VerificationProcessingStep({ onVerified }: { onVerified: () => void }) 
 
 // ── Main Page ──
 
-export default function OnboardingVerificationTestPage() {
+// Old default export, now unexported (P-5) — kept for reference, never rendered.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function LegacyOnboardingVerificationDevCopy() {
   const [step, setStep] = useState(0);
   const [wwccBlocked, setWwccBlocked] = useState(false);
   const [verificationComplete, setVerificationComplete] = useState(false);
@@ -1383,4 +1396,8 @@ export default function OnboardingVerificationTestPage() {
       </main>
     </div>
   );
+}
+
+export default function DisabledOnboardingVerificationDevCopy(): never {
+  notFound();
 }

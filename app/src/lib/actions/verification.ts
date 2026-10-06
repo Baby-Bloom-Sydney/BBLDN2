@@ -10,13 +10,13 @@ import {
   CROSS_CHECK_STATUS,
   VERIFICATION_LEVEL,
   deriveOverallStatus,
+  DBS_VERIFICATION_METHOD,
   type IdentityStatus,
   type WwccStatus,
   type CrossCheckStatus,
   type UserGuidance,
 } from '@/lib/verification';
 import { capitalizeName } from '@/lib/utils';
-import { triggerCrossCheck } from '@/lib/ai/verification-pipeline';
 import { sendEmail } from '@/lib/email/resend';
 import { getUserEmailInfo } from '@/lib/email/helpers';
 import { CONNECTION_STAGE } from '@/lib/position/constants';
@@ -569,34 +569,74 @@ export async function submitIdentityForManualReview(): Promise<{ success: boolea
   return { success: true, error: null };
 }
 
-// ── Submit WWCC Section ──
+// ── Submit the DBS certificate (the section keeps its original name, D-4) ──
+// Unit 3b (BB-LDN-3b-061026), rulings #3 and #34: one page-1 upload (photo or PDF) + the consent tick. No number, no
+// date, no method choice, and nothing the client says about the certificate's contents is stored (security note A3:
+// the old client-supplied extracted fields let a caller mark a check passed with no AI check). The AI reads the file.
 
 interface SubmitWWCCData {
-  wwcc_verification_method: string;
-  wwcc_number?: string;
-  wwcc_expiry_date?: string;
-  wwcc_grant_email_url?: string;
-  wwcc_service_nsw_screenshot_url?: string;
-  // Extracted fields from PDF parser (for grant_email)
-  extracted_wwcc_surname?: string;
-  extracted_wwcc_first_name?: string;
-  extracted_wwcc_other_names?: string;
-  extracted_wwcc_number?: string;
-  extracted_wwcc_clearance_type?: string;
-  extracted_wwcc_expiry?: string;
+  /** Storage path of page 1 in `verification-documents`; must sit in the caller's own folder. */
+  certificate_path: string;
+  /** The consent tick (copy deck §1.3, [LEGAL] wording). Anything but `true` is refused. */
+  consent: true;
 }
 
+const DBS_ERRORS = {
+  missing: 'Please upload page 1 of your DBS certificate to continue.',
+  consent: 'Please tick the box to confirm your certificate and agree to the check.',
+  save: "We couldn't save your certificate. Please try again.",
+} as const;
+
+/**
+ * The file name the upload helper makes (`<timestamp>-<safe name>`, `lib/supabase/storage.ts`). An allow-list, not a
+ * deny-list: no `/`, `\`, `%`, `?`, `#` or space can pass, so no encoded or literal dot-segment can climb out of her
+ * folder when the path is later signed with the service role (security review, 3b). The name must hold a letter or digit.
+ */
+const CERTIFICATE_FILE_NAME = /^\d{10,}-(?=[A-Za-z0-9._-]*[A-Za-z0-9])[A-Za-z0-9._-]+$/;
+const CERTIFICATE_BUCKET = 'verification-documents';
+
+/** `<her id>/<file name>` only — the name, or null. Fail closed. */
+function ownCertificateName(path: string, userId: string): string | null {
+  const prefix = `${userId}/`;
+  if (!path.startsWith(prefix)) return null;
+  const name = path.slice(prefix.length);
+  return CERTIFICATE_FILE_NAME.test(name) ? name : null;
+}
+
+/** The object must exist in her folder (fail closed on any storage error). */
+async function certificateExists(admin: ReturnType<typeof createAdminClient>, userId: string, name: string): Promise<boolean> {
+  const { data, error } = await admin.storage.from(CERTIFICATE_BUCKET).list(userId, { search: name, limit: 100 });
+  if (error) {
+    console.error('[submitWWCCSection] Storage check failed:', error);
+    return false;
+  }
+  return (data ?? []).some((o) => o.name === name);
+}
+
+/**
+ * Saves her page-1 DBS certificate upload and starts the check (unit 3b; rulings #3, #34; security note A3).
+ * In: `{certificate_path, consent: true}` from the signed-in nanny. Refuses — writing nothing — when not signed in,
+ * without the consent tick, when the path is not `<her id>/<timestamp>-<name>` (allow-list), when the file is not in
+ * her storage folder, or when she has no verification row.
+ * Writes: method `'dbs_certificate'`, the path, the consent tick + time, status `pending` (29 via the derive), and
+ * clears every AI / extracted / guidance / cross-check field. Out: `{success, error, verificationId}`.
+ * Never: stores anything the client says about the certificate's contents; never sets a verified or passed state —
+ * the AI phase (`/api/run-verification`, fired by the caller) does that.
+ */
 export async function submitWWCCSection(
   data: SubmitWWCCData
 ): Promise<{ success: boolean; error: string | null; verificationId?: string }> {
   const user = await getAuthUser();
   if (!user) return { success: false, error: 'Not authenticated' };
 
-  if (!data.wwcc_verification_method) {
-    return { success: false, error: 'Missing WWCC verification method' };
-  }
+  if (data?.consent !== true) return { success: false, error: DBS_ERRORS.consent };
+  const path = typeof data.certificate_path === 'string' ? data.certificate_path.trim() : '';
+  if (!path) return { success: false, error: DBS_ERRORS.missing };
+  const name = ownCertificateName(path, user.id);
+  if (!name) return { success: false, error: DBS_ERRORS.missing };
 
   const admin = createAdminClient();
+  if (!(await certificateExists(admin, user.id, name))) return { success: false, error: DBS_ERRORS.missing };
 
   const { data: existing } = await admin
     .from('verifications')
@@ -608,84 +648,61 @@ export async function submitWWCCSection(
     return { success: false, error: 'No verification record found. Please complete Identity section first.' };
   }
 
-  // Determine status based on method
-  let wwccStatus: string;
-  if (data.wwcc_verification_method === 'grant_email') {
-    // Require extracted WWCC number — client validates before upload, this is defense-in-depth
-    if (!data.extracted_wwcc_number) {
-      return { success: false, error: 'We couldn\u2019t read your grant email. Try uploading it again, or you can enter your WWCC details manually instead.' };
-    }
-    wwccStatus = WWCC_STATUS.DOC_VERIFIED;
-  } else if (data.wwcc_verification_method === 'service_nsw_app') {
-    // Require screenshot URL — AI will process it server-side
-    if (!data.wwcc_service_nsw_screenshot_url) {
-      return { success: false, error: 'We need your Service NSW screenshot to continue. Please upload it and try again.' };
-    }
-    wwccStatus = WWCC_STATUS.PENDING; // Needs AI
-  } else {
-    wwccStatus = WWCC_STATUS.REVIEW; // Manual entry → admin reviews (user has provided WWCC number + expiry)
-  }
-
-  const wwccFields = {
-    wwcc_verification_method: data.wwcc_verification_method,
-    wwcc_number: data.wwcc_number?.trim() ?? data.extracted_wwcc_number?.trim() ?? null,
-    wwcc_expiry_date: data.wwcc_expiry_date ?? data.extracted_wwcc_expiry ?? null,
-    wwcc_grant_email_url: data.wwcc_grant_email_url ?? null,
-    wwcc_service_nsw_screenshot_url: data.wwcc_service_nsw_screenshot_url ?? null,
-    // Extracted data (from PDF parser for grant_email)
-    extracted_wwcc_surname: capitalizeName(data.extracted_wwcc_surname) || null,
-    extracted_wwcc_first_name: capitalizeName(data.extracted_wwcc_first_name) || null,
-    extracted_wwcc_other_names: capitalizeName(data.extracted_wwcc_other_names) || null,
-    extracted_wwcc_number: data.extracted_wwcc_number ?? null,
-    extracted_wwcc_clearance_type: data.extracted_wwcc_clearance_type ?? null,
-    extracted_wwcc_expiry: data.extracted_wwcc_expiry ?? null,
-    // Status
-    wwcc_status: wwccStatus,
-    wwcc_status_at: new Date().toISOString(),
+  const now = new Date().toISOString();
+  const dbsFields = {
+    wwcc_verification_method: DBS_VERIFICATION_METHOD,
+    wwcc_service_nsw_screenshot_url: path,   // column name kept (D-4); holds the certificate file
+    wwcc_declaration: true,
+    wwcc_declaration_at: now,
+    // Nothing about the certificate comes from the client (A3) — the AI fills these from the file.
+    wwcc_number: null,
+    wwcc_expiry_date: null,
+    wwcc_grant_email_url: null,
+    extracted_wwcc_surname: null,
+    extracted_wwcc_first_name: null,
+    extracted_wwcc_other_names: null,
+    extracted_wwcc_number: null,
+    extracted_wwcc_clearance_type: null,
+    extracted_wwcc_expiry: null,
+    extracted_wwcc_dob: null,
+    // Status: the AI runs next
+    wwcc_status: WWCC_STATUS.PENDING,
+    wwcc_status_at: now,
     wwcc_verified: false,
-    wwcc_doc_verified: wwccStatus === WWCC_STATUS.DOC_VERIFIED,
-    wwcc_doc_verified_at: wwccStatus === WWCC_STATUS.DOC_VERIFIED ? new Date().toISOString() : null,
+    wwcc_doc_verified: false,
+    wwcc_doc_verified_at: null,
     // Clear old AI data
     wwcc_ai_reasoning: null,
     wwcc_ai_issues: null,
     wwcc_rejection_reason: null,
     wwcc_user_guidance: null,
-    // Reset cross-check (must re-run after WWCC resubmission)
+    // Reset cross-check (must re-run after a resubmission)
     cross_check_status: CROSS_CHECK_STATUS.NOT_STARTED,
     cross_check_reasoning: null,
     cross_check_issues: null,
     cross_check_at: null,
-    // Derive verification_status from new section statuses
     verification_status: deriveOverallStatus(
       (existing.identity_status || IDENTITY_STATUS.NOT_STARTED) as IdentityStatus,
-      wwccStatus as WwccStatus,
+      WWCC_STATUS.PENDING as WwccStatus,
       CROSS_CHECK_STATUS.NOT_STARTED as CrossCheckStatus
     ),
-    updated_at: new Date().toISOString(),
+    updated_at: now,
   };
 
   const { error: updateErr } = await admin
     .from('verifications')
-    .update(wwccFields)
+    .update(dbsFields)
     .eq('id', existing.id);
 
   if (updateErr) {
     console.error('[submitWWCCSection] Update failed:', updateErr);
-    return { success: false, error: 'Failed to save WWCC data' };
+    return { success: false, error: DBS_ERRORS.save };
   }
 
   // Sync nannies from verifications
   await syncNannyVerificationState(user.id);
 
-  // For grant_email: always attempt cross-check (fire-and-forget).
-  // triggerCrossCheck re-reads DB state, so it handles the race where
-  // identity is still processing when WWCC is submitted.
-  if (wwccStatus === WWCC_STATUS.DOC_VERIFIED) {
-    triggerCrossCheck(existing.id).catch(err => {
-      console.error('[submitWWCCSection] Cross-check error:', err);
-    });
-  }
-
+  // Both screens fire POST /api/run-verification {phase:"wwcc"} next; there is no method branch here any more.
   revalidatePath('/nanny/verification');
   return { success: true, error: null, verificationId: existing.id };
 }
@@ -777,6 +794,9 @@ export interface VerificationData {
   wwcc_verified: boolean;
   wwcc_rejection_reason: string | null;
   wwcc_user_guidance: UserGuidance | null;
+  // Update Service result (3b: the clear row's "checked {date}"). Optional so other readers' selects still fit.
+  ocg_result_status?: string | null;
+  ocg_verified_at?: string | null;
   // Contact fields
   phone_number: string | null;
   address_line: string | null;
@@ -812,6 +832,7 @@ export async function getVerificationData(): Promise<{
       wwcc_verification_method, wwcc_number, wwcc_expiry_date,
       wwcc_grant_email_url, wwcc_service_nsw_screenshot_url,
       wwcc_doc_verified, wwcc_verified, wwcc_rejection_reason, wwcc_user_guidance,
+      ocg_result_status, ocg_verified_at,
       phone_number, address_line, city, state, postcode, country,
       cross_check_reasoning,
       created_at, updated_at

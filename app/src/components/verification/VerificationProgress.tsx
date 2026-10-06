@@ -1,6 +1,13 @@
 "use client";
 
+/**
+ * VerificationProgress — the vertical stepper used by Katie's verification tile and the design pages.
+ * Unit 3b (BB-LDN-3b-061026, brief change 12; copy deck §5.4): sub-text comes from the one DBS decoder; 23 → "New
+ * certificate needed", 26 → "Not on Update Service — action needed", barred shows no action line (#13); the old
+ * expiry line is gone. In: steps of `{label, status}` (a section value or a DBS display-state name). Never: fetches.
+ */
 import { Check } from "lucide-react";
+import { getDbsStateForSection, type DbsDisplayState } from "@/lib/dbs/nanny-display";
 
 type StepState = "completed" | "current" | "future";
 
@@ -37,14 +44,27 @@ function getStepState(step: VerificationStep, index: number, steps: Verification
   return "future"; // Locked — previous steps not done
 }
 
+/** Katie's stepper passes DBS display-state names (3b); the other steps pass their own section values. */
+const DISPLAY_STATE_NAMES: ReadonlySet<string> = new Set<DbsDisplayState>(["new_info", "no_match", "barred"]);
+
+/** Sub-text per step (copy deck §5.4): one decoder for the DBS states; identity/residence share the same words. */
+const SUBTEXT: Partial<Record<DbsDisplayState, string>> = {
+  reading: "Verifying...",
+  checking: "Verifying...",
+  with_team: "Pending manual review",
+  manual_review: "Pending manual review",
+  failed: "Action needed",
+  rejected: "Action needed",
+  technical_retry: "Action needed",
+  new_info: "New certificate needed",
+  no_match: "Not on Update Service — action needed",
+  // barred: no action line (ruling #13)
+};
+
 function getSubtext(step: VerificationStep): string {
   const s = step.status;
-  if (s === "pending" || s === "processing") return "Verifying...";
-  if (s === "review" || s === "application_pending") return "Pending manual review";
-  if (s === "failed" || s === "rejected" || s === "barred") return "Action needed";
-  if (s === "ocg_not_found" || s === "closed") return "Action needed";
-  if (s === "expired") return "Expired — please resubmit";
-  return "";
+  const state = DISPLAY_STATE_NAMES.has(s) ? (s as DbsDisplayState) : getDbsStateForSection(s);
+  return SUBTEXT[state] ?? "";
 }
 
 export function VerificationProgress({ steps }: VerificationProgressProps) {

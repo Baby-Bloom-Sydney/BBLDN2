@@ -1,8 +1,15 @@
+/**
+ * /nanny/onboarding-verification (server) — picks the wizard's starting step from the stored verification row.
+ * Unit 3b (BB-LDN-3b-061026, brief change 1): the DBS part reads `getDbsDisplayState` — a fail card or a bar sends
+ * her to /nanny/verification; a submitted certificate shows processing (step 4); only `clear` (30/40) counts as done
+ * and redirects to the hub. Never: treats status 21 (review) as complete.
+ */
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getVerificationData } from "@/lib/actions/verification";
 import { applyStartAtFloor } from "@/lib/onboarding/resume-step";
+import { getDbsDisplayState, isDbsFailState } from "@/lib/dbs/nanny-display";
 import { OnboardingVerificationClient } from "./OnboardingVerificationClient";
 
 export default async function OnboardingVerificationPage({
@@ -70,7 +77,7 @@ export default async function OnboardingVerificationPage({
     }
 
     if (verification.identity_status !== "not_started") {
-      initialStep = 3; // Identity submitted — show WWCC
+      initialStep = 3; // Identity submitted — show the DBS step
     }
 
     // If identity is done but contact wasn't saved (edge case: contact submit failed)
@@ -81,21 +88,22 @@ export default async function OnboardingVerificationPage({
       initialStep = 1; // Go back to location to re-submit
     }
 
-    if (verification.wwcc_status !== "not_started") {
-      initialStep = 4; // WWCC submitted — show processing
+    // DBS step: one decoder for every nanny screen (3b, brief change 1)
+    const dbsState = getDbsDisplayState(verification);
+
+    if (dbsState !== "not_started") {
+      initialStep = 4; // Certificate submitted — show processing
     }
 
-    // WWCC failed — redirect to existing verification page for retry
-    if (verification.wwcc_status === "failed") {
+    // A DBS outcome that needs her (fail card, two buttons) or a bar — the verification page shows it
+    if (isDbsFailState(dbsState) || dbsState === "barred") {
       redirect("/nanny/verification");
     }
 
-    // Check for full completion
+    // Full completion: "You're verified!" is only ever the `clear` state (30/40)
     const allDone =
       verification.identity_status === "verified" &&
-      (verification.wwcc_status === "doc_verified" ||
-        verification.wwcc_status === "review") &&
-      verification.cross_check_status === "passed" &&
+      dbsState === "clear" &&
       verification.contact_status === "saved";
 
     if (allDone) {
@@ -106,7 +114,7 @@ export default async function OnboardingVerificationPage({
   // T-022 — Honour `?startAt=N` from upstream navigators (the new
   // contributions page sends `?startAt=1` to skip AccountSecured and
   // land at Step 1 Location). Floor semantics — a returning user at
-  // Step 3 (WWCC) is NEVER downgraded by a stale URL. Pure helper
+  // Step 3 (DBS) is NEVER downgraded by a stale URL. Pure helper
   // covers the NaN / negative / float / out-of-range edge cases.
   initialStep = applyStartAtFloor(initialStep, searchParams?.startAt);
 
