@@ -2,9 +2,11 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   verificationModule,
   summariseNannyState,
+  deriveNannySteps,
   type VerificationSummary,
 } from "./verification";
 import type { ModuleContext } from "./types";
+import { STORED_SECTION } from "@/lib/dbs/fixtures.test-util";
 
 // Every internal token that MUST NOT leak into Gemini's view.
 const FORBIDDEN_TOKENS = [
@@ -564,5 +566,41 @@ describe("read_verification_status.isPrefulfilled", () => {
         },
       ),
     ).toBe(true);
+  });
+});
+
+// ── Unit 3b (BB-LDN-3b-061026) — G14 + brief change 13: decoder logic only (3g rewrites the strings) ──
+describe("G14 — DBS states leak no internal code (FORBIDDEN_TOKENS)", () => {
+  const row = (verification_status: number, wwcc_status: string) => ({
+    verification_status,
+    identity_status: "verified",
+    wwcc_status,
+    cross_check_status: "not_started",
+    identity_user_guidance: null,
+    wwcc_user_guidance: null,
+    identity_rejection_reason: null,
+    wwcc_rejection_reason: null,
+  });
+
+  it.each([
+    [23, "expired"],
+    [26, STORED_SECTION.NO_MATCH],
+    [27, "barred"],
+    [21, "review"],
+    [24, "failed"],
+  ])("summary for %s leaks no internal token", (code, section) => {
+    assertNoLeaks(summariseNannyState({ verification_level: code === 27 ? 0 : 2 }, row(code, section)));
+  });
+
+  it("maps 23 to the new_info step (was expired)", () => {
+    expect(deriveNannySteps({ verification_level: 2 }, row(23, "expired"))[2].status).toBe("new_info");
+  });
+
+  it("maps 26 to the no_match step", () => {
+    expect(deriveNannySteps({ verification_level: 2 }, row(26, STORED_SECTION.NO_MATCH))[2].status).toBe("no_match");
+  });
+
+  it("maps barred (27) to the barred step, which carries no action", () => {
+    expect(deriveNannySteps({ verification_level: 0 }, row(27, "barred"))[2].status).toBe("barred");
   });
 });
