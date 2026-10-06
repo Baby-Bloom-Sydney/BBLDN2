@@ -45,7 +45,7 @@ export async function POST() {
   const statusChanges: { user_id: string; old: number; new: number }[] = [];
 
   for (const v of verifications) {
-    // FULLY_VERIFIED (40) is only reachable via OCG webhook — deriveOverallStatus
+    // FULLY_VERIFIED (40) is only reachable via the admin's Approve — deriveOverallStatus
     // doesn't know about wwcc_verified, so we handle it separately
     const isFullyVerified =
       v.identity_verified === true &&
