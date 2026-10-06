@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   verificationModule,
   summariseNannyState,
-  summariseParentState,
   type VerificationSummary,
 } from "./verification";
 import type { ModuleContext } from "./types";
@@ -230,93 +229,6 @@ describe("summariseNannyState — fully verified (level 4)", () => {
   });
 });
 
-describe("summariseParentState — not started", () => {
-  it("prompts to verify identity", () => {
-    const s = summariseParentState({ verification_level: 0 }, null);
-    expect(s.headline).toMatch(/verify your identity/i);
-    expect(s.whats_still_needed[0]).toMatch(/selfie/i);
-    expect(s.cannot_do_yet.some((x) => /connection/i.test(x.what))).toBe(true);
-    expect(s.how_to_continue?.url).toBe("/parent/verification");
-    assertNoLeaks(s);
-  });
-});
-
-describe("summariseParentState — pending admin review", () => {
-  it("tells them to wait — no action needed", () => {
-    const s = summariseParentState(
-      { verification_level: 0 },
-      {
-        verification_status: 11,
-        identity_status: "review",
-        cross_check_status: "passed",
-        identity_user_guidance: null,
-        identity_rejection_reason: null,
-      },
-    );
-    expect(s.whats_in_progress.some((x) => /review/i.test(x))).toBe(true);
-    // Nothing for the user to actively do.
-    expect(s.how_to_continue).toBeNull();
-    assertNoLeaks(s);
-  });
-});
-
-describe("summariseParentState — AI-failed (12) vs admin-rejected (13)", () => {
-  it("status 12 offers manual review option in copy", () => {
-    const s = summariseParentState(
-      { verification_level: 0 },
-      {
-        verification_status: 12,
-        identity_status: "failed",
-        cross_check_status: "not_started",
-        identity_user_guidance: null,
-        identity_rejection_reason: "selfie blurry",
-      },
-    );
-    expect(s.whats_still_needed.some((x) => /manual review/i.test(x))).toBe(
-      true,
-    );
-    assertNoLeaks(s);
-  });
-
-  it("status 13 does not offer manual review option (loop prevention)", () => {
-    const s = summariseParentState(
-      { verification_level: 0 },
-      {
-        verification_status: 13,
-        identity_status: "rejected",
-        cross_check_status: "not_started",
-        identity_user_guidance: null,
-        identity_rejection_reason: "mismatch",
-      },
-    );
-    expect(s.whats_still_needed.some((x) => /manual review/i.test(x))).toBe(
-      false,
-    );
-    expect(s.whats_still_needed.some((x) => /new id/i.test(x))).toBe(true);
-    assertNoLeaks(s);
-  });
-});
-
-describe("summariseParentState — fully verified", () => {
-  it("full access", () => {
-    const s = summariseParentState(
-      { verification_level: 1 },
-      {
-        verification_status: 20,
-        identity_status: "verified",
-        cross_check_status: "passed",
-        identity_user_guidance: null,
-        identity_rejection_reason: null,
-      },
-    );
-    expect(s.headline).toMatch(/fully verified/i);
-    expect(s.can_do_now.some((x) => /connection/i.test(x))).toBe(true);
-    expect(s.cannot_do_yet).toHaveLength(0);
-    expect(s.how_to_continue).toBeNull();
-    assertNoLeaks(s);
-  });
-});
-
 describe("summariseNannyState — only_if_asked for non-provisional levels", () => {
   it("is an empty array when not provisional (nothing to hide)", () => {
     const levels = [0, 1, 2, 4] as const;
@@ -336,35 +248,6 @@ describe("summariseNannyState — only_if_asked for non-provisional levels", () 
       );
       expect(Array.isArray(s.only_if_asked)).toBe(true);
       expect(s.only_if_asked).toHaveLength(0);
-    }
-  });
-});
-
-describe("summariseParentState — only_if_asked always empty", () => {
-  it("parent side has no hidden state", () => {
-    for (const status of [0, 10, 11, 12, 13, 20]) {
-      const s = summariseParentState(
-        { verification_level: status === 20 ? 1 : 0 },
-        {
-          verification_status: status,
-          identity_status:
-            status === 10
-              ? "processing"
-              : status === 11
-                ? "review"
-                : status === 12
-                  ? "failed"
-                  : status === 13
-                    ? "rejected"
-                    : status === 20
-                      ? "verified"
-                      : "not_started",
-          cross_check_status: "passed",
-          identity_user_guidance: null,
-          identity_rejection_reason: null,
-        },
-      );
-      expect(s.only_if_asked).toEqual([]);
     }
   });
 });
@@ -406,14 +289,6 @@ function makeCtx(
       identity_rejection_reason: string | null;
       wwcc_rejection_reason: string | null;
     }>;
-    parent?: { verification_level?: number };
-    parent_verifications?: Partial<{
-      verification_status: number;
-      identity_status: string;
-      cross_check_status: string;
-      identity_user_guidance: string | null;
-      identity_rejection_reason: string | null;
-    }>;
   },
 ): ModuleContext {
   const supabase = {
@@ -425,10 +300,6 @@ function makeCtx(
               return { data: rows.nanny ?? null, error: null };
             if (t === "verifications")
               return { data: rows.verifications ?? null, error: null };
-            if (t === "parents")
-              return { data: rows.parent ?? null, error: null };
-            if (t === "parent_verifications")
-              return { data: rows.parent_verifications ?? null, error: null };
             return { data: null, error: null };
           },
         }),
@@ -471,24 +342,21 @@ describe("verification module — read_verification_status", () => {
     assertNoLeaks(data);
   });
 
-  it("returns parent summary for parent role", async () => {
-    const ctx = makeCtx("parent", {
-      parent: { verification_level: 1 },
-      parent_verifications: {
-        verification_status: 20,
-        identity_status: "verified",
-        cross_check_status: "passed",
-      },
-    });
+  it("returns no parent summary when the caller is a parent", async () => {
+    // LDN2 3h (D-7): London parents are never verified, so the tool is not
+    // offered to them and a parent caller gets a refusal, not a summary.
+    const ctx = makeCtx("parent", {});
     const r = await verificationModule.execute(
       "read_verification_status",
       {},
       ctx,
     );
-    expect(r.success).toBe(true);
-    const data = r.data as VerificationSummary;
-    expect(data.can_do_now.some((x) => /connection/i.test(x))).toBe(true);
-    assertNoLeaks(data);
+    expect(r.success).toBe(false);
+    expect(r.data).toBeUndefined();
+    const tables = (
+      ctx.supabase.from as unknown as { mock: { calls: [string][] } }
+    ).mock.calls.map(([t]) => t);
+    expect(tables).not.toContain("parents");
   });
 
   it("refuses for admin role", async () => {
@@ -646,8 +514,9 @@ describe("verification module — read_verification_next_steps", () => {
 });
 
 describe("verification module — rolesAllowed gate", () => {
-  it("admin role blocked from the module via rolesAllowed", () => {
-    expect(verificationModule.rolesAllowed).toEqual(["nanny", "parent"]);
+  it("allows the verification tools for the nanny role only", () => {
+    // Admin and parent are both blocked (LDN2 3h removed the parent arm).
+    expect(verificationModule.rolesAllowed).toEqual(["nanny"]);
   });
 });
 

@@ -40,11 +40,11 @@ describe("VerificationRequiredModal", () => {
       <VerificationRequiredModal
         open
         onOpenChange={() => {}}
-        ctaHref="/parent/verification"
+        ctaHref="/nanny/verification"
       />,
     );
     const link = screen.getByRole("link", { name: /verify now/i });
-    expect(link.getAttribute("href")).toBe("/parent/verification");
+    expect(link.getAttribute("href")).toBe("/nanny/verification");
   });
 
   it("does not render content when closed", () => {
