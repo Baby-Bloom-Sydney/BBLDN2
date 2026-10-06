@@ -42,6 +42,11 @@ describe("lead drawer verification breakdown — DBS meanings", () => {
     expect(container.textContent).not.toMatch(/expires/i);
   });
 
+  it("decodes the status code with its STATUS_META short label, so 27 reads as barred", () => {
+    const { container } = render(<LeadDrawerVerificationBreakdown detail={detailWith(27)} />);
+    expect(container.textContent).toContain("code 27 · Barred");
+  });
+
   it("renders no old-regulator text in the identity, DBS and Update Service rows", () => {
     const { container } = render(<LeadDrawerVerificationBreakdown detail={detailWith(23)} />);
     const rows = [...container.querySelectorAll("div.flex.items-center.justify-between")].slice(0, 3);

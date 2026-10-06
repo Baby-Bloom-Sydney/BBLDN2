@@ -3,7 +3,7 @@
 
 import { Check, X, AlertTriangle, Clock } from "lucide-react";
 import type { LeadDetail } from "@/lib/leads/fetch-lead-detail";
-import { VERIFICATION_STATUS, isDbsApiPass } from "@/lib/verification";
+import { STATUS_META, VERIFICATION_STATUS, isDbsApiPass } from "@/lib/verification";
 
 interface LeadDrawerVerificationBreakdownProps {
   detail: LeadDetail;
@@ -148,7 +148,7 @@ export function LeadDrawerVerificationBreakdown({
           detail={
             v?.verification_status !== null &&
             v?.verification_status !== undefined
-              ? `code ${v.verification_status}`
+              ? `code ${v.verification_status}${STATUS_META[v.verification_status] ? ` · ${STATUS_META[v.verification_status].short}` : ""}`
               : "—"
           }
         />

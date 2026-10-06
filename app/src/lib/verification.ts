@@ -103,7 +103,7 @@ export const DBS_FAILED_CODES: ReadonlySet<number> = new Set([
   VERIFICATION_STATUS.DBS_BARRED,
 ]);
 export const DBS_REVIEW_CODES: ReadonlySet<number> = new Set([VERIFICATION_STATUS.PENDING_WWCC_REVIEW]);
-/** Admin "Pending" (spec §1.3): the ID queue plus DBS lists A and B. The tab, dashboard and analytics all import it. */
+/** Admin "Pending" (spec §1.3): the ID queue plus DBS lists A and B. 3d points the tab, dashboard and analytics at it. */
 export const ADMIN_PENDING_CODES = [10, 11, 21, 30] as const;
 
 export const LEVEL_LABELS: Record<number, string> = {
