@@ -1,7 +1,6 @@
 export type AgreementId =
   | "AGR-01" // Client Registration
   | "AGR-02" // Professional Registration
-  | "AGR-03" // Client Verification
   | "AGR-04" // Professional Verification
   | "AGR-05" // Client Job Posting
   | "AGR-06" // Client Matchmaking Connection

@@ -4,10 +4,8 @@ import { useSearchParams } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { UsersTab } from "./UsersTab";
 import { VerificationTab } from "./VerificationTab";
-import { ParentVerificationTab } from "./ParentVerificationTab";
-import { Users, ShieldCheck, UserCheck } from "lucide-react";
+import { Users, ShieldCheck } from "lucide-react";
 import type { UserData, UserStats, VerificationStats, PendingIdentityCheck, PendingWWCCCheck } from "./page";
-import type { PendingParentIdentityCheck } from "./ParentIDCheckModal";
 
 interface AdminUsersClientProps {
   users: UserData[];
@@ -15,8 +13,6 @@ interface AdminUsersClientProps {
   verificationStats: VerificationStats;
   identityChecks: PendingIdentityCheck[];
   wwccChecks: PendingWWCCCheck[];
-  parentVerificationStats: { pending: number; approvedToday: number; rejectedToday: number };
-  parentChecks: PendingParentIdentityCheck[];
 }
 
 export function AdminUsersClient({
@@ -25,12 +21,10 @@ export function AdminUsersClient({
   verificationStats,
   identityChecks,
   wwccChecks,
-  parentVerificationStats,
-  parentChecks,
 }: AdminUsersClientProps) {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const defaultTab = tabParam === "verification" ? "verification" : tabParam === "parent-verification" ? "parent-verification" : "users";
+  const defaultTab = tabParam === "verification" ? "verification" : "users";
 
   return (
     <div className="space-y-6">
@@ -59,16 +53,6 @@ export function AdminUsersClient({
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="parent-verification" className="gap-2">
-              <UserCheck className="h-4 w-4" />
-              <span className="hidden sm:inline">Parent Verification</span>
-              <span className="sm:hidden">Parent</span>
-              {parentVerificationStats.pending > 0 && (
-                <span className="ml-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                  {parentVerificationStats.pending}
-                </span>
-              )}
-            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -81,13 +65,6 @@ export function AdminUsersClient({
             stats={verificationStats}
             identityChecks={identityChecks}
             wwccChecks={wwccChecks}
-          />
-        </TabsContent>
-
-        <TabsContent value="parent-verification">
-          <ParentVerificationTab
-            stats={parentVerificationStats}
-            parentChecks={parentChecks}
           />
         </TabsContent>
       </Tabs>

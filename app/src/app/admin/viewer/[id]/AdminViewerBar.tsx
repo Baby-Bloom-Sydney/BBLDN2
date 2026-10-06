@@ -30,9 +30,13 @@ export function AdminViewerBar({ user }: { user: TargetUser }) {
   const pathname = usePathname();
   const base = `/admin/viewer/${user.userId}`;
 
+  // Verification exists for nannies only (LDN2 3h: parents are never verified).
+  const isNanny = user.role === "nanny";
   const tabs = [
     { label: "Hub", href: base },
-    { label: "Verification", href: `${base}/verification` },
+    ...(isNanny
+      ? [{ label: "Verification", href: `${base}/verification` }]
+      : []),
     { label: "Profile", href: `${base}/profile` },
     { label: "Inbox", href: `${base}/inbox` },
   ];
@@ -75,9 +79,12 @@ export function AdminViewerBar({ user }: { user: TargetUser }) {
             <div className="flex items-center gap-2">
               <span className="font-semibold text-sm truncate">{name}</span>
               <span className="rounded bg-white/20 px-1.5 py-0.5 text-xs capitalize">{user.role}</span>
-              <span className="rounded bg-white/15 px-1.5 py-0.5 text-xs">
-                {LEVEL_LABELS[user.verificationLevel] ?? `L${user.verificationLevel}`}
-              </span>
+              {isNanny && (
+                <span className="rounded bg-white/15 px-1.5 py-0.5 text-xs">
+                  {LEVEL_LABELS[user.verificationLevel] ??
+                    `L${user.verificationLevel}`}
+                </span>
+              )}
             </div>
             <p className="text-xs text-violet-200 truncate">
               {user.email}

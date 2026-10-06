@@ -35,8 +35,8 @@ export interface EmailFooterOptions {
   /** When set, appends the email-preferences sentence pointing at this path. */
   preferencesPath?: string;
   /**
-   * Link colour. The parent-verification emails are themed pink end to end;
-   * every other collapsed site used the violet default.
+   * Link colour. Defaults to the brand violet; a caller themed in another
+   * colour end to end may override it.
    */
   linkColor?: string;
 }

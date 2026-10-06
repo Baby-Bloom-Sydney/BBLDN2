@@ -4,8 +4,8 @@
  * The modal is the client-side mirror of the server gate: when
  * `createConnectionRequest` returns `{ error: "POSITION_REQUIRED" }`,
  * the modal swaps the form for a "Create your position first" surface
- * with a CTA to `/parent/request`. The existing VERIFICATION_REQUIRED
- * branch is verified as a regression check.
+ * with a CTA to `/parent/request`. LDN2 3h removed the parent
+ * VERIFICATION_REQUIRED branch; the last block pins its absence.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -92,19 +92,30 @@ describe("ConnectModal — T-041 POSITION_REQUIRED surface", () => {
   });
 });
 
-describe("ConnectModal — regression: VERIFICATION_REQUIRED still works after T-041", () => {
-  beforeEach(() => {
-    state.createReturn = { success: false, error: "VERIFICATION_REQUIRED" };
-  });
+describe("ConnectModal — no parent verification surface (LDN2 3h, H-4)", () => {
+  // London parents are never asked to verify. The old VERIFICATION_REQUIRED
+  // branch had zero emitters and is gone; no error code — including that old
+  // sentinel string — may route a parent to a verification surface.
+  it.each([
+    "VERIFICATION_REQUIRED",
+    "Something went wrong",
+    "You already have 5 ongoing requests",
+  ])(
+    "renders no verification-required surface for any connect error (%s)",
+    async (error) => {
+      state.createReturn = { success: false, error };
+      renderModal();
+      await submit();
 
-  it("still renders the verification-required surface when the action returns VERIFICATION_REQUIRED", async () => {
-    renderModal();
-    await submit();
-
-    expect(
-      screen.getByText("Identity Verification Required"),
-    ).toBeInTheDocument();
-    const cta = screen.getByRole("link", { name: "Verify Now" });
-    expect(cta).toHaveAttribute("href", "/parent/verification");
-  });
+      expect(
+        screen.queryByText("Identity Verification Required"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: /verify/i }),
+      ).not.toBeInTheDocument();
+      expect(
+        document.querySelector('a[href="/parent/verification"]'),
+      ).toBeNull();
+    },
+  );
 });

@@ -154,64 +154,6 @@ export async function GET(request: NextRequest) {
     sent++;
   }
 
-  // ── PVER-002: Parent identity failed, no action in 10 minutes ──
-  const { data: parentIdentityFailed } = await supabase
-    .from('parent_verifications')
-    .select('id, user_id, identity_status_at, updated_at')
-    .eq('identity_status', 'failed')
-    .lt('identity_status_at', tenMinutesAgo);
-
-  for (const pv of parentIdentityFailed ?? []) {
-    // Check no action taken: updated_at should equal identity_status_at (within 2s tolerance)
-    const statusAt = new Date(pv.identity_status_at).getTime();
-    const updatedAt = new Date(pv.updated_at).getTime();
-    if (Math.abs(updatedAt - statusAt) > 2000) {
-      skipped++;
-      continue;
-    }
-
-    // Dedup via email_logs
-    const { count } = await supabase
-      .from('email_logs')
-      .select('id', { count: 'exact', head: true })
-      .eq('recipient_user_id', pv.user_id)
-      .eq('email_type', 'parent_verification_failed')
-      .gte('created_at', pv.identity_status_at);
-
-    if (count && count > 0) {
-      skipped++;
-      continue;
-    }
-
-    const userInfo = await getUserEmailInfo(pv.user_id);
-    if (!userInfo) continue;
-
-    await sendEmail({
-      to: userInfo.email,
-      subject: 'Your ID verification needs attention',
-      html: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1e293b;background:#f8fafc;">
-<div style="max-width:600px;margin:0 auto;padding:32px 16px;">
-  <div style="background:#fff;border-radius:16px;border:1px solid #e2e8f0;padding:32px;">
-    <div style="margin-bottom:24px;">
-      <span style="font-size:20px;font-weight:700;"><span style="color:#0f172a;">Baby</span><span style="color:#FF6B9D;">Bloom</span></span>
-    </div>
-    <h1 style="font-size:22px;font-weight:700;margin:0 0 16px;">Your identity check needs attention</h1>
-    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">Hi ${userInfo.firstName}, we weren't able to verify your identity documents. This can happen if the photo was unclear, details didn't match, or there was a technical issue.</p>
-    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">Head to your verification page to see what went wrong and resubmit. It usually only takes a minute.</p>
-    <div style="text-align:center;margin-top:24px;">
-      <a href="${appUrl}/parent/verification" style="display:inline-block;background:#FF6B9D;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Fix It Now</a>
-    </div>
-    ${emailFooter({ terms: "client", linkColor: "#FF6B9D" })}
-  </div>
-</div>
-</body></html>`,
-      emailType: 'parent_verification_failed',
-      recipientUserId: pv.user_id,
-    });
-    sent++;
-  }
-
   // ── POST-008: Service follow-up — 48h after AWAITING_RESPONSE, nudge parent ──
   const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 

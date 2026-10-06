@@ -47,7 +47,7 @@ interface SectionRanges {
   global: DateRange;
   nf?: DateRange; pd?: DateRange; pf?: DateRange;
   wt?: DateRange; pc?: DateRange; nc?: DateRange; nv?: DateRange;
-  ni?: DateRange; nw?: DateRange; pv?: DateRange;
+  ni?: DateRange; nw?: DateRange;
   df?: DateRange; dc?: DateRange;
   vn?: DateRange; vp?: DateRange; vb?: DateRange;
   bs?: DateRange; bn?: DateRange;
@@ -81,7 +81,7 @@ const TABLE_NAMES: Record<string, string> = {
   nf: 'Nanny Flow', pd: 'Page Drop-off',
   pf: 'Parent Pipeline', pc: 'Position Connections', nc: 'Nanny Connections',
   nv: 'Nanny Verification', ni: 'Identity Verification',
-  nw: 'WWCC Verification', pv: 'Parent Verification',
+  nw: 'WWCC Verification',
   kn: 'Key Nanny Metrics', kp: 'Key Parent Metrics',
   df: 'DFY Matchmaking', dc: 'DFY Connections',
   vn: 'Nanny Shares', vp: 'Position Shares', vb: 'BSR Shares',
@@ -92,7 +92,7 @@ const ENTITY_TAGS: Record<string, ('N' | 'P' | 'T' | 'V')[] | undefined> = {
   wtg: ['T'], wtn: ['T', 'N'], wtp: ['T', 'P'],
   nf: ['N'], pd: ['N'], nc: ['N'],
   nv: ['V', 'N'], ni: ['V', 'N'], nw: ['V', 'N'],
-  pf: ['P'], pc: ['P'], pv: ['V', 'P'],
+  pf: ['P'], pc: ['P'],
   kn: ['N'], kp: ['P'],
   df: undefined, dc: ['N'],
   vn: ['N'], vp: ['P'], vb: ['P'],
@@ -501,7 +501,6 @@ async function getPipelineData(
     nv: ranges.nv || ranges.global,
     ni: ranges.ni || ranges.global,
     nw: ranges.nw || ranges.global,
-    pv: ranges.pv || ranges.global,
     df: ranges.df || ranges.global,
     dc: ranges.dc || ranges.global,
     vn: ranges.vn || ranges.global,
@@ -903,37 +902,6 @@ async function getPipelineData(
     ]),
   ];
 
-  // ── Parent Verification (uses pv cohort) ──
-  const pvRaw = cohort('pv');
-  const pvCfg = configs.pv || { count: 'unique' as const };
-  const pvParents = filterByActivity(pvRaw.parents, 'user_id', userLastActive, pvCfg.active);
-  const pvParentUserIds = new Set(pvParents.map((p: any) => p.user_id));
-  const pvParentVerifs = verificationsData.filter((v: any) => pvParentUserIds.has(v.user_id));
-
-  const parentIdentityCumulative = pvParentVerifs.length > 0
-    ? [
-        { label: "Parents", tooltip: "Parents with a verification record", total: pvParentVerifs.length },
-        { label: "Initiated", tooltip: "Started identity verification", total: pvParentVerifs.filter((v: any) => v.identity_status !== "not_started").length },
-        { label: "Processing", tooltip: "Identity document being processed", total: pvParentVerifs.filter((v: any) => IDENTITY_PAST_PENDING.includes(v.identity_status)).length },
-        { label: "Outcome", tooltip: "Processing complete — result received", total: pvParentVerifs.filter((v: any) => IDENTITY_OUTCOMES.includes(v.identity_status)).length },
-        { label: "Verified", tooltip: "Identity successfully verified", total: pvParentVerifs.filter((v: any) => v.identity_status === "verified").length },
-      ]
-    : null;
-  const parentIdentityLive = pvParentVerifs.length > 0
-    ? [
-        { label: "Parents", tooltip: "Parents with a verification record", total: pvParentVerifs.length },
-        ...statusCounts(pvParentVerifs, "identity_status", [
-          { label: "Not Started", statuses: ["not_started"] },
-          { label: "Pending", statuses: ["pending"] },
-          { label: "Processing", statuses: ["processing"] },
-          { label: "Manual Review", statuses: ["review"] },
-          { label: "Verified", statuses: ["verified"] },
-          { label: "Rejected", statuses: ["rejected"] },
-          { label: "Failed", statuses: ["failed"] },
-        ]),
-      ]
-    : null;
-
   // ── Web Traffic (uses wt cohort) ──
   const wtRaw = cohort('wt');
   const wtCfg = configs.wt || { count: 'unique' as const };
@@ -1169,19 +1137,6 @@ async function getPipelineData(
     { label: "WWCC: OCG Not Found", tooltip: "Office of Children's Guardian record not found", records: nwNannyVerifs.filter((v: any) => v.wwcc_status === "ocg_not_found"), idKey: 'user_id' },
     { label: "WWCC: Barred", tooltip: "Person barred from working with children", records: nwNannyVerifs.filter((v: any) => v.wwcc_status === "barred"), idKey: 'user_id' },
     { label: "WWCC: Expired", tooltip: "WWCC has expired and needs renewal", records: nwNannyVerifs.filter((v: any) => v.wwcc_status === "expired"), idKey: 'user_id' },
-  ]);
-
-  // Parent Verification (always include — totals will be 0 if no records)
-  const pvFailedTotal = pvParentVerifs.filter((v: any) => v.identity_status === "failed" || v.identity_status === "rejected");
-  internalCatalog.set('pv', [
-    { label: "ID: Initiated", tooltip: "Started identity verification", records: pvParentVerifs.filter((v: any) => v.identity_status !== "not_started"), idKey: 'user_id' },
-    { label: "ID: Processing", tooltip: "Identity document being processed", records: pvParentVerifs.filter((v: any) => IDENTITY_PAST_PENDING.includes(v.identity_status)), idKey: 'user_id' },
-    { label: "ID: Outcome", tooltip: "Processing complete — result received", records: pvParentVerifs.filter((v: any) => IDENTITY_OUTCOMES.includes(v.identity_status)), idKey: 'user_id' },
-    { label: "ID: Verified", tooltip: "Identity successfully verified", records: pvParentVerifs.filter((v: any) => v.identity_status === "verified"), idKey: 'user_id' },
-    { label: "ID: Unverified", tooltip: "Not yet started identity verification", records: pvParentVerifs.filter((v: any) => v.identity_status === "not_started"), idKey: 'user_id' },
-    { label: "ID: Failed (Total)", tooltip: "All failed identity checks (auto + manual)", records: pvFailedTotal, idKey: 'user_id' },
-    { label: "ID: Failed (Auto)", tooltip: "Automated identity check failed", records: pvParentVerifs.filter((v: any) => v.identity_status === "failed"), idKey: 'user_id' },
-    { label: "ID: Rejected", tooltip: "Manually rejected by admin review", records: pvParentVerifs.filter((v: any) => v.identity_status === "rejected"), idKey: 'user_id' },
   ]);
 
   // ── DFY Matchmaking (uses df section config + shared dfy data) ──
@@ -1587,7 +1542,6 @@ async function getPipelineData(
     nannyVerifLevelsCumulative, nannyVerifLevelsLive,
     nannyIdentityCumulative, nannyIdentityLive,
     nannyWwccCumulative, nannyWwccLive,
-    parentIdentityCumulative, parentIdentityLive,
     dfyMatchmaking, dfyMatchmakingLive, dfyTimestamps,
     dfyConnectionsCumulative, dfyConnectionsLive,
     nannySharesMetrics, nannySharesLive, nannySharesTimestamps,
@@ -1602,7 +1556,7 @@ async function getPipelineData(
 
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-const TABLE_KEYS = ['wt', 'nf', 'pd', 'pf', 'pc', 'nc', 'nv', 'ni', 'nw', 'pv', 'df', 'dc', 'vn', 'vp', 'vb', 'bs', 'bn', 'custom'] as const;
+const TABLE_KEYS = ['wt', 'nf', 'pd', 'pf', 'pc', 'nc', 'nv', 'ni', 'nw', 'df', 'dc', 'vn', 'vp', 'vb', 'bs', 'bn', 'custom'] as const;
 
 function extractRange(params: Record<string, string | undefined>, key: string): DateRange | undefined {
   const from = params[`${key}_from`];
@@ -1885,31 +1839,6 @@ export default async function AdminPipelinePage({
             liveStages={data.nannyWwccLive}
             tableKey="nw"
           />
-        </CardContent>
-      </Card>
-
-      {/* Row 13: Parent Verification */}
-      <Card>
-        <CardContent className="pt-5">
-          {data.parentIdentityCumulative ? (
-            <PipelineTable
-              title="Parent Verification"
-              subtitle="Parent identity verification progression"
-              metricType="cumulative"
-              stages={data.parentIdentityCumulative}
-              liveStages={data.parentIdentityLive ?? undefined}
-              tableKey="pv"
-            />
-          ) : (
-            <div className="py-6 text-center">
-              <h3 className="text-base font-semibold text-slate-900 mb-1">
-                Parent Verification
-              </h3>
-              <p className="text-sm text-slate-400">
-                No parent verification records yet
-              </p>
-            </div>
-          )}
         </CardContent>
       </Card>
 

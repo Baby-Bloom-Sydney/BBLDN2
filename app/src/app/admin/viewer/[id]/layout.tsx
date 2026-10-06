@@ -58,13 +58,6 @@ export default async function AdminViewerLayout({ children, params }: LayoutProp
       .eq("user_id", targetUserId)
       .single();
     verificationLevel = nanny?.verification_level ?? 0;
-  } else if (role === "parent") {
-    const { data: parent } = await admin
-      .from("parents")
-      .select("verification_level")
-      .eq("user_id", targetUserId)
-      .single();
-    verificationLevel = parent?.verification_level ?? 0;
   }
 
   const targetUser = {

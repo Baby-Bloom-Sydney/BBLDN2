@@ -24,14 +24,11 @@ import {
   MOCK_DISTRICTS,
   MOCK_BSR_PROFILE,
   MOCK_BSR_SHARE_DATA,
-  MOCK_PARENT_VERIFICATION_DATA,
   MOCK_ADMIN_USERS,
   MOCK_ADMIN_USER_STATS,
   MOCK_ADMIN_VERIFICATION_STATS,
   MOCK_ADMIN_IDENTITY_CHECKS,
   MOCK_ADMIN_WWCC_CHECKS,
-  MOCK_ADMIN_PARENT_VERIFICATION_STATS,
-  MOCK_ADMIN_PARENT_CHECKS,
 } from "../../page-client-mocks";
 import { MOCK_MATCH_RESULT, MOCK_DFY_STATUS } from "../../mock-data";
 
@@ -53,7 +50,6 @@ import { ParentBabysittingClient } from "@/app/parent/babysitting/ParentBabysitt
 import BsrPaymentClient from "@/app/parent/babysitting/[id]/payment/BsrPaymentClient";
 import { BsrShareClient } from "@/app/parent/babysitting/[id]/share/BsrShareClient";
 import { ParentConnectionsClient } from "@/app/parent/connections/ParentConnectionsClient";
-import { ParentVerificationPageClient } from "@/app/parent/verification/ParentVerificationPageClient";
 import { AdminUsersClient } from "@/app/admin/users/AdminUsersClient";
 
 import type { MatchResult } from "@/lib/matching/types";
@@ -162,10 +158,6 @@ const COMPONENTS: Record<string, { name: string; render: () => React.ReactNode }
     name: "ParentConnectionsClient",
     render: () => <ParentConnectionsClient requests={MOCK_CONNECTION_REQUESTS} />,
   },
-  "parent-verification": {
-    name: "ParentVerificationPageClient",
-    render: () => <ParentVerificationPageClient initialData={MOCK_PARENT_VERIFICATION_DATA} />,
-  },
   "admin-users": {
     name: "AdminUsersClient",
     render: () => (
@@ -176,8 +168,6 @@ const COMPONENTS: Record<string, { name: string; render: () => React.ReactNode }
           verificationStats={MOCK_ADMIN_VERIFICATION_STATS}
           identityChecks={MOCK_ADMIN_IDENTITY_CHECKS}
           wwccChecks={MOCK_ADMIN_WWCC_CHECKS}
-          parentVerificationStats={MOCK_ADMIN_PARENT_VERIFICATION_STATS}
-          parentChecks={MOCK_ADMIN_PARENT_CHECKS}
         />
       </Suspense>
     ),

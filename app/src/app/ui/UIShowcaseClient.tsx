@@ -30,14 +30,11 @@ import {
   MOCK_DISTRICTS,
   MOCK_BSR_PROFILE,
   MOCK_BSR_SHARE_DATA,
-  MOCK_PARENT_VERIFICATION_DATA,
   MOCK_ADMIN_USERS,
   MOCK_ADMIN_USER_STATS,
   MOCK_ADMIN_VERIFICATION_STATS,
   MOCK_ADMIN_IDENTITY_CHECKS,
   MOCK_ADMIN_WWCC_CHECKS,
-  MOCK_ADMIN_PARENT_VERIFICATION_STATS,
-  MOCK_ADMIN_PARENT_CHECKS,
 } from "./page-client-mocks";
 import { ShowcaseErrorBoundary } from "./ErrorBoundary";
 
@@ -157,7 +154,6 @@ import { ParentBabysittingClient } from "@/app/parent/babysitting/ParentBabysitt
 import BsrPaymentClient from "@/app/parent/babysitting/[id]/payment/BsrPaymentClient";
 import { BsrShareClient } from "@/app/parent/babysitting/[id]/share/BsrShareClient";
 import { ParentConnectionsClient } from "@/app/parent/connections/ParentConnectionsClient";
-import { ParentVerificationPageClient } from "@/app/parent/verification/ParentVerificationPageClient";
 import { AdminUsersClient } from "@/app/admin/users/AdminUsersClient";
 
 // ── Icons ──
@@ -1142,11 +1138,6 @@ export function UIShowcaseClient({
             <ParentConnectionsClient requests={MOCK_CONNECTION_REQUESTS} />
           </PageClientShowcase>
 
-          {/* CMP-068 ParentVerificationPageClient */}
-          <PageClientShowcase code="CMP-068" name="ParentVerificationPageClient" slug="parent-verification">
-            <ParentVerificationPageClient initialData={MOCK_PARENT_VERIFICATION_DATA} />
-          </PageClientShowcase>
-
           {/* CMP-069 AdminUsersClient */}
           <PageClientShowcase code="CMP-069" name="AdminUsersClient" slug="admin-users">
             <Suspense fallback={<div className="p-4 text-sm text-slate-500">Loading...</div>}>
@@ -1156,8 +1147,6 @@ export function UIShowcaseClient({
                 verificationStats={MOCK_ADMIN_VERIFICATION_STATS}
                 identityChecks={MOCK_ADMIN_IDENTITY_CHECKS}
                 wwccChecks={MOCK_ADMIN_WWCC_CHECKS}
-                parentVerificationStats={MOCK_ADMIN_PARENT_VERIFICATION_STATS}
-                parentChecks={MOCK_ADMIN_PARENT_CHECKS}
               />
             </Suspense>
           </PageClientShowcase>

@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { VerificationPageClient } from "@/app/nanny/verification/VerificationPageClient";
-import { ParentVerificationPageClient } from "@/app/parent/verification/ParentVerificationPageClient";
 
 export default async function AdminViewerVerificationPage({
   params,
@@ -70,33 +69,6 @@ export default async function AdminViewerVerificationPage({
         }
       />
     );
-  }
-
-  if (role === "parent") {
-    // Fetch parent verification data
-    const { data: verification } = await admin
-      .from("parent_verifications")
-      .select(`
-        id,
-        document_type, issuing_country,
-        identity_status, contact_status, cross_check_status,
-        verification_status,
-        surname, given_names, date_of_birth,
-        document_upload_url, identification_photo_url,
-        identity_verified, identity_rejection_reason, identity_user_guidance,
-        selfie_confidence,
-        extracted_surname, extracted_given_names, extracted_dob,
-        extracted_nationality, extracted_passport_number, extracted_passport_expiry,
-        extracted_license_number, extracted_license_expiry,
-        extracted_license_state, extracted_license_class,
-        phone_number, address_line, city, state, postcode, country,
-        cross_check_reasoning,
-        created_at, updated_at
-      `)
-      .eq("user_id", targetUserId)
-      .maybeSingle();
-
-    return <ParentVerificationPageClient initialData={verification} />;
   }
 
   return (
