@@ -166,8 +166,50 @@ describe("applyDbsResult — admin_result_only + recheck", () => {
     await expect(apply(ok("BLANK", { status: "SOMETHING" } as Partial<DbsCheckResult>), "admin_result_only")).rejects.toThrow(/check constraint/);
   });
 
-  it("recheck is 3i's and throws until 3i implements it", async () => {
-    await expect(apply(ok("BLANK"), "recheck")).rejects.toThrow("not implemented: 3i");
+  // Unit 3d (BB-LDN-3d-061026, README P-8): the recheck rows are written here so "Run DBS check now" on a level-4
+  // nanny and 3i's daily re-check share one meaning. 3i keeps the cron, the connection drop (P-3) and the emails.
+  function levelFour() {
+    Object.assign(row(), {
+      verification_status: 40, wwcc_status: "doc_verified", wwcc_verified: true, wwcc_verified_by: "admin-0",
+      wwcc_verified_at: "2026-10-01T00:00:00Z", cross_check_status: "passed",
+      ocg_result_status: "BLANK_NO_NEW_INFO", ocg_result_text: "<old/>", ocg_verified_at: "2026-10-01T00:00:00Z",
+    });
+    db.writes.length = 0;
+  }
+
+  it.each([
+    ["NEW_INFO", 23, "expired", "new_info", GUIDANCE_MESSAGES.DBS_NEW_INFO],
+    ["NO_MATCH", 26, "ocg_not_found", "no_match", GUIDANCE_MESSAGES.DBS_NO_MATCH],
+  ] as const)("RC1 recheck %s on a level-4 row → %i in ONE update with wwcc_verified=false (40 CHECK, P-7, #28)", async (kind, code, wwcc, outcome, guidance) => {
+    levelFour();
+    expect(await apply(ok(kind), "recheck")).toEqual({ outcome });
+    expect(updates()).toHaveLength(1);
+    expect(row()).toMatchObject({
+      verification_status: code, wwcc_status: wwcc, wwcc_verified: false, cross_check_status: "not_started",
+      wwcc_user_guidance: guidance, ocg_result_text: RAW,
+      wwcc_verified_by: "admin-0", wwcc_verified_at: "2026-10-01T00:00:00Z", identity_status: "verified",
+    });
+    expect(row().ocg_verified_at).not.toBe("2026-10-01T00:00:00Z");
+    expect(row().wwcc_status_at).toBeTruthy();
+  });
+
+  it.each([["BLANK"], ["NON_BLANK"]] as const)("RC2 recheck %s writes nothing (#12 — a pass changes nothing)", async (kind) => {
+    levelFour();
+    expect(await apply(ok(kind), "recheck")).toEqual({ outcome: "no_write" });
+    expect(updates()).toHaveLength(0);
+  });
+
+  it("RC3 recheck ERROR writes nothing (#32)", async () => {
+    levelFour();
+    expect(await apply(ERR, "recheck")).toEqual({ outcome: "no_write" });
+    expect(updates()).toHaveLength(0);
+  });
+
+  it("RC4 recheck on a row no longer approved writes nothing (superseded)", async () => {
+    levelFour();
+    Object.assign(row(), { verification_status: 22, wwcc_status: "rejected", wwcc_verified: false });
+    expect(await apply(ok("NEW_INFO"), "recheck")).toEqual({ outcome: "superseded" });
+    expect(updates()).toHaveLength(0);
   });
 });
 

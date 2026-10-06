@@ -2,7 +2,8 @@
  * In-memory Supabase stand-in for pipeline tests (unit 3c, BB-LDN-3c-061026).
  *
  * Supports the chained-builder calls the verification pipeline, the DBS mapper and the sync function make:
- * select / eq / neq / in / is / lt / lte / gt / gte / order / limit / single / maybeSingle / update / insert,
+ * select / eq / neq / in / is / lt / lte / gt / gte / order / limit / single / maybeSingle / update / insert / delete
+ * (delete added by unit 3d for the silent-hold release/cleanup paths),
  * plus `storage.from(bucket).createSignedUrl(path)`. Filters apply to updates, so the atomic claims
  * (`update(...).eq('cross_check_status','pending')`) behave as they do in Postgres.
  *
@@ -15,7 +16,7 @@ type Filter = (row: Row) => boolean;
 export interface MemoryDb {
   tables: Record<string, Row[]>;
   /** Every update/insert, in order: table + the payload (for "one UPDATE" assertions). */
-  writes: { table: string; op: "update" | "insert"; payload: Row }[];
+  writes: { table: string; op: "update" | "insert" | "delete"; payload: Row }[];
   client: () => unknown;
 }
 
@@ -52,7 +53,7 @@ export function createMemoryDb(seed: Record<string, Row[]> = {}): MemoryDb {
 
   function builder(name: string) {
     const filters: Filter[] = [];
-    let mode: "select" | "update" | "insert" = "select";
+    let mode: "select" | "update" | "insert" | "delete" = "select";
     let payload: Row | Row[] | null = null;
     let returning = false;
     let limitN: number | null = null;
@@ -69,6 +70,13 @@ export function createMemoryDb(seed: Record<string, Row[]> = {}): MemoryDb {
         return { data: list, error: null };
       }
       let matched = rows.filter((r) => filters.every((f) => f(r)));
+      if (mode === "delete") {
+        for (const r of matched) {
+          rows.splice(rows.indexOf(r), 1);
+          writes.push({ table: name, op: "delete", payload: { id: r.id } });
+        }
+        return { data: returning ? matched.map((r) => ({ ...r })) : null, error: null };
+      }
       if (mode === "update") {
         const next = matched.map((r) => ({ ...r, ...(payload as Row) }));
         if (name === "verifications") {
@@ -97,6 +105,10 @@ export function createMemoryDb(seed: Record<string, Row[]> = {}): MemoryDb {
       update: (p: Row) => {
         mode = "update";
         payload = p;
+        return b;
+      },
+      delete: () => {
+        mode = "delete";
         return b;
       },
       insert: (p: Row | Row[]) => {
