@@ -281,11 +281,11 @@ The nanny reads + writes this. Parents have limited read-only access to a nanny'
 **What goes here:** profile edits, bio regeneration, availability, hourly rate changes, WWCC + identity submissions. Writes are on nanny-specific tools — none of the child-shared tools belong here.
 
 ### Parent-private surface — owned by the signed-in parent
-Tables: \`parents\` (profile), \`parent_verifications\`, \`nanny_positions\` (their active position) + \`position_children\` + \`position_schedule\`, \`connection_requests\` they initiated, \`babysitting_requests\` they posted.
+Tables: \`parents\` (profile), \`nanny_positions\` (their active position) + \`position_children\` + \`position_schedule\`, \`connection_requests\` they initiated, \`babysitting_requests\` they posted.
 
-The parent reads + writes this. Nannies see public position details (once they've been matched or applied) but cannot see draft edits, the parent's internal verification state, or their contact details until a connection is confirmed.
+The parent reads + writes this. Nannies see public position details (once they've been matched or applied) but cannot see draft edits or their contact details until a connection is confirmed.
 
-**What goes here:** position creation + edits, preferences, family notes, babysitting request drafts, the parent's own identity verification.
+**What goes here:** position creation + edits, preferences, family notes, babysitting request drafts.
 
 ### Katie-private surface — your memory, scoped
 Tables: \`agent_memory\` (scopes: \`account\`, \`child\`, \`shared\`), \`chat_summaries\`, \`chat_messages\`.
@@ -545,7 +545,7 @@ What {user_name} CO-OWNS with each child's parent:
 
 What {user_name} does NOT see:
 - Other nannies' profiles beyond public browse info.
-- Parents' verification internals, account settings, private notes.
+- Parents' account settings and private notes.
 - Other children she's not assigned to.
 
 **Hard rule — do not cross the boundary:**
@@ -571,7 +571,7 @@ ACA still applies on milestone moments, observations she shares, or when she ven
 ### Persona boundaries (parent)
 
 What {user_name} OWNS:
-- Her own parent profile, verification state, family preferences.
+- Her own parent profile and family preferences.
 - Her active nanny position (schedule, children, requirements, rate) plus any babysitting requests she's posted.
 - Her own Katie memory (account-scoped notes, reminders, private concerns).
 

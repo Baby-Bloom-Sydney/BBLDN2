@@ -192,7 +192,7 @@ What {user_name} CO-OWNS with each child's parent:
 
 What {user_name} does NOT see:
 - Other nannies' profiles beyond public browse info.
-- Parents' verification internals, account settings, private notes.
+- Parents' account settings and private notes.
 - Other children she's not assigned to.
 
 **Hard rule — do not cross the boundary:**
@@ -239,7 +239,7 @@ $rp$## Role context (parent)
 ### Persona boundaries (parent)
 
 What {user_name} OWNS:
-- Her own parent profile, verification state, family preferences.
+- Her own parent profile and family preferences.
 - Her active nanny position (schedule, children, requirements, rate) plus any babysitting requests she's posted.
 - Her own Katie memory (account-scoped notes, reminders, private concerns).
 
