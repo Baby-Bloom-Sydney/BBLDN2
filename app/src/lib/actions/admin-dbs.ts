@@ -29,6 +29,7 @@ import { checkDbsStatus, type DbsCheckResult } from '@/lib/dbs/update-service';
 import { applyDbsResult, type DbsApplyOutcome } from '@/lib/dbs/map-dbs-outcome';
 import { logDbsStatusCheck } from '@/lib/dbs/log';
 import { sendBarredEmails } from '@/lib/email/dbs-emails';
+import { ADMIN_REASON_MAX_LENGTH, isApiResultCurrent } from '@/lib/admin/dbs-queues';
 import {
   CROSS_CHECK_STATUS,
   GUIDANCE_MESSAGES,
@@ -61,7 +62,8 @@ export interface AdminDbsCheckResult extends AdminDbsResult {
 const APPROVABLE: readonly number[] = [VERIFICATION_STATUS.PENDING_WWCC_REVIEW, VERIFICATION_STATUS.PROVISIONALLY_VERIFIED];
 
 const ROW_COLUMNS =
-  'id, user_id, identity_status, wwcc_status, cross_check_status, verification_status, ocg_result_status, wwcc_user_guidance, ' +
+  'id, user_id, identity_status, wwcc_status, wwcc_status_at, cross_check_status, verification_status, ocg_result_status, ' +
+  'ocg_verified_at, wwcc_user_guidance, ' +
   'extracted_wwcc_number, extracted_wwcc_surname, extracted_wwcc_dob, extracted_wwcc_expiry, extracted_wwcc_first_name';
 
 interface DbsRow {
@@ -69,9 +71,11 @@ interface DbsRow {
   user_id: string;
   identity_status: string;
   wwcc_status: string;
+  wwcc_status_at: string | null;
   cross_check_status: string;
   verification_status: number;
   ocg_result_status: string | null;
+  ocg_verified_at: string | null;
   wwcc_user_guidance: { reason_code?: string } | null;
   extracted_wwcc_number: string | null;
   extracted_wwcc_surname: string | null;
@@ -92,6 +96,33 @@ async function logActivity(admin: AdminClient, userId: string, actionType: strin
   if (error) console.error(`[admin-dbs] could not write the ${actionType} log row:`, error.message);
 }
 
+/**
+ * Runs the unchanged sync after a decision. The decision has already been written, so a sync failure is returned as a
+ * warning (the admin can retry: every action re-syncs on its idempotent path) rather than thrown (code review M1).
+ */
+async function syncAfterDecision(userId: string): Promise<string | undefined> {
+  try {
+    await syncNannyVerificationState(userId);
+    return undefined;
+  } catch (err) {
+    console.error('[admin-dbs] sync after decision failed:', err instanceof Error ? err.message : 'unknown');
+    return 'Saved, but her account level did not update — repeat the action to retry';
+  }
+}
+
+/** Trimmed reason, or an error message when it is empty or too long (security review L4). */
+function checkReason(reason: string, what: string): { value: string } | { error: string } {
+  const value = reason.trim();
+  if (!value) return { error: `A reason is required to ${what}` };
+  if (value.length > ADMIN_REASON_MAX_LENGTH) return { error: `The reason is too long (max ${ADMIN_REASON_MAX_LENGTH} characters)` };
+  return { value };
+}
+
+const withWarning = (warnings: (string | undefined)[]): { warning?: string } => {
+  const w = warnings.filter(Boolean).join(' · ');
+  return w ? { warning: w } : {};
+};
+
 const derive = (identity: string, wwcc: string, cross: string) =>
   deriveOverallStatus(identity as IdentityStatus, wwcc as WwccStatus, cross as CrossCheckStatus);
 
@@ -109,13 +140,19 @@ export async function adminVerifyWWCC(verificationId: string): Promise<AdminDbsR
   const admin = createAdminClient();
   const row = await readRow(admin, verificationId);
   if (!row) return { success: false, error: 'Verification record not found' };
-  if (row.verification_status === VERIFICATION_STATUS.FULLY_VERIFIED) return { success: true, error: null };
+  if (row.verification_status === VERIFICATION_STATUS.FULLY_VERIFIED) {
+    // Idempotent — but re-sync, so a sync that failed after an earlier approve is repaired (M1).
+    return { success: true, error: null, ...withWarning([await syncAfterDecision(row.user_id)]) };
+  }
 
   if (row.identity_status !== IDENTITY_STATUS.VERIFIED) {
     return { success: false, error: 'Cannot approve: her passport check is not verified' };
   }
   if (!isDbsApiPass(row.ocg_result_status)) {
     return { success: false, error: 'Cannot approve: needs an Update Service pass — run the DBS check first' };
+  }
+  if (!isApiResultCurrent(row)) {
+    return { success: false, error: 'Cannot approve: the Update Service result is older than her current certificate — run the DBS check again' };
   }
   if (!APPROVABLE.includes(row.verification_status)) {
     return { success: false, error: `Cannot approve from status ${row.verification_status}` };
@@ -145,7 +182,7 @@ export async function adminVerifyWWCC(verificationId: string): Promise<AdminDbsR
   if (!written || written.length === 0) return { success: false, error: 'Her record changed meanwhile — refresh and review again' };
 
   // Unchanged sync: level 4, active, promotePendingConnections (held stage-9 rows released, parents notified).
-  await syncNannyVerificationState(row.user_id);
+  const syncWarning = await syncAfterDecision(row.user_id);
   await logActivity(admin, row.user_id, 'verification_approved', {
     admin_id: adminId,
     decision: 'approve',
@@ -154,7 +191,7 @@ export async function adminVerifyWWCC(verificationId: string): Promise<AdminDbsR
   });
 
   revalidatePath('/admin/users');
-  return { success: true, error: null };
+  return { success: true, error: null, ...withWarning([syncWarning]) };
 }
 
 // ── Bar / Lift bar ──
@@ -168,13 +205,16 @@ export async function adminBarDbs(verificationId: string, reason: string): Promi
   const { userId: adminId, error: authErr } = await requireAdmin();
   if (authErr) return { success: false, error: authErr };
 
-  const trimmed = reason.trim();
-  if (!trimmed) return { success: false, error: 'A reason is required to bar' };
+  const checked = checkReason(reason, 'bar');
+  if ('error' in checked) return { success: false, error: checked.error };
+  const trimmed = checked.value;
 
   const admin = createAdminClient();
   const row = await readRow(admin, verificationId);
   if (!row) return { success: false, error: 'Verification record not found' };
-  if (row.wwcc_status === WWCC_STATUS.BARRED) return { success: true, error: null };
+  if (row.wwcc_status === WWCC_STATUS.BARRED) {
+    return { success: true, error: null, ...withWarning([await syncAfterDecision(row.user_id)]) };
+  }
 
   const now = new Date().toISOString();
   const { data: written, error: updateErr } = await admin
@@ -196,19 +236,19 @@ export async function adminBarDbs(verificationId: string, reason: string): Promi
   if (updateErr) return { success: false, error: `Failed to bar: ${updateErr.message}` };
   if (!written || written.length === 0) return { success: false, error: 'Her record changed meanwhile — refresh and review again' };
 
-  await syncNannyVerificationState(row.user_id);
+  const syncWarning = await syncAfterDecision(row.user_id);
   await logActivity(admin, row.user_id, 'user_suspended', { admin_id: adminId, decision: 'bar', reason: trimmed });
 
-  let warning: string | undefined;
+  let emailWarning: string | undefined;
   try {
     await sendBarredEmails(row.user_id);
   } catch (err) {
     console.error('[adminBarDbs] barred emails failed:', err instanceof Error ? err.message : 'unknown');
-    warning = 'Barred, but the barred emails could not be sent — contact her manually';
+    emailWarning = 'Barred, but the barred emails could not be sent — contact her manually';
   }
 
   revalidatePath('/admin/users');
-  return { success: true, error: null, ...(warning ? { warning } : {}) };
+  return { success: true, error: null, ...withWarning([syncWarning, emailWarning]) };
 }
 
 /**
@@ -248,20 +288,42 @@ export async function adminLiftDbsBar(verificationId: string): Promise<AdminDbsR
   if (updateErr) return { success: false, error: `Failed to lift the bar: ${updateErr.message}` };
   if (!written || written.length === 0) return { success: false, error: 'Her record changed meanwhile — refresh and review again' };
 
-  await syncNannyVerificationState(row.user_id);
+  const syncWarning = await syncAfterDecision(row.user_id);
   const { error: nannyErr } = await admin
     .from('nannies')
     .update({ status: 'active', updated_at: now })
     .eq('user_id', row.user_id);
-  if (nannyErr) return { success: false, error: `Bar lifted, but her account is still suspended: ${nannyErr.message}` };
+  // The bar is already lifted; report the stuck account as a warning so the admin sees it (code review L3).
+  if (nannyErr) console.error('[adminLiftDbsBar] could not reactivate her account:', nannyErr.message);
+  const nannyWarning = nannyErr ? 'Bar lifted, but her account is still suspended — reactivate it from the user drawer' : undefined;
 
   await logActivity(admin, row.user_id, 'user_reinstated', { admin_id: adminId, decision: 'lift_bar' });
 
   revalidatePath('/admin/users');
-  return { success: true, error: null };
+  return { success: true, error: null, ...withWarning([syncWarning, nannyWarning]) };
 }
 
 // ── Run DBS check now ──
+
+/**
+ * #30: the first check never completed — run 3c's phase (it claims the row, calls the API, maps, syncs and logs).
+ * The phase returns nothing, so the row is re-read: still pending / processing = it did not run here (code review M4).
+ */
+async function runApiDownPhase(admin: AdminClient, verificationId: string): Promise<AdminDbsCheckResult> {
+  try {
+    await runCrossCheckPhase(verificationId, 'admin');
+  } catch (err) {
+    return { success: false, error: `The DBS check failed: ${err instanceof Error ? err.message : 'unknown'}` };
+  }
+  revalidatePath('/admin/users');
+  const after = await readRow(admin, verificationId);
+  const stillOpen =
+    !after || after.cross_check_status === CROSS_CHECK_STATUS.PENDING || after.cross_check_status === CROSS_CHECK_STATUS.PROCESSING;
+  if (stillOpen) {
+    return { success: false, error: 'A check is already running, or it did not complete (the Update Service may still be down) — try again in a minute' };
+  }
+  return { success: true, error: null, result: after.ocg_result_status, outcome: 'phase_run' };
+}
 
 /** Calls the adapter; an adapter throw is the ERROR shape (fail closed — nothing is written on ERROR). */
 async function callUpdateService(row: DbsRow): Promise<DbsCheckResult> {
@@ -296,9 +358,7 @@ export async function adminRunDbsCheck(verificationId: string): Promise<AdminDbs
   }
 
   if (row.wwcc_status === WWCC_STATUS.DOC_VERIFIED && row.cross_check_status === CROSS_CHECK_STATUS.PENDING) {
-    await runCrossCheckPhase(verificationId, 'admin');
-    revalidatePath('/admin/users');
-    return { success: true, error: null, result: null, outcome: 'phase_run' };
+    return runApiDownPhase(admin, verificationId);
   }
 
   const result = await callUpdateService(row);
@@ -329,9 +389,9 @@ export async function adminRunDbsCheck(verificationId: string): Promise<AdminDbs
   }
 
   // P-8: a level-4 fail drops her to level 2. Connections (P-3), her email and the admin alert email are 3i's path.
-  if (failedOnLevelFour) await syncNannyVerificationState(row.user_id);
+  const syncWarning = failedOnLevelFour ? await syncAfterDecision(row.user_id) : undefined;
   await logDbsStatusCheck(row.user_id, logEntry, admin);
 
   revalidatePath('/admin/users');
-  return { success: true, error: null, result: result.result, outcome };
+  return { success: true, error: null, result: result.result, outcome, ...withWarning([syncWarning]) };
 }

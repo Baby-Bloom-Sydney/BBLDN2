@@ -169,3 +169,22 @@ describe("getDbsQueues (fetch)", () => {
     expect(q).toEqual({ awaiting: [], needsPerson: [], recheckAlerts: [], barred: [], badgeCount: 0 });
   });
 });
+
+describe("review fix (security M2)", () => {
+  it("history keeps only DBS decision types and only the keys the modal shows", async () => {
+    const { createMemoryDb } = await import("../../../tests/fakes/memory-supabase");
+    const { getDbsQueues } = await import("./dbs-queues");
+    const db = createMemoryDb({
+      verifications: [{ id: "v1", user_id: "u1", created_at: "2026-10-06T00:00:00Z", verification_status: 30, ocg_result_status: "BLANK_NO_NEW_INFO" }],
+      activity_logs: [
+        { user_id: "u1", action_type: "verification_rejected", action_details: { admin_id: "a", reason: "r", secret: "x" }, created_at: "2026-10-06T02:00:00Z" },
+        { user_id: "u1", action_type: "payout_paid", action_details: { amount: 1 }, created_at: "2026-10-06T03:00:00Z" },
+      ],
+    });
+    const q = await getDbsQueues(db.client() as never);
+    expect(q.awaiting[0].history).toEqual([
+      { action_type: "verification_rejected", action_details: { admin_id: "a", reason: "r" }, created_at: "2026-10-06T02:00:00Z" },
+    ]);
+  });
+});
+

@@ -147,6 +147,20 @@ export function apiDownSince(history: readonly DbsHistoryEntry[]): string | null
   return errors.length > 0 ? errors[errors.length - 1] : null;
 }
 
+/** Longest admin-typed reason accepted (Reject, Bar). It is shown to her and kept in the audit log. */
+export const ADMIN_REASON_MAX_LENGTH = 1000;
+
+/**
+ * True when the stored Update Service result belongs to her CURRENT certificate: checked at or after her latest DBS
+ * upload/decision time (`wwcc_status_at`). The ocg_* block survives a re-upload as history, so an older pass must
+ * never enable Approve (code review M2). Missing upload time = trust the result; missing check time = not current.
+ */
+export function isApiResultCurrent(r: { ocg_verified_at: string | null; wwcc_status_at: string | null }): boolean {
+  if (!r.wwcc_status_at) return true;
+  if (!r.ocg_verified_at) return false;
+  return new Date(r.ocg_verified_at).getTime() >= new Date(r.wwcc_status_at).getTime();
+}
+
 // ── Stats (spec §1.3) ──
 
 export interface VerificationStats {
@@ -222,7 +236,19 @@ function issuesOf(v: unknown): string[] | null {
   return null;
 }
 
-/** The last HISTORY_PER_USER activity rows per user, newest first. */
+/** The activity types the modal's history shows, and the only detail keys it renders (security review M2). */
+const HISTORY_TYPES = [
+  "verification_approved", "verification_rejected", "user_suspended", "user_reinstated",
+  DBS_ACTIVITY.STATUS_CHECK, DBS_ACTIVITY.PAGE2_REQUESTED,
+];
+const HISTORY_KEYS = ["admin_id", "decision", "trigger", "result", "reason"];
+
+function projectDetails(d: unknown): Record<string, unknown> | null {
+  if (!d || typeof d !== "object") return null;
+  return Object.fromEntries(Object.entries(d as Record<string, unknown>).filter(([k]) => HISTORY_KEYS.includes(k)));
+}
+
+/** The last HISTORY_PER_USER DBS-decision rows per user, newest first, details projected to HISTORY_KEYS. */
 async function historyByUser(supabase: AdminClient, userIds: string[]): Promise<Map<string, DbsHistoryEntry[]>> {
   const map = new Map<string, DbsHistoryEntry[]>();
   if (userIds.length === 0) return map;
@@ -230,13 +256,14 @@ async function historyByUser(supabase: AdminClient, userIds: string[]): Promise<
     .from("activity_logs")
     .select("user_id, action_type, action_details, created_at")
     .in("user_id", userIds)
+    .in("action_type", HISTORY_TYPES)
     .order("created_at", { ascending: false })
     .limit(HISTORY_PER_USER * userIds.length * 3);
   if (error) console.error("[getDbsQueues] history error:", error.message);
   for (const r of data ?? []) {
     const list = map.get(r.user_id) ?? [];
     if (list.length < HISTORY_PER_USER) {
-      map.set(r.user_id, [...list, { action_type: r.action_type, action_details: r.action_details, created_at: r.created_at }]);
+      map.set(r.user_id, [...list, { action_type: r.action_type, action_details: projectDetails(r.action_details), created_at: r.created_at }]);
     }
   }
   return map;

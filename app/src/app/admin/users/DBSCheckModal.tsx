@@ -23,7 +23,7 @@ import { formatRelativeTime } from "@/lib/utils";
 import { IDENTITY_STATUS, STATUS_LABELS, isDbsApiPass, statusTone } from "@/lib/verification";
 import { adminRejectWWCC } from "@/lib/actions/admin";
 import { adminVerifyWWCC, adminBarDbs, adminLiftDbsBar, adminRunDbsCheck } from "@/lib/actions/admin-dbs";
-import { hasRecordChip, type DbsListKey, type PendingDbsCheck } from "@/lib/admin/dbs-queues";
+import { hasRecordChip, isApiResultCurrent, type DbsListKey, type PendingDbsCheck } from "@/lib/admin/dbs-queues";
 import { ContactUserModal } from "./ContactUserModal";
 import { AiResultCard, CertificateViewer, CrossCheckPanel, DetailsCards, HistoryBlock, UpdateServicePanel } from "./DbsModalBlocks";
 
@@ -66,6 +66,7 @@ const YES_LABEL: Record<Exclude<Confirm, null>, string> = {
 function approveBlockedReason(c: PendingDbsCheck): string | null {
   if (c.identity_status !== IDENTITY_STATUS.VERIFIED) return "Passport check not verified";
   if (!isDbsApiPass(c.ocg_result_status)) return "Needs an Update Service pass — run the DBS check first";
+  if (!isApiResultCurrent(c)) return "The Update Service result is older than her current certificate — run the DBS check again";
   if (c.verification_status !== 21 && c.verification_status !== 30) return `Not approvable from status ${c.verification_status}`;
   return null;
 }
@@ -106,31 +107,46 @@ export function DBSCheckModal({ check, list, open, onOpenChange }: DBSCheckModal
     onOpenChange(state);
   }
 
+  function cancelConfirm() {
+    setConfirm(null);
+    setReason(""); // a reject chip must never carry into Bar (code review L1)
+  }
+
   async function act() {
     if (!confirm) return;
     setLoading(true);
     const id = check!.id;
-    const result =
-      confirm === "approve" ? await adminVerifyWWCC(id)
-      : confirm === "reject" ? await adminRejectWWCC(id, reason)
-      : confirm === "bar" ? await adminBarDbs(id, reason)
-      : await adminLiftDbsBar(id);
-    setLoading(false);
-    if (!result.success) {
-      alert(`Error: ${result.error}`);
-      return;
+    try {
+      const result =
+        confirm === "approve" ? await adminVerifyWWCC(id)
+        : confirm === "reject" ? await adminRejectWWCC(id, reason)
+        : confirm === "bar" ? await adminBarDbs(id, reason)
+        : await adminLiftDbsBar(id);
+      if (!result.success) {
+        alert(`Error: ${result.error}`);
+        return;
+      }
+      if ("warning" in result && result.warning) alert(result.warning);
+      handleClose(false);
+      router.refresh();
+    } catch (err) {
+      alert(`Error: ${err instanceof Error ? err.message : "the action failed"}`);
+    } finally {
+      setLoading(false);
     }
-    if ("warning" in result && result.warning) alert(result.warning);
-    handleClose(false);
-    router.refresh();
   }
 
   async function runCheck() {
     setRunning(true);
-    const r = await adminRunDbsCheck(check!.id);
-    setRunning(false);
-    setRunMessage(r.success ? (r.result ? `Update Service: ${r.result}` : "Check run — refreshing") : r.error);
-    router.refresh();
+    try {
+      const r = await adminRunDbsCheck(check!.id);
+      setRunMessage(r.success ? (r.result ? `Update Service: ${r.result}` : "Check run — refreshing") : r.error);
+      router.refresh();
+    } catch (err) {
+      setRunMessage(`Error: ${err instanceof Error ? err.message : "the check failed"}`);
+    } finally {
+      setRunning(false);
+    }
   }
 
   return (
@@ -227,7 +243,7 @@ export function DBSCheckModal({ check, list, open, onOpenChange }: DBSCheckModal
                     <Button size="sm" variant="outline" disabled={loading || (needsReason && !reason.trim())} onClick={act}>
                       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : YES_LABEL[confirm]}
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setConfirm(null)} disabled={loading}>
+                    <Button size="sm" variant="ghost" onClick={cancelConfirm} disabled={loading}>
                       Cancel
                     </Button>
                   </div>

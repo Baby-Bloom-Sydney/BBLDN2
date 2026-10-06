@@ -241,8 +241,12 @@ describe("adminRunDbsCheck — Run DBS check now (#30, P-8, #33)", () => {
 
   it("D7b runs the full cross-check phase when the nanny is in the API-down state", async () => {
     seed({ cross_check_status: "pending", verification_status: 20, ocg_result_status: null });
+    // the phase (3c's, mocked) completes: cross-check passed → 30
+    h.runCrossCheckPhase.mockImplementationOnce(async () => {
+      Object.assign(v(), { cross_check_status: "passed", verification_status: 30, ocg_result_status: "BLANK_NO_NEW_INFO" });
+    });
     const r = await adminRunDbsCheck("v1");
-    expect(r.success).toBe(true);
+    expect(r).toMatchObject({ success: true, outcome: "phase_run", result: "BLANK_NO_NEW_INFO" });
     expect(h.runCrossCheckPhase).toHaveBeenCalledWith("v1", "admin");
     expect(h.checkDbsStatus).not.toHaveBeenCalled();
   });
@@ -297,3 +301,40 @@ describe("adminRunDbsCheck — Run DBS check now (#30, P-8, #33)", () => {
     expect(h.checkDbsStatus).not.toHaveBeenCalled();
   });
 });
+
+describe("review fixes (code-reviewer M1/M2/M4, L3; security L4)", () => {
+  it("M2 Approve refuses an Update Service pass older than her current certificate upload", async () => {
+    seed({ verification_status: 21, wwcc_status: "review", wwcc_status_at: "2026-10-06T12:00:00Z", ocg_verified_at: "2026-10-01T00:00:00Z" });
+    const r = await adminVerifyWWCC("v1");
+    expect(r.success).toBe(false);
+    expect(r.error).toMatch(/older than her current certificate/);
+    expect(verificationWrites()).toHaveLength(0);
+  });
+
+  it("M1 an already-barred Bar re-runs the sync, so a sync that failed earlier is repaired", async () => {
+    seed({ wwcc_status: "barred", verification_status: 27 }, { verification_level: 3, status: "active" });
+    expect((await adminBarDbs("v1", "reason")).success).toBe(true);
+    expect(nanny()).toMatchObject({ verification_level: 0, status: "suspended" });
+  });
+
+  it("M1 an already-approved Approve re-runs the sync (level 4)", async () => {
+    seed({ verification_status: 40, wwcc_verified: true, wwcc_verified_by: "admin-0", wwcc_verified_at: "2026-10-01T00:00:00Z" }, { verification_level: 3 });
+    expect((await adminVerifyWWCC("v1")).success).toBe(true);
+    expect(nanny().verification_level).toBe(4);
+  });
+
+  it("M4 the API-down phase reports an error when the phase throws, and says so when nothing was claimed", async () => {
+    seed({ cross_check_status: "pending", verification_status: 20, ocg_result_status: null });
+    h.runCrossCheckPhase.mockRejectedValueOnce(new Error("boom"));
+    expect(await adminRunDbsCheck("v1")).toMatchObject({ success: false, error: expect.stringMatching(/boom/) });
+    const r = await adminRunDbsCheck("v1"); // mock does nothing: row still pending
+    expect(r).toMatchObject({ success: false, error: expect.stringMatching(/already running|did not complete/) });
+  });
+
+  it("L4 refuses a Bar reason longer than 1000 characters", async () => {
+    seed();
+    expect((await adminBarDbs("v1", "x".repeat(1001))).success).toBe(false);
+    expect(h.db.writes).toHaveLength(0);
+  });
+});
+

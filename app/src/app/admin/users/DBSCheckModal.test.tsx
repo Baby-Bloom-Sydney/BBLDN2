@@ -127,3 +127,40 @@ describe("DBSCheckModal", () => {
     expect(screen.getByText(/certificate number, surname and date of birth/)).toBeInTheDocument();
   });
 });
+
+describe("review fixes (code-reviewer M3, L1; M2 mirror)", () => {
+  it("M3 a throwing action re-enables the buttons and shows the error", async () => {
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    h.adminVerifyWWCC.mockRejectedValueOnce(new Error("network"));
+    open(check());
+    fireEvent.click(screen.getByRole("button", { name: /APPROVE DBS/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Yes, approve/ }));
+    await waitFor(() => expect(alert).toHaveBeenCalledWith(expect.stringMatching(/network/)));
+    expect(screen.getByRole("button", { name: /Yes, approve/ })).toBeEnabled();
+    alert.mockRestore();
+  });
+
+  it("M3 a throwing Run DBS check now shows the error and re-enables the button", async () => {
+    h.adminRunDbsCheck.mockRejectedValueOnce(new Error("offline"));
+    open(check());
+    fireEvent.click(screen.getByRole("button", { name: /Run DBS check now/ }));
+    await waitFor(() => expect(screen.getByText(/offline/)).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /Run DBS check now/ })).toBeEnabled();
+  });
+
+  it("L1 Cancel clears the reason, so a reject chip never carries into Bar", () => {
+    open(check());
+    fireEvent.click(screen.getByRole("button", { name: /^REJECT$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Your DBS certificate image is unclear or unreadable" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: /^BAR$/ }));
+    expect(screen.getByRole("button", { name: /Yes, bar/ })).toBeDisabled();
+  });
+
+  it("M2 Approve is disabled when the Update Service result is older than the current upload", () => {
+    open(check({ wwcc_status_at: "2026-10-06T12:00:00Z", ocg_verified_at: "2026-10-01T00:00:00Z" }));
+    expect(screen.getByRole("button", { name: /APPROVE DBS/ })).toBeDisabled();
+    expect(screen.getByText(/older than her current certificate/)).toBeInTheDocument();
+  });
+});
+

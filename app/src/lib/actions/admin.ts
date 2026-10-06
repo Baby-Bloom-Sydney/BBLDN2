@@ -35,6 +35,8 @@ import { emailFooter } from "@/lib/email/brand";
 import { ADMIN_FROM_ADDRESSES } from "@/lib/constants";
 import { requireAdmin } from '@/lib/admin/require-admin';
 import { sendDbsRejectedEmail } from '@/lib/email/dbs-emails';
+import { getUserEmailInfo } from '@/lib/email/helpers';
+import { ADMIN_REASON_MAX_LENGTH } from '@/lib/admin/dbs-queues';
 
 // ── Admin: Verify Identity (approve passport check) ──
 // State transition: identity_status → verified, level 1 → 2
@@ -194,6 +196,9 @@ export async function adminRejectWWCC(
   const trimmed = reason.trim();
   if (!trimmed) {
     return { success: false, error: 'Rejection reason is required' };
+  }
+  if (trimmed.length > ADMIN_REASON_MAX_LENGTH) {
+    return { success: false, error: `The reason is too long (max ${ADMIN_REASON_MAX_LENGTH} characters)` };
   }
 
   const supabase = createAdminClient();
@@ -572,6 +577,13 @@ export async function adminSendEmail(params: {
 
   if (logActionType !== undefined && !(ADMIN_EMAIL_LOG_TYPES as readonly string[]).includes(logActionType)) {
     return { success: false, error: 'Invalid log type' };
+  }
+  // A logged email writes history against `toUserId`, so the address must be hers (security review M1).
+  if (logActionType) {
+    const owner = await getUserEmailInfo(toUserId);
+    if (!owner || owner.email.toLowerCase() !== toEmail.trim().toLowerCase()) {
+      return { success: false, error: 'That address does not belong to this user' };
+    }
   }
 
   if (!toEmail || !subject.trim() || !body.trim()) {

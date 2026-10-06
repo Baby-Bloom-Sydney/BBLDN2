@@ -25,7 +25,7 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: h.revalidatePath }));
 vi.mock("@/lib/email/dbs-emails", () => ({ sendDbsRejectedEmail: h.sendDbsRejectedEmail, sendBarredEmails: vi.fn() }));
 vi.mock("@/lib/email/resend", () => ({ sendEmail: h.sendEmail }));
-vi.mock("@/lib/email/helpers", () => ({ getUserEmailInfo: vi.fn(async () => null) }));
+vi.mock("@/lib/email/helpers", () => ({ getUserEmailInfo: vi.fn(async () => ({ email: "sophie.taylor+3d@example.test", firstName: "Sophie", lastName: "Taylor" })) }));
 vi.mock("@/lib/ai/verification-pipeline", () => ({ runCrossCheckPhase: h.runCrossCheckPhase, runWWCCDocPhase: vi.fn(), triggerCrossCheck: vi.fn() }));
 vi.mock("@/lib/ai/client", () => ({ openai: {} }));
 vi.mock("./connection-helpers", () => ({ createInboxMessage: vi.fn() }));
@@ -158,3 +158,20 @@ describe("removed / moved", () => {
     expect(v().verification_status).toBe(12);
   });
 });
+
+describe("review fixes (security M1, L4)", () => {
+  it("M1 a logged page-2 email is refused when the address does not belong to the user", async () => {
+    seed();
+    const r = await adminSendEmail({ toEmail: "someone.else@example.test", toUserId: "nanny-u", fromAddress: ADMIN_FROM_ADDRESSES[0], subject: "s", body: "b", logActionType: "dbs_page2_requested" });
+    expect(r.success).toBe(false);
+    expect(h.sendEmail).not.toHaveBeenCalled();
+    expect(h.db.tables.activity_logs).toHaveLength(0);
+  });
+
+  it("L4 refuses a reject reason longer than 1000 characters", async () => {
+    seed();
+    expect((await adminRejectWWCC("v1", "x".repeat(1001))).success).toBe(false);
+    expect(h.db.writes).toHaveLength(0);
+  });
+});
+
