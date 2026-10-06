@@ -1,0 +1,31 @@
+{
+  "pass": true,
+  "reason_code": null,
+  "extracted": {
+    "level": "enhanced",
+    "page": 1,
+    "certificate_number": "200000000001",
+    "issue_date": "2024-03-14",
+    "surname": "DOE",
+    "forenames": "JANE",
+    "other_names": null,
+    "date_of_birth": "1990-03-05",
+    "position_applied_for": "Child Workforce / Nanny",
+    "workforce": "child",
+    "employer_name": "Specimen Nursery Ltd",
+    "registered_body": "Specimen Umbrella Body",
+    "countersignatory": "A SPECIMEN",
+    "police_records": "none_recorded",
+    "s142_list": "none_recorded",
+    "childrens_barred_list": "none_recorded",
+    "adults_barred_list": "not_requested",
+    "other_police_info": "none_recorded",
+    "statutory_statement_section": "113B",
+    "has_disclosed_content": false
+  },
+  "tamper_flags": [],
+  "confidence": "high",
+  "reasoning": "Specimen fixture: enhanced, page 1, child workforce, children list checked.",
+  "issues": [],
+  "user_guidance": null
+}
