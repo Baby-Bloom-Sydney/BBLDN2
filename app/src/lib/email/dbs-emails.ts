@@ -7,16 +7,23 @@
  * senders here. Later units add their senders to this file: 3d `sendDbsRejectedEmail`, 3i `sendDbsRecheckAdminAlert`.
  *
  * `sendBarredEmails` has no caller in 3c — 3d's Bar is its caller.
+ *
+ * Contract
+ * - Input: a user id; name and address come from `getUserEmailInfo`. Output: Resend sends; nothing when no profile.
+ * - Never: writes to the database, decides who may be barred (the caller must be an admin action), or interpolates
+ *   user text unescaped (`esc`). `placeholder()` takes trusted constant strings only.
  */
 import { sendEmail } from "./resend";
 import { getUserEmailInfo } from "./helpers";
 import { emailFooter } from "./brand";
 import { SENDERS, SITE_URL } from "@/lib/constants";
 
+/** HTML-escapes user-supplied text (names, address). */
 function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
 }
 
+/** One-paragraph placeholder layout. Heading/paragraph/cta are TRUSTED strings — escape user text before passing it. */
 function placeholder(heading: string, paragraph: string, cta?: { label: string; href: string }): string {
   const button = cta
     ? `<div style="text-align:center;margin-top:24px;"><a href="${cta.href}" style="display:inline-block;background:#8b5cf6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">${cta.label}</a></div>`

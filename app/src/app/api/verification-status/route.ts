@@ -7,6 +7,11 @@ import { runCrossCheckPhase } from '@/lib/ai/verification-pipeline';
 import { getDbsConfig } from '@/lib/dbs/config';
 
 // Two 15 s Update Service attempts + the 5 s delay between them, when a poll retries a pending check (#30).
+/**
+ * Unit 3c additions to her status poll (#30): (1) a cross-check stuck in `processing` for > 5 min is put back to
+ * `pending` (guarded, re-derived to 20 — never 30); (2) a `pending` cross-check (API was down) is retried here once per
+ * DBS_RETRY_COOLDOWN_MS via `runCrossCheckPhase(id, 'retry')`, then the row is re-read. Response shape unchanged.
+ */
 export const maxDuration = 60;
 
 // If a section has been 'processing' for this long, escalate to 'review'.

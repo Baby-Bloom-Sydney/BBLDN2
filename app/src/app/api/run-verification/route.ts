@@ -4,6 +4,14 @@ import { runIdentityPhase, runWWCCDocPhase } from '@/lib/ai/verification-pipelin
 
 export const maxDuration = 120;
 
+/**
+ * POST /api/run-verification `{ verificationId, phase: 'identity' | 'wwcc' }` — runs one pipeline phase for the caller.
+ *
+ * Auth: signed in (401) and owner of the row (403). Ownership is read with the SESSION client
+ * (`id = verificationId AND user_id = caller`), so RLS applies too; not found, someone else's row or a failed read
+ * all answer 403 — fail closed (04-integration-design §7; 3h security review, fixed in 3c). Bad body → 400.
+ * Never: runs a phase on another user's row, or trusts any field of the body beyond the id and the phase name.
+ */
 export async function POST(request: NextRequest) {
   const supabase = createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();

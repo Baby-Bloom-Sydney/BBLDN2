@@ -14,6 +14,14 @@
  * `verification_status` always comes from `deriveOverallStatus`. Never writes `wwcc_verified` (the admin's) and never
  * writes 40. First-check writes are guarded on `cross_check_status='processing'` (the phase's claim), so a manual
  * review that lands meanwhile is never overwritten. A database refusal throws, so the caller can fail closed.
+ *
+ * Contract
+ * - Rulings: #10, #12, #30, P-1, P-7, P-8 (a DBS result never touches identity_status / identity_verified).
+ * - Input: admin client, verification id, `DbsApplyContext` (identity status + what the certificate says), the adapter
+ *   result, and the mode. Output: `{ outcome }` for the caller to sync, log and email on.
+ * - Modes: `first` (3c, table above) · `admin_result_only` (3d "Run DBS check now": only ocg_result_status /
+ *   ocg_result_text / ocg_verified_at, nothing on ERROR) · `recheck` (3i implements; throws until then).
+ * - Never: writes wwcc_verified, writes 40, writes an ocg_* block on ERROR, sends email, or calls sync.
  */
 import {
   CROSS_CHECK_STATUS,
@@ -52,6 +60,10 @@ export type DbsApplyOutcome =
 
 type Row = Record<string, unknown>;
 
+/**
+ * Why an API pass still needs a person (spec §5 `api_mismatch`): print date ≠ certificate issue date, or the API
+ * names differ from the certificate. Empty array = consistent. Missing values count as a mismatch (fail closed).
+ */
 function apiMismatch(r: Extract<DbsCheckResult, { raw: string; status: string }>, ctx: DbsApplyContext): string[] {
   const issues: string[] = [];
   if (!datesMatch(r.printDate, ctx.certificateIssueDate)) issues.push("Update Service print date differs from the certificate issue date");
@@ -60,6 +72,7 @@ function apiMismatch(r: Extract<DbsCheckResult, { raw: string; status: string }>
   return issues;
 }
 
+/** Builds the ONE update for a first check (the table in the header). Pure — no I/O. */
 function firstCheckUpdate(result: DbsCheckResult, ctx: DbsApplyContext, now: string): { payload: Row; outcome: DbsApplyOutcome } {
   const derive = (wwcc: WwccStatus, cross: CrossCheckStatus) => deriveOverallStatus(ctx.identityStatus, wwcc, cross);
 
@@ -129,6 +142,11 @@ function firstCheckUpdate(result: DbsCheckResult, ctx: DbsApplyContext, now: str
   };
 }
 
+/**
+ * Writes the result of one Update Service call.
+ * @returns `superseded` when the row left `processing` meanwhile (nothing written); otherwise the outcome.
+ * @throws when the database refuses the write (e.g. a CHECK) — the pipeline then falls back to the ERROR shape.
+ */
 export async function applyDbsResult(
   admin: AdminClient,
   verificationId: string,

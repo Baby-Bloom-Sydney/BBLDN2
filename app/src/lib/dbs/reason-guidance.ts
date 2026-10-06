@@ -2,6 +2,11 @@
  * The nanny's card for each `verify-dbs` reason code — copy deck §3 (LDN2 06-build-drafts/02-copy-deck.md). This copy
  * overrides the model's free text by `reason_code`; the model's text is the fallback only for an unknown code.
  * 3b renders it (GuidanceCard) and may refine the wording; 3g owns final copy.
+ *
+ * Contract
+ * - Rulings: #6 (reason → guidance card), #22 (links), #24 (reason_code + confidence ride inside the guidance JSON —
+ *   added by verify-dbs / the pipeline, not stored here).
+ * - Output: constant cards only. Never: decides an outcome, accuses the nanny of forgery, or names a level/status code.
  */
 import { DBS_LINKS } from "@/lib/constants";
 import type { UserGuidance } from "@/lib/verification";
