@@ -1,6 +1,18 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+/**
+ * SessionProvider — the browser's auth state (user, role, profile) for every page, via AuthContext.
+ * Unit 3b (BB-LDN-3b-061026), two fixes found by the DBS walk and its security review:
+ * 1. The `onAuthStateChange` callback never awaits a Supabase call (dc39a0e): auth-js runs it while holding its
+ *    auth-token lock, and a query made inside waits for that same lock — every later browser call (uploads included)
+ *    hung. Follow-up fetches are deferred to the next task.
+ * 2. Because they are deferred, a role/profile answer is applied only while it still belongs to the signed-in user
+ *    (`currentUserIdRef`): a late answer after SIGNED_OUT or after another user signs in is dropped; an error or a
+ *    missing row clears role/profile rather than keeping the previous user's.
+ * Never: awaits Supabase inside the auth callback; never shows one user's role or profile to another.
+ */
+
+import { useEffect, useState, useCallback, useRef } from "react";
 import { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { AuthContext } from "@/contexts/AuthContext";
@@ -115,8 +127,18 @@ function RealSessionProvider({ children }: SessionProviderProps) {
 
   const supabase = createClient();
 
+  // Who the session belongs to right now. The role/profile fetch is deferred out of the auth callback (dc39a0e), so
+  // its answer can arrive after a sign-out or after another user signed in: every result is dropped unless it is
+  // still for this user (security review of dc39a0e, MEDIUM).
+  const currentUserIdRef = useRef<string | null>(null);
+  const setCurrentUser = useCallback((next: User | null) => {
+    currentUserIdRef.current = next?.id ?? null;
+    setUser(next);
+  }, []);
+
   const fetchUserData = useCallback(
     async (userId: string) => {
+      const isStale = () => currentUserIdRef.current !== userId;
       try {
         // Fetch role
         const { data: roleData, error: roleError } = await supabase
@@ -124,9 +146,11 @@ function RealSessionProvider({ children }: SessionProviderProps) {
           .select("role")
           .eq("user_id", userId)
           .single();
+        if (isStale()) return;
 
         if (roleError) {
           console.error("Error fetching role:", roleError);
+          setRole(null);
         } else if (roleData) {
           // Validate the value at the boundary instead of `as UserRole`
           // casting blindly. A whitespace / casing / unexpected value
@@ -150,10 +174,12 @@ function RealSessionProvider({ children }: SessionProviderProps) {
             setRole(matched);
           } else {
             console.error("Invalid role value from user_roles:", roleData.role);
+            setRole(null);
           }
         } else {
           // eslint-disable-next-line no-console
           console.warn("[auth] user_roles returned no row for", userId);
+          setRole(null);
         }
 
         // Fetch profile
@@ -162,11 +188,15 @@ function RealSessionProvider({ children }: SessionProviderProps) {
           .select("*")
           .eq("user_id", userId)
           .single();
+        if (isStale()) return;
 
         if (profileError) {
           console.error("Error fetching profile:", profileError);
+          setProfile(null);
         } else if (profileData) {
           setProfile(profileData as UserProfile);
+        } else {
+          setProfile(null);
         }
       } catch (error) {
         console.error("Error fetching user data:", error);
@@ -176,6 +206,7 @@ function RealSessionProvider({ children }: SessionProviderProps) {
   );
 
   const clearUserData = useCallback(() => {
+    currentUserIdRef.current = null;
     setUser(null);
     setRole(null);
     setProfile(null);
@@ -218,7 +249,7 @@ function RealSessionProvider({ children }: SessionProviderProps) {
         );
 
         if (session?.user) {
-          setUser(session.user);
+          setCurrentUser(session.user);
           await fetchUserData(session.user.id);
         }
       } catch (error) {
@@ -238,15 +269,15 @@ function RealSessionProvider({ children }: SessionProviderProps) {
       // query made here waits for that same lock — a deadlock that leaves every later browser-side call (uploads
       // included) hanging. Defer the follow-up work to the next task (supabase-js guidance for onAuthStateChange).
       if (event === "SIGNED_IN" && session?.user) {
-        setUser(session.user);
+        setCurrentUser(session.user);
         const id = session.user.id;
         setTimeout(() => void fetchUserData(id), 0);
       } else if (event === "SIGNED_OUT") {
         clearUserData();
       } else if (event === "TOKEN_REFRESHED" && session?.user) {
-        setUser(session.user);
+        setCurrentUser(session.user);
       } else if (event === "USER_UPDATED" && session?.user) {
-        setUser(session.user);
+        setCurrentUser(session.user);
         const id = session.user.id;
         setTimeout(() => void fetchUserData(id), 0);
       }
@@ -256,7 +287,7 @@ function RealSessionProvider({ children }: SessionProviderProps) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [supabase, fetchUserData, clearUserData]);
+  }, [supabase, fetchUserData, clearUserData, setCurrentUser]);
 
   return (
     <AuthContext.Provider
