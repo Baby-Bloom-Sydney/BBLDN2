@@ -204,8 +204,8 @@ export interface UserGuidance {
 }
 
 // ── Hardcoded guidance messages for technical / Update Service outcomes ──
-// Seed text from 02-copy-deck.md §4; 3b owns and refines the wording. A constant leaves with its last importer:
-// PDF_UNREADABLE / PDF_NAME_MISMATCH stay until 3b removes their importer.
+// Seed text from 02-copy-deck.md §4; 3b owns the wording (applied as written — deck §4.1–§4.4). 3b removed the two
+// emailed-PDF keys with their last importer. Links / explainer here are read through `lib/dbs/nanny-display.ts`.
 
 export const GUIDANCE_MESSAGES = {
   TECHNICAL_RETRY: {
@@ -225,32 +225,14 @@ export const GUIDANCE_MESSAGES = {
       'Or click "Request manual review" (usually 1-3 business days)',
     ],
   },
-  PDF_UNREADABLE: {
-    title: "We couldn't read your WWCC Grant Email PDF",
-    explanation: 'The PDF you uploaded may not be the correct file, or may not have been saved correctly.',
-    steps_to_fix: [
-      'Find the original email from WWCCNotification@ocg.nsw.gov.au',
-      'Open the email and click Print',
-      'Choose "Save as PDF" (not screenshot)',
-      'Upload the saved PDF file',
-    ],
-  },
-  PDF_NAME_MISMATCH: {
-    title: "The name on this document doesn't match your identity details",
-    explanation: 'The name extracted from your WWCC grant email is different from the name you provided.',
-    steps_to_fix: [
-      'Check you uploaded the correct WWCC grant email',
-      'If your WWCC is under a different name, you can enter your details manually instead',
-    ],
-  },
   DBS_NEW_INFO: {
     reason_code: 'DBS_NEW_INFO',
     title: "You'll need a new DBS certificate",
     explanation: "The DBS Update Service shows there's new information since your certificate was issued, so we can't use this one any more. It doesn't tell us what the information is.",
     steps_to_fix: [
-      'Apply for a new enhanced DBS',
-      'Join the Update Service when it arrives (within 30 days of the issue date)',
-      'Upload page 1 of your new certificate here',
+      'Apply for a new enhanced DBS.',
+      'Join the Update Service when it arrives (within 30 days of the issue date).',
+      'Upload page 1 of your new certificate here.',
     ],
     links: [{ label: 'Get an enhanced DBS', href: DBS_LINKS.getEnhanced }],
   },
@@ -259,10 +241,10 @@ export const GUIDANCE_MESSAGES = {
     title: "We couldn't find your certificate on the DBS Update Service",
     explanation: "This usually means the certificate isn't on the Update Service, or the details we read don't match what DBS holds.",
     steps_to_fix: [
-      "Check you've joined the Update Service and your subscription is active (£16 a year)",
-      "You can only add a certificate within 30 days of its issue date — if that's passed, you'll need a new enhanced DBS and to join when you apply",
-      'Make sure the photo is sharp, so we read your certificate number, name and date of birth correctly',
-      'Then upload page 1 again',
+      "Check you've joined the Update Service and your subscription is active (£16 a year).",
+      "You can only add a certificate within 30 days of its issue date — if that's passed, you'll need a new enhanced DBS and to join when you apply.",
+      'Make sure the photo is sharp, so we read your certificate number, name and date of birth correctly.',
+      'Then upload page 1 again.',
     ],
     explainer: "What is the Update Service? It's the DBS's own service that keeps your certificate up to date. Once you've joined, we can check online that your certificate is still current — so you never need a new check for each family, and families know your check is live.",
     links: [

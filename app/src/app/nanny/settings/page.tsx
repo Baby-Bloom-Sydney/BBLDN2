@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NannySettingsClient } from "./NannySettingsClient";
+import { getDbsDisplayState } from "@/lib/dbs/nanny-display";
 import type { ChildClient } from "@/types/bapp";
 import { fetchPayoutsDashboardData } from "@/lib/payments/queryPayoutsDashboard";
 import { fetchPayoutHistory } from "@/lib/payments/queryPayoutHistory";
@@ -40,7 +41,9 @@ export default async function NannySettingsPage() {
       .single(),
     admin
       .from("verifications")
-      .select("wwcc_number, wwcc_status, wwcc_expiry_date")
+      .select(
+        "wwcc_number, wwcc_status, wwcc_expiry_date, wwcc_user_guidance, cross_check_status, verification_status, ocg_result_status, ocg_verified_at",
+      )
       .eq("user_id", user.id)
       .maybeSingle(),
     admin
@@ -65,12 +68,13 @@ export default async function NannySettingsPage() {
         postcode: profileRes.data?.postcode || "",
       }}
       verificationLevel={nannyRes.data?.verification_level ?? 0}
-      wwcc={
+      dbs={
         verificationRes.data
           ? {
+              state: getDbsDisplayState(verificationRes.data),
               number: verificationRes.data.wwcc_number || null,
-              status: verificationRes.data.wwcc_status || null,
-              expiryDate: verificationRes.data.wwcc_expiry_date || null,
+              issueDate: verificationRes.data.wwcc_expiry_date || null, // 3a: holds the issue date
+              checkedAt: verificationRes.data.ocg_verified_at || null,
             }
           : null
       }
