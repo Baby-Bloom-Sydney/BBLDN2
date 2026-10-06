@@ -8,6 +8,7 @@ import { Loader2, ClipboardList, Calendar, Eye, Search, Heart, Baby, MessageSqua
 
 export default function ParentDashboardPage() {
   const { profile, isLoading } = useAuth();
+
   if (isLoading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">

@@ -290,19 +290,17 @@ describe("ParentHubClient — no parent verification lock (3h)", () => {
     ] as const) {
       const view = renderBabysitting([AWAITING, BOOKED, PAST]);
       if (request === PAST) openPast();
-      const tile = view.container.querySelector<HTMLElement>(
-        `[data-bsr-id="${request.id}"]`,
-      );
-      const target =
-        tile ??
-        within(view.container).getAllByRole("button").find((b) =>
-          b.textContent?.includes(
-            new Date(`${request.slots[0].slot_date}T00:00:00`).toLocaleDateString(
-              "en-GB",
-              { weekday: "short", day: "numeric", month: "short" },
-            ),
-          ),
-        );
+      // A tile is the button carrying its first slot's date label.
+      const label = new Date(
+        `${request.slots[0].slot_date}T00:00:00`,
+      ).toLocaleDateString("en-GB", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      });
+      const target = within(view.container)
+        .getAllByRole("button")
+        .find((b) => b.textContent?.includes(label));
       expect(target).toBeTruthy();
       fireEvent.click(target as HTMLElement);
       await waitFor(() => expect(screen.getByText(title)).toBeInTheDocument());
