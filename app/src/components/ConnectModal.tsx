@@ -11,7 +11,6 @@ import {
   Loader2,
   MapPin,
   Check,
-  ShieldAlert,
   Send,
   Phone,
   CalendarCheck,
@@ -64,7 +63,6 @@ export function ConnectModal({
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [verificationRequired, setVerificationRequired] = useState(false);
   const [positionRequired, setPositionRequired] = useState(false);
 
   if (!isOpen) return null;
@@ -107,8 +105,6 @@ export function ConnectModal({
       }, 3000);
     } else if (result.error === CONNECTION_ERRORS.POSITION_REQUIRED) {
       setPositionRequired(true);
-    } else if (result.error === CONNECTION_ERRORS.VERIFICATION_REQUIRED) {
-      setVerificationRequired(true);
     } else {
       setError(result.error || "Failed to send request");
     }
@@ -123,7 +119,7 @@ export function ConnectModal({
             Connect with {firstName}
           </h2>
           <div className="flex items-center gap-3">
-            {!success && !verificationRequired && !positionRequired && (
+            {!success && !positionRequired && (
               <span
                 className={`text-xs ${atLimit ? "text-red-500 font-semibold" : "text-slate-400"}`}
               >
@@ -165,31 +161,6 @@ export function ConnectModal({
                   className="flex-1 bg-violet-600 hover:bg-violet-700"
                 >
                   <Link href="/parent/request">Create position</Link>
-                </Button>
-              </div>
-            </div>
-          ) : verificationRequired ? (
-            /* ── Verification Required ── */
-            <div className="flex flex-col items-center py-6 space-y-4">
-              <div className="rounded-full bg-amber-50 border border-amber-200 p-3">
-                <ShieldAlert className="h-7 w-7 text-amber-600" />
-              </div>
-              <h3 className="text-base font-semibold text-slate-900">
-                Identity Verification Required
-              </h3>
-              <p className="text-center text-sm text-slate-500 leading-relaxed">
-                To protect our families and nannies, we require all parents to
-                verify their identity before connecting.
-              </p>
-              <div className="flex gap-2.5 w-full pt-1">
-                <Button variant="outline" className="flex-1" onClick={onClose}>
-                  Cancel
-                </Button>
-                <Button
-                  asChild
-                  className="flex-1 bg-violet-600 hover:bg-violet-700"
-                >
-                  <Link href="/parent/verification">Verify Now</Link>
                 </Button>
               </div>
             </div>

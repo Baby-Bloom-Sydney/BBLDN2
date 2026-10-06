@@ -1,30 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Loader2, ClipboardList, Calendar, Eye, Search, Heart, Baby, MessageSquare, ShieldAlert, ArrowRight } from "lucide-react";
+import { Loader2, ClipboardList, Calendar, Eye, Search, Heart, Baby, MessageSquare } from "lucide-react";
 
 export default function ParentDashboardPage() {
   const { profile, isLoading } = useAuth();
-  const [verificationLevel, setVerificationLevel] = useState<number | null>(null);
-
-  useEffect(() => {
-    fetch("/api/parent-verification-status")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.status !== null && data.status !== undefined) {
-          setVerificationLevel(data.status >= 20 ? 1 : 0);
-        } else {
-          setVerificationLevel(0);
-        }
-      })
-      .catch(() => setVerificationLevel(0));
-  }, []);
-
   if (isLoading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
@@ -44,24 +27,6 @@ export default function ParentDashboardPage() {
           Find the perfect nanny for your family.
         </p>
       </div>
-
-      {/* Verification Banner */}
-      {verificationLevel === 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <ShieldAlert className="h-5 w-5 text-amber-600 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-amber-800">Verify your identity to start connecting with nannies</p>
-              <p className="text-xs text-amber-600 mt-0.5">Quick verification with your passport or driver&apos;s license</p>
-            </div>
-          </div>
-          <Button asChild size="sm" className="bg-violet-600 hover:bg-violet-700 text-white flex-shrink-0">
-            <Link href="/parent/verification" className="flex items-center gap-1">
-              Verify Now <ArrowRight className="h-3 w-3" />
-            </Link>
-          </Button>
-        </div>
-      )}
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-3">

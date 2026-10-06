@@ -120,34 +120,6 @@
   },
   {
     "rule": "brand",
-    "file": "app/src/app/(public)/legal/biometric-notice-client/page.tsx",
-    "match": "babybloomsydney.com.au",
-    "owner": "legal",
-    "note": "Legal page body. 04-sequence.md section 4: the legal stage rewrites these eight bodies wholesale with a solicitor, so amending their brand and domain literals now is wasted work. 2f changes no legal copy (03-triage.md section 7). Silences 3 hit(s): line(s) 165, 191, 261."
-  },
-  {
-    "rule": "brand",
-    "file": "app/src/app/(public)/legal/biometric-notice-client/page.tsx",
-    "match": "Baby Bloom, Sydney",
-    "owner": "legal",
-    "note": "Legal page body. 04-sequence.md section 4: the legal stage rewrites these eight bodies wholesale with a solicitor, so amending their brand and domain literals now is wasted work. 2f changes no legal copy (03-triage.md section 7). Silences 1 hit(s): line(s) 259."
-  },
-  {
-    "rule": "brand",
-    "file": "app/src/app/(public)/legal/biometric-notice-client/page.tsx",
-    "match": "<p>We also verify that your identity document show",
-    "owner": "legal",
-    "note": "Legal page body. 04-sequence.md section 4: the legal stage rewrites these eight bodies wholesale with a solicitor, so amending their brand and domain literals now is wasted work. 2f changes no legal copy (03-triage.md section 7). The match anchors on the start of the line because the matched token falls beyond the 140 characters the gate prints. Silences 1 hit(s): line(s) 46."
-  },
-  {
-    "rule": "brand",
-    "file": "app/src/app/(public)/legal/biometric-notice-client/page.tsx",
-    "match": "<p><strong>Access to Your Records:</strong> You ca",
-    "owner": "legal",
-    "note": "Legal page body. 04-sequence.md section 4: the legal stage rewrites these eight bodies wholesale with a solicitor, so amending their brand and domain literals now is wasted work. 2f changes no legal copy (03-triage.md section 7). The match anchors on the start of the line because the matched token falls beyond the 140 characters the gate prints. Silences 1 hit(s): line(s) 101."
-  },
-  {
-    "rule": "brand",
     "file": "app/src/app/(public)/legal/biometric-notice/page.tsx",
     "match": "babybloomsydney.com.au",
     "owner": "legal",
@@ -1286,48 +1258,6 @@
     "match": "WWCC",
     "owner": "identity",
     "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 104]"
-  },
-  {
-    "rule": "identity",
-    "file": "app/src/app/(public)/legal/biometric-notice-client/page.tsx",
-    "match": "Australian Passport",
-    "owner": "legal",
-    "note": "Australian identity artefact inside a legal page body, a policy row or a consent document. The legal stage rewrites these with a solicitor. 04-sequence.md §4 `legal`, fate row 12.06.  [W6, 1 hit(s): line 126]"
-  },
-  {
-    "rule": "identity",
-    "file": "app/src/app/(public)/legal/biometric-notice-client/page.tsx",
-    "match": "ABN",
-    "owner": "legal",
-    "note": "Australian identity artefact inside a legal page body, a policy row or a consent document. The legal stage rewrites these with a solicitor. 04-sequence.md §4 `legal`, fate row 12.06.  [W6, 1 hit(s): line 260]"
-  },
-  {
-    "rule": "jurisdiction",
-    "file": "app/src/app/(public)/legal/biometric-notice-client/page.tsx",
-    "match": "OAIC",
-    "owner": "legal",
-    "note": "NSW / Australian jurisdiction fact inside a legal page body or a `T-017` policy row. The legal stage rewrites these with a solicitor. 04-sequence.md §4 `legal`, fate row 12.08.  [W6, 3 hit(s): lines 199, 214, 251]"
-  },
-  {
-    "rule": "jurisdiction",
-    "file": "app/src/app/(public)/legal/biometric-notice-client/page.tsx",
-    "match": "NSW",
-    "owner": "legal",
-    "note": "NSW / Australian jurisdiction fact inside a legal page body or a `T-017` policy row. The legal stage rewrites these with a solicitor. 04-sequence.md §4 `legal`, fate row 12.08.  [W6, 1 hit(s): line 46]"
-  },
-  {
-    "rule": "jurisdiction",
-    "file": "app/src/app/(public)/legal/biometric-notice-client/page.tsx",
-    "match": "Privacy Act 1988",
-    "owner": "legal",
-    "note": "NSW / Australian jurisdiction fact inside a legal page body or a `T-017` policy row. The legal stage rewrites these with a solicitor. 04-sequence.md §4 `legal`, fate row 12.08.  [W6, 1 hit(s): line 250]"
-  },
-  {
-    "rule": "jurisdiction",
-    "file": "app/src/app/(public)/legal/biometric-notice-client/page.tsx",
-    "match": "oaic",
-    "owner": "legal",
-    "note": "NSW / Australian jurisdiction fact inside a legal page body or a `T-017` policy row. The legal stage rewrites these with a solicitor. 04-sequence.md §4 `legal`, fate row 12.08.  [W6, 1 hit(s): line 253]"
   },
   {
     "rule": "identity",
@@ -2518,34 +2448,6 @@
     "match": "Privacy Act 1988",
     "owner": "legal",
     "note": "NSW / Australian jurisdiction fact inside a legal page body or a `T-017` policy row. The legal stage rewrites these with a solicitor. 04-sequence.md §4 `legal`, fate row 12.08.  [W6, 1 hit(s): line 161]"
-  },
-  {
-    "rule": "jurisdiction",
-    "file": "app/src/components/legal/ClientBiometricConsentModal.tsx",
-    "match": "OAIC",
-    "owner": "legal",
-    "note": "NSW / Australian jurisdiction fact inside a legal page body or a `T-017` policy row. The legal stage rewrites these with a solicitor. 04-sequence.md §4 `legal`, fate row 12.08.  [W6, 2 hit(s): lines 178, 198]"
-  },
-  {
-    "rule": "jurisdiction",
-    "file": "app/src/components/legal/ClientBiometricConsentModal.tsx",
-    "match": "New South Wales",
-    "owner": "legal",
-    "note": "NSW / Australian jurisdiction fact inside a legal page body or a `T-017` policy row. The legal stage rewrites these with a solicitor. 04-sequence.md §4 `legal`, fate row 12.08.  [W6, 1 hit(s): line 98]"
-  },
-  {
-    "rule": "jurisdiction",
-    "file": "app/src/components/legal/ClientBiometricConsentModal.tsx",
-    "match": "Privacy Act 1988",
-    "owner": "legal",
-    "note": "NSW / Australian jurisdiction fact inside a legal page body or a `T-017` policy row. The legal stage rewrites these with a solicitor. 04-sequence.md §4 `legal`, fate row 12.08.  [W6, 1 hit(s): line 188]"
-  },
-  {
-    "rule": "jurisdiction",
-    "file": "app/src/components/legal/ClientBiometricConsentModal.tsx",
-    "match": "oaic",
-    "owner": "legal",
-    "note": "NSW / Australian jurisdiction fact inside a legal page body or a `T-017` policy row. The legal stage rewrites these with a solicitor. 04-sequence.md §4 `legal`, fate row 12.08.  [W6, 1 hit(s): line 199]"
   },
   {
     "rule": "identity",

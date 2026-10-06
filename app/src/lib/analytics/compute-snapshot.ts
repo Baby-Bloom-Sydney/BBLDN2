@@ -430,19 +430,6 @@ export async function computeSnapshot(): Promise<SectionSnapshot[]> {
   sections.push({ section_key: 'nw', stages: snap(nwStages, ['V', 'N']) });
 
   // ═══════════════════════════════════════════════
-  // PARENT VERIFICATION (5 stages)
-  // ═══════════════════════════════════════════════
-  const pvVerifs = verifs.filter((v: any) => parentUserIdSet.has(v.user_id));
-  const pvStages: IntStage[] = [
-    { label: "Parents", records: pvVerifs, idKey: 'user_id' },
-    { label: "Initiated", records: pvVerifs.filter((v: any) => v.identity_status !== "not_started"), idKey: 'user_id' },
-    { label: "Processing", records: pvVerifs.filter((v: any) => IDENTITY_PAST_PENDING.includes(v.identity_status)), idKey: 'user_id' },
-    { label: "Outcome", records: pvVerifs.filter((v: any) => IDENTITY_OUTCOMES.includes(v.identity_status)), idKey: 'user_id' },
-    { label: "Verified", records: pvVerifs.filter((v: any) => v.identity_status === "verified"), idKey: 'user_id' },
-  ];
-  sections.push({ section_key: 'pv', stages: snap(pvStages, ['V', 'P']) });
-
-  // ═══════════════════════════════════════════════
   // DFY MATCHMAKING (12 stages)
   // ═══════════════════════════════════════════════
   const dfSent = dfyNotifs.filter((n: any) => n.status !== 'pending_wave');

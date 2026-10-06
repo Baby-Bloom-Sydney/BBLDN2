@@ -173,7 +173,6 @@ function getDocumentIdForAgreement(agreementId: AgreementId): string | null {
   const map: Partial<Record<AgreementId, string>> = {
     "AGR-01": "client-tos",
     "AGR-02": "professional-tos",
-    "AGR-03": "biometric-notice-client",
     "AGR-04": "biometric-notice",
     "AGR-05": "client-tos",
     "AGR-06": "client-tos",

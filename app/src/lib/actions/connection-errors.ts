@@ -11,7 +11,6 @@
  */
 export const CONNECTION_ERRORS = {
   POSITION_REQUIRED: "POSITION_REQUIRED",
-  VERIFICATION_REQUIRED: "VERIFICATION_REQUIRED",
 } as const;
 
 export type ConnectionErrorCode =

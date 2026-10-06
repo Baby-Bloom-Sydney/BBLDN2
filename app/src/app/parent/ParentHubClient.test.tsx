@@ -49,7 +49,6 @@ const DFY_CONNECTION = {
     experienceYears: 4,
     aiHeadline: null,
     dateOfBirth: null,
-    wwccVerified: false,
     schedule: null,
   },
 };

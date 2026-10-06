@@ -32,16 +32,6 @@ export const AGR02_CHECKPOINTS: CheckpointConfig[] = [
 ];
 
 // ============================================================
-// AGR-03: Client Verification (1 checkbox — after biometric notice scroll-to-end)
-// ============================================================
-export const AGR03_CHECKPOINTS: CheckpointConfig[] = [
-  {
-    id: "agr03_biometric_consent",
-    text: "I have read the Biometric Data Collection Notice and consent to the collection and processing of my biometric data as described.",
-  },
-];
-
-// ============================================================
 // AGR-04: Professional Verification (1 checkbox — after biometric notice scroll-to-end)
 // ============================================================
 export const AGR04_CHECKPOINTS: CheckpointConfig[] = [

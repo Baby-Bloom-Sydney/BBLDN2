@@ -11,7 +11,6 @@ import type {
   PublicBsrProfile,
 } from "@/lib/actions/babysitting";
 import type { VerificationData } from "@/lib/actions/verification";
-import type { ParentVerificationData } from "@/types/parent";
 import type { UpcomingIntro } from "@/lib/actions/position-funnel";
 import type { PositionWithChildren } from "@/lib/actions/parent";
 import type {
@@ -21,7 +20,6 @@ import type {
   PendingIdentityCheck,
   PendingWWCCCheck,
 } from "@/app/admin/users/page";
-import type { PendingParentIdentityCheck } from "@/app/admin/users/ParentIDCheckModal";
 
 // ── Interview Requests (CMP-050, CMP-057) ──────────────────────────
 
@@ -664,47 +662,6 @@ export const MOCK_BSR_SHARE_DATA = {
   share: null,
 };
 
-// ── Parent Verification (CMP-068) ──────────────────────────────────
-// CRITICAL: Set statuses to "verified"/"not_started" to avoid polling
-
-export const MOCK_PARENT_VERIFICATION_DATA: ParentVerificationData = {
-  id: "mock-parent-verif-001",
-  document_type: "passport",
-  issuing_country: "AU",
-  identity_status: "verified",
-  contact_status: "not_started",
-  cross_check_status: "not_started",
-  verification_status: 1,
-  surname: "Chen",
-  given_names: "Jessica",
-  date_of_birth: "1990-03-20",
-  document_upload_url: null,
-  identification_photo_url: null,
-  identity_verified: true,
-  identity_rejection_reason: null,
-  identity_user_guidance: null,
-  selfie_confidence: 0.95,
-  extracted_surname: "Chen",
-  extracted_given_names: "Jessica",
-  extracted_dob: "1990-03-20",
-  extracted_nationality: "Australian",
-  extracted_passport_number: "PA9876543",
-  extracted_passport_expiry: "2031-12-01",
-  extracted_license_number: null,
-  extracted_license_expiry: null,
-  extracted_license_state: null,
-  extracted_license_class: null,
-  phone_number: null,
-  address_line: null,
-  city: null,
-  state: null,
-  postcode: null,
-  country: null,
-  cross_check_reasoning: null,
-  created_at: "2026-03-05T00:00:00Z",
-  updated_at: "2026-03-10T00:00:00Z",
-};
-
 // ── Admin Data (CMP-069) ───────────────────────────────────────────
 
 export const MOCK_ADMIN_USERS: UserData[] = [
@@ -877,45 +834,5 @@ export const MOCK_ADMIN_WWCC_CHECKS: PendingWWCCCheck[] = [
     email: "emma@example.com",
     profile_picture_url: null,
     wwcc_ocg_submitted_at: null,
-  },
-];
-
-export const MOCK_ADMIN_PARENT_VERIFICATION_STATS = {
-  pending: 3,
-  approvedToday: 1,
-  rejectedToday: 0,
-};
-
-export const MOCK_ADMIN_PARENT_CHECKS: PendingParentIdentityCheck[] = [
-  {
-    id: "mock-parent-check-001",
-    user_id: "mock-user-002",
-    document_type: "passport",
-    issuing_country: "AU",
-    surname: "Chen",
-    given_names: "Jessica",
-    date_of_birth: "1990-03-20",
-    document_upload_url: null,
-    identification_photo_url: null,
-    identity_verified: false,
-    identity_rejection_reason: null,
-    verification_status: 0,
-    selfie_confidence: 0.88,
-    extracted_surname: "Chen",
-    extracted_given_names: "Jessica",
-    extracted_dob: "1990-03-20",
-    extracted_nationality: "Australian",
-    extracted_passport_number: "PA9876543",
-    extracted_passport_expiry: "2031-12-01",
-    extracted_license_number: null,
-    extracted_license_expiry: null,
-    extracted_license_state: null,
-    extracted_license_class: null,
-    identity_ai_reasoning: "All fields match. Selfie confidence 88%.",
-    identity_ai_issues: null,
-    created_at: "2026-03-09T14:00:00Z",
-    first_name: "Jessica",
-    last_name: "Chen",
-    email: "jessica@example.com",
   },
 ];

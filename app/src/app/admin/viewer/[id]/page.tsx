@@ -274,7 +274,7 @@ async function renderParentHub(admin: any, targetUserId: string) {
   // Get parent record
   const { data: parentData } = await admin
     .from("parents")
-    .select("id, verification_level")
+    .select("id")
     .eq("user_id", targetUserId)
     .single();
 
@@ -283,7 +283,6 @@ async function renderParentHub(admin: any, targetUserId: string) {
   }
 
   const parentId = parentData.id;
-  const parentVerified = (parentData.verification_level ?? 0) >= 1;
 
   // Get position
   const { data: position } = await admin
@@ -388,7 +387,6 @@ async function renderParentHub(admin: any, targetUserId: string) {
         dfyExpiresAt={dfyStatusRes.expiresAt}
         dfyActivated={dfyStatusRes.activated}
         babysittingRequests={bsrRes}
-        parentVerified={parentVerified}
       />
     </div>
   );

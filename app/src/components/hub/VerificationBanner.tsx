@@ -6,13 +6,14 @@ import { Button } from '@/components/ui/button';
 import { trackEvent } from '@/lib/analytics/trackEvent';
 
 interface VerificationBannerProps {
-  role: 'nanny' | 'parent';
+  /** Nanny only — London parents are never verified (LDN2 3h, H-5). */
+  role: 'nanny';
   message: string;
   submessage?: string;
 }
 
 export function VerificationBanner({ role, message, submessage }: VerificationBannerProps) {
-  const trackingEvent = role === 'nanny' ? 'banner_verify_cta_clicked' : 'parent_banner_verify_cta_clicked';
+  const trackingEvent = 'banner_verify_cta_clicked';
 
   return (
     <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-center justify-between gap-4">

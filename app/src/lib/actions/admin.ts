@@ -9,9 +9,6 @@ import {
   IDENTITY_STATUS,
   WWCC_STATUS,
   CROSS_CHECK_STATUS,
-  PARENT_IDENTITY_STATUS,
-  PARENT_VERIFICATION_STATUS,
-  PARENT_VERIFICATION_LEVEL,
   deriveOverallStatus,
   type IdentityStatus,
   type WwccStatus,
@@ -20,12 +17,10 @@ import {
 import { runCrossCheckPhase, runWWCCDocPhase } from '@/lib/ai/verification-pipeline';
 import { syncNannyVerificationState } from '@/lib/actions/verification';
 import { sendEmail } from '@/lib/email/resend';
-import { getUserEmailInfo } from '@/lib/email/helpers';
-import { createInboxMessage } from '@/lib/actions/connection-helpers';
 import { openai } from '@/lib/ai/client';
 import { V2_SYSTEM_PROMPT, buildV2Prompt, parseAIProfileSections, generateV2Checklist } from '@/lib/ai/nanny-profile-prompts';
-import { emailHeader, emailFooter } from "@/lib/email/brand";
-import { ADMIN_FROM_ADDRESSES, SITE_URL } from "@/lib/constants";
+import { emailFooter } from "@/lib/email/brand";
+import { ADMIN_FROM_ADDRESSES } from "@/lib/constants";
 
 // ── Helper: require admin role ──
 
@@ -382,164 +377,6 @@ export async function adminResetVerification(
   if (deleteErr) {
     return { success: false, error: `Failed to delete verifications: ${deleteErr.message}` };
   }
-
-  revalidatePath('/admin/users');
-  return { success: true, error: null };
-}
-
-// ── Admin: Verify Parent Identity ──
-// State transition: identity_status → verified, parents.verification_level → 1
-
-export async function adminVerifyParentIdentity(
-  verificationId: string
-): Promise<{ success: boolean; error: string | null }> {
-  const { userId: adminId, error: authErr } = await requireAdmin();
-  if (authErr) return { success: false, error: authErr };
-
-  const adminClient = createAdminClient();
-
-  const { data: verification, error: fetchErr } = await adminClient
-    .from('parent_verifications')
-    .select('user_id')
-    .eq('id', verificationId)
-    .single();
-
-  if (fetchErr || !verification) {
-    return { success: false, error: 'Parent verification record not found' };
-  }
-
-  const { error: updateVerErr } = await adminClient
-    .from('parent_verifications')
-    .update({
-      identity_verified: true,
-      identity_verified_at: new Date().toISOString(),
-      identity_verified_by: adminId,
-      identity_status: PARENT_IDENTITY_STATUS.VERIFIED,
-      identity_status_at: new Date().toISOString(),
-      identity_rejection_reason: null,
-      identity_user_guidance: null,
-      verification_status: PARENT_VERIFICATION_STATUS.VERIFIED,
-      cross_check_status: 'passed',
-      cross_check_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', verificationId);
-
-  if (updateVerErr) {
-    return { success: false, error: `Failed to update verification: ${updateVerErr.message}` };
-  }
-
-  const { error: updateParentErr } = await adminClient
-    .from('parents')
-    .update({
-      verification_level: PARENT_VERIFICATION_LEVEL.VERIFIED,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('user_id', verification.user_id);
-
-  if (updateParentErr) {
-    return { success: false, error: `Failed to update parent: ${updateParentErr.message}` };
-  }
-
-  // PVER-004 email + PVINB-004 inbox
-  const userInfo = await getUserEmailInfo(verification.user_id);
-  if (userInfo) {
-    const appUrl = SITE_URL;
-    sendEmail({
-      to: userInfo.email,
-      subject: "You're verified on Baby Bloom!",
-      html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-        ${emailHeader()}
-        <p style="color: #374151; font-size: 16px; line-height: 1.6;">Great news, ${userInfo.firstName}! Your identity has been verified.</p>
-        <p style="color: #374151; font-size: 16px; line-height: 1.6;">You can now connect with verified nannies and post babysitting requests on Baby Bloom.</p>
-        <p style="margin-top: 24px;"><a href="${appUrl}/parent/browse" style="background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">Browse Nannies</a></p>
-      </div>`,
-      emailType: 'parent_verification_approved',
-      recipientUserId: verification.user_id,
-    }).catch(err => console.error('[adminVerifyParentIdentity] Email error:', err));
-  }
-
-  createInboxMessage({
-    userId: verification.user_id,
-    type: 'parent_verification',
-    title: "You're verified!",
-    body: 'Your identity has been verified. You can now connect with nannies and post babysitting requests.',
-    actionUrl: '/parent/browse',
-  }).catch(err => console.error('[adminVerifyParentIdentity] Inbox error:', err));
-
-  revalidatePath('/admin/users');
-  return { success: true, error: null };
-}
-
-// ── Admin: Reject Parent Identity ──
-// State transition: identity_status → rejected, verification_status → 13
-
-export async function adminRejectParentIdentity(
-  verificationId: string,
-  reason: string
-): Promise<{ success: boolean; error: string | null }> {
-  const { error: authErr } = await requireAdmin();
-  if (authErr) return { success: false, error: authErr };
-
-  if (!reason.trim()) {
-    return { success: false, error: 'Rejection reason is required' };
-  }
-
-  const adminClient = createAdminClient();
-
-  const { data: verification, error: fetchErr } = await adminClient
-    .from('parent_verifications')
-    .select('user_id')
-    .eq('id', verificationId)
-    .single();
-
-  if (fetchErr || !verification) {
-    return { success: false, error: 'Parent verification record not found' };
-  }
-
-  const { error: updateErr } = await adminClient
-    .from('parent_verifications')
-    .update({
-      identity_rejection_reason: reason.trim(),
-      identity_status: PARENT_IDENTITY_STATUS.REJECTED,
-      identity_status_at: new Date().toISOString(),
-      verification_status: PARENT_VERIFICATION_STATUS.ID_REJECTED_ADMIN,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', verificationId);
-
-  if (updateErr) {
-    return { success: false, error: `Failed to reject: ${updateErr.message}` };
-  }
-
-  // PVER-003 email (delayed 20 min) + PVINB-003 inbox
-  setTimeout(async () => {
-    const userInfo = await getUserEmailInfo(verification.user_id);
-    if (userInfo) {
-      const appUrl = SITE_URL;
-      sendEmail({
-        to: userInfo.email,
-        subject: 'Your ID verification needs resubmission',
-        html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-          ${emailHeader()}
-          <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${userInfo.firstName},</p>
-          <p style="color: #374151; font-size: 16px; line-height: 1.6;">Unfortunately, we were unable to verify your identity documents. ${reason.trim()}</p>
-          <p style="color: #374151; font-size: 16px; line-height: 1.6;">Please resubmit your documents to complete verification.</p>
-          <p style="margin-top: 24px;"><a href="${appUrl}/parent/verification" style="background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">Resubmit Documents</a></p>
-        </div>`,
-        emailType: 'parent_verification_rejected',
-        recipientUserId: verification.user_id,
-      }).catch(err => console.error('[adminRejectParentIdentity] Email error:', err));
-    }
-  }, 20 * 60 * 1000);
-
-  createInboxMessage({
-    userId: verification.user_id,
-    type: 'parent_verification',
-    title: 'Please resubmit your ID',
-    body: `Your identity verification was not approved. Reason: ${reason.trim()}. Please resubmit your documents.`,
-    actionUrl: '/parent/verification',
-  }).catch(err => console.error('[adminRejectParentIdentity] Inbox error:', err));
 
   revalidatePath('/admin/users');
   return { success: true, error: null };

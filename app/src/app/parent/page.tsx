@@ -1,10 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
-import {
-  getPosition,
-  getParentId,
-  PositionWithChildren,
-} from "@/lib/actions/parent";
+import { getPosition, PositionWithChildren } from "@/lib/actions/parent";
 import {
   getParentPlacement,
   getConfirmedConnections,
@@ -35,17 +31,6 @@ export default async function ParentHubPage({
     error = result.error ?? null;
   }
 
-  // Fetch verification level
-  const parentId = await getParentId();
-  const verificationPromise = parentId
-    ? createAdminClient()
-        .from("parents")
-        .select("verification_level")
-        .eq("id", parentId)
-        .single()
-        .then(({ data }) => (data?.verification_level ?? 0) >= 1)
-    : Promise.resolve(false);
-
   // Get auth user for education children query
   const supabase = createClient();
   const {
@@ -59,7 +44,6 @@ export default async function ParentHubPage({
     introsResult,
     dfyStatusResult,
     bsrResult,
-    parentVerified,
     educationChildrenRes,
     pendingInvitesResult,
   ] = await Promise.all([
@@ -70,7 +54,6 @@ export default async function ParentHubPage({
     getParentUpcomingIntros(),
     getDfyStatus(),
     getParentBabysittingRequests(),
-    verificationPromise,
     user
       ? admin
           .from("child_client")
@@ -121,7 +104,6 @@ export default async function ParentHubPage({
         dfyExpiresAt={dfyExpiresAt}
         dfyActivated={dfyActivated}
         babysittingRequests={babysittingRequests}
-        parentVerified={parentVerified}
         initialTab={searchParams.t}
         initialSub={searchParams.s}
         initialView={searchParams.v}

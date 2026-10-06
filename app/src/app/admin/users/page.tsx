@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AdminUsersClient } from "./AdminUsersClient";
-import type { PendingParentIdentityCheck } from "./ParentIDCheckModal";
 
 export const dynamic = "force-dynamic";
 
@@ -338,108 +337,15 @@ async function getPendingWWCCChecks(): Promise<PendingWWCCCheck[]> {
   });
 }
 
-async function getParentVerificationStats(): Promise<{ pending: number; approvedToday: number; rejectedToday: number }> {
-  const supabase = createAdminClient();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const [pendingResult, approvedTodayResult, rejectedTodayResult] = await Promise.all([
-    supabase.from('parent_verifications').select('*', { count: 'exact', head: true }).eq('verification_status', 11),
-    supabase.from('parent_verifications').select('*', { count: 'exact', head: true }).eq('verification_status', 20).gte('updated_at', today.toISOString()),
-    supabase.from('parent_verifications').select('*', { count: 'exact', head: true }).eq('verification_status', 13).gte('updated_at', today.toISOString()),
-  ]);
-
-  return {
-    pending: pendingResult.count ?? 0,
-    approvedToday: approvedTodayResult.count ?? 0,
-    rejectedToday: rejectedTodayResult.count ?? 0,
-  };
-}
-
-async function getPendingParentIdentityChecks(): Promise<PendingParentIdentityCheck[]> {
-  const supabase = createAdminClient();
-
-  const [verificationsResult, profilesResult] = await Promise.all([
-    supabase
-      .from('parent_verifications')
-      .select('id, user_id, document_type, issuing_country, surname, given_names, date_of_birth, document_upload_url, identification_photo_url, identity_verified, identity_rejection_reason, verification_status, selfie_confidence, extracted_surname, extracted_given_names, extracted_dob, extracted_nationality, extracted_passport_number, extracted_passport_expiry, extracted_license_number, extracted_license_expiry, extracted_license_state, extracted_license_class, identity_ai_reasoning, identity_ai_issues, created_at')
-      .eq('verification_status', 11)
-      .order('created_at', { ascending: true })
-      .limit(50),
-    supabase
-      .from('user_profiles')
-      .select('user_id, first_name, last_name, email'),
-  ]);
-
-  if (verificationsResult.error || !verificationsResult.data) return [];
-
-  const profileMap = new Map<string, { first_name: string | null; last_name: string | null; email: string | null }>();
-  if (profilesResult.data) {
-    for (const p of profilesResult.data) profileMap.set(p.user_id, p);
-  }
-
-  const results: PendingParentIdentityCheck[] = [];
-  for (const v of verificationsResult.data) {
-    let docSignedUrl: string | null = null;
-    let selfieSignedUrl: string | null = null;
-
-    if (v.document_upload_url) {
-      const { data } = await supabase.storage.from('parent-verifications').createSignedUrl(v.document_upload_url, 3600);
-      docSignedUrl = data?.signedUrl ?? null;
-    }
-    if (v.identification_photo_url) {
-      const { data } = await supabase.storage.from('parent-verifications').createSignedUrl(v.identification_photo_url, 3600);
-      selfieSignedUrl = data?.signedUrl ?? null;
-    }
-
-    const profile = profileMap.get(v.user_id);
-    results.push({
-      id: v.id,
-      user_id: v.user_id,
-      document_type: v.document_type,
-      issuing_country: v.issuing_country,
-      surname: v.surname,
-      given_names: v.given_names,
-      date_of_birth: v.date_of_birth,
-      document_upload_url: docSignedUrl,
-      identification_photo_url: selfieSignedUrl,
-      identity_verified: v.identity_verified,
-      identity_rejection_reason: v.identity_rejection_reason,
-      verification_status: v.verification_status,
-      selfie_confidence: v.selfie_confidence,
-      extracted_surname: v.extracted_surname,
-      extracted_given_names: v.extracted_given_names,
-      extracted_dob: v.extracted_dob,
-      extracted_nationality: v.extracted_nationality,
-      extracted_passport_number: v.extracted_passport_number,
-      extracted_passport_expiry: v.extracted_passport_expiry,
-      extracted_license_number: v.extracted_license_number,
-      extracted_license_expiry: v.extracted_license_expiry,
-      extracted_license_state: v.extracted_license_state,
-      extracted_license_class: v.extracted_license_class,
-      identity_ai_reasoning: v.identity_ai_reasoning,
-      identity_ai_issues: v.identity_ai_issues,
-      created_at: v.created_at,
-      first_name: profile?.first_name ?? null,
-      last_name: profile?.last_name ?? null,
-      email: profile?.email ?? null,
-    });
-  }
-
-  return results;
-}
-
 // ── Page Component ──
 
 export default async function AdminUsersPage() {
-  const [users, userStats, verificationStats, identityChecks, wwccChecks, parentVerificationStats, parentChecks] = await Promise.all([
+  const [users, userStats, verificationStats, identityChecks, wwccChecks] = await Promise.all([
     getUsers(),
     getUserStats(),
     getVerificationStats(),
     getPendingIdentityChecks(),
     getPendingWWCCChecks(),
-    getParentVerificationStats(),
-    getPendingParentIdentityChecks(),
   ]);
 
   return (
@@ -450,8 +356,6 @@ export default async function AdminUsersPage() {
         verificationStats={verificationStats}
         identityChecks={identityChecks}
         wwccChecks={wwccChecks}
-        parentVerificationStats={parentVerificationStats}
-        parentChecks={parentChecks}
       />
     </Suspense>
   );

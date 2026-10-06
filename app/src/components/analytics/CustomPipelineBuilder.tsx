@@ -21,7 +21,7 @@ const DROPDOWN_COLUMNS = [
   { title: 'Traffic', keys: ['wtg'] },
   { title: 'Nanny', keys: ['kn', 'nf', 'pd', 'nc'] },
   { title: 'Parent', keys: ['kp', 'pf', 'pc'] },
-  { title: 'Verification', keys: ['nv', 'ni', 'nw', 'pv'] },
+  { title: 'Verification', keys: ['nv', 'ni', 'nw'] },
   { title: 'DFY Matchmaking', keys: ['df', 'dc'] },
   { title: 'Growth & BSR', keys: ['vn', 'vp', 'vb', 'bs', 'bn'] },
 ];
@@ -30,7 +30,7 @@ const ENTITY_TAGS: Record<string, ('N' | 'P' | 'T' | 'V')[]> = {
   wtg: ['T'],
   nf: ['N'], pd: ['N'], nc: ['N'],
   nv: ['V', 'N'], ni: ['V', 'N'], nw: ['V', 'N'],
-  pf: ['P'], pc: ['P'], pv: ['V', 'P'],
+  pf: ['P'], pc: ['P'],
   dc: ['N'],
   kn: ['N'], kp: ['P'],
   vn: ['N'], vp: ['P'], vb: ['P'],
