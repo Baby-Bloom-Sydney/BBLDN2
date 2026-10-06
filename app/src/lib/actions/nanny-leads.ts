@@ -1,5 +1,13 @@
 "use server";
 
+/**
+ * Nanny lead server actions: create / update the lead from the public `/apply` funnel, and convert it into an
+ * account (`convertLeadToAccount`).
+ * Unit 3e (BB-LDN-3e-061026) changed only the conversion's right-to-work write (E-1, security review): the lead JSON
+ * is written by an unauthenticated client, so conversion stores one of 3a's four UK keys or nothing, and derives
+ * `right_to_work` from the key. The DB CHECK (3a, amendments 07/08) is the second guard, not the only one.
+ */
+
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { capitalizeName } from "@/lib/utils";
@@ -20,6 +28,12 @@ import { emailFooter } from "@/lib/email/brand";
 import { BRAND, SITE_NAME, SITE_URL } from "@/lib/constants";
 import { RIGHT_TO_WORK_OPTIONS, rightToWorkFor, type RightToWorkKey } from "@/lib/nanny-options";
 
+/**
+ * The right-to-work pair written to `nannies` on conversion. Only one of `RIGHT_TO_WORK_OPTIONS`' keys is accepted;
+ * the boolean comes from 3a's table, never from the client (a `no_rtw` lead claiming `true` is stored `false`).
+ * Anything else — a retired answer, a tampered value — writes `null` for both rather than failing the conversion
+ * after the auth user exists (fail closed: no right to work is claimed).
+ */
 function ukRightToWork(status: unknown): { residency_status: RightToWorkKey | null; right_to_work: boolean | null } {
   const key = RIGHT_TO_WORK_OPTIONS.find((o) => o.key === status)?.key ?? null;
   return { residency_status: key, right_to_work: key ? rightToWorkFor(key) : null };

@@ -1,4 +1,6 @@
 // ── Matchmaking engine — orchestrates data fetching + scoring ──
+// Unit 3e (BB-LDN-3e-061026): certificate names for display go through `displayCertificates` (P-2 order, E-7
+// paediatric collapse); qualification scores come from the ladder-derived `QUAL_SCORES`.
 
 import { createAdminClient } from '@/lib/supabase/admin';
 import type {

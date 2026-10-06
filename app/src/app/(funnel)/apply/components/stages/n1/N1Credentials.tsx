@@ -1,5 +1,18 @@
 'use client';
 
+/**
+ * Funnel page 6 (0-based) — "Your credentials": qualification, extra certificates, the enhanced-DBS gate.
+ * Unit 3e (BB-LDN-3e-061026) implements:
+ *  - E-2: the qualification options are 3a's `QUALIFICATION_LADDER` values minus "No Qualifications" (a "No" to the
+ *    first question writes nothing — that rung is profile-only).
+ *  - P-2 / E-7: the certificate options are 3a's `CERTIFICATE_OPTIONS`, in array (= display) order.
+ *  - E-5: the no-DBS card links to `DBS_LINKS.getEnhanced`.
+ *  - D-1 / E-6: the gate is unchanged — Yes auto-advances after 400 ms; No refuses with no Continue. No Update Service
+ *    question here (3b owns the DBS step).
+ *  - D-4: the DBS answer is still written to the `qualifications.wwcc` key (rename owned by `cleanup`).
+ * Never: declares its own qualification or certificate list; lets a "No" to the DBS question continue.
+ */
+
 import { useCallback, useEffect, useRef } from 'react';
 import { StageProps } from '../../FunnelOrchestrator';
 import { YesNoTags } from '../../shared/YesNoTags';

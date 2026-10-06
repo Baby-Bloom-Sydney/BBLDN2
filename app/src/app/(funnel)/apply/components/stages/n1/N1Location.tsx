@@ -1,5 +1,17 @@
 'use client';
 
+/**
+ * Funnel page 7 (0-based) — "Where you are": nationality, UK right to work, living in London, area.
+ * Unit 3e (BB-LDN-3e-061026) implements:
+ *  - E-1: British / Irish (`RTW_AUTO_NATIONALITIES`) are stored as `citizen` with `right_to_work=true` and never see
+ *    the right-to-work question; everyone else must answer it. A "no" (`no_rtw`) never blocks — Continue still shows.
+ *  - E-3 / D-5: one single-select of 3a's four `RIGHT_TO_WORK_OPTIONS`; no "Not sure"; no evidence step.
+ *  - E-6: the "living in London?" hard stop and the district lookup are unchanged.
+ *  - D-4: the London answer is still written to the `sydney_resident` key (rename owned by `cleanup`).
+ * Never: declares its own option list or right-to-work rule (3a's `lib/nanny-options.ts` owns both); carries a
+ * restored answer that is not one of the four keys forward to conversion (it is cleared — fail closed).
+ */
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { StageProps } from '../../FunnelOrchestrator';
 import { SingleSelectTags } from '../../shared/SingleSelectTags';
@@ -141,8 +153,12 @@ export function N1Location({ state, dispatch, goNext, goBack, progress, question
   const isAutoRightToWork = (RTW_AUTO_NATIONALITIES as readonly string[]).includes(residency.nationality ?? '');
   const notInLondon = residency.sydney_resident === false;
 
-  // Fail closed on state restored from before the UK question: an answer outside the four keys is never carried
-  // forward; British / Irish are re-stamped as `citizen` (E-1)
+  /**
+   * Restored-state guard. The funnel restores its state from localStorage, so an applicant who started before the UK
+   * question can arrive with an old answer. Fail closed: British / Irish are (re-)stamped `citizen`, whatever their
+   * stored status (including none); for anyone else an answer outside the four keys is cleared together with
+   * everything after it, so the question is asked again. A valid key is left alone, so the effect cannot loop.
+   */
   const statusIsKey = RIGHT_TO_WORK_OPTIONS.some((o) => o.key === residency.residency_status);
   useEffect(() => {
     if (statusIsKey) return;
@@ -155,7 +171,10 @@ export function N1Location({ state, dispatch, goNext, goBack, progress, question
     setSuburbQuery('');
   }, [residency.residency_status, statusIsKey, isAutoRightToWork, update]);
 
-  // Show conditions — cascade
+  /**
+   * The reveal cascade: the right-to-work question shows once a nationality is picked, unless it is British / Irish;
+   * "living in London?" shows once a valid key is held (auto or picked); the area shows on a London "Yes".
+   */
   const showRightToWork = residency.nationality !== null && !isAutoRightToWork;
   const showLondon = statusIsKey;
   const showSuburb = residency.sydney_resident === true;
@@ -177,6 +196,10 @@ export function N1Location({ state, dispatch, goNext, goBack, progress, question
     setFiltered([]);
   };
 
+  /**
+   * The tags show labels; the store holds keys. Maps the picked label back to its key, derives `right_to_work` from
+   * 3a's table (never a literal), and resets the London answer below it. Tapping the selected tag again clears both.
+   */
   const pickRightToWork = (label: string | null) => {
     const key: RightToWorkKey | null = RIGHT_TO_WORK_OPTIONS.find((o) => o.label === label)?.key ?? null;
     update({

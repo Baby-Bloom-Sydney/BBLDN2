@@ -1,6 +1,10 @@
 /**
- * Display helpers over 3a's lists (unit 3e, BB-LDN-3e-061026). No list lives here — each helper reads
- * `lib/nanny-options.ts` (E-2 ladder, P-2 certificates).
+ * Display helpers over 3a's lists (unit 3e, BB-LDN-3e-061026): the short qualification label for chips and match
+ * bonuses (E-2), and the certificate list as cards show it (P-2 order, E-7 paediatric collapse). Used by matching
+ * (`scoring.ts`, `engine.ts`), the card badges (`NannyPreviewCard`, `PublicMatchCard`, `ExpandableBadges`) and
+ * `NannyMyProfile`.
+ * Never: declares a list or an order of its own — every value and order is read from `lib/nanny-options.ts`; shows a
+ * label for a value not on the ladder (stale data shows nothing rather than a long or foreign label).
  */
 import { QUALIFICATION_LADDER, CERTIFICATE_OPTIONS, byOptionOrder, qualificationScore } from "@/lib/nanny-options";
 

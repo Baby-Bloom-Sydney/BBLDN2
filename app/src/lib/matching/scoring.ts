@@ -1,5 +1,8 @@
 // ── Matching scoring functions ──
 // Three-layer: Quality Base × Requirement Multiplier × Over-qualified Multiplier
+// Unit 3e (BB-LDN-3e-061026): qualification scores, the higher-qualification bonus (P-6: Level 5 and 6, via 3a's
+// `isHigherQualification` — never a label substring or rank literal), short labels and the certificate collapse all
+// read 3a's constants through `qualification-display.ts`.
 
 import type {
   PositionMatchData,

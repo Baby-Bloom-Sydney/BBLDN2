@@ -1,3 +1,5 @@
+// Unit 3e (BB-LDN-3e-061026): `QUAL_SCORES` is derived from 3a's `QUALIFICATION_LADDER` (E-2 scores Other 10 · L2 30 ·
+// L3 50 · L5 75 · L6 100); this file never lists qualification labels itself.
 import { QUALIFICATION_LADDER } from "@/lib/nanny-options";
 
 // ── Matching algorithm constants ──
