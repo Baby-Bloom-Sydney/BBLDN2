@@ -160,13 +160,8 @@ export function ContactSection({
     setNotInArea(false);
   }
 
-  if (locked) {
-    return (
-      <div className="text-sm text-slate-500 py-4">
-        Complete the WWCC section first to unlock residence verification.
-      </div>
-    );
-  }
+  // Unreachable: the page always passes locked={false} (3b removed the dead lock line).
+  if (locked) return null;
 
   const canSave = !!selectedAddress;
 

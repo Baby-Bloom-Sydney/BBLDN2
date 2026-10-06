@@ -1949,113 +1949,43 @@
     "rule": "identity",
     "file": "app/src/app/bb/test/onboarding-verification/page.tsx",
     "match": "WWCC",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 35 hit(s): lines 50, 51, 53, 61, 259, 733, 755, 768, 778, 805, 812, 813, +23 more]"
+    "owner": "cleanup",
+    "note": "Disabled dev copy, P-5 (BAI 2026-10-06): the route 404s and the old wizard body is kept unexported for reference; its text still matches. 3b (BB-LDN-3b-061026)."
   },
   {
     "rule": "identity",
     "file": "app/src/app/bb/test/onboarding-verification/page.tsx",
     "match": "Wwcc",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 14 hit(s): lines 735, 746, 747, 748, 749, 756, 774, 800, 819, 838, 873, 888, +2 more]"
+    "owner": "cleanup",
+    "note": "Disabled dev copy, P-5 (BAI 2026-10-06): the route 404s and the old wizard body is kept unexported for reference; its text still matches. 3b (BB-LDN-3b-061026)."
   },
   {
     "rule": "identity",
     "file": "app/src/app/bb/test/onboarding-verification/page.tsx",
     "match": "wwcc",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 5 hit(s): lines 936, 975, 1293, 1294, 1296]"
+    "owner": "cleanup",
+    "note": "Disabled dev copy, P-5 (BAI 2026-10-06): the route 404s and the old wizard body is kept unexported for reference; its text still matches. 3b (BB-LDN-3b-061026)."
   },
   {
     "rule": "jurisdiction",
     "file": "app/src/app/bb/test/onboarding-verification/page.tsx",
     "match": "NSW",
-    "owner": "identity",
-    "note": "NSW / Australian jurisdiction fact stated beside a verification requirement. It moves with the verification ladder, not before it. 04-sequence.md §4 `identity`, fate row 12.08.  [W6, 8 hit(s): lines 52, 760, 768, 822, 824, 831, 832, 919]"
+    "owner": "cleanup",
+    "note": "Disabled dev copy, P-5 (BAI 2026-10-06): the route 404s and the old wizard body is kept unexported for reference; its text still matches. 3b (BB-LDN-3b-061026)."
   },
   {
     "rule": "jurisdiction",
     "file": "app/src/app/bb/test/onboarding-verification/page.tsx",
     "match": "nsw",
-    "owner": "identity",
-    "note": "NSW / Australian jurisdiction fact stated beside a verification requirement. It moves with the verification ladder, not before it. 04-sequence.md §4 `identity`, fate row 12.08.  [W6, 4 hit(s): lines 743, 763, 805, 819]"
-  },
-  {
-    "rule": "identity",
-    "file": "app/src/app/nanny/NannyHubClient.tsx",
-    "match": "wwcc",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 12 hit(s): lines 223, 230, 240, 1127, 1142, 1145, 1146, 1147, 1150, 1160, 1164, 1207]"
-  },
-  {
-    "rule": "identity",
-    "file": "app/src/app/nanny/NannyHubClient.tsx",
-    "match": "WWCC",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 4 hit(s): lines 233, 241, 784, 1141]"
-  },
-  {
-    "rule": "identity",
-    "file": "app/src/app/nanny/NannyHubClient.tsx",
-    "match": "ocg",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 229]"
-  },
-  {
-    "rule": "identity",
-    "file": "app/src/app/nanny/NannyHubClient.tsx",
-    "match": "Wwcc",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 1139]"
-  },
-  {
-    "rule": "identity",
-    "file": "app/src/app/nanny/onboarding-verification/OnboardingVerificationClient.tsx",
-    "match": "wwcc",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 72 hit(s): lines 1161, 1163, 1165, 1170, 1180, 1182, 1184, 1189, 1205, 1213, 1214, 1215, +60 more]"
+    "owner": "cleanup",
+    "note": "Disabled dev copy, P-5 (BAI 2026-10-06): the route 404s and the old wizard body is kept unexported for reference; its text still matches. 3b (BB-LDN-3b-061026)."
   },
   {
     "rule": "identity",
     "file": "app/src/app/nanny/onboarding-verification/OnboardingVerificationClient.tsx",
     "match": "WWCC",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 53 hit(s): lines 18, 239, 241, 253, 576, 612, 1156, 1158, 1228, 1245, 1257, 1292, +41 more]"
-  },
-  {
-    "rule": "identity",
-    "file": "app/src/app/nanny/onboarding-verification/OnboardingVerificationClient.tsx",
-    "match": "Wwcc",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 43 hit(s): lines 1160, 1162, 1164, 1166, 1171, 1179, 1181, 1183, 1185, 1190, 1197, 1219, +31 more]"
-  },
-  {
-    "rule": "jurisdiction",
-    "file": "app/src/app/nanny/onboarding-verification/OnboardingVerificationClient.tsx",
-    "match": "nsw",
-    "owner": "identity",
-    "note": "NSW / Australian jurisdiction fact stated beside a verification requirement. It moves with the verification ladder, not before it. 04-sequence.md §4 `identity`, fate row 12.08.  [W6, 10 hit(s): lines 247, 1214, 1240, 1292, 1314, 2091, 2212, 2213, 2227, 2228]"
-  },
-  {
-    "rule": "jurisdiction",
-    "file": "app/src/app/nanny/onboarding-verification/OnboardingVerificationClient.tsx",
-    "match": "NSW",
-    "owner": "identity",
-    "note": "NSW / Australian jurisdiction fact stated beside a verification requirement. It moves with the verification ladder, not before it. 04-sequence.md §4 `identity`, fate row 12.08.  [W6, 8 hit(s): lines 246, 248, 1236, 1245, 1318, 1321, 1328, 1329]"
-  },
-  {
-    "rule": "identity",
-    "file": "app/src/app/nanny/onboarding-verification/page.tsx",
-    "match": "WWCC",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 4 hit(s): lines 73, 85, 88, 109]"
-  },
-  {
-    "rule": "identity",
-    "file": "app/src/app/nanny/onboarding-verification/page.tsx",
-    "match": "wwcc",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 4 hit(s): lines 84, 89, 96, 97]"
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): matches only identifiers kept under D-4 — column / field names, the WWCCSection file + component name, submitWWCCSection (3b-owned, name kept) — renaming them is cleanup."
   },
   {
     "rule": "identity",
@@ -2073,20 +2003,6 @@
   },
   {
     "rule": "identity",
-    "file": "app/src/app/nanny/profile/NannyMyProfile.tsx",
-    "match": "wwcc",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 2 hit(s): lines 1365, 1396]"
-  },
-  {
-    "rule": "identity",
-    "file": "app/src/app/nanny/profile/NannyMyProfile.tsx",
-    "match": "WWCC",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 1397]"
-  },
-  {
-    "rule": "identity",
     "file": "app/src/app/nanny/profiletest/ProfileTestClient.tsx",
     "match": "WWCC",
     "owner": "identity",
@@ -2101,115 +2017,66 @@
   },
   {
     "rule": "identity",
-    "file": "app/src/app/nanny/settings/NannySettingsClient.tsx",
-    "match": "wwcc",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 20 hit(s): lines 88, 166, 169, 195, 197, 198, 240, 251, 255, 302, 303, 680, +8 more]"
-  },
-  {
-    "rule": "identity",
-    "file": "app/src/app/nanny/settings/NannySettingsClient.tsx",
-    "match": "WWCC",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 8 hit(s): lines 13, 183, 196, 677, 694, 698, 711, 722]"
-  },
-  {
-    "rule": "identity",
-    "file": "app/src/app/nanny/settings/NannySettingsClient.tsx",
-    "match": "Wwcc",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 2 hit(s): lines 119, 679]"
-  },
-  {
-    "rule": "identity",
     "file": "app/src/app/nanny/settings/page.tsx",
     "match": "wwcc",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 5 hit(s): lines 43, 68, 71, 72, 73]"
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): matches only identifiers kept under D-4 — column / field names, the WWCCSection file + component name, submitWWCCSection (3b-owned, name kept) — renaming them is cleanup."
   },
   {
     "rule": "identity",
     "file": "app/src/app/nanny/verification/VerificationPageClient.tsx",
     "match": "wwcc",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 57 hit(s): lines 40, 41, 42, 43, 44, 45, 46, 95, 102, 110, 111, 112, +45 more]"
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): matches only identifiers kept under D-4 — column / field names, the WWCCSection file + component name, submitWWCCSection (3b-owned, name kept) — renaming them is cleanup."
   },
   {
     "rule": "identity",
     "file": "app/src/app/nanny/verification/VerificationPageClient.tsx",
     "match": "WWCC",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 11 hit(s): lines 11, 160, 177, 248, 271, 324, 402, 410, 418, 421, 454]"
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): matches only identifiers kept under D-4 — column / field names, the WWCCSection file + component name, submitWWCCSection (3b-owned, name kept) — renaming them is cleanup."
   },
   {
     "rule": "identity",
     "file": "app/src/app/nanny/verification/VerificationPageClient.tsx",
     "match": "Wwcc",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 5 hit(s): lines 117, 161, 167, 175, 273]"
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): matches only identifiers kept under D-4 — column / field names, the WWCCSection file + component name, submitWWCCSection (3b-owned, name kept) — renaming them is cleanup."
   },
   {
     "rule": "identity",
     "file": "app/src/app/nanny/verification/VerificationPageClient.tsx",
     "match": "ocg",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 295]"
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): matches only identifiers kept under D-4 — column / field names, the WWCCSection file + component name, submitWWCCSection (3b-owned, name kept) — renaming them is cleanup."
   },
   {
     "rule": "jurisdiction",
     "file": "app/src/app/nanny/verification/VerificationPageClient.tsx",
     "match": "nsw",
-    "owner": "identity",
-    "note": "NSW / Australian jurisdiction fact stated beside a verification requirement. It moves with the verification ladder, not before it. 04-sequence.md §4 `identity`, fate row 12.08.  [W6, 4 hit(s): lines 182, 216, 254, 272]"
-  },
-  {
-    "rule": "identity",
-    "file": "app/src/app/nanny/verification/sections/ContactSection.tsx",
-    "match": "WWCC",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 166]"
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): matches only identifiers kept under D-4 — column / field names, the WWCCSection file + component name, submitWWCCSection (3b-owned, name kept) — renaming them is cleanup."
   },
   {
     "rule": "identity",
     "file": "app/src/app/nanny/verification/sections/WWCCSection.tsx",
     "match": "wwcc",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 53 hit(s): lines 30, 67, 76, 103, 104, 105, 106, 107, 129, 242, 243, 244, +41 more]"
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): matches only identifiers kept under D-4 — column / field names, the WWCCSection file + component name, submitWWCCSection (3b-owned, name kept) — renaming them is cleanup."
   },
   {
     "rule": "identity",
     "file": "app/src/app/nanny/verification/sections/WWCCSection.tsx",
     "match": "WWCC",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 31 hit(s): lines 10, 15, 16, 18, 21, 60, 66, 241, 290, 324, 344, 359, +19 more]"
-  },
-  {
-    "rule": "identity",
-    "file": "app/src/app/nanny/verification/sections/WWCCSection.tsx",
-    "match": "Wwcc",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 19 hit(s): lines 225, 226, 227, 288, 289, 291, 293, 297, 298, 300, 306, 311, +7 more]"
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): matches only identifiers kept under D-4 — column / field names, the WWCCSection file + component name, submitWWCCSection (3b-owned, name kept) — renaming them is cleanup."
   },
   {
     "rule": "identity",
     "file": "app/src/app/nanny/verification/sections/WWCCSection.tsx",
     "match": "ocg",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 71]"
-  },
-  {
-    "rule": "jurisdiction",
-    "file": "app/src/app/nanny/verification/sections/WWCCSection.tsx",
-    "match": "nsw",
-    "owner": "identity",
-    "note": "NSW / Australian jurisdiction fact stated beside a verification requirement. It moves with the verification ladder, not before it. 04-sequence.md §4 `identity`, fate row 12.08.  [W6, 10 hit(s): lines 17, 246, 271, 376, 403, 408, 451, 550, 580, 671]"
-  },
-  {
-    "rule": "jurisdiction",
-    "file": "app/src/app/nanny/verification/sections/WWCCSection.tsx",
-    "match": "NSW",
-    "owner": "identity",
-    "note": "NSW / Australian jurisdiction fact stated beside a verification requirement. It moves with the verification ladder, not before it. 04-sequence.md §4 `identity`, fate row 12.08.  [W6, 7 hit(s): lines 95, 181, 270, 551, 579, 672, 677]"
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): matches only identifiers kept under D-4 — column / field names, the WWCCSection file + component name, submitWWCCSection (3b-owned, name kept) — renaming them is cleanup."
   },
   {
     "rule": "identity",
@@ -2353,34 +2220,6 @@
   },
   {
     "rule": "identity",
-    "file": "app/src/components/settings/SettingsRow.tsx",
-    "match": "WWCC",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 44]"
-  },
-  {
-    "rule": "identity",
-    "file": "app/src/components/settings/SettingsSidebar.tsx",
-    "match": "WWCC",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 5]"
-  },
-  {
-    "rule": "identity",
-    "file": "app/src/components/settings/tree.ts",
-    "match": "wwcc",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 18]"
-  },
-  {
-    "rule": "identity",
-    "file": "app/src/components/verification/VerificationProgress.tsx",
-    "match": "ocg",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 45]"
-  },
-  {
-    "rule": "identity",
     "file": "app/src/lib/actions/admin.ts",
     "match": "WWCC",
     "owner": "identity",
@@ -2504,13 +2343,6 @@
     "match": "nsw",
     "owner": "identity",
     "note": "NSW / Australian jurisdiction fact stated beside a verification requirement. It moves with the verification ladder, not before it. 04-sequence.md §4 `identity`, fate row 12.08.  [W6, 6 hit(s): lines 579, 619, 621, 634, 775, 813]"
-  },
-  {
-    "rule": "jurisdiction",
-    "file": "app/src/lib/actions/verification.ts",
-    "match": "NSW",
-    "owner": "identity",
-    "note": "NSW / Australian jurisdiction fact stated beside a verification requirement. It moves with the verification ladder, not before it. 04-sequence.md §4 `identity`, fate row 12.08.  [W6, 1 hit(s): line 622]"
   },
   {
     "rule": "identity",
@@ -2822,13 +2654,6 @@
   },
   {
     "rule": "identity",
-    "file": "app/src/lib/onboarding/resume-step.ts",
-    "match": "WWCC",
-    "owner": "identity",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 14]"
-  },
-  {
-    "rule": "identity",
     "file": "app/src/lib/payments/abn.test.ts",
     "match": "ABN",
     "owner": "money",
@@ -2959,13 +2784,6 @@
     "match": "Wwcc",
     "owner": "identity",
     "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 322]"
-  },
-  {
-    "rule": "jurisdiction",
-    "file": "app/src/lib/verification.ts",
-    "match": "nsw",
-    "owner": "identity",
-    "note": "NSW / Australian jurisdiction fact stated beside a verification requirement. It moves with the verification ladder, not before it. 04-sequence.md §4 `identity`, fate row 12.08.  [W6, 3 hit(s): lines 142, 178, 186]"
   },
   {
     "rule": "identity",
@@ -3288,5 +3106,82 @@
     "match": "nsw",
     "owner": "cleanup",
     "note": "3c (BB-LDN-3c-061026): the D-4 kept column name of the certificate file path (wwcc_service_nsw_screenshot_url). QUESTIONS D-4 keeps the name; renaming the column is cleanup. [3c, 1 hit(s)]"
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/app/nanny/settings/page.tsx",
+    "match": "ocg",
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): the verification row keeps its column names (D-4); renaming them is cleanup. Selects ocg_verified_at for the Update Service row (copy deck §5.2)."
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/lib/actions/verification.ts",
+    "match": "ocg",
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): the verification row keeps its column names (D-4); renaming them is cleanup. getVerificationData selects ocg_result_status / ocg_verified_at for the clear row (deck §2.4)."
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/lib/dbs/nanny-display.ts",
+    "match": "wwcc",
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): the verification row keeps its column names (D-4); renaming them is cleanup. The decoder reads the section columns by name."
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/lib/dbs/nanny-display.ts",
+    "match": "WWCC",
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): imports 3a's WWCC_STATUS constant, whose name is kept under D-4 (3a owns the constants; renaming is cleanup)."
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/lib/dbs/run-dbs-check.ts",
+    "match": "wwcc",
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): the run-verification phase name is 3c's route contract, kept under D-4; renaming it is cleanup."
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/lib/dbs/fixtures.test-util.ts",
+    "match": "wwcc",
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): test fixture — the one test file that spells the kept column names (D-4), so the screen tests do not."
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/lib/dbs/fixtures.test-util.ts",
+    "match": "ocg",
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): test fixture — the one test file that spells the kept column names (D-4), so the screen tests do not."
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/lib/actions/verification.submit-dbs.test.ts",
+    "match": "wwcc",
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): pins the write payload by its kept column names (D-4): the method, the consent tick + time, the reset extracted fields."
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/lib/actions/verification.submit-dbs.test.ts",
+    "match": "WWCC",
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): imports submitWWCCSection (3b-owned, name kept under D-4) and 3a's WWCC_SUBMITTED code."
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/app/nanny/verification/sections/WWCCSection.test.tsx",
+    "match": "WWCC",
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): the test sits beside and imports WWCCSection / submitWWCCSection, names kept under D-4."
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/app/nanny/onboarding-verification/OnboardingVerificationClient.dbs-step.test.tsx",
+    "match": "WWCC",
+    "owner": "cleanup",
+    "note": "3b (BB-LDN-3b-061026): mocks submitWWCCSection (3b-owned, name kept under D-4) to drive onboarding step 3."
   }
 ]

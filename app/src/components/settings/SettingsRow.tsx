@@ -41,7 +41,7 @@ export interface SettingsRowProps {
   /** Right-aligned status pill (e.g. "Verified", "Pending"). */
   badge?: { label: string; tone: "neutral" | "success" | "warning" | "danger" };
   /** When true, the value is rendered with monospace + extra
-   *  spacing — appropriate for ID numbers like WWCC numbers. */
+   *  spacing — appropriate for ID numbers like DBS certificate numbers. */
   mono?: boolean;
   /** Hide the bottom border (use on the last row of a subsection). */
   isLast?: boolean;

@@ -14,7 +14,9 @@ import { SectionStatusBadge } from "./sections/SectionStatusBadge";
 import { Shield, Check, CheckCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { VerificationData } from "@/lib/actions/verification";
-import type { UserGuidance } from "@/lib/verification";
+import { DBS_VERIFICATION_METHOD, type UserGuidance } from "@/lib/verification";
+import { getDbsDisplayState, isDbsFailState, type DbsDisplayState } from "@/lib/dbs/nanny-display";
+import { fireDbsCheck } from "@/lib/dbs/run-dbs-check";
 
 interface ProfileData {
   firstName: string;
@@ -44,6 +46,8 @@ type PollResponse = {
   wwcc_verified: boolean;
   wwcc_rejection_reason: string | null;
   wwcc_user_guidance: UserGuidance | null;
+  ocg_result_status: string | null;
+  ocg_verified_at: string | null;
   contact_status: string;
   cross_check_status: string;
   cross_check_reasoning: string | null;
@@ -51,6 +55,34 @@ type PollResponse = {
 };
 
 type StepState = "completed" | "current" | "future";
+type BadgeStatus = "processing" | "verified" | "review" | "rejected" | "failed";
+
+/** States where the page keeps polling: the AI is reading, the Update Service is running, or a retry is due (#30). */
+const DBS_POLL_STATES: ReadonlySet<DbsDisplayState> = new Set(["reading", "checking", "technical_retry"]);
+/** States that open the DBS accordion by default: something for her to read or do. */
+const DBS_OPEN_STATES: ReadonlySet<DbsDisplayState> = new Set(["with_team", "manual_review", "barred"]);
+
+/** The DBS badge, from the one decoder (3b, brief change 10): 23/26 are "Action needed", never "Expired". */
+function dbsBadge(state: DbsDisplayState): BadgeStatus | null {
+  if (state === "reading" || state === "checking") return "processing";
+  if (state === "clear") return "verified";
+  if (state === "with_team" || state === "manual_review") return "review";
+  if (state === "rejected" || state === "barred") return "rejected";
+  if (isDbsFailState(state)) return "failed";
+  return null;
+}
+
+/** Identity and residence badges (their own section values). */
+function sectionBadge(sectionStatus: string): BadgeStatus | null {
+  switch (sectionStatus) {
+    case "pending": case "processing": return "processing";
+    case "verified": case "saved": return "verified";
+    case "review": return "review";
+    case "rejected": return "rejected";
+    case "failed": return "failed";
+    default: return null;
+  }
+}
 
 function stepLineColor(step: StepState): string {
   return step === "completed" ? "bg-green-300" : step === "current" ? "bg-violet-200" : "bg-slate-200";
@@ -92,7 +124,7 @@ export function VerificationPageClient({ initialData, profileData }: Verificatio
 
   // Determine which sections are unlocked
   const identityStatus = verification?.identity_status ?? "not_started";
-  const wwccStatus = verification?.wwcc_status ?? "not_started";
+  const dbsState = getDbsDisplayState(verification);
   const contactStatus = verification?.contact_status ?? "not_started";
   const crossCheckStatus = verification?.cross_check_status ?? "not_started";
 
@@ -107,19 +139,18 @@ export function VerificationPageClient({ initialData, profileData }: Verificatio
     if (identityStatus === "not_started") return ["identity"];
     if (identityInReview) return ["identity"];
     if (["failed", "rejected"].includes(identityStatus)) return ["identity"];
-    if (wwccStatus === "not_started" && !wwccLocked) return ["wwcc"];
-    if (identityStatus === "processing") return ["wwcc"];
-    if (["failed", "review", "rejected", "ocg_not_found", "closed", "application_pending", "barred", "expired"].includes(wwccStatus)) return ["wwcc"];
+    if (dbsState === "not_started" && !wwccLocked) return ["dbs"];
+    if (identityStatus === "processing") return ["dbs"];
+    if (isDbsFailState(dbsState) || DBS_OPEN_STATES.has(dbsState)) return ["dbs"];
     return ["contact"];
-  }, [identityStatus, wwccStatus, contactStatus, wwccLocked, identityInReview]);
+  }, [identityStatus, dbsState, contactStatus, wwccLocked, identityInReview]);
 
   const [openSections, setOpenSections] = useState<string[]>(getDefaultOpen());
   const [pendingWwccFire, setPendingWwccFire] = useState<{ verificationId: string } | null>(null);
 
   // Poll for status updates when sections are processing or pending
   const isProcessing =
-    identityStatus === "processing" || identityStatus === "pending" ||
-    wwccStatus === "processing" || wwccStatus === "pending";
+    identityStatus === "processing" || identityStatus === "pending" || DBS_POLL_STATES.has(dbsState);
 
   useEffect(() => {
     if (!isProcessing) return;
@@ -150,6 +181,8 @@ export function VerificationPageClient({ initialData, profileData }: Verificatio
             wwcc_verified: data.wwcc_verified,
             wwcc_rejection_reason: data.wwcc_rejection_reason,
             wwcc_user_guidance: data.wwcc_user_guidance,
+            ocg_result_status: data.ocg_result_status ?? prev.ocg_result_status,
+            ocg_verified_at: data.ocg_verified_at ?? prev.ocg_verified_at,
             contact_status: data.contact_status,
             cross_check_status: data.cross_check_status,
             cross_check_reasoning: data.cross_check_reasoning,
@@ -157,13 +190,9 @@ export function VerificationPageClient({ initialData, profileData }: Verificatio
           };
         });
 
-        // Fire queued WWCC verification once identity is verified
+        // Fire the queued certificate check once identity is verified
         if (data.identity_status === "verified" && pendingWwccFire) {
-          fetch("/api/run-verification", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ verificationId: pendingWwccFire.verificationId, phase: "wwcc" }),
-          }).catch(() => {});
+          fireDbsCheck(pendingWwccFire.verificationId);
           setPendingWwccFire(null);
         }
       } catch {
@@ -174,19 +203,15 @@ export function VerificationPageClient({ initialData, profileData }: Verificatio
     return () => clearInterval(interval);
   }, [isProcessing, pendingWwccFire]);
 
-  // On mount: fire WWCC if it was queued before a page refresh
+  // On mount: fire the certificate check if it was queued before a page refresh (re-keyed to the DBS method, 3b)
   useEffect(() => {
     if (
       initialData?.identity_status === "verified" &&
       initialData?.wwcc_status === "pending" &&
-      initialData?.wwcc_verification_method === "service_nsw_app" &&
+      initialData?.wwcc_verification_method === DBS_VERIFICATION_METHOD &&
       initialData?.id
     ) {
-      fetch("/api/run-verification", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ verificationId: initialData.id, phase: "wwcc" }),
-      }).catch(() => {});
+      fireDbsCheck(initialData.id);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -218,6 +243,8 @@ export function VerificationPageClient({ initialData, profileData }: Verificatio
         wwcc_verified: false,
         wwcc_rejection_reason: null,
         wwcc_user_guidance: null,
+        ocg_result_status: null,
+        ocg_verified_at: null,
         phone_number: null,
         address_line: null,
         city: null,
@@ -235,7 +262,7 @@ export function VerificationPageClient({ initialData, profileData }: Verificatio
         identification_photo_url: null,
       } as VerificationData;
     });
-    setOpenSections(["wwcc"]);
+    setOpenSections(["dbs"]);
   };
 
   const handleManualReview = () => {
@@ -245,7 +272,7 @@ export function VerificationPageClient({ initialData, profileData }: Verificatio
         ...prev,
         identity_status: "review",
         identity_user_guidance: null,
-        // Wipe WWCC data client-side to match server
+        // Wipe the DBS section client-side to match the server
         wwcc_status: "not_started",
         wwcc_verification_method: null,
         wwcc_number: null,
@@ -268,8 +295,8 @@ export function VerificationPageClient({ initialData, profileData }: Verificatio
       if (!prev) return prev;
       return { ...prev, wwcc_status: "pending", wwcc_user_guidance: null, wwcc_verification_method: wwccMethod };
     });
-    // Queue WWCC AI fire if identity isn't verified yet
-    if (identityStatus !== "verified" && wwccMethod === "service_nsw_app") {
+    // Queue the certificate check if identity isn't verified yet (no method branch any more)
+    if (identityStatus !== "verified") {
       setPendingWwccFire({ verificationId });
     }
     setOpenSections([]);
@@ -283,26 +310,10 @@ export function VerificationPageClient({ initialData, profileData }: Verificatio
     setOpenSections(["identity"]);
   };
 
-  const getBadgeStatus = (sectionStatus: string) => {
-    switch (sectionStatus) {
-      case "not_started": return null;
-      case "pending": return "processing" as const;
-      case "processing": return "processing" as const;
-      case "verified": case "doc_verified": case "passed": return "verified" as const;
-      case "saved": return "verified" as const;
-      case "review": case "application_pending": return "review" as const;
-      case "rejected": case "barred": return "rejected" as const;
-      case "failed": case "ocg_not_found": case "closed": return "failed" as const;
-      case "expired": return "expired" as const;
-      default: return null;
-    }
-  };
-
   const allVerified =
-    crossCheckStatus === "passed" &&
     contactStatus === "saved" &&
     identityStatus === "verified" &&
-    (wwccStatus === "doc_verified" || wwccStatus === "verified");
+    dbsState === "clear";
 
   // Auto-redirect to hub after verification is complete
   const [redirectCountdown, setRedirectCountdown] = useState(3);
@@ -321,10 +332,10 @@ export function VerificationPageClient({ initialData, profileData }: Verificatio
     return () => clearInterval(interval);
   }, [allVerified, router]);
 
-  // Stepper states (order: Residence → Identity → WWCC → Connect)
+  // Stepper states (order: Residence → Identity → DBS → Connect)
   const contactStep: StepState = contactStatus === "saved" ? "completed" : "current";
   const identityStep: StepState = identityLocked ? "future" : identityStatus === "verified" ? "completed" : "current";
-  const wwccStep: StepState = wwccLocked ? "future" : ["verified", "doc_verified"].includes(wwccStatus) ? "completed" : "current";
+  const wwccStep: StepState = wwccLocked ? "future" : dbsState === "clear" ? "completed" : "current";
   const goalStep: StepState = allVerified ? "completed" : "future";
 
   return (
@@ -354,8 +365,8 @@ export function VerificationPageClient({ initialData, profileData }: Verificatio
                   <span className="text-base font-semibold text-slate-800">
                     Verify Residence
                   </span>
-                  {getBadgeStatus(contactStatus) && (
-                    <SectionStatusBadge status={getBadgeStatus(contactStatus)!} />
+                  {sectionBadge(contactStatus) && (
+                    <SectionStatusBadge status={sectionBadge(contactStatus)!} />
                   )}
                 </div>
               </AccordionTrigger>
@@ -378,9 +389,9 @@ export function VerificationPageClient({ initialData, profileData }: Verificatio
               <AccordionTrigger className="hover:no-underline" disabled={identityLocked}>
                 <div className="flex items-center justify-between w-full mr-2">
                   <span className={`text-base font-semibold ${identityLocked ? "text-slate-400" : "text-slate-800"}`}>Verify ID</span>
-                  {!identityLocked && getBadgeStatus(identityStatus) && (
+                  {!identityLocked && sectionBadge(identityStatus) && (
                     <SectionStatusBadge
-                      status={getBadgeStatus(identityStatus)!}
+                      status={sectionBadge(identityStatus)!}
                       customLabel={identityInReview ? "Pending review" : undefined}
                     />
                   )}
@@ -399,18 +410,18 @@ export function VerificationPageClient({ initialData, profileData }: Verificatio
           </div>
         </div>
 
-        {/* Step 3: Verify WWCC */}
+        {/* Step 3: Verify DBS */}
         <div className="flex gap-2 sm:gap-3">
           <StepIndicator state={wwccStep} topLineColor={stepLineColor(identityStep)} bottomLineColor={stepLineColor(goalStep)} />
           <div className="flex-1 min-w-0 overflow-hidden pb-3">
-            <AccordionItem value="wwcc" className="border-0" disabled={wwccLocked}>
+            <AccordionItem value="dbs" className="border-0" disabled={wwccLocked}>
               <AccordionTrigger className="hover:no-underline" disabled={wwccLocked}>
                 <div className="flex items-center justify-between w-full mr-2">
                   <span className={`text-base font-semibold ${wwccLocked ? "text-slate-400" : "text-slate-800"}`}>
-                    Verify WWCC
+                    Verify DBS
                   </span>
-                  {!wwccLocked && getBadgeStatus(wwccStatus) && (
-                    <SectionStatusBadge status={getBadgeStatus(wwccStatus)!} />
+                  {!wwccLocked && dbsBadge(dbsState) && (
+                    <SectionStatusBadge status={dbsBadge(dbsState)!} />
                   )}
                 </div>
               </AccordionTrigger>
@@ -446,12 +457,13 @@ export function VerificationPageClient({ initialData, profileData }: Verificatio
         </div>
       )}
 
-      {/* Cross-check review */}
+      {/* Cross-check review — fixed copy only; the stored reasoning is internal text (deck §2.1) */}
       {crossCheckStatus === "review" && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
-          <p className="font-medium">Cross-check under review</p>
+          <p className="font-medium">We&apos;re taking a closer look</p>
           <p className="mt-1">
-            {verification?.cross_check_reasoning ?? "Our team is reviewing a discrepancy between your passport and WWCC details."}
+            The name or date of birth on your certificate doesn&apos;t quite match your passport — this often happens
+            after a name change. Our team will check it. You don&apos;t need to do anything; we&apos;ll email you.
           </p>
         </div>
       )}

@@ -2,7 +2,7 @@
 
 /**
  * Sidebar — top-level navigation only. When the user drills into a
- * sub-tree (e.g. Account → Verification → WWCC), the corresponding
+ * sub-tree (e.g. Account → Verification → DBS), the corresponding
  * top-level item (Account) stays highlighted so the user always
  * knows which top-level surface they're inside.
  *

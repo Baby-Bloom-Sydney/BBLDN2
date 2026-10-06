@@ -10,7 +10,7 @@
  *     ▸ Contact details
  *     ▸ Verification (branch)
  *         ▸ Identity
- *         ▸ WWCC
+ *         ▸ DBS
  *     ▸ Security
  *     (small "Close account" link at the bottom)
  *   Linked children   — leaf
@@ -73,6 +73,16 @@ import {
   normaliseUkMobile,
 } from "@/lib/uk-contact";
 import type { SettingsNode } from "@/components/settings/tree";
+import { formatDbsDate, formatDbsNumber, type DbsDisplayState } from "@/lib/dbs/nanny-display";
+
+/** The DBS leaf's data, decoded on the server by `getDbsDisplayState` (3b, brief change 11). */
+export interface NannyDbsSettings {
+  state: DbsDisplayState;
+  number: string | null;
+  issueDate: string | null;
+  /** Last Update Service check (deck §5.2 "checked {date}"). */
+  checkedAt: string | null;
+}
 
 interface Props {
   profile: {
@@ -85,11 +95,7 @@ interface Props {
     postcode: string;
   };
   verificationLevel: number;
-  wwcc: {
-    number: string | null;
-    status: string | null;
-    expiryDate: string | null;
-  } | null;
+  dbs: NannyDbsSettings | null;
   managedChildren?: ChildClient[];
   // Pre-fetched payouts data — passed in by the server page so the
   // three Payouts leaves render inline without extra round-trips.
@@ -116,27 +122,44 @@ function publicIdentityStatus(level: number): {
   return { label: "Not started", tone: "warning", isVerified: false };
 }
 
-function publicWwccStatus(status: string | null): {
-  label: string;
-  tone: "success" | "warning" | "danger" | "neutral";
-} | null {
-  if (!status) return null;
-  switch (status) {
-    case "doc_verified":
+type PillTone = "success" | "warning" | "danger" | "neutral";
+
+/** Deck §5.2 pills: "Expired" is gone; 23 and 26 get their own. */
+function publicDbsStatus(dbs: NannyDbsSettings | null): { label: string; tone: PillTone } | null {
+  if (!dbs) return null;
+  switch (dbs.state) {
+    case "clear":
       return { label: "Verified", tone: "success" };
-    case "pending":
-    case "processing":
-    case "review":
-      return { label: "Pending review", tone: "warning" };
     case "not_started":
       return { label: "Not started", tone: "neutral" };
-    case "rejected":
+    case "new_info":
+      return { label: "New certificate needed", tone: "danger" };
+    case "no_match":
+      return { label: "Not on Update Service", tone: "danger" };
     case "failed":
+    case "rejected":
+    case "technical_retry":
+    case "barred":
       return { label: "Action required", tone: "danger" };
-    case "expired":
-      return { label: "Expired", tone: "danger" };
     default:
       return { label: "Pending review", tone: "warning" };
+  }
+}
+
+/** Deck §5.2 "Update Service" row value. */
+function updateServiceValue(dbs: NannyDbsSettings): string {
+  const checked = formatDbsDate(dbs.checkedAt);
+  switch (dbs.state) {
+    case "clear":
+      return checked ? `Current · checked ${checked}` : "Current";
+    case "checking":
+      return "Checking…";
+    case "no_match":
+      return checked ? `Not found · checked ${checked}` : "Not found";
+    case "new_info":
+      return "New certificate needed";
+    default:
+      return "Not checked yet";
   }
 }
 
@@ -163,10 +186,10 @@ function formatDate(iso: string | null): string {
 
 function buildTree(args: {
   identityStatus: ReturnType<typeof publicIdentityStatus>;
-  wwccStatus: ReturnType<typeof publicWwccStatus>;
+  dbsStatus: ReturnType<typeof publicDbsStatus>;
   childCount: number;
 }): SettingsNode[] {
-  const { identityStatus, wwccStatus, childCount } = args;
+  const { identityStatus, dbsStatus, childCount } = args;
   return [
     { id: "profile", label: "Profile", icon: User },
     {
@@ -180,7 +203,7 @@ function buildTree(args: {
           label: "Verification",
           // No status pill on the Verification entry per user
           // feedback (2026-05-07) — the user sees the verification
-          // state only after they drill in. Identity / WWCC
+          // state only after they drill in. Identity / DBS
           // sub-pages still surface their own statuses inline.
           children: [
             {
@@ -192,10 +215,10 @@ function buildTree(args: {
               },
             },
             {
-              id: "wwcc",
-              label: "WWCC",
-              status: wwccStatus
-                ? { label: wwccStatus.label, tone: wwccStatus.tone }
+              id: "dbs",
+              label: "DBS",
+              status: dbsStatus
+                ? { label: dbsStatus.label, tone: dbsStatus.tone }
                 : { label: "Not started", tone: "neutral" },
             },
           ],
@@ -237,7 +260,7 @@ function buildTree(args: {
 export function NannySettingsClient({
   profile,
   verificationLevel,
-  wwcc,
+  dbs,
   managedChildren = [],
   payoutsDashboard,
   payoutHistory,
@@ -248,11 +271,11 @@ export function NannySettingsClient({
   const fullName = `${profile.first_name} ${profile.last_name}`.trim();
 
   const identityStatus = publicIdentityStatus(verificationLevel);
-  const wwccStatus = publicWwccStatus(wwcc?.status ?? null);
+  const dbsStatus = publicDbsStatus(dbs);
 
   const tree = buildTree({
     identityStatus,
-    wwccStatus,
+    dbsStatus,
     childCount: managedChildren.length,
   });
 
@@ -299,8 +322,8 @@ export function NannySettingsClient({
                 identityStatus={identityStatus}
               />
             );
-          case "wwcc":
-            return <WwccSection wwcc={wwcc} wwccStatus={wwccStatus} />;
+          case "dbs":
+            return <DbsSection dbs={dbs} dbsStatus={dbsStatus} />;
           case "security":
             return <SecuritySection />;
           case "linked-children":
@@ -674,28 +697,29 @@ function IdentitySection({
   );
 }
 
-// ── Verification: WWCC ───────────────────────────────────────
+// ── Verification: DBS (copy deck §5.2) ──
 
-function WwccSection({
-  wwcc,
-  wwccStatus,
+function DbsSection({
+  dbs,
+  dbsStatus,
 }: {
-  wwcc: Props["wwcc"];
-  wwccStatus: ReturnType<typeof publicWwccStatus>;
+  dbs: NannyDbsSettings | null;
+  dbsStatus: ReturnType<typeof publicDbsStatus>;
 }) {
-  if (!wwcc || !wwcc.number) {
+  // Empty state keys on the state, not on a stored number (02-current-system/04 §2.5).
+  if (!dbs || dbs.state === "not_started") {
     return (
-      <SettingsSubsection header="Working With Children Check">
+      <SettingsSubsection header="Enhanced DBS certificate">
         <div className="px-4 py-6 text-center">
           <p className="text-sm font-medium text-slate-700">
             Not yet submitted
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            Submit your WWCC to start receiving match requests.
+            Upload your DBS certificate to start receiving match requests.
           </p>
           <Link href="/nanny/verification" className="mt-3 inline-block">
             <Button variant="outline" size="sm" className="gap-1.5">
-              Submit WWCC <ExternalLink className="h-3.5 w-3.5" />
+              Upload certificate <ExternalLink className="h-3.5 w-3.5" />
             </Button>
           </Link>
         </div>
@@ -705,33 +729,37 @@ function WwccSection({
 
   return (
     <SettingsSubsection
-      header="Working With Children Check"
+      header="Enhanced DBS certificate"
       footnote={
         <>
-          Need to update your WWCC?{" "}
+          Got a new DBS certificate?{" "}
           <Link
             href="/nanny/verification"
             className="text-violet-600 hover:underline"
           >
-            Submit a new check
+            Upload it
           </Link>
         </>
       }
     >
       <SettingsRow
-        label="WWCC number"
-        value={wwcc.number}
+        label="Certificate number"
+        value={dbs.number ? formatDbsNumber(dbs.number) : undefined}
         mono
         locked
         badge={
-          wwccStatus
-            ? { label: wwccStatus.label, tone: wwccStatus.tone }
+          dbsStatus
+            ? { label: dbsStatus.label, tone: dbsStatus.tone }
             : undefined
         }
       />
       <SettingsRow
-        label="Expiry date"
-        value={wwcc.expiryDate ? formatDate(wwcc.expiryDate) : undefined}
+        label="Issue date"
+        value={dbs.issueDate ? formatDbsDate(dbs.issueDate) : undefined}
+      />
+      <SettingsRow
+        label="Update Service"
+        value={updateServiceValue(dbs)}
         isLast
       />
     </SettingsSubsection>

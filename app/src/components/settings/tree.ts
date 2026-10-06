@@ -15,7 +15,7 @@ import { type ComponentType } from "react";
 
 export interface SettingsNode {
   /** Unique within the whole tree. The URL search param `s` holds
-   *  this id, e.g. `?s=wwcc`. The walker below resolves an id back
+   *  this id, e.g. `?s=dbs`. The walker below resolves an id back
    *  to its path so breadcrumbs / sidebar highlighting can be
    *  computed without storing a path-encoded id in the URL. */
   id: string;

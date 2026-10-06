@@ -19,12 +19,9 @@ import {
   type VerificationData,
 } from "@/lib/actions/verification";
 import { BRAND } from "@/lib/constants";
-import {
-  DBS_FAILED_CODES,
-  DBS_REVIEW_CODES,
-  ID_FAILED_CODES,
-  ID_REVIEW_CODES,
-} from "@/lib/verification";
+import { fireDbsCheck } from "@/lib/dbs/run-dbs-check";
+import { DbsCertificateStep } from "./steps/DbsCertificateStep";
+import { VerificationProcessingStep } from "./steps/VerificationProcessingStep";
 import {
   formatAddressLine,
   parseUkAddress,
@@ -241,24 +238,6 @@ const PASSPORT_COUNTRIES = [
   "Zambia",
   "Zimbabwe",
 ];
-
-const WWCC_METHODS = [
-  {
-    label: "WWCC Grant Email",
-    value: "grant_email",
-    desc: "Upload your grant email as a PDF",
-  },
-  {
-    label: "Service NSW App",
-    value: "service_nsw_app",
-    desc: "Screenshot from your Service NSW wallet",
-  },
-  {
-    label: "Enter Manually (1-3 days)",
-    value: "manual_entry",
-    desc: "Type your WWCC number and expiry date",
-  },
-] as const;
 
 // ── Circular Upload Progress ──
 
@@ -579,7 +558,7 @@ function AccountSecuredStep({
   // bonus-program onboarding flag is ON. The Get Started step has no
   // sub-bullets (the feeling is "this is part of how Baby Bloom works",
   // not "here's what we're going to ask you to do"). The legacy 3-step
-  // variant keeps the Residence/ID/WWCC sub-bullets on the current Verify
+  // variant keeps the Residence/ID/DBS sub-bullets on the current Verify
   // step.
   const steps: AccountSecuredStepEntry[] =
     variant === "with-get-started"
@@ -615,7 +594,7 @@ function AccountSecuredStep({
             status: "current",
             title: "Verify",
             desc: "Confirm your account details",
-            subs: ["Residence", "ID", "WWCC"],
+            subs: ["Residence", "ID", "DBS"],
           },
           {
             status: "upcoming",
@@ -1159,839 +1138,6 @@ function IdentityStep({
   );
 }
 
-// ── Step: WWCC ──
-
-function WWCCStepContent({
-  userId,
-  onNoWwccChange,
-  wwccMethod,
-  setWwccMethod,
-  wwccNumber,
-  setWwccNumber,
-  wwccExpiry,
-  setWwccExpiry,
-  onGrantPdfPath,
-  onScreenshotPath,
-  onPdfExtracted,
-  wwccConfirmed,
-  setWwccConfirmed,
-  grantPdfPath,
-  screenshotPath,
-  surname,
-  givenNames,
-  onSwitchToManual,
-}: {
-  userId: string;
-  onNoWwccChange: (noWwcc: boolean) => void;
-  wwccMethod: string | null;
-  setWwccMethod: (m: string | null) => void;
-  wwccNumber: string;
-  setWwccNumber: (v: string) => void;
-  wwccExpiry: string;
-  setWwccExpiry: (v: string) => void;
-  onGrantPdfPath: (path: string) => void;
-  onScreenshotPath: (path: string) => void;
-  onPdfExtracted: (data: Record<string, string> | null) => void;
-  wwccConfirmed: boolean;
-  setWwccConfirmed: (v: boolean) => void;
-  grantPdfPath: string | null;
-  screenshotPath: string | null;
-  surname: string;
-  givenNames: string;
-  onSwitchToManual: () => void;
-}) {
-  const [noWwcc, setNoWwcc] = useState(false);
-  const [pdfValidating, setPdfValidating] = useState(false);
-  const [pdfValidation, setPdfValidation] = useState<{
-    pass: boolean;
-    extracted?: {
-      surname?: string;
-      firstName?: string;
-      otherNames?: string;
-      wwccNumber?: string;
-      clearanceType?: string;
-      expiry?: string;
-    };
-    issues?: string[];
-  } | null>(null);
-
-  const showCheckbox =
-    (wwccMethod === "grant_email" && grantPdfPath && pdfValidation?.pass) ||
-    (wwccMethod === "service_nsw_app" && screenshotPath) ||
-    (wwccMethod === "manual_entry" &&
-      wwccNumber.trim() !== "" &&
-      wwccExpiry !== "");
-
-  function handleNoWwcc() {
-    const next = !noWwcc;
-    setNoWwcc(next);
-    onNoWwccChange(next);
-    if (next) setWwccMethod(null);
-  }
-
-  return (
-    <div className="space-y-5">
-      {/* No WWCC amber warning */}
-      {noWwcc && (
-        <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800 space-y-2">
-          <p className="font-medium">
-            An enhanced DBS check is required to work with children in the UK.
-          </p>
-          <p className="text-xs text-amber-700">
-            You cannot proceed without a valid Working With Children Check. You
-            can apply for one through the NSW Office of the Children&apos;s
-            Guardian.
-          </p>
-          <a
-            href="https://www.service.nsw.gov.au/transaction/apply-for-a-working-with-children-check"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block text-xs font-medium text-amber-800 underline hover:text-amber-900"
-          >
-            Apply for a WWCC on Service NSW &rarr;
-          </a>
-        </div>
-      )}
-
-      {/* Method selector */}
-      {!noWwcc && (
-        <div className="space-y-2.5">
-          <p className="text-sm font-medium text-slate-700">
-            Choose your verification method
-          </p>
-          <div className="space-y-2">
-            {WWCC_METHODS.filter(
-              (m) => !wwccMethod || m.value === wwccMethod,
-            ).map((m) => (
-              <button
-                key={m.value}
-                type="button"
-                onClick={() =>
-                  setWwccMethod(wwccMethod === m.value ? null : m.value)
-                }
-                className={`w-full text-left rounded-xl border p-4 transition-all ${
-                  wwccMethod === m.value
-                    ? "border-violet-500 bg-violet-50 ring-1 ring-violet-500"
-                    : "border-slate-200 bg-white hover:border-slate-300 active:bg-slate-50"
-                }`}
-              >
-                <p
-                  className={`text-sm font-medium ${wwccMethod === m.value ? "text-violet-700" : "text-slate-800"}`}
-                >
-                  {m.label}
-                </p>
-                <p className="text-xs text-slate-500 mt-0.5">{m.desc}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Conditional content by method */}
-      {!noWwcc && wwccMethod === "grant_email" && (
-        <div className="space-y-3">
-          <div className="rounded-xl bg-blue-50 border border-blue-100 p-4 text-xs text-blue-700 space-y-1.5">
-            <p className="font-medium text-blue-800">
-              How to upload your grant email:
-            </p>
-            <ol className="list-decimal list-inside space-y-0.5 text-blue-600">
-              <li>Find the email from WWCCNotification@ocg.nsw.gov.au</li>
-              <li>Open the email and click Print</li>
-              <li>Choose &quot;Save as PDF&quot;</li>
-              <li>Upload the PDF below</li>
-            </ol>
-          </div>
-          <GrantEmailUploadZone
-            userId={userId}
-            surname={surname}
-            givenNames={givenNames}
-            onUploaded={onGrantPdfPath}
-            onValidation={(result) => {
-              setPdfValidation(result);
-              if (result.extracted) {
-                onPdfExtracted(result.extracted as Record<string, string>);
-              }
-            }}
-            onSwitchToManual={onSwitchToManual}
-          />
-        </div>
-      )}
-
-      {!noWwcc && wwccMethod === "service_nsw_app" && (
-        <div className="space-y-3">
-          <div className="rounded-xl bg-blue-50 border border-blue-100 p-4 text-xs text-blue-700 space-y-1.5">
-            <p className="font-medium text-blue-800">
-              How to upload your Service NSW screenshot:
-            </p>
-            <ol className="list-decimal list-inside space-y-0.5 text-blue-600">
-              <li>Open your Service NSW app Digital Wallet</li>
-              <li>Find your Working With Children Check</li>
-              <li>Take a full, unedited screenshot</li>
-              <li>Upload the screenshot below</li>
-            </ol>
-          </div>
-          <FileUploadZone
-            label="Service NSW Screenshot"
-            hint="Upload Service NSW WWCC Screenshot"
-            accept="image/*"
-            bucket="verification-documents"
-            userId={userId}
-            onUploaded={onScreenshotPath}
-          />
-        </div>
-      )}
-
-      {!noWwcc && wwccMethod === "manual_entry" && (
-        <div className="space-y-4">
-          <div className="rounded-xl bg-blue-50 border border-blue-100 p-4 text-xs text-blue-700 space-y-1.5">
-            <p className="font-medium text-blue-800">
-              Manual entry requirements:
-            </p>
-            <ul className="list-disc list-inside space-y-0.5 text-blue-600">
-              <li>WWCC number (e.g. WWC1234567A)</li>
-              <li>Expiry date</li>
-              <li>Must match the details on your official WWCC</li>
-            </ul>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700">
-              WWCC Number
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. WWC1234567A"
-              value={wwccNumber}
-              onChange={(e) => setWwccNumber(e.target.value)}
-              className="w-full h-11 rounded-lg border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent uppercase"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700">
-              Expiry Date
-            </label>
-            <input
-              type="date"
-              value={wwccExpiry}
-              onChange={(e) => setWwccExpiry(e.target.value)}
-              className="w-full h-11 rounded-lg border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Confirmation checkbox */}
-      {!noWwcc && showCheckbox && (
-        <div className="transition-all duration-300">
-          <label className="flex items-start gap-2.5 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={wwccConfirmed}
-              onChange={(e) => setWwccConfirmed(e.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-violet-600 focus:ring-violet-500 accent-violet-600 cursor-pointer"
-            />
-            <span className="text-xs text-slate-500 leading-relaxed">
-              I confirm that the WWCC I have provided is genuine, valid, and
-              issued to me.
-            </span>
-          </label>
-        </div>
-      )}
-
-      {/* No WWCC toggle */}
-      {(!wwccMethod || noWwcc) && (
-        <button
-          type="button"
-          onClick={handleNoWwcc}
-          className="w-full text-center text-xs text-slate-400 hover:text-violet-600 underline transition-colors"
-        >
-          {noWwcc ? "I have a valid WWCC" : "I don\u2019t have a valid WWCC"}
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ── Grant Email Upload Zone (with PDF validation) ──
-
-function GrantEmailUploadZone({
-  userId,
-  surname,
-  givenNames,
-  onUploaded,
-  onValidation,
-  onSwitchToManual,
-}: {
-  userId: string;
-  surname: string;
-  givenNames: string;
-  onUploaded: (path: string) => void;
-  onValidation: (result: {
-    pass: boolean;
-    extracted?: Record<string, string>;
-    issues?: string[];
-  }) => void;
-  onSwitchToManual: () => void;
-}) {
-  const [state, setState] = useState<
-    "idle" | "uploading" | "validating" | "done" | "error"
-  >("idle");
-  const [progress, setProgress] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [failedIssues, setFailedIssues] = useState<string[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
-
-  const handleFileSelect = useCallback(
-    async (file: File) => {
-      // Step 1: Validate PDF first
-      setState("validating");
-      setError(null);
-      setFailedIssues([]);
-
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("surname", surname);
-        formData.append("given_names", givenNames);
-
-        const validateRes = await fetch("/api/validate-wwcc-pdf", {
-          method: "POST",
-          body: formData,
-        });
-
-        const validation = await validateRes.json();
-
-        // Stop on ANY failure — no AI fallback for Grant Email
-        if (!validation.pass) {
-          setState("error");
-          setError("PDF validation failed");
-          setFailedIssues(
-            validation.issues || ["Could not validate this file"],
-          );
-          onValidation({ pass: false, issues: validation.issues });
-          return;
-        }
-
-        // Step 2: Upload the file only if validation passed
-        setState("uploading");
-        setProgress(0);
-        abortRef.current = new AbortController();
-
-        const result = await uploadFileWithProgress(
-          "verification-documents",
-          userId,
-          file,
-          (percent) => setProgress(percent),
-          abortRef.current.signal,
-        );
-
-        if (result.error) {
-          setState("error");
-          setError(result.error);
-          return;
-        }
-
-        if (result.url) {
-          setState("done");
-          onUploaded(result.url);
-          onValidation({
-            pass: validation.pass,
-            extracted: validation.extracted,
-            issues: validation.issues,
-          });
-        }
-      } catch {
-        setState("error");
-        setError("Something went wrong. Please try again.");
-      }
-    },
-    [userId, surname, givenNames, onUploaded, onValidation],
-  );
-
-  return (
-    <div className="space-y-1.5">
-      <label className="text-sm font-medium text-slate-700 block">
-        WWCC Grant Email PDF
-      </label>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".pdf,application/pdf"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handleFileSelect(file);
-          e.target.value = "";
-        }}
-      />
-      {state === "error" && failedIssues.length > 0 ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-3">
-          <div className="flex items-start gap-2">
-            <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 shrink-0" />
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-red-800">
-                We couldn&apos;t verify this file
-              </p>
-              <ul className="list-disc list-inside text-xs text-red-600 space-y-0.5">
-                {failedIssues.map((issue, i) => (
-                  <li key={i}>{issue}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setState("idle");
-                setFailedIssues([]);
-                setError(null);
-                fileInputRef.current?.click();
-              }}
-              className="flex-1 h-9 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              Try a different file
-            </button>
-            <button
-              type="button"
-              onClick={onSwitchToManual}
-              className="flex-1 h-9 rounded-lg border border-violet-200 bg-violet-50 text-sm font-medium text-violet-700 hover:bg-violet-100 transition-colors"
-            >
-              Enter details manually
-            </button>
-          </div>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() =>
-            (state === "idle" || state === "error") &&
-            fileInputRef.current?.click()
-          }
-          disabled={state === "uploading" || state === "validating"}
-          className={`w-full flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-5 text-center transition-all duration-300 ${
-            state === "done"
-              ? "border-green-300 bg-green-50"
-              : state === "uploading" || state === "validating"
-                ? "border-violet-300 bg-violet-50/30 cursor-wait"
-                : state === "error"
-                  ? "border-red-300 bg-red-50 hover:border-red-400"
-                  : "border-slate-300 bg-slate-50 hover:border-violet-400 hover:bg-violet-50 active:bg-violet-50"
-          }`}
-        >
-          {state === "done" ? (
-            <div className="flex items-center gap-2 text-green-600">
-              <CheckCircle2 className="h-5 w-5" />
-              <span className="text-sm font-medium">
-                PDF uploaded & validated
-              </span>
-            </div>
-          ) : state === "validating" ? (
-            <div className="flex flex-col items-center gap-2">
-              <Loader2 className="h-8 w-8 text-violet-500 animate-spin" />
-              <span className="text-xs text-slate-500">Validating PDF...</span>
-            </div>
-          ) : state === "uploading" ? (
-            <div className="flex flex-col items-center gap-2">
-              <CircularProgress percent={progress} />
-              <span className="text-xs text-slate-500">Uploading...</span>
-            </div>
-          ) : state === "error" ? (
-            <div className="flex flex-col items-center gap-2">
-              <AlertCircle className="h-7 w-7 text-red-400" />
-              <p className="text-sm font-medium text-red-600">
-                Failed — tap to retry
-              </p>
-              {error && <p className="text-xs text-red-500">{error}</p>}
-            </div>
-          ) : (
-            <>
-              <Upload className="h-7 w-7 text-violet-500" />
-              <p className="text-sm font-medium text-slate-700">
-                Upload WWCC Grant Email PDF
-              </p>
-            </>
-          )}
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ── Step: Verification Processing (with real polling) ──
-
-// Status code sets come from lib/verification.ts (3a); no local copy.
-
-function VerificationProcessingStep({
-  profile,
-  onComplete,
-}: {
-  profile: ProfileData;
-  onComplete: (outcome: "success" | "failure" | "review") => void;
-}) {
-  const [statusCode, setStatusCode] = useState<number | null>(null);
-  const [contactSaved, setContactSaved] = useState(false);
-
-  const enterTimeRef = useRef(Date.now());
-  const [residenceDoneAt, setResidenceDoneAt] = useState<number | null>(null);
-  const [identityDoneAt, setIdentityDoneAt] = useState<number | null>(null);
-  const [wwccDoneAt, setWwccDoneAt] = useState<number | null>(null);
-
-  // Minimum display timings
-  const MIN_RESIDENCE_DELAY = 1000;
-  const MIN_IDENTITY_DELAY = 3000;
-  const MIN_WWCC_DELAY = 5500;
-
-  const [showResidenceDone, setShowResidenceDone] = useState(false);
-  const [showIdentityDone, setShowIdentityDone] = useState(false);
-  const [showWwccDone, setShowWwccDone] = useState(false);
-
-  // Poll /api/verification-status every 3 seconds
-  useEffect(() => {
-    let intervalId: ReturnType<typeof setInterval>;
-
-    const poll = async () => {
-      try {
-        const res = await fetch("/api/verification-status");
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.status === null || data.status === undefined) return;
-        setStatusCode(data.status as number);
-        if (data.contact_status === "saved") setContactSaved(true);
-      } catch {
-        // Ignore fetch errors, retry on next interval
-      }
-    };
-
-    poll(); // Initial poll
-    intervalId = setInterval(poll, 3000);
-
-    return () => clearInterval(intervalId);
-  }, []);
-
-  // Derive sub-step states from integer status code
-  const s = statusCode ?? -1;
-  const isResidenceDone = contactSaved;
-  const isIdentityDone = s >= 20; // Past ID stage, into WWCC or beyond
-  const isIdentityFailed = ID_FAILED_CODES.has(s);
-  const isIdentityReview = ID_REVIEW_CODES.has(s);
-  const isWwccDone = s >= 30; // Provisionally or Fully Verified
-  const isWwccFailed = DBS_FAILED_CODES.has(s);
-  const isWwccReview = DBS_REVIEW_CODES.has(s);
-
-  // Apply minimum display timings
-  useEffect(() => {
-    if (statusCode === null) return;
-    const now = Date.now();
-    const elapsed = now - enterTimeRef.current;
-
-    if (isResidenceDone && !residenceDoneAt) {
-      setResidenceDoneAt(now);
-      const delay = Math.max(0, MIN_RESIDENCE_DELAY - elapsed);
-      setTimeout(() => setShowResidenceDone(true), delay);
-    }
-
-    if (isIdentityDone && !identityDoneAt) {
-      setIdentityDoneAt(now);
-      const delay = Math.max(0, MIN_IDENTITY_DELAY - elapsed);
-      setTimeout(() => setShowIdentityDone(true), delay);
-    }
-
-    if (isWwccDone && !wwccDoneAt) {
-      setWwccDoneAt(now);
-      const delay = Math.max(0, MIN_WWCC_DELAY - elapsed);
-      setTimeout(() => setShowWwccDone(true), delay);
-    }
-  }, [
-    statusCode,
-    isResidenceDone,
-    isIdentityDone,
-    isWwccDone,
-    residenceDoneAt,
-    identityDoneAt,
-    wwccDoneAt,
-  ]);
-
-  // Determine outcome — only fire once
-  const allVerified = showResidenceDone && showIdentityDone && showWwccDone;
-  const hasFailed = isIdentityFailed || isWwccFailed;
-  const hasReview = (isIdentityReview || isWwccReview) && !hasFailed;
-  const completedRef = useRef(false);
-
-  useEffect(() => {
-    if (completedRef.current) return;
-    if (allVerified) {
-      completedRef.current = true;
-      onComplete("success");
-    } else if (hasFailed) {
-      completedRef.current = true;
-      onComplete("failure");
-    } else if (hasReview && showResidenceDone) {
-      completedRef.current = true;
-      onComplete("review");
-    }
-  }, [allVerified, hasFailed, hasReview, showResidenceDone, onComplete]);
-
-  const subSteps = [
-    {
-      label: "Residence",
-      status: showResidenceDone ? "done" : "current",
-    },
-    {
-      label: "ID",
-      status: isIdentityFailed
-        ? "failed"
-        : isIdentityReview
-          ? "review"
-          : showIdentityDone
-            ? "done"
-            : showResidenceDone
-              ? "current"
-              : "upcoming",
-    },
-    {
-      label: "WWCC",
-      status: isWwccFailed
-        ? "failed"
-        : isWwccReview
-          ? "review"
-          : showWwccDone
-            ? "done"
-            : showIdentityDone
-              ? "current"
-              : "upcoming",
-    },
-  ];
-
-  const verifyDone = allVerified || hasFailed || hasReview;
-
-  const mainSteps = [
-    {
-      status: "done" as const,
-      title: "Account Secured",
-      desc: "Your profile is protected",
-      spinning: false,
-    },
-    {
-      status: (verifyDone ? "done" : "current") as "done" | "current",
-      title: hasFailed
-        ? "Verification Issue"
-        : allVerified
-          ? "Verified"
-          : hasReview
-            ? "Under Review"
-            : "Verifying",
-      desc: hasFailed
-        ? "We ran into an issue with your documents"
-        : allVerified
-          ? "Verification complete"
-          : hasReview
-            ? "Manual review in progress"
-            : "Confirming your account details",
-      spinning: !verifyDone,
-    },
-    {
-      status: (allVerified ? "current" : "upcoming") as "current" | "upcoming",
-      title: "Connect",
-      desc: "Start receiving family opportunities",
-      spinning: false,
-    },
-  ];
-
-  const initial = profile.firstName?.charAt(0)?.toUpperCase() || "N";
-
-  return (
-    <div className="flex flex-col items-center text-center min-h-[calc(100vh-6rem)]">
-      {/* Header */}
-      <div className="pt-8 pb-4">
-        <h2 className="text-xl sm:text-2xl font-semibold text-slate-800 leading-snug">
-          {hasFailed
-            ? "We ran into an issue"
-            : allVerified
-              ? "You\u2019re verified!"
-              : hasReview
-                ? "Under review"
-                : "Verifying your account"}
-        </h2>
-        <p className="text-sm text-slate-500 mt-2">
-          {hasFailed
-            ? "There was a problem verifying your documents. Please review and try again."
-            : allVerified
-              ? "You are now able to connect with families looking for childcare"
-              : hasReview
-                ? "Your documents are being reviewed. This usually takes 1-3 days."
-                : "This only takes a moment."}
-        </p>
-      </div>
-
-      {/* Card + stepper */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-6 w-full pb-24">
-        {/* Profile card */}
-        <div
-          className={`bg-white rounded-xl border shadow-sm p-4 flex items-center gap-4 max-w-sm w-full transition-colors duration-700 ${
-            hasFailed
-              ? "border-red-300"
-              : allVerified
-                ? "border-green-300"
-                : hasReview
-                  ? "border-amber-300"
-                  : "border-slate-200"
-          }`}
-        >
-          <div className="relative shrink-0">
-            {profile.profilePictureUrl ? (
-              <img
-                src={profile.profilePictureUrl}
-                alt={profile.firstName || "Profile"}
-                className="w-14 h-14 rounded-full overflow-hidden border-2 border-violet-200 object-cover"
-              />
-            ) : (
-              <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-violet-200 bg-violet-100 flex items-center justify-center">
-                <span className="text-xl font-bold text-violet-600">
-                  {initial}
-                </span>
-              </div>
-            )}
-            <div
-              className={`absolute -bottom-0.5 -right-0.5 flex items-center justify-center rounded-full border ring-2 ring-white ${
-                hasFailed
-                  ? "bg-red-50 border-red-200"
-                  : allVerified
-                    ? "bg-green-50 border-green-200"
-                    : "bg-green-50 border-green-200 animate-[verifyPulse_2s_ease-in-out_infinite]"
-              }`}
-              style={{ height: "22px", width: "22px" }}
-            >
-              <ShieldCheck
-                className={`h-3 w-3 ${hasFailed ? "text-red-700" : "text-green-700"}`}
-              />
-            </div>
-          </div>
-          <div className="text-left flex-1 min-w-0">
-            <p className="font-semibold text-slate-800 text-sm">
-              {profile.firstName || "Nanny"}
-            </p>
-            <p className="text-xs text-slate-500 line-clamp-2">
-              {profile.bioSnippet || "Professional nanny"}
-            </p>
-          </div>
-        </div>
-
-        <style>{`
-          @keyframes verifyPulse {
-            0%, 100% { opacity: 0; }
-            30%, 70% { opacity: 1; }
-          }
-        `}</style>
-
-        {/* Vertical stepper */}
-        <div className="w-full max-w-xs mx-auto pt-2">
-          {mainSteps.map((s, i) => (
-            <div key={s.title} className="flex items-stretch gap-4">
-              <div className="flex flex-col items-center">
-                {s.status === "done" ? (
-                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0 transition-colors duration-500">
-                    <CheckCircle2 className="w-5 h-5 text-green-600" />
-                  </div>
-                ) : s.status === "current" && s.spinning ? (
-                  <div className="w-8 h-8 rounded-full border-[2.5px] border-violet-500 bg-white flex items-center justify-center shrink-0">
-                    <Loader2 className="w-4 h-4 text-violet-500 animate-spin" />
-                  </div>
-                ) : s.status === "current" ? (
-                  <div className="w-8 h-8 rounded-full border-[2.5px] border-violet-500 bg-white flex items-center justify-center shrink-0">
-                    <div className="w-2.5 h-2.5 rounded-full bg-violet-500" />
-                  </div>
-                ) : (
-                  <div className="w-8 h-8 rounded-full border-2 border-slate-200 bg-white shrink-0" />
-                )}
-                {i < mainSteps.length - 1 && (
-                  <div
-                    className={`w-0.5 flex-1 min-h-[28px] transition-colors duration-500 ${
-                      s.status === "done" ? "bg-green-200" : "bg-slate-200"
-                    }`}
-                  />
-                )}
-              </div>
-
-              <div
-                className={`text-left pb-5 ${i === mainSteps.length - 1 ? "pb-0" : ""}`}
-              >
-                <p
-                  className={`text-sm font-semibold leading-tight transition-colors duration-500 ${
-                    s.status === "done"
-                      ? "text-green-700"
-                      : s.status === "current"
-                        ? "text-slate-800"
-                        : "text-slate-400"
-                  }`}
-                >
-                  {s.title}
-                </p>
-                <p
-                  className={`text-xs mt-0.5 transition-colors duration-500 ${
-                    s.status === "upcoming"
-                      ? "text-slate-300"
-                      : "text-slate-500"
-                  }`}
-                >
-                  {s.desc}
-                </p>
-
-                {/* Sub-steps under Verify */}
-                {i === 1 && (
-                  <div className="mt-2.5 space-y-1.5">
-                    {subSteps.map((sub) => (
-                      <div key={sub.label} className="flex items-center gap-2">
-                        {sub.status === "done" ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
-                        ) : sub.status === "failed" ? (
-                          <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                        ) : sub.status === "review" ? (
-                          <Loader2 className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                        ) : sub.status === "current" ? (
-                          <Loader2 className="w-3.5 h-3.5 text-violet-500 animate-spin shrink-0" />
-                        ) : (
-                          <div className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0 ml-1 mr-0.5" />
-                        )}
-                        <span
-                          className={`text-xs transition-colors duration-300 ${
-                            sub.status === "done"
-                              ? "text-green-600"
-                              : sub.status === "failed"
-                                ? "text-red-600"
-                                : sub.status === "review"
-                                  ? "text-amber-600"
-                                  : sub.status === "current"
-                                    ? "text-violet-600 font-medium"
-                                    : "text-slate-400"
-                          }`}
-                        >
-                          {sub.label}
-                          {sub.status === "failed" && " — Failed"}
-                          {sub.status === "review" && " — Under Review"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Note under Connect */}
-                {i === 2 && !allVerified && (
-                  <p className="text-xs text-slate-300 mt-1 italic">
-                    Only verified nannies can connect with families.
-                  </p>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Main Client Component ──
 
 export function OnboardingVerificationClient({
@@ -2039,34 +1185,13 @@ export function OnboardingVerificationClient({
   const [idConfirmed, setIdConfirmed] = useState(false);
   const [biometricConsent, setBiometricConsent] = useState(false);
 
-  // WWCC state
-  const [wwccBlocked, setWwccBlocked] = useState(false);
-  const [wwccMethod, setWwccMethod] = useState<string | null>(null);
-  const [wwccNumber, setWwccNumber] = useState("");
-  const [wwccExpiry, setWwccExpiry] = useState("");
-  const [grantPdfPath, setGrantPdfPath] = useState<string | null>(null);
-  const [screenshotPath, setScreenshotPath] = useState<string | null>(null);
-  const [pdfExtracted, setPdfExtracted] = useState<Record<
-    string,
-    string
-  > | null>(null);
-  const [wwccConfirmed, setWwccConfirmed] = useState(false);
+  // DBS step state (3b: one page-1 upload + consent, inside DbsCertificateStep)
+  const [dbsError, setDbsError] = useState<string | null>(null);
 
   // Processing outcome
   const [processingOutcome, setProcessingOutcome] = useState<
     "success" | "failure" | "review" | null
   >(null);
-
-  // Computed: can submit WWCC?
-  const wwccCanSubmit = (() => {
-    if (wwccBlocked || submitting || !wwccMethod || !wwccConfirmed)
-      return false;
-    if (wwccMethod === "grant_email" && !grantPdfPath) return false;
-    if (wwccMethod === "service_nsw_app" && !screenshotPath) return false;
-    if (wwccMethod === "manual_entry" && (!wwccNumber.trim() || !wwccExpiry))
-      return false;
-    return true;
-  })();
 
   // Step 0: Account Secured — user clicks CTA to advance
 
@@ -2137,7 +1262,7 @@ export function OnboardingVerificationClient({
         }).catch(() => {});
       }
 
-      // 4. Advance to WWCC step
+      // 4. Advance to the DBS step
       setStep(3);
     } catch (err) {
       console.error("[onboarding] Identity submit error:", err);
@@ -2156,76 +1281,24 @@ export function OnboardingVerificationClient({
     profile.mobileNumber,
   ]);
 
-  const handleWwccSubmit = useCallback(async () => {
-    if (!wwccMethod) {
-      setError("Please select a verification method");
-      return;
-    }
-
+  const handleDbsSubmit = useCallback(async (certificatePath: string) => {
     setSubmitting(true);
-    setError(null);
-
+    setDbsError(null);
     try {
-      const wwccData: Parameters<typeof submitWWCCSection>[0] = {
-        wwcc_verification_method: wwccMethod,
-      };
-
-      if (wwccMethod === "grant_email") {
-        wwccData.wwcc_grant_email_url = grantPdfPath || undefined;
-        if (pdfExtracted) {
-          wwccData.extracted_wwcc_surname = pdfExtracted.surname;
-          wwccData.extracted_wwcc_first_name = pdfExtracted.firstName;
-          wwccData.extracted_wwcc_other_names = pdfExtracted.otherNames;
-          wwccData.extracted_wwcc_number = pdfExtracted.wwccNumber;
-          wwccData.extracted_wwcc_clearance_type = pdfExtracted.clearanceType;
-          wwccData.extracted_wwcc_expiry = pdfExtracted.expiry;
-          // Also set wwcc_number and expiry from extracted data
-          wwccData.wwcc_number = pdfExtracted.wwccNumber;
-          wwccData.wwcc_expiry_date = pdfExtracted.expiry;
-        }
-      } else if (wwccMethod === "service_nsw_app") {
-        wwccData.wwcc_service_nsw_screenshot_url = screenshotPath || undefined;
-      } else if (wwccMethod === "manual_entry") {
-        wwccData.wwcc_number = wwccNumber.trim();
-        wwccData.wwcc_expiry_date = wwccExpiry;
-      }
-
-      const wwccResult = await submitWWCCSection(wwccData);
-
-      if (!wwccResult.success) {
-        setError(wwccResult.error || "Failed to submit WWCC");
-        setSubmitting(false);
+      const result = await submitWWCCSection({ certificate_path: certificatePath, consent: true });
+      if (!result.success) {
+        setDbsError(result.error || "We couldn't send your certificate. Please try again.");
         return;
       }
-
-      // For service_nsw_app: fire AI verification
-      if (wwccMethod === "service_nsw_app" && wwccResult.verificationId) {
-        fetch("/api/run-verification", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            verificationId: wwccResult.verificationId,
-            phase: "wwcc",
-          }),
-        }).catch(() => {});
-      }
-
-      // Advance to processing
+      if (result.verificationId) fireDbsCheck(result.verificationId);
       setStep(4);
     } catch (err) {
-      console.error("[onboarding] WWCC submit error:", err);
-      setError("An unexpected error occurred. Please try again.");
+      console.error("[onboarding] DBS submit error:", err);
+      setDbsError("We couldn't send your certificate. Please try again.");
     } finally {
       setSubmitting(false);
     }
-  }, [
-    wwccMethod,
-    grantPdfPath,
-    pdfExtracted,
-    screenshotPath,
-    wwccNumber,
-    wwccExpiry,
-  ]);
+  }, []);
 
   const handleProcessingComplete = useCallback(
     (outcome: "success" | "failure" | "review") => {
@@ -2428,7 +1501,7 @@ export function OnboardingVerificationClient({
     );
   }
 
-  // Step 3: WWCC
+  // Step 3: DBS certificate
   if (step === 3) {
     return (
       <div className="min-h-screen bg-white">
@@ -2439,7 +1512,7 @@ export function OnboardingVerificationClient({
             <div className="flex-1 pt-10 pb-6">
               <div className="text-center mb-6">
                 <h2 className="text-xl sm:text-2xl font-semibold text-slate-800 leading-snug">
-                  Working With Children Check
+                  Enhanced DBS certificate
                 </h2>
                 <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">
                   An enhanced DBS check is required to work with children in
@@ -2447,66 +1520,16 @@ export function OnboardingVerificationClient({
                 </p>
               </div>
               <div className="max-w-md mx-auto px-2 pb-20">
-                <WWCCStepContent
+                <DbsCertificateStep
                   userId={userId}
-                  onNoWwccChange={setWwccBlocked}
-                  wwccMethod={wwccMethod}
-                  setWwccMethod={setWwccMethod}
-                  wwccNumber={wwccNumber}
-                  setWwccNumber={setWwccNumber}
-                  wwccExpiry={wwccExpiry}
-                  setWwccExpiry={setWwccExpiry}
-                  onGrantPdfPath={(path) => {
-                    setGrantPdfPath(path);
-                  }}
-                  onScreenshotPath={setScreenshotPath}
-                  onPdfExtracted={setPdfExtracted}
-                  wwccConfirmed={wwccConfirmed}
-                  setWwccConfirmed={setWwccConfirmed}
-                  grantPdfPath={grantPdfPath}
-                  screenshotPath={screenshotPath}
-                  surname={surname}
-                  givenNames={givenNames}
-                  onSwitchToManual={() => {
-                    setWwccMethod("manual_entry");
-                    setGrantPdfPath(null);
-                    setPdfExtracted(null);
-                    setWwccConfirmed(false);
-                  }}
+                  layout="onboarding"
+                  submitting={submitting}
+                  error={dbsError}
+                  onSubmit={handleDbsSubmit}
                 />
               </div>
-
-              {error && (
-                <div className="max-w-md mx-auto px-2 pb-4">
-                  <p className="text-sm text-red-600 bg-red-50 px-4 py-2 rounded-lg">
-                    {error}
-                  </p>
-                </div>
-              )}
             </div>
           </div>
-
-          {wwccCanSubmit && (
-            <div className="fixed bottom-0 left-0 right-0 z-20 pt-3 pb-[66px] bg-gradient-to-t from-white from-70% to-transparent">
-              <div className="max-w-md mx-auto px-2">
-                <button
-                  type="button"
-                  onClick={handleWwccSubmit}
-                  disabled={submitting}
-                  className="w-full bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white h-11 rounded-lg font-medium text-sm transition-colors disabled:opacity-60"
-                >
-                  {submitting ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Submitting...
-                    </span>
-                  ) : (
-                    "Verify WWCC"
-                  )}
-                </button>
-              </div>
-            </div>
-          )}
         </main>
       </div>
     );
