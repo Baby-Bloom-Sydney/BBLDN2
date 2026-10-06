@@ -233,17 +233,22 @@ function RealSessionProvider({ children }: SessionProviderProps) {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      // Never await a Supabase call inside this callback: auth-js runs it while holding its auth-token lock, and any
+      // query made here waits for that same lock — a deadlock that leaves every later browser-side call (uploads
+      // included) hanging. Defer the follow-up work to the next task (supabase-js guidance for onAuthStateChange).
       if (event === "SIGNED_IN" && session?.user) {
         setUser(session.user);
-        await fetchUserData(session.user.id);
+        const id = session.user.id;
+        setTimeout(() => void fetchUserData(id), 0);
       } else if (event === "SIGNED_OUT") {
         clearUserData();
       } else if (event === "TOKEN_REFRESHED" && session?.user) {
         setUser(session.user);
       } else if (event === "USER_UPDATED" && session?.user) {
         setUser(session.user);
-        await fetchUserData(session.user.id);
+        const id = session.user.id;
+        setTimeout(() => void fetchUserData(id), 0);
       }
       setIsLoading(false);
     });
