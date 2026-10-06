@@ -8,6 +8,14 @@
  * Allowed only after a failure she can act on — 24 (document failed), 23 (new information), 26 (no Update Service
  * match) — or the API-down state (`doc_verified` + cross-check `pending`). Anything else: an error, no write.
  * No attempt count: a second request after a failed resubmit is allowed.
+ *
+ * Contract
+ * - Rulings: #7 (two buttons, no attempt count), #18 (turnaround string), P-8 (identity untouched).
+ * - Input: none — the caller is the signed-in nanny (session client); she can only act on her own row.
+ * - Output: `{ success, error }`; on success the DBS section is `review` (→ 21), cross-check reset, guidance cleared,
+ *   sync run, VER-004-DBS sent, `/nanny/verification` revalidated.
+ * - Never: takes an id from the client, writes wwcc_verified or a level directly, overwrites a row whose state changed
+ *   since it was read (guarded update), or allows review while a check is in progress.
  */
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -23,6 +31,7 @@ import { sendDbsManualReviewEmail } from '@/lib/email/dbs-emails';
 
 const REVIEWABLE: ReadonlySet<string> = new Set([WWCC_STATUS.FAILED, WWCC_STATUS.NEW_INFO, WWCC_STATUS.NO_MATCH]);
 
+/** 24 / 23 / 26, or the API-down state (doc_verified + cross-check pending). */
 function canRequestReview(wwcc: string, cross: string): boolean {
   if (REVIEWABLE.has(wwcc)) return true;
   return wwcc === WWCC_STATUS.DOC_VERIFIED && cross === CROSS_CHECK_STATUS.PENDING;

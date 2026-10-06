@@ -8,6 +8,16 @@
  *
  * Fixture seam (#29, test-only): with DBS_AI_FIXTURE_MODE=1 the model is not called; the JSON in
  * __fixtures__/dbs-extractions/<uploaded file name>.json goes through the same code rule. Refuses to load in production.
+ *
+ * Contract
+ * - Rulings: #3 (page 1 only), #4 (Enhanced, children's list checked, child workforce, 12 digits, alteration), #5
+ *   (employer never a fail), #6, #16 (references optional → `refs:none`), #24, #29, #31, #37 (job title only → review).
+ * - Input: a signed URL for her upload + `{ isPdf, passportSurname, passportDob, documentPath }` + injectable deps.
+ *   Passport values are sanitised before they reach the prompt (letters/space/hyphen/apostrophe; ISO date).
+ * - Output: `{ outcome: pass | fail | review, reason_code, confidence, extracted, tamper_flags, reasoning, issues,
+ *   user_guidance }` — guidance is the copy-deck card for a fail, the neutral review card for a review, null on pass.
+ * - Never: writes to the database, calls the Update Service, trusts the model's `pass` on its own, swallows a model
+ *   transport error, or runs fixture mode in production (checked at import AND per call).
  */
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -168,6 +178,10 @@ const JSON_SHAPE = `{
   "user_guidance": null
 }`;
 
+/**
+ * The §7 prompt, in two variants: with references (three images, layout check) or without (one document, no
+ * `layout_mismatch`). `isPdf` adds the "read page 1 only" line. Inputs must already be sanitised.
+ */
 export function buildDbsPrompt(p: { surname: string; dob: string; withReferences: boolean; isPdf: boolean }): string {
   const images = p.withReferences
     ? `You are given three images:
@@ -228,6 +242,11 @@ When "pass" is true, reason_code and user_guidance are null.`;
 
 const CHECKED_BOX = new Set(["none_recorded", "information"]);
 
+/**
+ * The code-enforced fail rule, first failing reason wins, in this order: not a certificate / wrong page → not
+ * enhanced (title or 113B) → children's list not requested → adult workforce only → unreadable (number, model,
+ * unreadable children's box) → altered (tamper flags). Null = no fail.
+ */
 function failReason(m: ModelOutput, e: DbsExtraction): DbsFailReason | null {
   const said = m.reason_code ?? null;
   if (said === "not_a_dbs_certificate") return "not_a_dbs_certificate";
@@ -246,6 +265,10 @@ function failReason(m: ModelOutput, e: DbsExtraction): DbsFailReason | null {
   return null;
 }
 
+/**
+ * Fail (with the card) → else review when confidence is low, workforce unknown/missing (#37), the model says
+ * name_mismatch, or the model said fail with no failing fact (fail closed) → else pass.
+ */
 function decide(m: ModelOutput, refsNone: boolean): VerifyDbsResult {
   const extracted: DbsExtraction = { ...EMPTY, ...(m.extracted as Partial<DbsExtraction>) };
   const tamper_flags = m.tamper_flags ?? [];
@@ -337,6 +360,7 @@ function fixtureName(documentPath: string | undefined): string | null {
   return /^[A-Za-z0-9_-]+$/.test(name) ? name : null;
 }
 
+/** Signed URLs for references A and B, or null when either path is unset, outside `_reference/`, or unsignable. */
 async function references(env: Record<string, string | undefined>, sign: (p: string) => Promise<string | null>) {
   const cfg = getDbsConfig({ ...env, NODE_ENV: env.NODE_ENV ?? "development" });
   const paths = [cfg.referenceEnhancedPath, cfg.referenceStandardPath];
@@ -345,6 +369,7 @@ async function references(env: Record<string, string | undefined>, sign: (p: str
   return urls.every(Boolean) ? (urls as string[]) : null;
 }
 
+/** Image → URL part. PDF → downloaded and sent as a base64 file part; a failed download throws (→ TECHNICAL_RETRY). */
 async function submittedPart(url: string, isPdf: boolean, doFetch: typeof fetch): Promise<ContentPart> {
   if (!isPdf) return { type: "image_url", image_url: { url, detail: "high" } };
   const res = await doFetch(url);
@@ -362,6 +387,10 @@ function safeDob(s: string): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "unknown";
 }
 
+/**
+ * Reads and judges her certificate. Called by pipeline phase 2 inside its 2 × 45 s retry loop.
+ * @throws only on transport failure (model client or PDF download) — by design, so the pipeline can retry.
+ */
 export async function verifyDBS(documentSignedUrl: string, opts: VerifyDbsOptions, deps: VerifyDbsDeps = {}): Promise<VerifyDbsResult> {
   const env = deps.env ?? process.env;
 

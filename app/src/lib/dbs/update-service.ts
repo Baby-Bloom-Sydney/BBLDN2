@@ -14,6 +14,14 @@
  * `node:https` request with `ciphers: 'DEFAULT:@SECLEVEL=1'` — callers and tests are unaffected (transport injected).
  *
  * Never logs the certificate number, date of birth or surname — only the error reason and the attempt.
+ *
+ * Contract
+ * - Rulings: #9 (API runs automatically), #29 (tested only against the local fake), #30 (an ERROR is never a pass).
+ * - Input: `{ certificateNumber (12-digit string), surname (as printed on the certificate), dateOfBirth (YYYY-MM-DD) }`
+ *   plus injectable `{ fetch, config, sleep }`.
+ * - Output: BLANK | NON_BLANK | NEW_INFO | NO_MATCH with the raw status + body, or `{ result: 'ERROR', reason }`.
+ * - Never: writes to the database, decides a status or level (that is map-dbs-outcome.ts), follows a redirect,
+ *   converts the certificate number to a Number (leading zeros matter), or retries a real result.
  */
 import { DBS_API_RESULT, DBS_CERTIFICATE_NUMBER_PATTERN, type DbsApiResult } from "@/lib/verification";
 import { getDbsConfig, type DbsConfig } from "./config";
@@ -70,6 +78,7 @@ const KIND_BY_STATUS: Record<DbsApiResult, DbsResultKind> = {
 
 const NO_RETRY: ReadonlySet<DbsErrorReason> = new Set(["invalid_input", "not_configured"]);
 
+/** True only for BLANK / NON_BLANK — the two results that may lead to level 3 (#10). */
 export function isApiPass(r: DbsCheckResult): boolean {
   return r.result === "BLANK" || r.result === "NON_BLANK";
 }
@@ -84,6 +93,7 @@ function toDbsDate(iso: string): string | null {
   return `${d}/${mo}/${y}`;
 }
 
+/** Classifies a fetch rejection: abort/timeout → `timeout`; TLS/cipher wording → `tls`; anything else → `network`. */
 function errorReason(err: unknown): DbsErrorReason {
   const e = err as { name?: string; message?: string; cause?: { code?: string; message?: string } };
   if (e?.name === "TimeoutError" || e?.name === "AbortError") return "timeout";
@@ -100,6 +110,11 @@ function field(block: string, tag: string): string | null | "dup" {
   return all.length === 1 ? all[0][1].trim() : null;
 }
 
+/**
+ * Strict extractor for the five-field `<statusCheckResult>` schema — no XML library on purpose.
+ * Exactly one result block, no duplicated field, type SUCCESS and a known status, else `ERROR` (parse /
+ * failure_type / unknown_status). `printDate`'s `class="sql-date"` attribute is ignored by the tag regex.
+ */
 export function parseStatusCheck(body: string): DbsCheckResult {
   const blocks = body.match(/<statusCheckResult(?:\s[^>]*)?>[\s\S]*?<\/statusCheckResult>/g);
   if (!blocks || blocks.length !== 1) return { result: "ERROR", reason: "parse", raw: body };
@@ -119,6 +134,7 @@ export function parseStatusCheck(body: string): DbsCheckResult {
   };
 }
 
+/** One HTTP attempt: timeout via AbortSignal, `redirect: 'manual'` (a 3xx is an ERROR), non-XML content type refused. */
 async function attempt(url: string, config: DbsConfig, doFetch: typeof fetch): Promise<DbsCheckResult> {
   let res: Response;
   try {
@@ -139,6 +155,11 @@ async function attempt(url: string, config: DbsConfig, doFetch: typeof fetch): P
   return parseStatusCheck(body);
 }
 
+/**
+ * Calls the DBS Update Service once or twice and returns a classified result.
+ * Validates input and configuration BEFORE any network call (`invalid_input` / `not_configured`, never retried).
+ * @example checkDbsStatus({ certificateNumber: "001234567890", surname: "DOE", dateOfBirth: "1990-03-05" })
+ */
 export async function checkDbsStatus(input: DbsCheckInput, deps: DbsDeps = {}): Promise<DbsCheckResult> {
   const number = typeof input.certificateNumber === "string" ? input.certificateNumber : "";
   const surname = typeof input.surname === "string" ? input.surname.trim() : "";

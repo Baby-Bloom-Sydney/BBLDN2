@@ -257,6 +257,17 @@ function isOwnUpload(path: string, userId: string): boolean {
   return rest.length > 0 && !rest.includes('/') && !rest.includes('..');
 }
 
+/**
+ * Phase 2 — reads her DBS certificate (unit 3c; rulings #3, #4, #6, #24, #31, #37).
+ *
+ * Input: the verification id. Claims the row atomically (`wwcc_status` pending → processing), refuses any document path
+ * outside `{her user id}/` (→ 24, never signed), signs the upload, then calls `verifyDBS` up to twice (45 s each).
+ * Writes: the certificate read into the D-4 columns (issue date into the expiry columns; level/workforce/boxes as JSON;
+ * `wwcc_number` only when 12 digits), `wwcc_ai_issues` = issues + tamper flags (+ `confidence:<x>` on a pass).
+ * Outcomes: fail → 24 with the reason card (+ reason_code, confidence) · review → 21 · pass → `doc_verified` (20) and
+ * `triggerCrossCheck` · two transport errors → back to pending with TECHNICAL_RETRY.
+ * Never: calls the Update Service, writes a cross-check result, wwcc_verified, or a level above 2.
+ */
 export async function runWWCCDocPhase(verificationId: string): Promise<void> {
   const supabase = createAdminClient();
 
@@ -416,6 +427,17 @@ function crossCheckProblems(r: CrossCheckRow): string[] {
   return problems;
 }
 
+/**
+ * Phase 3 — passport vs certificate, then the DBS Update Service (unit 3c; rulings #8, #9, #10, #21, #30, #33, P-7).
+ *
+ * Input: the verification id and who triggered it — `first` (after phase 2), `retry` (her poll, API was down) or
+ * `admin` (3d's "Run DBS check now" on a pending row). Claims atomically: cross-check pending → processing, and only
+ * when identity is verified and the certificate is `doc_verified` (so two polls never call DBS twice).
+ * Flow: surname/DOB mismatch or missing → review (21), NO API call · else `checkDbsStatus` → `applyDbsResult`
+ * (the one table of meanings) → sync (unchanged) → one `dbs_status_check` log row → VER-001 only on a clean pass.
+ * Fail closed: an adapter throw or a refused write is recorded as the ERROR shape (pending, level 2), never 30.
+ * Never: writes wwcc_verified or 40, touches identity (P-8), or emails on 23/26 (VER-003's delayed trigger, 3g).
+ */
 export async function runCrossCheckPhase(verificationId: string, trigger: CrossCheckTrigger = 'first'): Promise<void> {
   const supabase = createAdminClient();
 
@@ -571,6 +593,7 @@ async function setIdentityReview(supabase: any, verificationId: string, issues: 
   if (userId) await syncNannyVerificationState(userId);
 }
 
+/** DBS section → review (21): AI unsure, job-title-only workforce or model name mismatch. Syncs (level stays ≤ 2). */
 async function setWwccReview(supabase: ReturnType<typeof createAdminClient>, verificationId: string, issues: string[], guidance: UserGuidance, identityStatus: IdentityStatus, userId: string) {
   await supabase.from('verifications').update({
     wwcc_status: WWCC_STATUS.REVIEW,
