@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * /nanny/verification — the three-step accordion (residence, ID, DBS) with status polling.
+ * Unit 3b (BB-LDN-3b-061026, brief changes 1, 4, 6, 10; rulings #10, #30): the DBS step reads its state from the one
+ * decoder (`getDbsDisplayState`) for its badge, default-open rule, stepper and "fully verified" banner; polling keeps
+ * running while the certificate is read, the Update Service runs, or a technical retry is due; the certificate check
+ * fires through `fireDbsCheck` (queued until ID is verified); the cross-check card shows fixed copy only.
+ * Never: renders `cross_check_reasoning` (internal text), or shows "fully verified" except at `clear` (30/40).
+ */
 import { useState, useEffect, useCallback } from "react";
 import {
   Accordion,

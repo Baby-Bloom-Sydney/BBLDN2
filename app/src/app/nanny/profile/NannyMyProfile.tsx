@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * Nanny "My profile" page — view and edit mode for her public profile.
+ * Unit 3b (BB-LDN-3b-061026, brief change 10): the Safety & Assurance "Enhanced DBS" glance uses the same trigger as
+ * the hub (`showsEnhancedDbsBadge`, level ≥ 3) instead of the stored verified flag. Qualification / certificate /
+ * assurance lists here are 3e's.
+ */
 import { useState, useEffect, useTransition, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";

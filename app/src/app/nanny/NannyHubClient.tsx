@@ -1,5 +1,12 @@
 "use client";
 
+/**
+ * Nanny hub — hero card, verification banner, tabs, profile accordion and verification tile.
+ * Unit 3b (BB-LDN-3b-061026, brief change 10; copy deck §5.1; P-7): the banner, the tile's DBS step and the
+ * "Enhanced DBS" glance read `lib/dbs/nanny-display.ts` — banners for 23 (new certificate needed) and 26 (not on the
+ * Update Service), "Verify DBS" tile, glance only at level ≥ 3 (`showsEnhancedDbsBadge`). Never: shows the glance or a
+ * verified state at level 2 (23/26 drop her to level 2, P-7). Option lists / certificate ordering here are 3e's.
+ */
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ExpandablePhoto } from "@/components/ui/expandable-photo";

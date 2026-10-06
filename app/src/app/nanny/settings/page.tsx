@@ -1,3 +1,9 @@
+/**
+ * /nanny/settings (server) — loads the profile, level, DBS row, children and payouts, and renders the client.
+ * Unit 3b (BB-LDN-3b-061026, brief change 11): the DBS row is decoded here with `getDbsDisplayState` and passed as
+ * `{state, number, issueDate, checkedAt}`; the stored expiry column holds the certificate's issue date (3a).
+ * Never: writes; never passes raw section codes to the client.
+ */
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";

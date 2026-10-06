@@ -1,3 +1,9 @@
+/**
+ * /nanny/onboarding-verification (server) — picks the wizard's starting step from the stored verification row.
+ * Unit 3b (BB-LDN-3b-061026, brief change 1): the DBS part reads `getDbsDisplayState` — a fail card or a bar sends
+ * her to /nanny/verification; a submitted certificate shows processing (step 4); only `clear` (30/40) counts as done
+ * and redirects to the hub. Never: treats status 21 (review) as complete.
+ */
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";

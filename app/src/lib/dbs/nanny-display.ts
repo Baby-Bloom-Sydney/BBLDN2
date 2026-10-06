@@ -5,6 +5,10 @@
  * reads its state from `getDbsDisplayState`, its fail card from `dbsCardFor`, its links from `dbsCardExtras` and its
  * "Enhanced DBS" glance from `showsEnhancedDbsBadge`. Codes and meanings are 3a's (`lib/verification.ts`); this module
  * only turns them into what she sees. Copy: LDN2 `06-build-drafts/02-copy-deck.md` §3–§4.
+ *
+ * In: verification-row fields (or a poll body), a reason code, a level. Out: a display state, a card, links, a
+ * badge decision, formatted values. Pure — never fetches, writes, logs personal data, or returns a link that is not
+ * a `DBS_LINKS` value (#14). Unknown or deleted values (28, the old regulator states) decode to `not_started`.
  */
 import { format, isValid, parseISO } from "date-fns";
 import { DBS_LINKS } from "@/lib/constants";

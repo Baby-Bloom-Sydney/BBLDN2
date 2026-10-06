@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * GuidanceCard — the amber "what went wrong / to fix this" card on the verification page (identity and DBS sections).
+ * Unit 3b (BB-LDN-3b-061026): gains an optional `explainer` and up to two external `links` (00-RULINGS #22). Both are
+ * optional, so the identity section renders exactly as before.
+ * In: the guidance to show, optional primary/secondary actions, optional explainer + links.
+ * Out: markup only. Never: fetches, writes, or renders more than two links; links open in a new tab with
+ * `rel="noopener noreferrer"`, and DBS callers pass only `DBS_LINKS` values (`lib/dbs/nanny-display.ts`).
+ */
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { GuidanceLink, UserGuidance } from "@/lib/verification";

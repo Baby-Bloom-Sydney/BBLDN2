@@ -613,6 +613,16 @@ async function certificateExists(admin: ReturnType<typeof createAdminClient>, us
   return (data ?? []).some((o) => o.name === name);
 }
 
+/**
+ * Saves her page-1 DBS certificate upload and starts the check (unit 3b; rulings #3, #34; security note A3).
+ * In: `{certificate_path, consent: true}` from the signed-in nanny. Refuses — writing nothing — when not signed in,
+ * without the consent tick, when the path is not `<her id>/<timestamp>-<name>` (allow-list), when the file is not in
+ * her storage folder, or when she has no verification row.
+ * Writes: method `'dbs_certificate'`, the path, the consent tick + time, status `pending` (29 via the derive), and
+ * clears every AI / extracted / guidance / cross-check field. Out: `{success, error, verificationId}`.
+ * Never: stores anything the client says about the certificate's contents; never sets a verified or passed state —
+ * the AI phase (`/api/run-verification`, fired by the caller) does that.
+ */
 export async function submitWWCCSection(
   data: SubmitWWCCData
 ): Promise<{ success: boolean; error: string | null; verificationId?: string }> {

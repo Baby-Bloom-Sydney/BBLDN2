@@ -1,5 +1,14 @@
 "use client";
 
+/**
+ * Nanny onboarding wizard: 0 account secured · 1 residence · 2 ID (passport + selfie) · 3 DBS certificate ·
+ * 4 processing.
+ * Unit 3b (BB-LDN-3b-061026, brief changes 2, 4, 5): step 3 is `steps/DbsCertificateStep` (one page-1 upload, photo
+ * or PDF, notice, consent — rulings #1, #3); step 4 is `steps/VerificationProcessingStep` ("You're verified!" only at
+ * `clear`). The old method chooser, emailed-PDF zone, manual number/date form and their callers are gone.
+ * Submit: `submitWWCCSection({certificate_path, consent: true})`, then `fireDbsCheck`. Never: sends certificate
+ * contents from the client (the AI reads the file server-side).
+ */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {

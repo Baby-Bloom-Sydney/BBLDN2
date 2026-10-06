@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * SectionStatusBadge — the small pill beside each verification step title.
+ * Unit 3b (BB-LDN-3b-061026, copy deck §2.5): the "Expired" variant is gone; the DBS new-information (23) and
+ * no-match (26) states use the `failed` variant, "Action needed". Callers map their state to a variant
+ * (`VerificationPageClient` `dbsBadge`). Never: decides state itself.
+ */
 import { Loader2, CheckCircle2, XCircle, Clock, AlertTriangle } from "lucide-react";
 
 type BadgeVariant = "pending" | "processing" | "verified" | "failed" | "review" | "rejected" | "saved";

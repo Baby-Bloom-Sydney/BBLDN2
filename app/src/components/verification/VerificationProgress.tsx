@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * VerificationProgress — the vertical stepper used by Katie's verification tile and the design pages.
+ * Unit 3b (BB-LDN-3b-061026, brief change 12; copy deck §5.4): sub-text comes from the one DBS decoder; 23 → "New
+ * certificate needed", 26 → "Not on Update Service — action needed", barred shows no action line (#13); the old
+ * expiry line is gone. In: steps of `{label, status}` (a section value or a DBS display-state name). Never: fetches.
+ */
 import { Check } from "lucide-react";
 import { getDbsStateForSection, type DbsDisplayState } from "@/lib/dbs/nanny-display";
 
