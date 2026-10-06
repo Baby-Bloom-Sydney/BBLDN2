@@ -131,13 +131,16 @@ export function WWCCSection({ verification, identityVerified, onSaved }: WWCCSec
   const guidance = verification?.wwcc_user_guidance ?? null;
   const reason = guidance?.reason_code ?? STATE_REASON[state];
   const failed = isDbsFailState(state);
+  // 22 = an admin already reviewed it: Edit & Resubmit only (orchestrator ruling 2026-10-06, flagged to BAI;
+  // 3c's submitDbsForManualReview refuses 22 too). Every other fail state gets both buttons (ruling #7).
+  const canAskForReview = failed && state !== "rejected";
   const actions = failed
     ? {
         primaryAction: { label: "Edit & Resubmit", onClick: startEdit },
-        secondaryAction: {
+        secondaryAction: canAskForReview ? {
           label: reviewSubmitting ? "Submitting..." : "Request manual review",
           onClick: () => !reviewSubmitting && setShowReviewConfirm(true),
-        },
+        } : undefined,
       }
     : {};
   // 22 shows the admin's reason in the red box; a guidance card is added only if one was stored.
@@ -173,15 +176,6 @@ export function WWCCSection({ verification, identityVerified, onSaved }: WWCCSec
         <div className="flex flex-col sm:flex-row gap-2">
           <Button type="button" onClick={startEdit} className="bg-violet-600 hover:bg-violet-700 text-white" size="sm">
             Edit &amp; Resubmit
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setShowReviewConfirm(true)}
-            disabled={reviewSubmitting}
-            size="sm"
-          >
-            {reviewSubmitting ? "Submitting..." : "Request manual review"}
           </Button>
         </div>
       )}

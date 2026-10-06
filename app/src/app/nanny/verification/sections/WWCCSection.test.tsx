@@ -33,7 +33,6 @@ const FAIL_ROWS: Array<[string, Parameters<typeof dbsRow>[0]]> = [
   ["failed", { code: 24, section: "failed", guidance: failGuidance }],
   ["new_info", { code: 23, section: "expired", guidance: { ...GUIDANCE_MESSAGES.DBS_NEW_INFO } }],
   ["no_match", { code: 26, section: STORED_SECTION.NO_MATCH, guidance: { ...GUIDANCE_MESSAGES.DBS_NO_MATCH } }],
-  ["rejected", { code: 22, section: "rejected", rejection: "Certificate unreadable" }],
   ["technical_retry", { code: 20, section: "doc_verified", crossCheck: "pending", guidance: { ...GUIDANCE_MESSAGES.TECHNICAL_RETRY } }],
   ["failed, no guidance", { code: 24, section: "failed" }],
 ];
@@ -54,6 +53,15 @@ describe("WWCCSection — DBS display mode", () => {
     show(row);
     expect(screen.getByRole("button", { name: "Edit & Resubmit" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Request manual review" })).toBeInTheDocument();
+  });
+
+  it.each<[string, Parameters<typeof dbsRow>[0]]>([
+    ["no guidance", { code: 22, section: "rejected", rejection: "Certificate unreadable" }],
+    ["stored guidance", { code: 22, section: "rejected", rejection: "Certificate unreadable", guidance: failGuidance }],
+  ])("shows Edit & Resubmit only when rejected (22), %s — a person already reviewed it (orchestrator ruling)", (_n, row) => {
+    show(row);
+    expect(screen.getByRole("button", { name: "Edit & Resubmit" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Request manual review" })).toBeNull();
   });
 
   it("shows no buttons when barred", () => {
