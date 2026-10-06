@@ -90,6 +90,21 @@ describe("GET /api/verification-status — retry a pending cross-check (API down
     expect((await res.json()).cross_check_status).toBe("pending");
   });
 
+  it("S3 resets a cross-check stuck in processing past the stale threshold back to pending (review HIGH), so the retry path takes over", async () => {
+    seed({ cross_check_status: "processing", cross_check_at: ago(6 * MIN) });
+    h.runCrossCheckPhase.mockImplementation(async () => {});
+    const body = await (await GET()).json();
+    expect(h.db.tables.verifications[0]).toMatchObject({ cross_check_status: "pending", verification_status: 20 });
+    expect(body.cross_check_status).toBe("pending");
+  });
+
+  it("S3b leaves a fresh processing cross-check alone", async () => {
+    seed({ cross_check_status: "processing", cross_check_at: ago(1 * MIN) });
+    await GET();
+    expect(h.db.tables.verifications[0].cross_check_status).toBe("processing");
+    expect(h.runCrossCheckPhase).not.toHaveBeenCalled();
+  });
+
   it("allows 60 s for the two 15 s attempts plus the delay", () => {
     expect(maxDuration).toBe(60);
   });

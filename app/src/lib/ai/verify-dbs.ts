@@ -353,17 +353,27 @@ async function submittedPart(url: string, isPdf: boolean, doFetch: typeof fetch)
   return { type: "file", file: { filename: "dbs-certificate.pdf", file_data: `data:application/pdf;base64,${base64}` } };
 }
 
+/** Passport values are AI-read text: only letters, spaces, hyphens and apostrophes (and a real date) reach the prompt. */
+function safeSurname(s: string): string {
+  const clean = s.replace(/[^\p{L} '’-]/gu, "").trim().slice(0, 60);
+  return clean || "unknown";
+}
+function safeDob(s: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "unknown";
+}
+
 export async function verifyDBS(documentSignedUrl: string, opts: VerifyDbsOptions, deps: VerifyDbsDeps = {}): Promise<VerifyDbsResult> {
   const env = deps.env ?? process.env;
 
   if (env.DBS_AI_FIXTURE_MODE === "1") {
+    if (process.env.NODE_ENV === "production") throw new Error("DBS_AI_FIXTURE_MODE must never be set in production");
     const name = fixtureName(opts.documentPath);
     const raw = name ? await (deps.readFixture ?? defaultReadFixture)(name) : null;
     return evaluateDbsModelOutput(raw, true);
   }
 
   const refs = await references(env, deps.signReference ?? defaultSignReference);
-  const system = buildDbsPrompt({ surname: opts.passportSurname, dob: opts.passportDob, withReferences: refs !== null, isPdf: opts.isPdf });
+  const system = buildDbsPrompt({ surname: safeSurname(opts.passportSurname), dob: safeDob(opts.passportDob), withReferences: refs !== null, isPdf: opts.isPdf });
   const submitted = await submittedPart(documentSignedUrl, opts.isPdf, deps.fetch ?? fetch);
   const content: ContentPart[] = [
     { type: "text", text: "Please verify the DBS certificate below." },

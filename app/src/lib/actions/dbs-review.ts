@@ -44,6 +44,9 @@ export async function submitDbsForManualReview(): Promise<{ success: boolean; er
 
   const wwcc = String(existing.wwcc_status ?? '');
   const cross = String(existing.cross_check_status ?? '');
+  if (cross === CROSS_CHECK_STATUS.PROCESSING) {
+    return { success: false, error: 'Your certificate check is in progress — please refresh in a minute' };
+  }
   if (!canRequestReview(wwcc, cross)) {
     return { success: false, error: 'Manual review is only available after your certificate check needs attention' };
   }

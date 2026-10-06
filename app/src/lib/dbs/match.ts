@@ -42,6 +42,11 @@ function calendarDate(s: string | null | undefined): string | null {
   return m[0];
 }
 
+/** True when the string starts with a real `YYYY-MM-DD` calendar date. */
+export function isCalendarDate(s: string | null | undefined): boolean {
+  return calendarDate(s) !== null;
+}
+
 export function datesMatch(a: string | null | undefined, b: string | null | undefined): boolean {
   const x = calendarDate(a);
   return x !== null && x === calendarDate(b);

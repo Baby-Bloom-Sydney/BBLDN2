@@ -34,12 +34,16 @@ function text(env: Env, key: string): string | null {
   return v ? v : null;
 }
 
-function positiveInt(env: Env, key: string, fallback: number): number {
+function positiveInt(env: Env, key: string, fallback: number, max = Number.MAX_SAFE_INTEGER): number {
   const raw = env[key];
   if (raw == null || raw.trim() === "") return fallback;
   const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : fallback;
+  return Number.isInteger(n) && n > 0 ? Math.min(n, max) : fallback;
 }
+
+/** Caps so a poll-triggered retry always fits the route's 60 s maxDuration. */
+const MAX_TIMEOUT_MS = 20_000;
+const MAX_ATTEMPTS = 3;
 
 /** Reads the DBS settings. Throws when an `http://` base URL is configured in production (fail closed). */
 export function getDbsConfig(env: Env = process.env): DbsConfig {
@@ -52,8 +56,8 @@ export function getDbsConfig(env: Env = process.env): DbsConfig {
     organisationName: text(env, "DBS_CHECK_ORGANISATION_NAME"),
     checkerForename: text(env, "DBS_CHECKER_FORENAME"),
     checkerSurname: text(env, "DBS_CHECKER_SURNAME"),
-    timeoutMs: positiveInt(env, "DBS_TIMEOUT_MS", DBS_DEFAULTS.timeoutMs),
-    attempts: positiveInt(env, "DBS_ATTEMPTS", DBS_DEFAULTS.attempts),
+    timeoutMs: positiveInt(env, "DBS_TIMEOUT_MS", DBS_DEFAULTS.timeoutMs, MAX_TIMEOUT_MS),
+    attempts: positiveInt(env, "DBS_ATTEMPTS", DBS_DEFAULTS.attempts, MAX_ATTEMPTS),
     retryDelayMs: positiveInt(env, "DBS_RETRY_DELAY_MS", DBS_DEFAULTS.retryDelayMs),
     retryCooldownMs: positiveInt(env, "DBS_RETRY_COOLDOWN_MS", DBS_DEFAULTS.retryCooldownMs),
     referenceEnhancedPath: text(env, "DBS_REFERENCE_ENHANCED_PATH"),

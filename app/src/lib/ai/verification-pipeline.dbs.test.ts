@@ -134,6 +134,15 @@ describe("phase 2 — verify-dbs writes", () => {
     expect(v()).toMatchObject({ wwcc_status: "pending", wwcc_user_guidance: GUIDANCE_MESSAGES.TECHNICAL_RETRY, verification_status: 29 });
   });
 
+  it("S1 fails closed and never reads a certificate stored outside her own folder (review H1)", async () => {
+    for (const path of ["someone-else/1-page1-pass.pdf", "u1/../someone-else/1-x.pdf", "u1"]) {
+      seed({ wwcc_service_nsw_screenshot_url: path });
+      await runWWCCDocPhase("v1");
+      expect(h.verifyDBS).not.toHaveBeenCalled();
+      expect(v()).toMatchObject({ wwcc_status: "failed", verification_status: 24 });
+    }
+  });
+
   it("skips when the row is not pending (atomic claim)", async () => {
     seed({ wwcc_status: "processing" });
     await runWWCCDocPhase("v1");
@@ -240,6 +249,15 @@ describe("phase 3 — cross-check + Update Service (status / level table)", () =
     await runCrossCheckPhase("v1", "retry");
     expect(v()).toMatchObject({ cross_check_status: "passed", verification_status: 30 });
     expect(logs()[0].action_details).toEqual({ trigger: "retry", result: "BLANK" });
+  });
+
+  it("S2 a pending cross-check is not claimed (no DBS call) unless identity is verified and the certificate is doc_verified", async () => {
+    for (const over of [{ wwcc_status: "review" }, { identity_status: "review" }]) {
+      seed({ cross_check_status: "pending", wwcc_status: "doc_verified", extracted_wwcc_surname: "Doe", extracted_wwcc_dob: "1990-03-05", extracted_wwcc_number: "200000000001", ...over });
+      await runCrossCheckPhase("v1", "retry");
+      expect(h.checkDbsStatus).not.toHaveBeenCalled();
+      expect(v().cross_check_status).toBe("pending");
+    }
   });
 
   it("triggerCrossCheck does nothing until identity is verified and the certificate is doc_verified", async () => {

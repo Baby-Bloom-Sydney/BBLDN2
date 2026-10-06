@@ -98,6 +98,11 @@ describe("submitDbsForManualReview", () => {
     expect(h.sendDbsManualReviewEmail).not.toHaveBeenCalled();
   });
 
+  it("N4c tells her a check is in progress when the cross-check is processing", async () => {
+    seed({ wwcc_status: "doc_verified", cross_check_status: "processing" });
+    expect((await submitDbsForManualReview()).error).toMatch(/in progress/);
+  });
+
   it("N4b returns an error when she has no verification row", async () => {
     seed({ user_id: "nobody" });
     expect((await submitDbsForManualReview()).success).toBe(false);

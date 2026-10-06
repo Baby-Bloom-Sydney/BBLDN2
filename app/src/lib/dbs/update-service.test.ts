@@ -328,6 +328,11 @@ describe("isApiPass + config", () => {
     expect([c.timeoutMs, c.attempts, c.retryDelayMs]).toEqual([15000, 2, 5000]);
   });
 
+  it("S6 clamps attempts to at most 3 and the timeout to at most 20 s, so a poll retry fits maxDuration (review L5)", () => {
+    const c = getDbsConfig({ NODE_ENV: "test", DBS_ATTEMPTS: "50", DBS_TIMEOUT_MS: "999999" });
+    expect([c.attempts, c.timeoutMs]).toEqual([3, 20000]);
+  });
+
   it("adapter returns ERROR not_configured when the config itself refuses (http base URL in production)", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("DBS_UPDATE_SERVICE_BASE_URL", "http://127.0.0.1:1/crsc");

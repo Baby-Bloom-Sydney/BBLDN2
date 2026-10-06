@@ -21,7 +21,7 @@ import { verifyDBS, type VerifyDbsResult } from './verify-dbs';
 import { checkDbsStatus, type DbsCheckResult } from '@/lib/dbs/update-service';
 import { applyDbsResult, type DbsApplyOutcome } from '@/lib/dbs/map-dbs-outcome';
 import { logDbsStatusCheck } from '@/lib/dbs/log';
-import { datesMatch, surnamesMatch } from '@/lib/dbs/match';
+import { datesMatch, isCalendarDate, surnamesMatch } from '@/lib/dbs/match';
 import { DBS_FALLBACK_GUIDANCE, DBS_REVIEW_GUIDANCE } from '@/lib/dbs/reason-guidance';
 import { emailFooter } from "@/lib/email/brand";
 import { SITE_URL } from "@/lib/constants";
@@ -239,7 +239,7 @@ function certificateColumns(result: VerifyDbsResult, issues: string[]): Record<s
     wwcc_ai_issues: JSON.stringify(issues),
     // Only a well-formed value reaches the checked / typed columns (chk_wwcc_number_dbs; date column).
     ...(number && DBS_CERTIFICATE_NUMBER_PATTERN.test(number) ? { wwcc_number: number } : {}),
-    ...(issueDate && datesMatch(issueDate, issueDate) ? { wwcc_expiry_date: issueDate.slice(0, 10) } : {}),
+    ...(issueDate && isCalendarDate(issueDate) ? { wwcc_expiry_date: issueDate.slice(0, 10) } : {}),
     updated_at: new Date().toISOString(),
   };
 }
@@ -247,6 +247,14 @@ function certificateColumns(result: VerifyDbsResult, issues: string[]): Record<s
 /** #24: reason_code + confidence ride inside the guidance JSON. */
 function withReason(base: UserGuidance, result: VerifyDbsResult): UserGuidance {
   return { ...base, ...(result.reason_code ? { reason_code: result.reason_code } : {}), confidence: result.confidence };
+}
+
+/** `{userId}/{file}` only — one segment, no traversal. */
+function isOwnUpload(path: string, userId: string): boolean {
+  const prefix = `${userId}/`;
+  if (!path.startsWith(prefix)) return false;
+  const rest = path.slice(prefix.length);
+  return rest.length > 0 && !rest.includes('/') && !rest.includes('..');
 }
 
 export async function runWWCCDocPhase(verificationId: string): Promise<void> {
@@ -274,6 +282,11 @@ export async function runWWCCDocPhase(verificationId: string): Promise<void> {
   const docPath: string | null = claimed.wwcc_service_nsw_screenshot_url;
   if (!docPath) {
     await setWwccFailed(supabase, verificationId, ['Missing DBS certificate'], null, claimed.identity_status as IdentityStatus, claimed.user_id);
+    return;
+  }
+  // Own-folder check: the admin client below bypasses storage RLS, so a path outside `{her id}/` is never read.
+  if (!isOwnUpload(docPath, claimed.user_id)) {
+    await setWwccFailed(supabase, verificationId, ['Certificate path is not in her own folder'], null, claimed.identity_status as IdentityStatus, claimed.user_id);
     return;
   }
 
@@ -343,7 +356,7 @@ export async function runWWCCDocPhase(verificationId: string): Promise<void> {
       return;
 
     } catch (error) {
-      console.error(`[DBS] Attempt ${attempt} error:`, error);
+      console.error(`[DBS] Attempt ${attempt} error:`, error instanceof Error ? error.message : 'unknown');
 
       if (attempt === 1) {
         await supabase.from('verifications').update({
@@ -416,6 +429,8 @@ export async function runCrossCheckPhase(verificationId: string, trigger: CrossC
     })
     .eq('id', verificationId)
     .eq('cross_check_status', CROSS_CHECK_STATUS.PENDING)
+    .eq('identity_status', IDENTITY_STATUS.VERIFIED)
+    .eq('wwcc_status', WWCC_STATUS.DOC_VERIFIED)
     .select('id, user_id, identity_status, wwcc_status, extracted_surname, extracted_dob, extracted_wwcc_surname, extracted_wwcc_first_name, extracted_wwcc_dob, extracted_wwcc_number, extracted_wwcc_expiry')
     .single();
 

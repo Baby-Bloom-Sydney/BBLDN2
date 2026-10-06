@@ -82,6 +82,23 @@ export async function GET() {
     }
   }
 
+  // A cross-check claimed but never finished (instance killed mid-call): back to `pending` so the retry below
+  // takes over. Guarded on `processing`, status re-derived (20 — fail closed, never 30).
+  if (
+    data.cross_check_status === CROSS_CHECK_STATUS.PROCESSING &&
+    data.cross_check_at &&
+    now - new Date(data.cross_check_at).getTime() > STALE_THRESHOLD_MS
+  ) {
+    const admin = createAdminClient();
+    await admin.from('verifications').update({
+      cross_check_status: CROSS_CHECK_STATUS.PENDING,
+      verification_status: deriveOverallStatus((identity_status || 'not_started') as IdentityStatus, (wwcc_status || 'not_started') as WwccStatus, CROSS_CHECK_STATUS.PENDING as CrossCheckStatus),
+      updated_at: new Date().toISOString(),
+    }).eq('id', data.id).eq('cross_check_status', CROSS_CHECK_STATUS.PROCESSING);
+    data = { ...data, cross_check_status: CROSS_CHECK_STATUS.PENDING };
+    console.log(`[verification-status] Cross-check stale for user ${user.id} — back to pending`);
+  }
+
   // API down at the first check (#30): cross-check left `pending` → retry on her poll, once per cooldown.
   // The phase's atomic claim (pending → processing) stops concurrent polls calling DBS twice.
   if (
