@@ -61,7 +61,7 @@ const NO_GUIDANCE_CARD: UserGuidance = {
 
 export function WWCCSection({ verification, identityVerified, onSaved }: WWCCSectionProps) {
   const stored = getDbsDisplayState(verification);
-  const [editing, setEditing] = useState(stored === "not_started");
+  const [editing, setEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showReviewConfirm, setShowReviewConfirm] = useState(false);
@@ -118,7 +118,8 @@ export function WWCCSection({ verification, identityVerified, onSaved }: WWCCSec
     setEditing(true);
   }
 
-  if (editing) {
+  // Not started always shows the form, even if the row resets while this section is mounted (review LOW).
+  if (editing || (stored === "not_started" && !reviewSent)) {
     return (
       <div className="space-y-4">
         <p className="text-sm font-medium text-slate-700">Your DBS certificate</p>

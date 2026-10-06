@@ -587,11 +587,30 @@ const DBS_ERRORS = {
   save: "We couldn't save your certificate. Please try again.",
 } as const;
 
-/** The path must be `<her id>/<file>` — no other folder, no traversal, no URL. Fail closed. */
-function isOwnCertificatePath(path: string, userId: string): boolean {
-  if (!path.startsWith(`${userId}/`)) return false;
-  const rest = path.slice(userId.length + 1);
-  return rest.length > 0 && !rest.split('/').some((seg) => seg === '..' || seg === '.' || seg === '');
+/**
+ * The file name the upload helper makes (`<timestamp>-<safe name>`, `lib/supabase/storage.ts`). An allow-list, not a
+ * deny-list: no `/`, `\`, `%`, `?`, `#` or space can pass, so no encoded or literal dot-segment can climb out of her
+ * folder when the path is later signed with the service role (security review, 3b). The name must hold a letter or digit.
+ */
+const CERTIFICATE_FILE_NAME = /^\d{10,}-(?=[A-Za-z0-9._-]*[A-Za-z0-9])[A-Za-z0-9._-]+$/;
+const CERTIFICATE_BUCKET = 'verification-documents';
+
+/** `<her id>/<file name>` only — the name, or null. Fail closed. */
+function ownCertificateName(path: string, userId: string): string | null {
+  const prefix = `${userId}/`;
+  if (!path.startsWith(prefix)) return null;
+  const name = path.slice(prefix.length);
+  return CERTIFICATE_FILE_NAME.test(name) ? name : null;
+}
+
+/** The object must exist in her folder (fail closed on any storage error). */
+async function certificateExists(admin: ReturnType<typeof createAdminClient>, userId: string, name: string): Promise<boolean> {
+  const { data, error } = await admin.storage.from(CERTIFICATE_BUCKET).list(userId, { search: name, limit: 100 });
+  if (error) {
+    console.error('[submitWWCCSection] Storage check failed:', error);
+    return false;
+  }
+  return (data ?? []).some((o) => o.name === name);
 }
 
 export async function submitWWCCSection(
@@ -603,9 +622,11 @@ export async function submitWWCCSection(
   if (data?.consent !== true) return { success: false, error: DBS_ERRORS.consent };
   const path = typeof data.certificate_path === 'string' ? data.certificate_path.trim() : '';
   if (!path) return { success: false, error: DBS_ERRORS.missing };
-  if (!isOwnCertificatePath(path, user.id)) return { success: false, error: DBS_ERRORS.missing };
+  const name = ownCertificateName(path, user.id);
+  if (!name) return { success: false, error: DBS_ERRORS.missing };
 
   const admin = createAdminClient();
+  if (!(await certificateExists(admin, user.id, name))) return { success: false, error: DBS_ERRORS.missing };
 
   const { data: existing } = await admin
     .from('verifications')

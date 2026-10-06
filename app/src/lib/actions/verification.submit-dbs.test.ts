@@ -12,6 +12,8 @@ const state = vi.hoisted(() => ({
   user: { id: "user-1" } as { id: string } | null,
   verification: null as Record<string, unknown> | null,
   updateError: null as unknown,
+  storageNames: ["1700000000000-page1.pdf"] as string[],
+  storageList: [] as unknown[][],
   sendEmail: null as unknown as ReturnType<typeof import("vitest")["vi"]["fn"]>,
 }));
 
@@ -45,7 +47,17 @@ function builder(table: string) {
 }
 
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({ from: (table: string) => builder(table) }),
+  createAdminClient: () => ({
+    from: (table: string) => builder(table),
+    storage: {
+      from: () => ({
+        list: async (...args: unknown[]) => {
+          state.storageList.push(args);
+          return { data: state.storageNames.map((name) => ({ name })), error: null };
+        },
+      }),
+    },
+  }),
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: () => ({ auth: { getUser: async () => ({ data: { user: state.user }, error: null }) } }),
@@ -72,6 +84,8 @@ beforeEach(() => {
   state.calls = [];
   state.user = { id: "user-1" };
   state.updateError = null;
+  state.storageNames = ["1700000000000-page1.pdf"];
+  state.storageList = [];
   state.verification = { id: "ver-1", identity_status: "verified", wwcc_status: "not_started" };
   (state.sendEmail as unknown as { mockClear: () => void }).mockClear();
 });
@@ -101,9 +115,24 @@ describe("submitWWCCSection — DBS certificate write", () => {
     ["a bare filename", "page1.pdf"],
     ["a traversal out of her folder", "user-1/../user-2/page1.pdf"],
     ["a full URL", "https://example.test/user-1/page1.pdf"],
+    ["an encoded traversal (security review HIGH)", "user-1/%2e%2e/user-2/1700000000000-passport.jpg"],
+    ["an upper-case encoded traversal", "user-1/%2E%2E/user-2/1700000000000-passport.jpg"],
+    ["a mixed encoded traversal", "user-1/.%2e/user-2/1700000000000-passport.jpg"],
+    ["a backslash traversal", "user-1/..\\user-2\\1700000000000-passport.jpg"],
+    ["a nested folder", "user-1/sub/1700000000000-page1.pdf"],
+    ["a name that is not the upload helper's", "user-1/page1.pdf"],
+    ["a name of only dots", "user-1/1700000000000-.."],
+    ["a query string", "user-1/1700000000000-page1.pdf?x=1"],
   ])("returns an error and writes nothing when the path is %s", async (_n, path) => {
     const r = await submitWWCCSection({ certificate_path: path, consent: true });
     expect(r.success).toBe(false);
+    expect(verificationUpdates()).toHaveLength(0);
+  });
+
+  it("returns an error and writes nothing when the file is not in her folder in storage", async () => {
+    state.storageNames = [];
+    const r = await submitWWCCSection({ certificate_path: PATH, consent: true });
+    expect(r).toEqual({ success: false, error: "Please upload page 1 of your DBS certificate to continue." });
     expect(verificationUpdates()).toHaveLength(0);
   });
 

@@ -64,7 +64,7 @@ export function GuidanceCard({ guidance, primaryAction, secondaryAction, explain
       )}
 
       {(primaryAction || secondaryAction) && (
-        <div className="flex gap-2 ml-7 pt-1">
+        <div className="flex flex-wrap gap-2 ml-7 pt-1">
           {primaryAction && (
             <Button
               type="button"
