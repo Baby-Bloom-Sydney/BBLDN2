@@ -102,4 +102,22 @@ describe('convertLeadToAccount — London funnel answers', () => {
       .map((r) => r.certification_type);
     expect(certs).toEqual([...CERTIFICATE_OPTIONS]);
   });
+
+  // Security review MEDIUM (3e): the lead JSON comes from an unauthenticated client, so the boolean is derived from the
+  // key on conversion and a value that is not one of the four keys is never written (fail closed).
+  it('derives right_to_work from the key, ignoring a mismatched boolean from the client', async () => {
+    h.lead = leadWith({ residency_status: 'no_rtw', right_to_work: true }, {});
+    await convertLeadToAccount('lead-1', 'pw-123456');
+    const [nanny] = insertsInto('nannies');
+    expect(nanny.residency_status).toBe('no_rtw');
+    expect(nanny.right_to_work).toBe(false);
+  });
+
+  it('writes no residency_status and no right_to_work for a value that is not a UK key', async () => {
+    h.lead = leadWith({ residency_status: 'a-retired-answer', right_to_work: true }, {});
+    await convertLeadToAccount('lead-1', 'pw-123456');
+    const [nanny] = insertsInto('nannies');
+    expect(nanny.residency_status).toBeNull();
+    expect(nanny.right_to_work).toBeNull();
+  });
 });

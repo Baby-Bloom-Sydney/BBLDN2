@@ -145,11 +145,12 @@ export function N1Location({ state, dispatch, goNext, goBack, progress, question
   // forward; British / Irish are re-stamped as `citizen` (E-1)
   const statusIsKey = RIGHT_TO_WORK_OPTIONS.some((o) => o.key === residency.residency_status);
   useEffect(() => {
-    if (residency.residency_status === null || statusIsKey) return;
+    if (statusIsKey) return;
     if (isAutoRightToWork) {
       update({ residency_status: 'citizen', right_to_work: rightToWorkFor('citizen') });
       return;
     }
+    if (residency.residency_status === null) return;
     update({ residency_status: null, right_to_work: null, sydney_resident: null, suburb: null, postcode: null });
     setSuburbQuery('');
   }, [residency.residency_status, statusIsKey, isAutoRightToWork, update]);

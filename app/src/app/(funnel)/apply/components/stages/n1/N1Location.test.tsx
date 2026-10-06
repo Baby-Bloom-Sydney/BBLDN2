@@ -189,4 +189,16 @@ describe('N1Location — UK right to work (E-1, E-3)', () => {
     expect(latest.residency.residency_status).toBe('citizen');
     expect(latest.residency.right_to_work).toBe(true);
   });
+
+  // Code review MEDIUM (3e): British restored with no status at all must not be a dead end.
+  it('restores British with no status as citizen with the right to work', () => {
+    const restored: NannyLeadFunnelState = {
+      ...DEFAULT_FUNNEL_STATE,
+      residency: { ...DEFAULT_FUNNEL_STATE.residency, nationality: 'British', residency_status: null, right_to_work: null },
+    };
+    render(<Harness initial={restored} />);
+    expect(latest.residency.residency_status).toBe('citizen');
+    expect(latest.residency.right_to_work).toBe(true);
+    expect(isShown(LONDON_QUESTION)).toBe(true);
+  });
 });

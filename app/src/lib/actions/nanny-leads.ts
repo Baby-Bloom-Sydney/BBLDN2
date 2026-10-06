@@ -18,6 +18,12 @@ import {
 } from "@/types/nanny-leads";
 import { emailFooter } from "@/lib/email/brand";
 import { BRAND, SITE_NAME, SITE_URL } from "@/lib/constants";
+import { RIGHT_TO_WORK_OPTIONS, rightToWorkFor, type RightToWorkKey } from "@/lib/nanny-options";
+
+function ukRightToWork(status: unknown): { residency_status: RightToWorkKey | null; right_to_work: boolean | null } {
+  const key = RIGHT_TO_WORK_OPTIONS.find((o) => o.key === status)?.key ?? null;
+  return { residency_status: key, right_to_work: key ? rightToWorkFor(key) : null };
+}
 
 interface ActionResult {
   success: boolean;
@@ -357,10 +363,10 @@ export async function convertLeadToAccount(
           under_3_experience_years: experience.under_3_experience || null,
           newborn_experience_years: experience.newborn_experience || null,
           childcare_roles: experience.childcare_roles,
-          // Residency (N1.4)
+          // Residency (N1.4) — the lead JSON is client-written, so only one of the four UK keys is stored and the
+          // boolean is derived from it, never trusted (E-1; fail closed: anything else writes neither)
           nationality: residency.nationality,
-          residency_status: residency.residency_status,
-          right_to_work: residency.right_to_work,
+          ...ukRightToWork(residency.residency_status),
           sydney_resident: residency.sydney_resident,
           // Preferences (N3.1)
           role_types_preferred: preferences.role_types,
