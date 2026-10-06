@@ -275,15 +275,15 @@ describe("guidance — DBS keys (#22, #24)", () => {
     expect(fromConstant.links).toHaveLength(2);
   });
 
-  it("returns no old-regulator text in any guidance except PDF_UNREADABLE and PDF_NAME_MISMATCH (both pending 3b)", () => {
-    const pending3b = new Set(["PDF_UNREADABLE", "PDF_NAME_MISMATCH"]);
+  // Retargeted by 3b (BB-LDN-3b-061026): PDF_UNREADABLE / PDF_NAME_MISMATCH left with their last importer (the old
+  // DBS section), as this brief's A.9 rule says — so no guidance is exempt any more.
+  it("returns no old-regulator text in any guidance", () => {
     for (const [key, g] of Object.entries(GUIDANCE_MESSAGES)) {
-      if (pending3b.has(key)) continue;
       const blob = JSON.stringify(g);
       expect(flaggedByGate(blob), key).toBe(false);
     }
     expect(Object.keys(GUIDANCE_MESSAGES).sort()).toEqual(
-      ["DBS_BARRED", "DBS_NEW_INFO", "DBS_NO_MATCH", "PDF_NAME_MISMATCH", "PDF_UNREADABLE", "TECHNICAL_RETRY", "TECHNICAL_STALE"].sort(),
+      ["DBS_BARRED", "DBS_NEW_INFO", "DBS_NO_MATCH", "TECHNICAL_RETRY", "TECHNICAL_STALE"].sort(),
     );
   });
 });

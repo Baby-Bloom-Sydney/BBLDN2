@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * ContactSection — the residence step on /nanny/verification (address picker + save).
+ * Unit 3b (BB-LDN-3b-061026, brief change 15): the unreachable lock line was removed (the page always passes
+ * `locked={false}`); a locked section now renders nothing. No other behaviour changed.
+ */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Loader2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -160,13 +165,8 @@ export function ContactSection({
     setNotInArea(false);
   }
 
-  if (locked) {
-    return (
-      <div className="text-sm text-slate-500 py-4">
-        Complete the WWCC section first to unlock residence verification.
-      </div>
-    );
-  }
+  // Unreachable: the page always passes locked={false} (3b removed the dead lock line).
+  if (locked) return null;
 
   const canSave = !!selectedAddress;
 

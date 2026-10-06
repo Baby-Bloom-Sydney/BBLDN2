@@ -280,9 +280,10 @@ export function summariseNannyState(
  *
  * Step statuses align with VerificationProgress.getStepState which
  * treats ["verified","saved","doc_verified","passed"] as completed,
- * ["processing","pending","review","application_pending"] as in
- * progress, and ["failed","rejected","barred","ocg_not_found",
- * "closed","expired"] as action-needed.
+ * ["processing","pending","review"] as in progress, and
+ * ["failed","rejected","no_match","new_info"] as action-needed;
+ * "barred" carries no action (3b: the old regulator-only "closed" /
+ * "application_pending" values are gone).
  *
  * Provisional UX rule: for a level-3 nanny, ALL steps are marked
  * `verified` so the tile reads "Verified" visually. The silent
@@ -340,7 +341,11 @@ export function deriveNannySteps(
   ) {
     wwccStep = "failed";
   } else if (status === 23) {
-    wwccStep = "expired";
+    wwccStep = "new_info";
+  } else if (status === 26 || wwccStatus === "ocg_not_found") {
+    wwccStep = "no_match";
+  } else if (status === 27 || wwccStatus === "barred") {
+    wwccStep = "barred";
   } else {
     wwccStep = "not_started";
   }

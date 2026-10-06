@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * Nanny "My profile" page — view and edit mode for her public profile.
+ * Unit 3b (BB-LDN-3b-061026, brief change 10): the Safety & Assurance "Enhanced DBS" glance uses the same trigger as
+ * the hub (`showsEnhancedDbsBadge`, level ≥ 3) instead of the stored verified flag. Qualification / certificate /
+ * assurance lists here are 3e's.
+ */
 import { useState, useEffect, useTransition, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -67,6 +73,7 @@ import { computeAge, ageRangeToFriendly, childrenCountLabel, BADGE_ICONS } from 
 import { checkAllFields } from "@/lib/profanity";
 import { QUALIFICATION_LADDER, CERTIFICATE_OPTIONS, ASSURANCE_OPTIONS, byOptionOrder } from "@/lib/nanny-options";
 import { qualificationBadgeLabel } from "@/lib/matching/qualification-display";
+import { showsEnhancedDbsBadge } from "@/lib/dbs/nanny-display";
 
 // ── Option constants ──
 
@@ -1351,7 +1358,8 @@ export function NannyMyProfile({ profile }: { profile: NannyProfile }) {
             const otherCerts = sortedCerts.filter((c) => !CERTIFICATE_TAGS.includes(c));
             const currentVax = editMode ? form.vaccination_status : profile.vaccination_status;
             const currentNonSmoker = editMode ? form.non_smoker : profile.non_smoker;
-            const hasItems = profile.wwcc_verified || orderedCerts.length > 0 || otherCerts.length > 0 || currentVax || currentNonSmoker || editMode;
+            const showDbsGlance = showsEnhancedDbsBadge(profile.verification_level);
+            const hasItems = showDbsGlance || orderedCerts.length > 0 || otherCerts.length > 0 || currentVax || currentNonSmoker || editMode;
             if (!hasItems) return null;
             return (
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -1382,8 +1390,8 @@ export function NannyMyProfile({ profile }: { profile: NannyProfile }) {
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
-                    {profile.wwcc_verified && (
-                      <GlanceItem icon={ShieldCheck} label="WWCC" variant="green" />
+                    {showDbsGlance && (
+                      <GlanceItem icon={ShieldCheck} label="Enhanced DBS" variant="green" />
                     )}
                     {orderedCerts.map((cert) => (
                       <GlanceItem key={cert} icon={Award} label={cert} variant="green" />

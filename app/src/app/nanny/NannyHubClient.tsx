@@ -1,5 +1,12 @@
 "use client";
 
+/**
+ * Nanny hub — hero card, verification banner, tabs, profile accordion and verification tile.
+ * Unit 3b (BB-LDN-3b-061026, brief change 10; copy deck §5.1; P-7): the banner, the tile's DBS step and the
+ * "Enhanced DBS" glance read `lib/dbs/nanny-display.ts` — banners for 23 (new certificate needed) and 26 (not on the
+ * Update Service), "Verify DBS" tile, glance only at level ≥ 3 (`showsEnhancedDbsBadge`). Never: shows the glance or a
+ * verified state at level 2 (23/26 drop her to level 2, P-7). Option lists / certificate ordering here are 3e's.
+ */
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ExpandablePhoto } from "@/components/ui/expandable-photo";
@@ -49,6 +56,7 @@ import type { ChildClient, PendingInviteCard } from "@/types/bapp";
 import { Button } from "@/components/ui/button";
 import { VerificationRequiredModal } from "@/components/verification/VerificationRequiredModal";
 import type { VerificationData } from "@/lib/actions/verification";
+import { getDbsDisplayState, isDbsFailState, showsEnhancedDbsBadge } from "@/lib/dbs/nanny-display";
 
 import { Tag } from "@/components/profile/Tag";
 import { GlanceItem } from "@/components/profile/GlanceItem";
@@ -223,25 +231,27 @@ export function NannyHubClient({
     if (!verificationData)
       return "Verify your account to connect with families";
 
-    const { identity_status, wwcc_status, contact_status } = verificationData;
+    const { identity_status, contact_status } = verificationData;
+    const dbsState = getDbsDisplayState(verificationData);
 
     // Failed/rejected states — action required
     if (["failed", "rejected"].includes(identity_status))
       return "Your ID verification needs attention — review and resubmit";
-    if (
-      ["failed", "rejected", "ocg_not_found", "expired", "closed"].includes(
-        wwcc_status,
-      )
-    )
-      return "Your WWCC verification needs attention — review and resubmit";
+    // 23 / 26 — first check or the daily re-check (copy deck §5.1)
+    if (dbsState === "new_info")
+      return "You'll need a new DBS certificate to keep connecting with families";
+    if (dbsState === "no_match")
+      return "We couldn't confirm your DBS on the Update Service — check your subscription";
+    if (isDbsFailState(dbsState))
+      return "Your DBS check needs attention — review and resubmit";
 
     // Not started states — prompt to begin
     if (contact_status !== "saved" && contact_status !== "verified")
       return "Verify your address to start connecting with families";
     if (["not_started"].includes(identity_status))
       return "Upload your ID to get verified and connect with families";
-    if (["not_started"].includes(wwcc_status))
-      return "Submit your WWCC to complete verification";
+    if (dbsState === "not_started")
+      return "Upload your DBS certificate to complete verification";
 
     // Processing/pending/review — no banner (waiting on us, not them)
     return null;
@@ -315,7 +325,7 @@ export function NannyHubClient({
         >
           <div className="flex items-center gap-3 min-w-0">
             <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0" />
-            <p className="text-sm text-amber-800 font-medium truncate">
+            <p className="text-sm text-amber-800 font-medium line-clamp-2">
               {verificationBanner}
             </p>
           </div>
@@ -763,8 +773,9 @@ export function NannyHubClient({
                 const otherCerts = sortedCerts.filter(
                   (c) => !KNOWN_CERTIFICATES.includes(c),
                 );
+                const showDbsGlance = showsEnhancedDbsBadge(verificationLevel);
                 const hasItems =
-                  verificationLevel >= 3 ||
+                  showDbsGlance ||
                   orderedCerts.length > 0 ||
                   otherCerts.length > 0 ||
                   p.vaccination_status ||
@@ -779,10 +790,10 @@ export function NannyHubClient({
                       </h3>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      {verificationLevel >= 3 && (
+                      {showDbsGlance && (
                         <GlanceItem
                           icon={ShieldCheck}
-                          label="WWCC"
+                          label="Enhanced DBS"
                           variant="green"
                         />
                       )}
@@ -1125,7 +1136,14 @@ function VerificationSummaryTile({
   verificationData: VerificationData | null;
 }) {
   const identityStatus = verificationData?.identity_status ?? "not_started";
-  const wwccStatus = verificationData?.wwcc_status ?? "not_started";
+  const dbsState = getDbsDisplayState(verificationData);
+  // The tile's status line reads the same decoder: running → "Processing", with the team → "Pending Review".
+  const dbsStatus =
+    dbsState === "reading" || dbsState === "checking"
+      ? "processing"
+      : dbsState === "with_team" || dbsState === "manual_review"
+        ? "review"
+        : dbsState;
   const contactStatus = verificationData?.contact_status ?? "not_started";
 
   function deriveIdentityStep(): VerificationStepState {
@@ -1137,19 +1155,12 @@ function VerificationSummaryTile({
     return "current"; // processing, pending, review
   }
 
-  function deriveWwccStep(): VerificationStepState {
+  function deriveDbsStep(): VerificationStepState {
     const vStatus = verificationData?.verification_status ?? 0;
-    if (vStatus < 20) return "future"; // identity not yet verified — WWCC is invalid
-    if (wwccStatus === "verified" || wwccStatus === "doc_verified")
-      return "completed";
-    if (
-      wwccStatus === "rejected" ||
-      wwccStatus === "failed" ||
-      wwccStatus === "barred"
-    )
-      return "action_required";
-    if (wwccStatus === "not_started") return "current";
-    return "current"; // processing, pending, review, etc.
+    if (vStatus < 20) return "future"; // identity not yet verified — the DBS step waits
+    if (dbsState === "clear") return "completed";
+    if (isDbsFailState(dbsState) || dbsState === "barred") return "action_required";
+    return "current"; // not started, reading, checking, with the team
   }
 
   function deriveContactStep(): VerificationStepState {
@@ -1158,11 +1169,11 @@ function VerificationSummaryTile({
   }
 
   const identityStep = deriveIdentityStep();
-  const wwccStep = deriveWwccStep();
+  const dbsStep = deriveDbsStep();
   const contactStep = deriveContactStep();
   const allComplete =
     identityStep === "completed" &&
-    wwccStep === "completed" &&
+    dbsStep === "completed" &&
     contactStep === "completed";
   const goalStep: VerificationStepState = allComplete ? "completed" : "future";
 
@@ -1205,7 +1216,7 @@ function VerificationSummaryTile({
   const steps = [
     { label: "Verify Residence", step: contactStep, status: contactStatus },
     { label: "Verify ID", step: identityStep, status: identityStatus },
-    { label: "Verify WWCC", step: wwccStep, status: wwccStatus },
+    { label: "Verify DBS", step: dbsStep, status: dbsStatus },
     { label: "Connect with Families", step: goalStep, status: "" },
   ];
 
