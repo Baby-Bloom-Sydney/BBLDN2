@@ -1,37 +1,28 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { STATUS_META } from "@/lib/verification";
+
+// Every code's meaning comes from `STATUS_META` (unit 3a); this page keeps no local code map.
+// Levels, access, transitions and sync follow LDN2 03-status-mapping.md §2 and 03-admin-dbs-tab-spec.md §5 row 2.
 
 const levelRows = [
-  { value: 0, label: "Signed Up", description: "Account created, profile not yet completed" },
+  { value: 0, label: "Signed Up", description: "Account created, profile not yet completed; also a barred nanny (27, suspended)" },
   { value: 1, label: "Registered", description: "Profile completed, verification not yet attempted" },
   { value: 2, label: "ID Verified", description: "Passport and selfie confirmed (by AI or admin)" },
-  { value: 3, label: "Provisionally Verified", description: "WWCC auto-check passed; visible to parents but cannot accept engagements; manual WWCC check pending silently" },
-  { value: 4, label: "Fully Verified", description: "WWCC manually confirmed by admin; full platform access" },
+  { value: 3, label: "Provisionally Verified", description: "Update Service passed; she looks verified; her replies are held until an admin approves" },
+  { value: 4, label: "Fully Verified", description: "Admin approved after an Update Service pass; full platform access" },
 ];
 
-const statusRows = [
-  { value: 0, label: "Not Started", group: "Pre-verification", description: "Nanny has not submitted the verification form" },
-  { value: 10, label: "Pending ID Auto", group: "ID stage", description: "Verification form submitted; AI is checking passport and selfie" },
-  { value: 11, label: "Pending ID Review", group: "ID stage", description: "AI flagged issues; ID is in admin manual review queue" },
-  { value: 12, label: "ID Rejected", group: "ID stage", description: "Admin rejected ID; nanny must resubmit passport and selfie" },
-  { value: 20, label: "Pending WWCC Auto", group: "WWCC stage", description: "ID verified; nanny has NOT yet attempted WWCC verification" },
-  { value: 29, label: "WWCC Submitted", group: "WWCC stage", description: "Nanny has uploaded WWCC documents and clicked verify; awaiting AI processing" },
-  { value: 25, label: "WWCC Processing", group: "WWCC stage", description: "AI is actively processing the WWCC documents" },
-  { value: 21, label: "Pending WWCC Review", group: "WWCC stage", description: "WWCC auto-check failed; WWCC is in admin manual review queue" },
-  { value: 22, label: "WWCC Rejected", group: "WWCC stage", description: "Admin rejected WWCC; nanny must resubmit WWCC documents" },
-  { value: 23, label: "WWCC Expired", group: "WWCC stage", description: "OCG confirmed expired or auto-detected by cron; nanny must renew" },
-  { value: 24, label: "WWCC Document Failed", group: "WWCC stage", description: "Uploaded document could not be read or parsed (e.g. wrong file type)" },
-  { value: 26, label: "WWCC OCG Not Found", group: "WWCC stage", description: "OCG has no record of this WWCC number + surname + DOB combination" },
-  { value: 27, label: "WWCC Closed", group: "WWCC stage", description: "OCG says the WWCC application was closed; nanny must reapply" },
-  { value: 28, label: "WWCC Application Pending", group: "WWCC stage", description: "OCG says WWCC application is still in progress; not yet decided" },
-  { value: 30, label: "Provisionally Verified", group: "Verified", description: "WWCC auto-check passed; nanny appears verified; OCG confirmation pending silently" },
-  { value: 40, label: "Fully Verified", group: "Verified", description: "OCG CLEARED — both ID and WWCC confirmed; full platform access" },
-];
+const statusRows = Object.entries(STATUS_META)
+  .map(([code, meta]) => ({ value: Number(code), ...meta }))
+  .sort((a, b) => a.value - b.value);
 
-const accessMatrix = [
+type Access = boolean | "held";
+
+const accessMatrix: { check: string; query: string; levels: Access[] }[] = [
   { check: "Has completed profile", query: ">= 1", levels: [false, true, true, true, true] },
   { check: "ID is confirmed", query: ">= 2", levels: [false, false, true, true, true] },
   { check: "Visible in search / matching", query: ">= 3", levels: [false, false, false, true, true] },
-  { check: "Can accept interview requests", query: ">= 4", levels: [false, false, false, false, true] },
+  { check: "Can accept interview requests", query: ">= 3 (held) / >= 4 (sent)", levels: [false, false, false, "held", true] },
   { check: "Can accept babysitting", query: ">= 4 AND babysitter_eligible", levels: [false, false, false, false, true] },
 ];
 
@@ -42,31 +33,31 @@ const transitions = [
   { from: "11", event: "Admin verifies ID", to: "20", levelChange: "1 → 2" },
   { from: "11", event: "Admin rejects ID", to: "12", levelChange: "1 → 1" },
   { from: "12", event: "Nanny resubmits passport + selfie", to: "10", levelChange: "1 → 1" },
-  { from: "20", event: "Nanny uploads WWCC documents and clicks verify", to: "29", levelChange: "2 → 2" },
-  { from: "29", event: "AI picks up WWCC for processing", to: "25", levelChange: "2 → 2" },
-  { from: "25", event: "WWCC auto-check passes", to: "30", levelChange: "2 → 3" },
-  { from: "25", event: "WWCC auto-check fails", to: "21", levelChange: "2 → 2" },
-  { from: "25", event: "WWCC document unreadable / wrong file", to: "24", levelChange: "2 → 2" },
-  { from: "25", event: "OCG returns 'not found'", to: "26", levelChange: "2 → 2" },
-  { from: "25", event: "OCG returns 'closed'", to: "27", levelChange: "2 → 2" },
-  { from: "25", event: "OCG returns 'application pending'", to: "28", levelChange: "2 → 2" },
-  { from: "21", event: "Admin confirms WWCC", to: "40", levelChange: "2 → 4" },
-  { from: "21", event: "Admin rejects WWCC", to: "22", levelChange: "2 → 2" },
-  { from: "22", event: "Nanny resubmits WWCC documents", to: "29", levelChange: "2 → 2" },
-  { from: "23", event: "Nanny submits renewed WWCC", to: "29", levelChange: "2 → 2" },
-  { from: "24", event: "Nanny re-uploads correct document", to: "29", levelChange: "2 → 2" },
-  { from: "26", event: "Nanny resubmits with corrected details", to: "29", levelChange: "2 → 2" },
-  { from: "27", event: "Nanny reapplies and resubmits WWCC", to: "29", levelChange: "2 → 2" },
-  { from: "28", event: "Nanny retries after OCG approves application", to: "29", levelChange: "2 → 2" },
-  { from: "30", event: "Admin confirms WWCC (OCG CLEARED)", to: "40", levelChange: "3 → 4" },
-  { from: "30", event: "Admin rejects WWCC", to: "22", levelChange: "3 → 2" },
-  { from: "40", event: "WWCC expiry date reached (cron)", to: "23", levelChange: "4 → 2" },
+  { from: "20", event: "Nanny uploads page 1 of her DBS certificate", to: "29", levelChange: "2 → 2" },
+  { from: "29", event: "AI picks up the certificate", to: "25", levelChange: "2 → 2" },
+  { from: "25", event: "AI fail (unreadable, not Enhanced, children's list not checked, wrong page, altered)", to: "24", levelChange: "2 → 2" },
+  { from: "25", event: "AI unsure", to: "21", levelChange: "2 → 2" },
+  { from: "25", event: "AI pass; cross-check runs", to: "20", levelChange: "2 → 2" },
+  { from: "20", event: "Cross-check mismatch (surname + DOB)", to: "21", levelChange: "2 → 2" },
+  { from: "20", event: "Cross-check passes and Update Service passes (BLANK / NON_BLANK)", to: "30", levelChange: "2 → 3" },
+  { from: "20", event: "Update Service: new information", to: "23", levelChange: "2 → 2" },
+  { from: "20", event: "Update Service: no match", to: "26", levelChange: "2 → 2" },
+  { from: "20", event: "Update Service unreachable (technical retry; no fake pass)", to: "20", levelChange: "2 → 2" },
+  { from: "22, 23, 24, 26", event: "Nanny edits and resubmits", to: "29", levelChange: "2 → 2" },
+  { from: "23, 24, 26", event: "Nanny requests manual review", to: "21", levelChange: "2 → 2" },
+  { from: "21, 30", event: "Admin Approve (needs an Update Service pass)", to: "40", levelChange: "2/3 → 4" },
+  { from: "21, 30", event: "Admin rejects the DBS", to: "22", levelChange: "2/3 → 2" },
+  { from: "any", event: "Admin Bar", to: "27", levelChange: "→ 0 (suspended)" },
+  { from: "27", event: "Admin Lift bar (active again; DBS section reset, she re-uploads)", to: "20", levelChange: "0 → 2" },
+  { from: "40", event: "Daily re-check passes (nothing changes)", to: "40", levelChange: "4 → 4" },
+  { from: "40", event: "Daily re-check: new information", to: "23", levelChange: "4 → 2" },
+  { from: "40", event: "Daily re-check: no match", to: "26", levelChange: "4 → 2" },
 ];
 
 const syncRows = [
-  { level: 0, statuses: "— (no verification record)" },
+  { level: 0, statuses: "— (no verification record) · 27 (barred, suspended)" },
   { level: 1, statuses: "0, 10, 11, 12" },
-  { level: 2, statuses: "20, 21, 22, 23, 24, 25, 26, 27, 28, 29" },
+  { level: 2, statuses: "20, 21, 22, 23, 24, 25, 26, 29" },
   { level: 3, statuses: "30" },
   { level: 4, statuses: "40" },
 ];
@@ -80,9 +71,9 @@ export default function VerificationReferencePage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Verification Reference</h1>
         <p className="mt-1 text-slate-500">
-          Quick reference for the two verification data systems. See{" "}
-          <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">verification-data-systems.md</code>{" "}
-          for the full spec.
+          Quick reference for the two verification data systems (passport + enhanced DBS). See{" "}
+          <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">NANNY-DBS-Research/03-status-mapping.md</code>{" "}
+          for the full mapping.
         </p>
       </div>
 
@@ -141,7 +132,9 @@ export default function VerificationReferencePage() {
                   <td className={`${cellClass} font-mono text-xs text-slate-500`}>{row.query}</td>
                   {row.levels.map((ok, i) => (
                     <td key={i} className={`${cellClass} text-center`}>
-                      {ok ? (
+                      {ok === "held" ? (
+                        <span className="text-amber-600 font-bold">held</span>
+                      ) : ok ? (
                         <span className="text-green-600 font-bold">Y</span>
                       ) : (
                         <span className="text-slate-300">-</span>

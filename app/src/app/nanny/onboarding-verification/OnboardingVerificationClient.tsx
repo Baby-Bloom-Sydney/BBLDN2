@@ -20,6 +20,12 @@ import {
 } from "@/lib/actions/verification";
 import { BRAND } from "@/lib/constants";
 import {
+  DBS_FAILED_CODES,
+  DBS_REVIEW_CODES,
+  ID_FAILED_CODES,
+  ID_REVIEW_CODES,
+} from "@/lib/verification";
+import {
   formatAddressLine,
   parseUkAddress,
   toTitleCase,
@@ -1616,39 +1622,7 @@ function GrantEmailUploadZone({
 
 // ── Step: Verification Processing (with real polling) ──
 
-// Status code ranges for verification_status integer
-const VS = {
-  NOT_STARTED: 0,
-  PENDING_ID_AUTO: 10,
-  PENDING_ID_REVIEW: 11,
-  ID_REJECTED: 12,
-  PENDING_WWCC_AUTO: 20,
-  WWCC_SUBMITTED: 29,
-  PENDING_WWCC_REVIEW: 21,
-  WWCC_REJECTED: 22,
-  WWCC_EXPIRED: 23,
-  WWCC_DOCUMENT_FAILED: 24,
-  WWCC_PROCESSING: 25,
-  WWCC_OCG_NOT_FOUND: 26,
-  WWCC_CLOSED: 27,
-  WWCC_APPLICATION_PENDING: 28,
-  PROVISIONALLY_VERIFIED: 30,
-  FULLY_VERIFIED: 40,
-} as const;
-
-const ID_FAILED_CODES = new Set<number>([VS.ID_REJECTED]);
-const WWCC_FAILED_CODES = new Set<number>([
-  VS.WWCC_REJECTED,
-  VS.WWCC_EXPIRED,
-  VS.WWCC_DOCUMENT_FAILED,
-  VS.WWCC_OCG_NOT_FOUND,
-  VS.WWCC_CLOSED,
-]);
-const ID_REVIEW_CODES = new Set<number>([VS.PENDING_ID_REVIEW]);
-const WWCC_REVIEW_CODES = new Set<number>([
-  VS.PENDING_WWCC_REVIEW,
-  VS.WWCC_APPLICATION_PENDING,
-]);
+// Status code sets come from lib/verification.ts (3a); no local copy.
 
 function VerificationProcessingStep({
   profile,
@@ -1704,8 +1678,8 @@ function VerificationProcessingStep({
   const isIdentityFailed = ID_FAILED_CODES.has(s);
   const isIdentityReview = ID_REVIEW_CODES.has(s);
   const isWwccDone = s >= 30; // Provisionally or Fully Verified
-  const isWwccFailed = WWCC_FAILED_CODES.has(s);
-  const isWwccReview = WWCC_REVIEW_CODES.has(s);
+  const isWwccFailed = DBS_FAILED_CODES.has(s);
+  const isWwccReview = DBS_REVIEW_CODES.has(s);
 
   // Apply minimum display timings
   useEffect(() => {

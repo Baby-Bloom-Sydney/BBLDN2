@@ -44,35 +44,23 @@ function mapOCGStatus(ocgStatus: string): {
   }
   if (HARD_BARRED_STATUSES.includes(ocgStatus)) {
     return {
-      verification_status: VERIFICATION_STATUS.WWCC_REJECTED,
+      verification_status: VERIFICATION_STATUS.DBS_BARRED,
       wwcc_status: WWCC_STATUS.BARRED,
-      guidance: GUIDANCE_MESSAGES.WWCC_BARRED,
+      guidance: GUIDANCE_MESSAGES.DBS_BARRED,
     };
   }
   switch (ocgStatus) {
     case 'NOT FOUND':
       return {
-        verification_status: VERIFICATION_STATUS.WWCC_OCG_NOT_FOUND,
-        wwcc_status: WWCC_STATUS.OCG_NOT_FOUND,
-        guidance: GUIDANCE_MESSAGES.WWCC_OCG_NOT_FOUND,
+        verification_status: VERIFICATION_STATUS.DBS_NO_MATCH,
+        wwcc_status: WWCC_STATUS.NO_MATCH,
+        guidance: GUIDANCE_MESSAGES.DBS_NO_MATCH,
       };
     case 'EXPIRED':
       return {
-        verification_status: VERIFICATION_STATUS.WWCC_EXPIRED,
-        wwcc_status: WWCC_STATUS.EXPIRED,
-        guidance: GUIDANCE_MESSAGES.WWCC_EXPIRED_OCG,
-      };
-    case 'CLOSED':
-      return {
-        verification_status: VERIFICATION_STATUS.WWCC_CLOSED,
-        wwcc_status: WWCC_STATUS.CLOSED,
-        guidance: GUIDANCE_MESSAGES.WWCC_CLOSED_OCG,
-      };
-    case 'APPLICATION IN PROGRESS':
-      return {
-        verification_status: VERIFICATION_STATUS.WWCC_APPLICATION_PENDING,
-        wwcc_status: WWCC_STATUS.APPLICATION_PENDING,
-        guidance: GUIDANCE_MESSAGES.WWCC_APPLICATION_PENDING,
+        verification_status: VERIFICATION_STATUS.DBS_NEW_INFO,
+        wwcc_status: WWCC_STATUS.NEW_INFO,
+        guidance: GUIDANCE_MESSAGES.DBS_NEW_INFO,
       };
     default:
       return null;
@@ -383,8 +371,6 @@ async function updateVerificationFromOCG(
     : isBarred ? 'barred'
     : result.result_status === 'NOT FOUND' ? 'ocg_not_found'
     : result.result_status === 'EXPIRED' ? 'expired'
-    : result.result_status === 'CLOSED' ? 'closed'
-    : result.result_status === 'APPLICATION IN PROGRESS' ? 'application_pending'
     : 'processed';
 
   console.log(`[OCG Webhook] ${result.result_status} → verification ${verificationId} → status ${mapped.verification_status} (${actionName})`);

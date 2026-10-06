@@ -14,7 +14,7 @@ import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { LEVEL_LABELS, STATUS_LABELS } from "@/lib/verification";
+import { LEVEL_LABELS, STATUS_LABELS, STATUS_META, statusTone, type StatusTone } from "@/lib/verification";
 import { adminDeleteUser, adminChangeRole, adminResetVerification, adminRegenerateNannyBio } from "@/lib/actions/admin";
 import { CheckCircle2, Clock, XCircle, MapPin, Mail, Phone, Calendar, Shield, Baby, Loader2, Trash2, RefreshCw, UserCog, ExternalLink, Send, Eye } from "lucide-react";
 import { ContactUserModal } from "./ContactUserModal";
@@ -35,15 +35,15 @@ function getLevelVariant(level: number | null): "inactive" | "pending" | "active
   return "verified";
 }
 
-function getStatusVariant(status: number | null): "unattempted" | "pending" | "failed" | "verified" | "active" | "info" {
-  if (status === null) return "unattempted";
-  if (status === 0) return "unattempted";
-  if (status === 20) return "info";
-  if (status === 12 || status === 22 || status === 23 || status === 26 || status === 27 || status === 28) return "failed";
-  if (status === 30) return "active";
-  if (status === 40) return "verified";
-  return "pending";
-}
+// DBS row text colour per shared tone (`statusTone`, lib/verification.ts).
+const DBS_TONE_CLASS: Record<StatusTone, string> = {
+  failed: "text-red-600",
+  verified: "text-green-600",
+  active: "text-yellow-600",
+  info: "text-yellow-600",
+  pending: "text-yellow-600",
+  unattempted: "text-slate-400",
+};
 
 function AdminActions({ user, onClose }: { user: UserData; onClose: () => void }) {
   const router = useRouter();
@@ -418,7 +418,7 @@ export function UserDetailDrawer({ user, open, onOpenChange }: UserDetailDrawerP
                 {/* Status */}
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-slate-500">Status</span>
-                  <StatusBadge variant={getStatusVariant(status)}>
+                  <StatusBadge variant={statusTone(status)}>
                     {STATUS_LABELS[status ?? 0] || `Unknown (${status})`}
                   </StatusBadge>
                 </div>
@@ -448,45 +448,22 @@ export function UserDetailDrawer({ user, open, onOpenChange }: UserDetailDrawerP
                     )}
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500">WWCC</span>
+                    <span className="text-slate-500">Enhanced DBS</span>
                     {user.wwcc_verified ? (
                       <span className="flex items-center gap-1 text-green-600">
                         <CheckCircle2 className="h-3.5 w-3.5" /> Verified
                       </span>
                     ) : status !== null && status >= 20 && status < 40 ? (
-                      status === 22 && user.nanny_status === 'suspended' ? (
-                        <span className="flex items-center gap-1 text-red-700 font-semibold">
-                          <XCircle className="h-3.5 w-3.5" /> BARRED
-                        </span>
-                      ) : status === 22 ? (
-                        <span className="flex items-center gap-1 text-red-600">
-                          <XCircle className="h-3.5 w-3.5" /> Rejected
-                        </span>
-                      ) : status === 23 ? (
-                        <span className="flex items-center gap-1 text-red-600">
-                          <XCircle className="h-3.5 w-3.5" /> Expired
-                        </span>
-                      ) : status === 26 ? (
-                        <span className="flex items-center gap-1 text-red-600">
-                          <XCircle className="h-3.5 w-3.5" /> OCG Not Found
-                        </span>
-                      ) : status === 27 ? (
-                        <span className="flex items-center gap-1 text-red-600">
-                          <XCircle className="h-3.5 w-3.5" /> Closed
-                        </span>
-                      ) : status === 28 ? (
-                        <span className="flex items-center gap-1 text-amber-600">
-                          <Clock className="h-3.5 w-3.5" /> Application Pending
-                        </span>
-                      ) : status === 30 ? (
-                        <span className="flex items-center gap-1 text-yellow-600">
-                          <Clock className="h-3.5 w-3.5" /> Provisional
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 text-yellow-600">
-                          <Clock className="h-3.5 w-3.5" /> Pending
-                        </span>
-                      )
+                      <span
+                        className={`flex items-center gap-1 ${DBS_TONE_CLASS[statusTone(status)]}${status === 27 ? " font-semibold" : ""}`}
+                      >
+                        {statusTone(status) === "failed" ? (
+                          <XCircle className="h-3.5 w-3.5" />
+                        ) : (
+                          <Clock className="h-3.5 w-3.5" />
+                        )}{" "}
+                        {STATUS_META[status]?.short ?? "Pending"}
+                      </span>
                     ) : (
                       <span className="text-slate-400">Not started</span>
                     )}

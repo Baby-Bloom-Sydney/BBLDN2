@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { UserAvatar } from "@/components/dashboard/UserAvatar";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { formatRelativeTime } from "@/lib/utils";
-import { STATUS_LABELS, VERIFICATION_STATUS } from "@/lib/verification";
+import { STATUS_LABELS, statusTone } from "@/lib/verification";
 import {
   Table,
   TableBody,
@@ -87,13 +87,8 @@ function formatDobForCopy(dateStr: string | null): string | null {
 // ── Status badge variant for verification status integer ──
 
 function getStatusBadgeVariant(status: number): "pending" | "verified" | "inactive" | "active" | "failed" | "info" {
-  if (status === VERIFICATION_STATUS.PENDING_WWCC_AUTO) return "info";
-  if (status === VERIFICATION_STATUS.ID_REJECTED || status === VERIFICATION_STATUS.WWCC_REJECTED
-    || status === VERIFICATION_STATUS.WWCC_EXPIRED || status === VERIFICATION_STATUS.WWCC_OCG_NOT_FOUND
-    || status === VERIFICATION_STATUS.WWCC_CLOSED || status === VERIFICATION_STATUS.WWCC_APPLICATION_PENDING) return "failed";
-  if (status === VERIFICATION_STATUS.PROVISIONALLY_VERIFIED) return "active";
-  if (status === VERIFICATION_STATUS.FULLY_VERIFIED) return "verified";
-  return "pending";
+  const tone = statusTone(status);
+  return tone === "unattempted" ? "pending" : tone;
 }
 
 export function VerificationTab({ stats, identityChecks, wwccChecks }: VerificationTabProps) {

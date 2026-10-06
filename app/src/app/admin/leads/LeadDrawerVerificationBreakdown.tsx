@@ -1,7 +1,9 @@
-// T-032 — Per-dimension verification breakdown (ID / WWCC / OCG / Photo / ABN / Level / Status).
+// T-032 — Per-dimension verification breakdown (ID / Enhanced DBS / Update Service / Photo / ABN / Level / Status).
+// 3a: DBS meanings from lib/verification.ts — no expiry (the stored date is the issue date), warn on 23 / 26.
 
 import { Check, X, AlertTriangle, Clock } from "lucide-react";
 import type { LeadDetail } from "@/lib/leads/fetch-lead-detail";
+import { VERIFICATION_STATUS, isDbsApiPass } from "@/lib/verification";
 
 interface LeadDrawerVerificationBreakdownProps {
   detail: LeadDetail;
@@ -57,13 +59,14 @@ export function LeadDrawerVerificationBreakdown({
   const profile = detail.user_profile;
 
   const idStatus: RowProps["status"] = v?.identity_verified ? "ok" : "missing";
-  const wwccStatus: RowProps["status"] = v?.wwcc_verified
-    ? v?.wwcc_expiry_date &&
-      new Date(v.wwcc_expiry_date).getTime() <
-        Date.now() + 30 * 24 * 60 * 60 * 1000
-      ? "warn"
-      : "ok"
-    : "missing";
+  const dbsNeedsHer =
+    v?.verification_status === VERIFICATION_STATUS.DBS_NEW_INFO ||
+    v?.verification_status === VERIFICATION_STATUS.DBS_NO_MATCH;
+  const dbsStatus: RowProps["status"] = dbsNeedsHer
+    ? "warn"
+    : v?.wwcc_verified
+      ? "ok"
+      : "missing";
   const photoStatus: RowProps["status"] = profile?.profile_picture_url
     ? "ok"
     : "missing";
@@ -85,20 +88,20 @@ export function LeadDrawerVerificationBreakdown({
           detail={fmtDate(v?.identity_verified_at)}
         />
         <Row
-          label="WWCC"
-          status={wwccStatus}
+          label="Enhanced DBS"
+          status={dbsStatus}
           detail={
             v?.wwcc_number
-              ? `#${v.wwcc_number}${v?.wwcc_verified ? ` · verified ${fmtDate(v.wwcc_verified_at)}` : ""}${v?.wwcc_expiry_date ? ` · expires ${fmtDate(v.wwcc_expiry_date)}` : ""}`
+              ? `#${v.wwcc_number}${v?.wwcc_verified ? ` · approved ${fmtDate(v.wwcc_verified_at)}` : ""}`
               : v?.wwcc_verified
-                ? `verified ${fmtDate(v.wwcc_verified_at)}${v.wwcc_expiry_date ? ` · expires ${fmtDate(v.wwcc_expiry_date)}` : ""}`
+                ? `approved ${fmtDate(v.wwcc_verified_at)}`
                 : "missing"
           }
         />
         <Row
-          label="OCG audit"
+          label="Update Service"
           status={
-            v?.ocg_result_status === "CLEARED"
+            isDbsApiPass(v?.ocg_result_status)
               ? "ok"
               : v?.ocg_result_status
                 ? "warn"
