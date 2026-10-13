@@ -1,6 +1,12 @@
+/**
+ * Admin users page (server): users, user stats, verification stats, the ID queue and — unit 3d — the DBS queues
+ * (`lib/admin/dbs-queues.ts`: lists A–D, stats from ADMIN_PENDING_CODES). Service-role reads only; the page is
+ * behind the admin layout. Never: returns a storage path instead of a signed URL.
+ */
 import { Suspense } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AdminUsersClient } from "./AdminUsersClient";
+import { fetchVerificationStats, getDbsQueues } from "@/lib/admin/dbs-queues";
 
 export const dynamic = "force-dynamic";
 
@@ -60,31 +66,7 @@ export interface PendingIdentityCheck {
   identity_ai_issues: string | null;
 }
 
-export interface PendingWWCCCheck {
-  id: string;
-  user_id: string;
-  surname: string | null;
-  given_names: string | null;
-  date_of_birth: string | null;
-  wwcc_number: string | null;
-  wwcc_verification_method: string | null;
-  wwcc_verified: boolean;
-  wwcc_rejection_reason: string | null;
-  verification_status: number;
-  created_at: string;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-  profile_picture_url: string | null;
-  wwcc_ocg_submitted_at: string | null;
-}
-
-export interface VerificationStats {
-  pending: number;
-  approvedToday: number;
-  rejectedToday: number;
-  totalVerified: number;
-}
+export type { PendingDbsCheck, VerificationStats, DbsQueues } from "@/lib/admin/dbs-queues";
 
 export interface UserStats {
   total: number;
@@ -192,30 +174,6 @@ async function getUserStats(): Promise<UserStats> {
   };
 }
 
-async function getVerificationStats(): Promise<VerificationStats> {
-  const supabase = createAdminClient();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  // Pending = all statuses between 10-29 (anything actively in review or awaiting action)
-  // Approved = status 30 or 40 (provisionally or fully verified)
-  // Rejected = status 12 or 22 (ID or WWCC rejected)
-  // Total verified = status 40 (fully verified)
-  const [pendingResult, approvedTodayResult, rejectedTodayResult, totalVerifiedResult] = await Promise.all([
-    supabase.from('verifications').select('*', { count: 'exact', head: true }).in('verification_status', [10, 11, 20, 21, 24, 25, 26, 27, 29]), // 28 deleted (3a); 3d re-points this count at ADMIN_PENDING_CODES
-    supabase.from('verifications').select('*', { count: 'exact', head: true }).in('verification_status', [30, 40]).gte('updated_at', today.toISOString()),
-    supabase.from('verifications').select('*', { count: 'exact', head: true }).in('verification_status', [12, 22, 23, 24, 27]).gte('updated_at', today.toISOString()), // 27 = barred since 3a (was 22); 3d sets the final list
-    supabase.from('verifications').select('*', { count: 'exact', head: true }).eq('verification_status', 40),
-  ]);
-
-  return {
-    pending: pendingResult.count ?? 0,
-    approvedToday: approvedTodayResult.count ?? 0,
-    rejectedToday: rejectedTodayResult.count ?? 0,
-    totalVerified: totalVerifiedResult.count ?? 0,
-  };
-}
-
 async function getPendingIdentityChecks(): Promise<PendingIdentityCheck[]> {
   const supabase = createAdminClient();
 
@@ -286,66 +244,16 @@ async function getPendingIdentityChecks(): Promise<PendingIdentityCheck[]> {
   return results;
 }
 
-async function getPendingWWCCChecks(): Promise<PendingWWCCCheck[]> {
-  const supabase = createAdminClient();
-
-  // WWCC OCG submission queue: only statuses where admin needs to submit to OCG portal
-  // 21 = manual entry awaiting admin OCG submission
-  // 30 = provisionally verified (doc verified + cross-check) awaiting admin OCG submission
-  // NOT included: 24 (doc failed — user retries), 25 (AI processing — transient),
-  // 29 (submitted pre-AI — automated), 26/27/28 (post-OCG results — emails already sent)
-  const [verificationsResult, profilesResult] = await Promise.all([
-    supabase
-      .from('verifications')
-      .select('id, user_id, surname, given_names, date_of_birth, wwcc_number, wwcc_verification_method, wwcc_verified, wwcc_rejection_reason, verification_status, created_at, wwcc_ocg_submitted_at')
-      .in('verification_status', [21, 30])
-      .not('wwcc_verification_method', 'is', null)
-      .order('created_at', { ascending: true })
-      .limit(50),
-    supabase
-      .from('user_profiles')
-      .select('user_id, first_name, last_name, email, profile_picture_url'),
-  ]);
-
-  if (verificationsResult.error || !verificationsResult.data) return [];
-
-  const profileMap = new Map<string, { first_name: string | null; last_name: string | null; email: string | null; profile_picture_url: string | null }>();
-  if (profilesResult.data) {
-    for (const p of profilesResult.data) profileMap.set(p.user_id, p);
-  }
-
-  return verificationsResult.data.map((v) => {
-    const profile = profileMap.get(v.user_id);
-    return {
-      id: v.id,
-      user_id: v.user_id,
-      surname: v.surname,
-      given_names: v.given_names,
-      date_of_birth: v.date_of_birth,
-      wwcc_number: v.wwcc_number,
-      wwcc_verification_method: v.wwcc_verification_method,
-      wwcc_verified: v.wwcc_verified,
-      wwcc_rejection_reason: v.wwcc_rejection_reason,
-      verification_status: v.verification_status,
-      created_at: v.created_at,
-      first_name: profile?.first_name ?? null,
-      last_name: profile?.last_name ?? null,
-      email: profile?.email ?? null,
-      profile_picture_url: profile?.profile_picture_url ?? null,
-      wwcc_ocg_submitted_at: v.wwcc_ocg_submitted_at ?? null,
-    };
-  });
-}
-
 // ── Page Component ──
 
 export default async function AdminUsersPage() {
-  const [users, userStats, verificationStats, identityChecks, wwccChecks] = await Promise.all([
+  const admin = createAdminClient();
+  const [users, userStats, verificationStats, identityChecks, dbsQueues] = await Promise.all([
     getUsers(),
     getUserStats(),
-    getVerificationStats(),
+    fetchVerificationStats(admin),
     getPendingIdentityChecks(),
-    getPendingWWCCChecks(),
+    getDbsQueues(admin),
   ]);
 
   return (
@@ -355,7 +263,7 @@ export default async function AdminUsersPage() {
         userStats={userStats}
         verificationStats={verificationStats}
         identityChecks={identityChecks}
-        wwccChecks={wwccChecks}
+        dbsQueues={dbsQueues}
       />
     </Suspense>
   );

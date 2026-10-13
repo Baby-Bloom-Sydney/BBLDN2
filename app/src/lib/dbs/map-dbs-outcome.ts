@@ -11,7 +11,7 @@
  * | NO_MATCH                        | wwcc 'ocg_not_found', wwcc_status_at, cross_check not_started, guidance    | 26, level 2    |
  * | ERROR                           | cross_check pending, cross_check_at, TECHNICAL_RETRY — no ocg_* write      | 20, level 2    |
  *
- * `verification_status` always comes from `deriveOverallStatus`. Never writes `wwcc_verified` (the admin's) and never
+ * `verification_status` always comes from `deriveOverallStatus`. Never writes `wwcc_verified=true` (the admin's) and never
  * writes 40. First-check writes are guarded on `cross_check_status='processing'` (the phase's claim), so a manual
  * review that lands meanwhile is never overwritten. A database refusal throws, so the caller can fail closed.
  *
@@ -20,8 +20,13 @@
  * - Input: admin client, verification id, `DbsApplyContext` (identity status + what the certificate says), the adapter
  *   result, and the mode. Output: `{ outcome }` for the caller to sync, log and email on.
  * - Modes: `first` (3c, table above) · `admin_result_only` (3d "Run DBS check now": only ocg_result_status /
- *   ocg_result_text / ocg_verified_at, nothing on ERROR) · `recheck` (3i implements; throws until then).
- * - Never: writes wwcc_verified, writes 40, writes an ocg_* block on ERROR, sends email, or calls sync.
+ *   ocg_result_text / ocg_verified_at, nothing on ERROR) · `recheck` (a level-4 nanny checked again — written by 3d
+ *   for P-8 so "Run DBS check now" on a 40 row and 3i's daily cron share one meaning): NEW_INFO / NO_MATCH → the
+ *   23 / 26 row of the table above PLUS `wwcc_verified=false`, in ONE update guarded on `wwcc_verified=true` (the 40
+ *   CHECK refuses a non-pass result on a 40 row, and P-7 needs cross-check `not_started` in the same write); a pass
+ *   or ERROR writes nothing (#12, #32). `wwcc_verified_at` / `_by` are kept as history (#28).
+ * - Never: writes `wwcc_verified=true`, writes 40, writes an ocg_* block on ERROR, touches identity (P-8), drops
+ *   connections (P-3, 3i), sends email, or calls sync.
  */
 import {
   CROSS_CHECK_STATUS,
@@ -72,6 +77,33 @@ function apiMismatch(r: Extract<DbsCheckResult, { raw: string; status: string }>
   return issues;
 }
 
+/** The NEW_INFO / NO_MATCH row shared by a first check and a re-check (23 / 26, level 2, P-7). Pure. */
+function failedResultUpdate(
+  result: Extract<DbsCheckResult, { raw: string; status: string }>,
+  ctx: DbsApplyContext,
+  now: string,
+): { payload: Row; outcome: DbsApplyOutcome } {
+  const newInfo = result.result === "NEW_INFO";
+  const wwcc = newInfo ? WWCC_STATUS.NEW_INFO : WWCC_STATUS.NO_MATCH;
+  return {
+    outcome: newInfo ? "new_info" : "no_match",
+    payload: {
+      wwcc_status: wwcc,
+      wwcc_status_at: now,
+      // P-7: must not stay `passed` — sync reads level 3 from it.
+      cross_check_status: CROSS_CHECK_STATUS.NOT_STARTED,
+      cross_check_reasoning: `Surname + DOB match; Update Service: ${result.status}`,
+      cross_check_at: now,
+      wwcc_user_guidance: newInfo ? GUIDANCE_MESSAGES.DBS_NEW_INFO : GUIDANCE_MESSAGES.DBS_NO_MATCH,
+      ocg_result_status: result.status,
+      ocg_result_text: result.raw,
+      ocg_verified_at: now,
+      verification_status: deriveOverallStatus(ctx.identityStatus, wwcc, CROSS_CHECK_STATUS.NOT_STARTED),
+      updated_at: now,
+    },
+  };
+}
+
 /** Builds the ONE update for a first check (the table in the header). Pure — no I/O. */
 function firstCheckUpdate(result: DbsCheckResult, ctx: DbsApplyContext, now: string): { payload: Row; outcome: DbsApplyOutcome } {
   const derive = (wwcc: WwccStatus, cross: CrossCheckStatus) => deriveOverallStatus(ctx.identityStatus, wwcc, cross);
@@ -92,25 +124,7 @@ function firstCheckUpdate(result: DbsCheckResult, ctx: DbsApplyContext, now: str
 
   const ocg = { ocg_result_status: result.status, ocg_result_text: result.raw, ocg_verified_at: now };
 
-  if (result.result === "NEW_INFO" || result.result === "NO_MATCH") {
-    const newInfo = result.result === "NEW_INFO";
-    const wwcc = newInfo ? WWCC_STATUS.NEW_INFO : WWCC_STATUS.NO_MATCH;
-    return {
-      outcome: newInfo ? "new_info" : "no_match",
-      payload: {
-        wwcc_status: wwcc,
-        wwcc_status_at: now,
-        // P-7: must not stay `passed` — sync reads level 3 from it.
-        cross_check_status: CROSS_CHECK_STATUS.NOT_STARTED,
-        cross_check_reasoning: `Surname + DOB match; Update Service: ${result.status}`,
-        cross_check_at: now,
-        wwcc_user_guidance: newInfo ? GUIDANCE_MESSAGES.DBS_NEW_INFO : GUIDANCE_MESSAGES.DBS_NO_MATCH,
-        ...ocg,
-        verification_status: derive(wwcc, CROSS_CHECK_STATUS.NOT_STARTED),
-        updated_at: now,
-      },
-    };
-  }
+  if (result.result === "NEW_INFO" || result.result === "NO_MATCH") return failedResultUpdate(result, ctx, now);
 
   const mismatch = apiMismatch(result, ctx);
   if (mismatch.length > 0) {
@@ -157,7 +171,7 @@ export async function applyDbsResult(
 ): Promise<{ outcome: DbsApplyOutcome }> {
   const now = new Date().toISOString();
 
-  if (mode === "recheck") throw new Error("not implemented: 3i");
+  if (mode === "recheck") return applyRecheck(admin, verificationId, ctx, result, now);
 
   if (mode === "admin_result_only") {
     if (result.result === "ERROR") return { outcome: "no_write" };
@@ -177,6 +191,31 @@ export async function applyDbsResult(
     .eq("cross_check_status", CROSS_CHECK_STATUS.PROCESSING)
     .select("id");
   if (error) throw new Error(`DBS result write refused: ${error.message}`);
+  if (!data || data.length === 0) return { outcome: "superseded" };
+  return { outcome };
+}
+
+/**
+ * A level-4 nanny checked again (P-8 / #12 / #28). Fail → 23 / 26 with `wwcc_verified=false` in one update, guarded
+ * on `wwcc_verified=true` so a row an admin already moved is left alone (`superseded`). Pass / ERROR → `no_write`.
+ * @throws when the database refuses the write — the caller reports it and leaves her unchanged.
+ */
+async function applyRecheck(
+  admin: AdminClient,
+  verificationId: string,
+  ctx: DbsApplyContext,
+  result: DbsCheckResult,
+  now: string,
+): Promise<{ outcome: DbsApplyOutcome }> {
+  if (result.result !== "NEW_INFO" && result.result !== "NO_MATCH") return { outcome: "no_write" };
+  const { payload, outcome } = failedResultUpdate(result, ctx, now);
+  const { data, error } = await admin
+    .from("verifications")
+    .update({ ...payload, wwcc_verified: false })
+    .eq("id", verificationId)
+    .eq("wwcc_verified", true)
+    .select("id");
+  if (error) throw new Error(`DBS re-check write refused: ${error.message}`);
   if (!data || data.length === 0) return { outcome: "superseded" };
   return { outcome };
 }

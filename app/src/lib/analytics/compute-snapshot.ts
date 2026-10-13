@@ -1,3 +1,7 @@
+/**
+ * Daily pipeline snapshot (cron). Unit 3d re-labels only: level stages follow 3a's ladder and the deleted
+ * "closed" DBS outcome is gone (brief change 14). Never: changes a stage's query.
+ */
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SITE_DOMAIN } from "@/lib/constants";
 
@@ -31,7 +35,7 @@ const CONN_LABELS = [
 
 const IDENTITY_OUTCOMES = ["verified", "rejected", "failed"];
 const IDENTITY_PAST_PENDING = ["processing", "review", ...IDENTITY_OUTCOMES];
-const WWCC_OUTCOMES = ["doc_verified", "review", "rejected", "failed", "expired", "barred", "ocg_not_found", "closed"];
+const WWCC_OUTCOMES = ["doc_verified", "review", "rejected", "failed", "expired", "barred", "ocg_not_found"]; // 3d: "closed" deleted (D-3)
 const WWCC_PAST_APP_PENDING = ["pending", "processing", ...WWCC_OUTCOMES];
 const WWCC_PAST_PENDING = ["processing", ...WWCC_OUTCOMES];
 
@@ -396,9 +400,9 @@ export async function computeSnapshot(): Promise<SectionSnapshot[]> {
   // ═══════════════════════════════════════════════
   const nvStages: IntStage[] = [
     { label: "Unverified", records: nannies.filter((n: any) => n.verification_level === 0), idKey: 'user_id' },
-    { label: "ID Verified", records: nannies.filter((n: any) => n.verification_level >= 1), liveRecords: nannies.filter((n: any) => n.verification_level === 1), idKey: 'user_id' },
-    { label: "WWCC Verified", records: nannies.filter((n: any) => n.verification_level >= 2), liveRecords: nannies.filter((n: any) => n.verification_level === 2), idKey: 'user_id' },
-    { label: "Provisional", records: nannies.filter((n: any) => n.verification_level >= 3), liveRecords: nannies.filter((n: any) => n.verification_level === 3), idKey: 'user_id' },
+    { label: "Registered", records: nannies.filter((n: any) => n.verification_level >= 1), liveRecords: nannies.filter((n: any) => n.verification_level === 1), idKey: 'user_id' },
+    { label: "ID Verified", records: nannies.filter((n: any) => n.verification_level >= 2), liveRecords: nannies.filter((n: any) => n.verification_level === 2), idKey: 'user_id' },
+    { label: "Provisional (awaiting approval)", records: nannies.filter((n: any) => n.verification_level >= 3), liveRecords: nannies.filter((n: any) => n.verification_level === 3), idKey: 'user_id' },
     { label: "Fully Verified", records: nannies.filter((n: any) => n.verification_level >= 4), idKey: 'user_id' },
   ];
   sections.push({ section_key: 'nv', stages: snap(nvStages, ['V', 'N']) });

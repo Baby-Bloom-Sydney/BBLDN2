@@ -5,6 +5,10 @@
  * `wwcc_verified=true` into level 4 + active (+ `promotePendingConnections`), and `wwcc_status='barred'` into level 0
  * + suspended. These pins prove that stays true before and after the unit, and G5 pins the body byte-for-byte.
  *
+ * Unit 3d (BB-LDN-3d-141026) — README P-14 (BAI 2026-10-14) is the one ruled change to the body: the barred branch
+ * now drops every live connection at ANY old level (was: held rows only, from level 3+) and sends the VER-011 admin
+ * alert listing the families, once per bar. G5's hash is re-pinned to that body; G13 asserts the new behaviour.
+ *
  * `visible_in_match_making` is a generated column (`status = 'active' AND wwcc_verified AND identity_verified`,
  * LDN2/schema/02_tables.sql), so "visible" is asserted through exactly those three written fields.
  */
@@ -17,7 +21,7 @@ type Call = { table: string; op: string; args: unknown[] };
 
 const state = vi.hoisted(() => ({
   calls: [] as Call[],
-  nanny: null as { id: string; verification_level: number } | null,
+  nanny: null as { id: string; verification_level: number; status?: string } | null,
   verification: null as Record<string, unknown> | null,
 }));
 
@@ -50,15 +54,26 @@ vi.mock("@/lib/ai/verification-pipeline", () => ({ triggerCrossCheck: vi.fn() })
 vi.mock("@/lib/email/resend", () => ({ sendEmail: vi.fn(async () => ({})) }));
 vi.mock("@/lib/email/helpers", () => ({ getUserEmailInfo: vi.fn(async () => null) }));
 vi.mock("./connection-helpers", () => ({ createInboxMessage: vi.fn() }));
+const alert = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock("@/lib/email/dbs-emails", () => ({ sendBarredAdminAlert: alert }));
 
 import { syncNannyVerificationState } from "./verification";
 import { STATUS_META, deriveOverallStatus } from "@/lib/verification";
+
+const BARRED = {
+  identity_status: "verified",
+  identity_verified: true,
+  wwcc_status: "barred",
+  wwcc_verified: false,
+  cross_check_status: "passed",
+};
 
 const nannyUpdate = () =>
   state.calls.find((c) => c.table === "nannies" && c.op === "update")?.args[0] as Record<string, unknown>;
 const queriedConnections = () => state.calls.some((c) => c.table === "connection_requests" && c.op === "select");
 
 beforeEach(() => {
+  alert.mockClear();
   state.calls = [];
   state.nanny = { id: "nanny-1", verification_level: 3 };
   state.verification = null;
@@ -98,26 +113,21 @@ describe("syncNannyVerificationState — pinned by 3a (unchanged)", () => {
     expect(queriedConnections()).toBe(false);
   });
 
-  it("G5 sync function source hash matches the pre-3a snapshot", () => {
+  it("G5 sync function source hash matches the P-14 body (re-pinned by 3d; pre-3a hash c3da1d4a…)", () => {
     const source = readFileSync(resolve(__dirname, "verification.ts"), "utf8");
     const start = source.indexOf("export async function syncNannyVerificationState");
     const end = source.indexOf("\n}\n", start) + 3;
     expect(start).toBeGreaterThan(-1);
     const body = source.slice(start, end);
-    // Measured on origin/main @ 8c4de49 before 3a's first edit (94 lines).
+    // Pre-3a (origin/main @ 8c4de49): c3da1d4a38c399cf50dc750d6454b2d760ca4860f3f26189d7dd9abd1d6461e0.
+    // Re-pinned 2026-10-14 by 3d (BB-LDN-3d-141026) after README P-14's ruled change to the barred branch only.
     expect(createHash("sha256").update(body).digest("hex")).toBe(
-      "c3da1d4a38c399cf50dc750d6454b2d760ca4860f3f26189d7dd9abd1d6461e0",
+      "ee786cb2eb3c8f8a197c0e1ef7a79c2feb048ef6c198c5a6ad3b8ec1f24e9dfb",
     );
   });
 
   it("G13 sync sets level 0 and suspended when the DBS section is barred, now shown as 27", async () => {
-    state.verification = {
-      identity_status: "verified",
-      identity_verified: true,
-      wwcc_status: "barred",
-      wwcc_verified: false,
-      cross_check_status: "passed",
-    };
+    state.verification = BARRED;
     await syncNannyVerificationState("user-1");
     const u = nannyUpdate();
     expect(u.verification_level).toBe(0);
@@ -125,5 +135,24 @@ describe("syncNannyVerificationState — pinned by 3a (unchanged)", () => {
     const code = deriveOverallStatus("verified", "barred", "passed");
     expect(code).toBe(27);
     expect(STATUS_META[code].label).toBe("DBS Barred (27)");
+  });
+
+  it("G13 (P-14) the barred branch drops her connections and alerts admin once, from ANY old level", async () => {
+    for (const level of [0, 1, 2, 3, 4]) {
+      state.calls = [];
+      alert.mockClear();
+      state.nanny = { id: "nanny-1", verification_level: level, status: "active" };
+      state.verification = BARRED;
+      await syncNannyVerificationState("user-1");
+      expect(queriedConnections()).toBe(true);
+      expect(alert).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("G13 (P-14) re-syncing an already-barred nanny (level 0, suspended) sends no second alert", async () => {
+    state.nanny = { id: "nanny-1", verification_level: 0, status: "suspended" };
+    state.verification = BARRED;
+    await syncNannyVerificationState("user-1");
+    expect(alert).not.toHaveBeenCalled();
   });
 });

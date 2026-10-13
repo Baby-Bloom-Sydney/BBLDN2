@@ -1,18 +1,22 @@
 "use client";
 
+/**
+ * Admin users page shell: Users tab + Nanny Verification tab. Unit 3d: passes the DBS queues (lists A–D from
+ * `getDbsQueues`) instead of the old regulator queue. Never: fetches or decides anything itself.
+ */
 import { useSearchParams } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { UsersTab } from "./UsersTab";
 import { VerificationTab } from "./VerificationTab";
 import { Users, ShieldCheck } from "lucide-react";
-import type { UserData, UserStats, VerificationStats, PendingIdentityCheck, PendingWWCCCheck } from "./page";
+import type { UserData, UserStats, VerificationStats, PendingIdentityCheck, DbsQueues, PendingDbsCheck } from "./page";
 
 interface AdminUsersClientProps {
   users: UserData[];
   userStats: UserStats;
   verificationStats: VerificationStats;
   identityChecks: PendingIdentityCheck[];
-  wwccChecks: PendingWWCCCheck[];
+  dbsQueues: DbsQueues<PendingDbsCheck>;
 }
 
 export function AdminUsersClient({
@@ -20,7 +24,7 @@ export function AdminUsersClient({
   userStats,
   verificationStats,
   identityChecks,
-  wwccChecks,
+  dbsQueues,
 }: AdminUsersClientProps) {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
@@ -64,7 +68,7 @@ export function AdminUsersClient({
           <VerificationTab
             stats={verificationStats}
             identityChecks={identityChecks}
-            wwccChecks={wwccChecks}
+            dbsQueues={dbsQueues}
           />
         </TabsContent>
       </Tabs>

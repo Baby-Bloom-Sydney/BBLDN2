@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * Admin → one user email (the existing contact path). Unit 3d (#27) adds optional prefill — `defaultSubject`,
+ * `defaultBody` — and `logActionType`, which `adminSendEmail` turns into one `activity_logs` row after a successful send
+ * ("Ask for page 2" → `dbs_page2_requested`). Without the new props it behaves exactly as before.
+ * Never: changes any verification status; the server re-validates the sender and the log type.
+ */
 import { useState } from "react";
 import {
   Dialog,
@@ -29,6 +35,9 @@ interface ContactUserModalProps {
   userId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  defaultSubject?: string;
+  defaultBody?: string;
+  logActionType?: "dbs_page2_requested";
 }
 
 export function ContactUserModal({
@@ -37,16 +46,19 @@ export function ContactUserModal({
   userId,
   open,
   onOpenChange,
+  defaultSubject = "",
+  defaultBody = "",
+  logActionType,
 }: ContactUserModalProps) {
   const [fromAddress, setFromAddress] = useState(FROM_OPTIONS[0].value);
-  const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
+  const [subject, setSubject] = useState(defaultSubject);
+  const [body, setBody] = useState(defaultBody);
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
   function reset() {
-    setSubject("");
-    setBody("");
+    setSubject(defaultSubject);
+    setBody(defaultBody);
     setFromAddress(FROM_OPTIONS[0].value);
     setStatus("idle");
     setError(null);
@@ -69,6 +81,7 @@ export function ContactUserModal({
       fromAddress,
       subject: subject.trim(),
       body: body.trim(),
+      ...(logActionType ? { logActionType } : {}),
     });
 
     if (result.success) {

@@ -18,7 +18,7 @@ function composeContext(detail: LeadDetail): string {
   const v = detail.verifications;
   const verBadges: string[] = [];
   if (v?.identity_verified === true) verBadges.push("ID");
-  if (v?.wwcc_verified === true) verBadges.push("WWCC");
+  if (v?.wwcc_verified === true) verBadges.push("DBS");
   if (detail.user_profile?.profile_picture_url) verBadges.push("photo");
   if (detail.nanny?.abn) verBadges.push("ABN");
   if (verBadges.length > 0) parts.push(`${verBadges.join(" + ")} done`);

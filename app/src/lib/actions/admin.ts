@@ -1,6 +1,18 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+/**
+ * Admin server actions: identity approve/reject, DBS reject (→ 22), user delete/role/reset, bio regenerate, contact email.
+ *
+ * Unit 3d changes: `requireAdmin` moved to `lib/admin/require-admin.ts` (same body; R-A1); the OCG "Confirm" stamp
+ * (`adminConfirmWWCC`) is deleted (spec §4); `adminRejectWWCC` is wired, stamps the deciding admin, writes her guidance,
+ * logs, and sends the P-4 reject email; `adminSendEmail` can log "Ask for page 2" (#27). Approve / Bar / Lift bar /
+ * Run DBS check now live in `lib/actions/admin-dbs.ts`.
+ *
+ * Contract
+ * - Every export calls `requireAdmin` first and writes nothing without it.
+ * - Never: writes `wwcc_verified=true` or status 40 (Approve in admin-dbs.ts is the only writer, D3), or logs an
+ *   activity type outside the allow-list in `adminSendEmail`.
+ */
 import { createAdminClient } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
 import {
@@ -21,25 +33,10 @@ import { openai } from '@/lib/ai/client';
 import { V2_SYSTEM_PROMPT, buildV2Prompt, parseAIProfileSections, generateV2Checklist } from '@/lib/ai/nanny-profile-prompts';
 import { emailFooter } from "@/lib/email/brand";
 import { ADMIN_FROM_ADDRESSES } from "@/lib/constants";
-
-// ── Helper: require admin role ──
-
-async function requireAdmin(): Promise<{ userId: string; error: string | null }> {
-  const supabase = createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) return { userId: '', error: 'Not authenticated' };
-
-  const { data: role } = await supabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', user.id)
-    .single();
-
-  if (!role || !['admin', 'super_admin'].includes(role.role)) {
-    return { userId: '', error: 'Not authorized — admin role required' };
-  }
-  return { userId: user.id, error: null };
-}
+import { requireAdmin } from '@/lib/admin/require-admin';
+import { sendDbsRejectedEmail } from '@/lib/email/dbs-emails';
+import { getUserEmailInfo } from '@/lib/email/helpers';
+import { ADMIN_REASON_MAX_LENGTH } from '@/lib/admin/dbs-queues';
 
 // ── Admin: Verify Identity (approve passport check) ──
 // State transition: identity_status → verified, level 1 → 2
@@ -174,85 +171,107 @@ export async function adminRejectIdentity(
   return { success: true, error: null };
 }
 
-// ── Admin: Confirm WWCC (tracking-only — records that admin submitted to OCG portal) ──
-// Does NOT change verification state. OCG webhook handles actual status changes.
+// ── Admin: Reject DBS certificate → 22 (unit 3d, brief change 3; #11, #26, P-4) ──
 
-export async function adminConfirmWWCC(
-  verificationId: string
-): Promise<{ success: boolean; error: string | null }> {
-  const { userId: adminId, error: authErr } = await requireAdmin();
-  if (authErr) return { success: false, error: authErr };
+/** Statuses an admin may reject from: list A (30), list B (21, and 20 when the API was down — #30). */
+const DBS_REJECTABLE: readonly number[] = [
+  VERIFICATION_STATUS.PENDING_WWCC_AUTO,
+  VERIFICATION_STATUS.PENDING_WWCC_REVIEW,
+  VERIFICATION_STATUS.PROVISIONALLY_VERIFIED,
+];
 
-  const supabase = createAdminClient();
-
-  const { error: updateErr } = await supabase
-    .from('verifications')
-    .update({
-      wwcc_ocg_submitted_at: new Date().toISOString(),
-      wwcc_verified_by: adminId,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', verificationId);
-
-  if (updateErr) {
-    return { success: false, error: `Failed to update verification: ${updateErr.message}` };
-  }
-
-  revalidatePath('/admin/users');
-  return { success: true, error: null };
-}
-
-// ── Admin: Reject WWCC ──
-// State transition: wwcc_status → rejected, level → 2
-
+/**
+ * Reject her certificate → 22. Writes the reason, `wwcc_verified_by` ("decided by"), `wwcc_status_at`, guidance for
+ * her `GuidanceCard`, resets the cross-check, syncs (level 2), logs `verification_rejected`, then sends the P-4 email
+ * once. Refuses barred rows (Lift bar is that path) and any status outside 20/21/30. A failed email returns a warning;
+ * the reject stands. VER-003 keys on `wwcc_status='failed'`, so it does not double-send for 22.
+ */
 export async function adminRejectWWCC(
   verificationId: string,
   reason: string
-): Promise<{ success: boolean; error: string | null }> {
-  const { error: authErr } = await requireAdmin();
+): Promise<{ success: boolean; error: string | null; warning?: string }> {
+  const { userId: adminId, error: authErr } = await requireAdmin();
   if (authErr) return { success: false, error: authErr };
 
-  if (!reason.trim()) {
+  const trimmed = reason.trim();
+  if (!trimmed) {
     return { success: false, error: 'Rejection reason is required' };
+  }
+  if (trimmed.length > ADMIN_REASON_MAX_LENGTH) {
+    return { success: false, error: `The reason is too long (max ${ADMIN_REASON_MAX_LENGTH} characters)` };
   }
 
   const supabase = createAdminClient();
 
   const { data: verification, error: fetchErr } = await supabase
     .from('verifications')
-    .select('user_id')
+    .select('user_id, identity_status, wwcc_status, verification_status')
     .eq('id', verificationId)
     .single();
 
   if (fetchErr || !verification) {
     return { success: false, error: 'Verification record not found' };
   }
+  if (verification.wwcc_status === WWCC_STATUS.BARRED || !DBS_REJECTABLE.includes(verification.verification_status)) {
+    return { success: false, error: `Cannot reject from status ${verification.verification_status}` };
+  }
 
-  const { error: updateVerErr } = await supabase
+  const now = new Date().toISOString();
+  const { data: written, error: updateVerErr } = await supabase
     .from('verifications')
     .update({
-      wwcc_rejection_reason: reason.trim(),
+      wwcc_rejection_reason: trimmed,
       wwcc_status: WWCC_STATUS.REJECTED,
-      wwcc_status_at: new Date().toISOString(),
-      verification_status: VERIFICATION_STATUS.WWCC_REJECTED,
-      // Reset cross-check (WWCC rejection invalidates it)
+      wwcc_status_at: now,
+      wwcc_verified_by: adminId,
+      // copy: 3g pins
+      wwcc_user_guidance: {
+        title: 'Your DBS certificate needs another look',
+        explanation: trimmed,
+        steps_to_fix: ['Upload page 1 of your certificate again, or request a manual review'],
+      },
+      verification_status: deriveOverallStatus(
+        verification.identity_status as IdentityStatus,
+        WWCC_STATUS.REJECTED as WwccStatus,
+        CROSS_CHECK_STATUS.NOT_STARTED as CrossCheckStatus
+      ),
+      // Reset cross-check (a rejected certificate invalidates it)
       cross_check_status: CROSS_CHECK_STATUS.NOT_STARTED,
       cross_check_reasoning: null,
-      // Ensure wwcc_verified is false in verifications (not just nannies)
       wwcc_verified: false,
       wwcc_doc_verified: false,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     })
-    .eq('id', verificationId);
+    .eq('id', verificationId)
+    .eq('verification_status', verification.verification_status)
+    .select('id');
 
   if (updateVerErr) {
     return { success: false, error: `Failed to reject: ${updateVerErr.message}` };
   }
+  if (!written || written.length === 0) {
+    return { success: false, error: 'Her record changed meanwhile — refresh and review again' };
+  }
 
   await syncNannyVerificationState(verification.user_id);
 
+  const { error: logErr } = await supabase.from('activity_logs').insert({
+    user_id: verification.user_id,
+    action_type: 'verification_rejected',
+    action_details: { admin_id: adminId, decision: 'reject', reason: trimmed },
+  });
+  if (logErr) console.error('[adminRejectWWCC] could not write the activity row:', logErr.message);
+
+  let warning: string | undefined;
+  try {
+    await sendDbsRejectedEmail(verification.user_id, trimmed);
+  } catch (err) {
+    console.error('[adminRejectWWCC] reject email failed:', err instanceof Error ? err.message : 'unknown');
+    warning = 'Rejected, but the email to her could not be sent — contact her manually';
+  }
+
   revalidatePath('/admin/users');
-  return { success: true, error: null };
+  return { success: true, error: null, ...(warning ? { warning } : {}) };
 }
 
 // ── Admin: Delete User ──
@@ -536,17 +555,36 @@ export async function adminRegenerateNannyBio(
 
 // ── Admin: Send Email to User ──
 
+/** The only history rows an admin email may write (3d, #27). Anything else is refused — fail closed. */
+const ADMIN_EMAIL_LOG_TYPES = ['dbs_page2_requested'] as const;
+
+/**
+ * Sends one email from an admin sender. With `logActionType: 'dbs_page2_requested'` ("Ask for page 2", #27) it also
+ * writes one `activity_logs` row `{admin_id}` for her — only after a successful send — and changes no status.
+ */
 export async function adminSendEmail(params: {
   toEmail: string;
   toUserId: string;
   fromAddress: string;
   subject: string;
   body: string;
+  logActionType?: typeof ADMIN_EMAIL_LOG_TYPES[number];
 }): Promise<{ success: boolean; error: string | null }> {
-  const { error: authErr } = await requireAdmin();
+  const { userId: adminId, error: authErr } = await requireAdmin();
   if (authErr) return { success: false, error: authErr };
 
-  const { toEmail, toUserId, fromAddress, subject, body } = params;
+  const { toEmail, toUserId, fromAddress, subject, body, logActionType } = params;
+
+  if (logActionType !== undefined && !(ADMIN_EMAIL_LOG_TYPES as readonly string[]).includes(logActionType)) {
+    return { success: false, error: 'Invalid log type' };
+  }
+  // A logged email writes history against `toUserId`, so the address must be hers (security review M1).
+  if (logActionType) {
+    const owner = await getUserEmailInfo(toUserId);
+    if (!owner || owner.email.toLowerCase() !== toEmail.trim().toLowerCase()) {
+      return { success: false, error: 'That address does not belong to this user' };
+    }
+  }
 
   if (!toEmail || !subject.trim() || !body.trim()) {
     return { success: false, error: 'Email, subject, and body are required' };
@@ -584,6 +622,14 @@ export async function adminSendEmail(params: {
 
   if (!result.success) {
     return { success: false, error: result.error || 'Failed to send email' };
+  }
+
+  if (logActionType) {
+    const { error: logErr } = await createAdminClient()
+      .from('activity_logs')
+      .insert({ user_id: toUserId, action_type: logActionType, action_details: { admin_id: adminId } });
+    // The email has gone; a lost history row is reported, not swallowed.
+    if (logErr) console.error('[adminSendEmail] could not write the activity row:', logErr.message);
   }
 
   return { success: true, error: null };

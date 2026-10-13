@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * Embeddable single-component showcase (dev surface). Unit 3d: admin users block uses `MOCK_ADMIN_DBS_QUEUES`.
+ * Never: reads real data.
+ */
 import { Suspense, useState, useEffect } from "react";
 import { ShowcaseErrorBoundary } from "../../ErrorBoundary";
 
@@ -28,7 +32,7 @@ import {
   MOCK_ADMIN_USER_STATS,
   MOCK_ADMIN_VERIFICATION_STATS,
   MOCK_ADMIN_IDENTITY_CHECKS,
-  MOCK_ADMIN_WWCC_CHECKS,
+  MOCK_ADMIN_DBS_QUEUES,
 } from "../../page-client-mocks";
 import { MOCK_MATCH_RESULT, MOCK_DFY_STATUS } from "../../mock-data";
 
@@ -157,7 +161,7 @@ const COMPONENTS: Record<string, { name: string; render: () => React.ReactNode }
           userStats={MOCK_ADMIN_USER_STATS}
           verificationStats={MOCK_ADMIN_VERIFICATION_STATS}
           identityChecks={MOCK_ADMIN_IDENTITY_CHECKS}
-          wwccChecks={MOCK_ADMIN_WWCC_CHECKS}
+          dbsQueues={MOCK_ADMIN_DBS_QUEUES}
         />
       </Suspense>
     ),
