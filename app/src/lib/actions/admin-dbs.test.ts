@@ -13,7 +13,8 @@ const h = vi.hoisted(() => ({
   dbs: { result: "BLANK", status: "BLANK_NO_NEW_INFO", raw: "<xml/>", forename: "SOPHIE", surname: "TAYLOR", printDate: "2024-01-10" } as DbsCheckResult,
   checkDbsStatus: vi.fn(),
   runCrossCheckPhase: vi.fn(async () => {}),
-  sendBarredEmails: vi.fn(async () => {}),
+  sendBarredNannyEmail: vi.fn(async () => {}),
+  sendBarredAdminAlert: vi.fn(async () => {}),
   createInboxMessage: vi.fn(async () => {}),
   revalidatePath: vi.fn(),
 }));
@@ -31,10 +32,13 @@ vi.mock("@/lib/dbs/update-service", async (orig) => ({
   checkDbsStatus: h.checkDbsStatus,
 }));
 vi.mock("@/lib/ai/verification-pipeline", () => ({ runCrossCheckPhase: h.runCrossCheckPhase, triggerCrossCheck: vi.fn() }));
-vi.mock("@/lib/email/dbs-emails", () => ({ sendBarredEmails: h.sendBarredEmails, sendDbsRejectedEmail: vi.fn() }));
+vi.mock("@/lib/email/dbs-emails", () => ({
+  sendBarredNannyEmail: h.sendBarredNannyEmail, sendBarredAdminAlert: h.sendBarredAdminAlert, sendDbsRejectedEmail: vi.fn(),
+}));
 vi.mock("@/lib/email/resend", () => ({ sendEmail: vi.fn(async () => ({ success: true })) }));
 vi.mock("@/lib/email/helpers", () => ({ getUserEmailInfo: vi.fn(async () => null) }));
 vi.mock("./connection-helpers", () => ({ createInboxMessage: h.createInboxMessage }));
+vi.mock("@/lib/actions/connection-helpers", () => ({ createInboxMessage: h.createInboxMessage }));
 
 import { adminVerifyWWCC, adminBarDbs, adminLiftDbsBar, adminRunDbsCheck } from "./admin-dbs";
 
@@ -155,13 +159,19 @@ describe("D2 — every action returns forbidden and writes nothing for a non-adm
 });
 
 describe("adminBarDbs — Bar → 27 (#13, #23)", () => {
-  it("D5 sets 27, level 0, suspended, runs cleanupPendingConnections and sends VER-010 + VER-011", async () => {
+  it("D5 sets 27, level 0, suspended, drops every connection (P-14) and sends VER-010 + one VER-011 listing the families", async () => {
     seed({}, {}, {
       connection_requests: [
-        { id: "c9", nanny_id: "n1", parent_id: "p1", connection_stage: 9, status: "accepted", source: "parent" },
-        { id: "c4", nanny_id: "n1", parent_id: "p2", connection_stage: 4, status: "pending", source: "parent" },
+        { id: "c9", nanny_id: "n1", parent_id: "p1", position_id: "pos1", connection_stage: 9, status: "accepted", source: "parent" },
+        { id: "c4", nanny_id: "n1", parent_id: "p2", position_id: "pos1", connection_stage: 4, status: "pending", source: "parent" },
+        { id: "c40", nanny_id: "n1", parent_id: "p2", position_id: "pos1", connection_stage: 40, status: "confirmed", source: "parent" },
       ],
-      parents: [{ id: "p1", user_id: "parent-u" }],
+      parents: [{ id: "p1", user_id: "parent-u" }, { id: "p2", user_id: "parent-u2" }],
+      user_profiles: [
+        { user_id: "parent-u", first_name: "Olivia", last_name: "Hartley", email: "olivia.hartley@example.test", mobile_number: null },
+        { user_id: "parent-u2", first_name: "James", last_name: "Okafor", email: "james.okafor@example.test", mobile_number: "07700 900456" },
+      ],
+      nanny_positions: [{ id: "pos1", title: "After-school nanny" }],
     });
     const r = await adminBarDbs("v1", "Certificate shows barred-list entry");
     expect(r.success).toBe(true);
@@ -171,12 +181,43 @@ describe("adminBarDbs — Bar → 27 (#13, #23)", () => {
     });
     expect(v().wwcc_status_at).toBeTruthy();
     expect(nanny()).toMatchObject({ verification_level: 0, status: "suspended" });
-    // cleanup ran: the held application is gone; P-9 — the held accept expires silently, no parent message
+    // the held application parents never saw is gone; every row a parent saw is expired — silently (P-9)
     expect(h.db.tables.connection_requests.find((c) => c.id === "c4")).toBeUndefined();
     expect(h.db.tables.connection_requests.find((c) => c.id === "c9")).toMatchObject({ connection_stage: 1, status: "expired" });
     expect(h.createInboxMessage).not.toHaveBeenCalled();
-    expect(h.sendBarredEmails).toHaveBeenCalledWith("nanny-u");
+    expect(h.sendBarredNannyEmail).toHaveBeenCalledTimes(1);
+    expect(h.sendBarredNannyEmail).toHaveBeenCalledWith("nanny-u");
+    expect(h.sendBarredAdminAlert).toHaveBeenCalledTimes(1);
+    const [uid, families, unseen] = h.sendBarredAdminAlert.mock.calls[0] as unknown as [string, { connectionId: string }[], number];
+    expect(uid).toBe("nanny-u");
+    expect(families.map((f) => f.connectionId).sort()).toEqual(["c40", "c9"]);
+    expect(unseen).toBe(1);
     expect(logs("user_suspended")).toHaveLength(1);
+  });
+
+  it("P-14 drops a hired (stage 40) connection when a level-4 nanny is barred", async () => {
+    seed({ verification_status: 40, wwcc_verified: true, wwcc_verified_by: "admin-0", wwcc_verified_at: "2026-10-01T00:00:00Z" },
+      { verification_level: 4 },
+      { connection_requests: [{ id: "c40", nanny_id: "n1", parent_id: "p1", position_id: null, connection_stage: 40, status: "confirmed", source: "parent" }] });
+    expect((await adminBarDbs("v1", "reason")).success).toBe(true);
+    expect(h.db.tables.connection_requests[0]).toMatchObject({ connection_stage: 1, status: "expired" });
+  });
+
+  it("P-14 drops a level-2 barred nanny's hired row too (any old level)", async () => {
+    seed({ verification_status: 21, cross_check_status: "review" }, { verification_level: 2 }, {
+      connection_requests: [{ id: "c40", nanny_id: "n1", parent_id: "p1", position_id: null, connection_stage: 40, status: "confirmed", source: "parent" }],
+    });
+    expect((await adminBarDbs("v1", "reason")).success).toBe(true);
+    expect(h.db.tables.connection_requests[0]).toMatchObject({ connection_stage: 1, status: "expired" });
+    expect(h.sendBarredAdminAlert).toHaveBeenCalledTimes(1);
+  });
+
+  it("P-14 one admin email per bar: barring again (already barred) sends no second VER-011 or VER-010", async () => {
+    seed({}, {}, { connection_requests: [{ id: "c10", nanny_id: "n1", parent_id: "p1", position_id: null, connection_stage: 10, status: "accepted", source: "parent" }] });
+    await adminBarDbs("v1", "reason");
+    await adminBarDbs("v1", "reason");
+    expect(h.sendBarredAdminAlert).toHaveBeenCalledTimes(1);
+    expect(h.sendBarredNannyEmail).toHaveBeenCalledTimes(1);
   });
 
   it("D5 writes wwcc_verified=false in the same UPDATE when barring a level-4 nanny (amendment 10)", async () => {
@@ -194,7 +235,7 @@ describe("adminBarDbs — Bar → 27 (#13, #23)", () => {
 
   it("a failed barred email still leaves her barred and returns a warning", async () => {
     seed();
-    h.sendBarredEmails.mockRejectedValueOnce(new Error("resend down"));
+    h.sendBarredNannyEmail.mockRejectedValueOnce(new Error("resend down"));
     const r = await adminBarDbs("v1", "reason");
     expect(r).toMatchObject({ success: true, warning: expect.stringMatching(/email/i) });
     expect(v().verification_status).toBe(27);

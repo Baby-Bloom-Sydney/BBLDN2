@@ -6,7 +6,9 @@
  * - `adminVerifyWWCC`   Approve → 40 / level 4 — the ONLY writer of `wwcc_verified=true` (P-1, D3 static test). Needs
  *                       identity verified + an Update Service pass + status 21 or 30; sync releases her held accepts.
  * - `adminBarDbs`       Bar → 27, level 0, suspended (#13, #23); `wwcc_verified=false` in the same UPDATE
- *                       (amendment 10: barred forbids verified); VER-010 + VER-011 via 3c's `sendBarredEmails`.
+ *                       (amendment 10: barred forbids verified). The sync's barred branch drops EVERY connection
+ *                       she has, hired included, and sends the one VER-011 admin alert listing the families
+ *                       (README P-14, BAI 2026-10-14); this action sends her VER-010 (`sendBarredNannyEmail`).
  * - `adminLiftDbsBar`   Lift bar → DBS section `not_started` (20, level 2) + `nannies.status='active'` (#36).
  * - `adminRunDbsCheck`  Run DBS check now (#30, P-8, #33): API-down row → 3c's full cross-check phase; level-4 row
  *                       with NEW_INFO / NO_MATCH → the failed re-check row (23 / 26, level 2); otherwise only the
@@ -28,7 +30,7 @@ import { runCrossCheckPhase } from '@/lib/ai/verification-pipeline';
 import { checkDbsStatus, type DbsCheckResult } from '@/lib/dbs/update-service';
 import { applyDbsResult, type DbsApplyOutcome } from '@/lib/dbs/map-dbs-outcome';
 import { logDbsStatusCheck } from '@/lib/dbs/log';
-import { sendBarredEmails } from '@/lib/email/dbs-emails';
+import { sendBarredNannyEmail } from '@/lib/email/dbs-emails';
 import { ADMIN_REASON_MAX_LENGTH, isApiResultCurrent } from '@/lib/admin/dbs-queues';
 import {
   CROSS_CHECK_STATUS,
@@ -198,8 +200,9 @@ export async function adminVerifyWWCC(verificationId: string): Promise<AdminDbsR
 
 /**
  * Bar → 27 (spec §3.4, #13/#23). Reason required. Writes `wwcc_verified=false` in the same UPDATE (amendment 10).
- * Sync's barred branch then sets level 0 + suspended and runs `cleanupPendingConnections` (silent to parents, P-9).
- * Already barred → idempotent success. An email failure returns a warning; the bar stands.
+ * Sync's barred branch then sets level 0 + suspended, drops every connection (P-14; silent to parents, P-9) and alerts
+ * admin once with the families (VER-011). This action then sends her VER-010. Already barred → idempotent success with
+ * no second email. An email failure returns a warning; the bar stands.
  */
 export async function adminBarDbs(verificationId: string, reason: string): Promise<AdminDbsResult> {
   const { userId: adminId, error: authErr } = await requireAdmin();
@@ -241,10 +244,10 @@ export async function adminBarDbs(verificationId: string, reason: string): Promi
 
   let emailWarning: string | undefined;
   try {
-    await sendBarredEmails(row.user_id);
+    await sendBarredNannyEmail(row.user_id);
   } catch (err) {
-    console.error('[adminBarDbs] barred emails failed:', err instanceof Error ? err.message : 'unknown');
-    emailWarning = 'Barred, but the barred emails could not be sent — contact her manually';
+    console.error('[adminBarDbs] barred email (VER-010) failed:', err instanceof Error ? err.message : 'unknown');
+    emailWarning = 'Barred, but her barred email could not be sent — contact her manually';
   }
 
   revalidatePath('/admin/users');

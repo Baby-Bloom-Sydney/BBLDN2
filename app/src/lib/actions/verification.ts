@@ -2,8 +2,14 @@
 
 /**
  * Nanny verification server actions + `syncNannyVerificationState` (the one place nannies.verification_level is
- * derived; body pinned by G5). Unit 3d changed only `cleanupPendingConnections`: a dropped held request now expires
- * silently for the parent (README P-9). Never: tells a parent why a connection was dropped.
+ * derived; body pinned by G5).
+ *
+ * Unit 3d (BB-LDN-3d-141026), README P-14 (BAI 2026-10-14): when she is barred — by ANY path (admin Bar, pipeline,
+ * re-check), from ANY old level — the sync's barred branch drops every live connection she has at any stage (hired
+ * included) and sends the VER-011 admin alert listing the affected families, once per bar (`onNannyBarred`,
+ * lib/connections/silent-hold.ts, which also now holds `promotePendingConnections`, moved verbatim).
+ * Inputs: a user id (sync). Outputs: nannies row written; connections released (level 4) or dropped (barred).
+ * Never: tells a parent why a connection was dropped or sends a parent anything on a bar (P-9).
  */
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -24,9 +30,8 @@ import {
 import { capitalizeName } from '@/lib/utils';
 import { sendEmail } from '@/lib/email/resend';
 import { getUserEmailInfo } from '@/lib/email/helpers';
-import { CONNECTION_STAGE } from '@/lib/position/constants';
-import { createInboxMessage } from './connection-helpers';
-import { emailHeader, emailFooter } from "@/lib/email/brand";
+import { promotePendingConnections, onNannyBarred } from '@/lib/connections/silent-hold';
+import { emailFooter } from "@/lib/email/brand";
 import { SITE_URL } from "@/lib/constants";
 
 // ── Shared auth helper ──
@@ -51,7 +56,7 @@ export async function syncNannyVerificationState(userId: string): Promise<void> 
   // 0. Read old verification level for comparison (silent hold promotion/cleanup)
   const { data: existingNanny } = await admin
     .from('nannies')
-    .select('id, verification_level')
+    .select('id, verification_level, status')
     .eq('user_id', userId)
     .single();
 
@@ -132,221 +137,10 @@ export async function syncNannyVerificationState(userId: string): Promise<void> 
       await promotePendingConnections(admin, nannyId, userId);
     }
 
-    // CLEANUP: New level = 0 (BARRED) from level 3+
-    if (finalLevel === 0 && oldLevel >= 3) {
-      await cleanupPendingConnections(admin, nannyId);
-    }
-  }
-}
-
-// ── Silent Hold: Promote pending connections on level 4 ──
-
-async function promotePendingConnections(
-  admin: ReturnType<typeof createAdminClient>,
-  nannyId: string,
-  userId: string,
-): Promise<void> {
-  // 1. Find all stage 4 connections (pending applications)
-  const { data: pendingApps } = await admin
-    .from('connection_requests')
-    .select('id, parent_id, position_id')
-    .eq('nanny_id', nannyId)
-    .eq('connection_stage', CONNECTION_STAGE.NANNY_APPLIED_PENDING);
-
-  // 2. Find all stage 9 connections (pending acceptances)
-  const { data: pendingAccepts } = await admin
-    .from('connection_requests')
-    .select('id, parent_id, position_id, source')
-    .eq('nanny_id', nannyId)
-    .eq('connection_stage', CONNECTION_STAGE.ACCEPTED_PENDING);
-
-  // 3. Get active position IDs
-  const positionIds = [
-    ...(pendingApps || []).map(c => c.position_id),
-    ...(pendingAccepts || []).map(c => c.position_id),
-  ].filter(Boolean);
-
-  let activePositionIds = new Set<string>();
-  if (positionIds.length > 0) {
-    const { data: activePositions } = await admin
-      .from('nanny_positions')
-      .select('id')
-      .in('id', positionIds)
-      .eq('status', 'active');
-    activePositionIds = new Set((activePositions || []).map(p => p.id));
-  }
-
-  const now = new Date().toISOString();
-
-  // 4. Promote stage 4 → 5 for active positions
-  for (const app of pendingApps || []) {
-    if (activePositionIds.has(app.position_id)) {
-      await admin
-        .from('connection_requests')
-        .update({ connection_stage: CONNECTION_STAGE.NANNY_APPLIED, updated_at: now })
-        .eq('id', app.id);
-
-      // Send deferred parent inbox message
-      const { data: parentData } = await admin
-        .from('parents')
-        .select('user_id')
-        .eq('id', app.parent_id)
-        .single();
-
-      if (parentData) {
-        await createInboxMessage({
-          userId: parentData.user_id,
-          type: 'new_application',
-          title: 'New application received!',
-          body: 'A nanny has applied to your position. Check their profile and schedule a meet and greet.',
-          actionUrl: '/parent',
-          referenceId: app.id,
-          referenceType: 'connection_request',
-        });
-      }
-    } else {
-      // Position no longer active — delete the pending connection
-      await admin
-        .from('connection_requests')
-        .delete()
-        .eq('id', app.id);
-    }
-  }
-
-  // 5. Promote stage 9 → 10 for active positions
-  const nannyEmailInfo = await getUserEmailInfo(userId);
-  const nannyName = nannyEmailInfo ? nannyEmailInfo.firstName : 'A nanny';
-  const appUrl = SITE_URL;
-  const baseStyle = `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;`;
-  const btnStyle = `background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;`;
-
-  for (const acc of pendingAccepts || []) {
-    if (activePositionIds.has(acc.position_id)) {
-      await admin
-        .from('connection_requests')
-        .update({ connection_stage: CONNECTION_STAGE.ACCEPTED, updated_at: now })
-        .eq('id', acc.id);
-
-      // Send deferred parent notifications
-      const { data: parentData } = await admin
-        .from('parents')
-        .select('user_id')
-        .eq('id', acc.parent_id)
-        .single();
-
-      if (parentData) {
-        const parentEmailInfo = await getUserEmailInfo(parentData.user_id);
-
-        if (acc.source === 'dfy') {
-          // DFY acceptance — DFY-002 email + inbox
-          await createInboxMessage({
-            userId: parentData.user_id,
-            type: 'dfy_nanny_interested',
-            title: `${nannyName} is interested and available for a meet and greet!`,
-            body: `${nannyName} has shared their availability. Pick a time for a meet and greet.`,
-            actionUrl: '/parent',
-            referenceId: acc.id,
-            referenceType: 'connection_request',
-          });
-
-          if (parentEmailInfo) {
-            sendEmail({
-              to: parentEmailInfo.email,
-              subject: `${nannyName} is interested and available for a meet and greet!`,
-              html: `<div style="${baseStyle}">
-                ${emailHeader()}
-                <p style="color: #374151; font-size: 16px; line-height: 1.6;">${nannyName} has expressed interest in your nanny position and shared their availability for a meet and greet.</p>
-                <p style="color: #374151; font-size: 14px;">Pick a time that works for your meet and greet.</p>
-                <p style="margin-top: 24px;"><a href="${appUrl}/parent" style="${btnStyle}">Pick a Time</a></p>
-              </div>`,
-              emailType: 'dfy_parent_applicant',
-              recipientUserId: parentData.user_id,
-            }).catch(err => console.error('[Promotion] DFY-002 email error:', err));
-          }
-        } else {
-          // Parent-initiated acceptance — connection_accepted email + inbox
-          await createInboxMessage({
-            userId: parentData.user_id,
-            type: 'connection_accepted',
-            title: `${nannyName} accepted your connection!`,
-            body: `${nannyName} has shared their available times. Pick a slot for your meet and greet.`,
-            actionUrl: '/parent/connections',
-            referenceId: acc.id,
-            referenceType: 'connection_request',
-          });
-
-          if (parentEmailInfo) {
-            sendEmail({
-              to: parentEmailInfo.email,
-              subject: `${nannyName} accepted your connection request!`,
-              html: `<div style="${baseStyle}">
-                ${emailHeader()}
-                <p style="color: #374151; font-size: 16px; line-height: 1.6;">Great news! ${nannyName} has accepted your connection request and shared their available times. Check their availability and pick a slot for your meet and greet.</p>
-                <p style="color: #6B7280; font-size: 14px; margin-top: 8px;">You have 3 days to schedule a time.</p>
-                <p style="margin-top: 24px;"><a href="${appUrl}/parent/connections" style="${btnStyle}">Pick a Time</a></p>
-              </div>`,
-              emailType: 'interview_confirmed',
-              recipientUserId: parentData.user_id,
-            }).catch(err => console.error('[Promotion] Accept email error:', err));
-          }
-        }
-      }
-    } else {
-      // Position no longer active — delete
-      await admin
-        .from('connection_requests')
-        .delete()
-        .eq('id', acc.id);
-    }
-  }
-}
-
-// ── Silent Hold: Cleanup pending connections on BARRED ──
-
-/**
- * Drops her held connections when she is barred (level 3+ → 0). Stage 4 (applications the parent never saw) and DFY
- * stage 9 are deleted. A parent-initiated stage 9 — which the parent sees as "Request Sent" (G7) — expires silently
- * to the neutral REQUEST_EXPIRED state, exactly as an unanswered request times out (`expireStaleRequests`).
- * README P-9 (BAI 2026-10-06, unit 3d): dropped connections are silent to parents — no reason, no DBS wording, no
- * parent message. Supersedes the interim "DECLINED + nanny unable to proceed" message.
- */
-async function cleanupPendingConnections(
-  admin: ReturnType<typeof createAdminClient>,
-  nannyId: string,
-): Promise<void> {
-  const now = new Date().toISOString();
-
-  // 1. Delete all stage 4 connections (parent never saw them)
-  await admin
-    .from('connection_requests')
-    .delete()
-    .eq('nanny_id', nannyId)
-    .eq('connection_stage', CONNECTION_STAGE.NANNY_APPLIED_PENDING);
-
-  // 2. Handle stage 9 connections — split by source
-  const { data: pendingAccepts } = await admin
-    .from('connection_requests')
-    .select('id, parent_id, source')
-    .eq('nanny_id', nannyId)
-    .eq('connection_stage', CONNECTION_STAGE.ACCEPTED_PENDING);
-
-  for (const acc of pendingAccepts || []) {
-    if (acc.source === 'dfy') {
-      // DFY: delete silently (parent never saw it)
-      await admin
-        .from('connection_requests')
-        .delete()
-        .eq('id', acc.id);
-    } else {
-      // Parent-initiated: the parent saw "Request Sent" — it now reads as an expired request (P-9: no message)
-      await admin
-        .from('connection_requests')
-        .update({
-          connection_stage: CONNECTION_STAGE.REQUEST_EXPIRED,
-          status: 'expired',
-          updated_at: now,
-        })
-        .eq('id', acc.id);
+    // CLEANUP (P-14): barred from ANY level → drop every live connection + one admin alert naming the families
+    if (v.wwcc_status === 'barred') {
+      const alreadyBarred = oldLevel === 0 && existingNanny?.status === 'suspended';
+      await onNannyBarred(admin, { nannyId, userId, alreadyBarred });
     }
   }
 }

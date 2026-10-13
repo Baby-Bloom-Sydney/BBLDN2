@@ -23,7 +23,7 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: h.revalidatePath }));
-vi.mock("@/lib/email/dbs-emails", () => ({ sendDbsRejectedEmail: h.sendDbsRejectedEmail, sendBarredEmails: vi.fn() }));
+vi.mock("@/lib/email/dbs-emails", () => ({ sendDbsRejectedEmail: h.sendDbsRejectedEmail, sendBarredNannyEmail: vi.fn(), sendBarredAdminAlert: vi.fn() }));
 vi.mock("@/lib/email/resend", () => ({ sendEmail: h.sendEmail }));
 vi.mock("@/lib/email/helpers", () => ({ getUserEmailInfo: vi.fn(async () => ({ email: "sophie.taylor+3d@example.test", firstName: "Sophie", lastName: "Taylor" })) }));
 vi.mock("@/lib/ai/verification-pipeline", () => ({ runCrossCheckPhase: h.runCrossCheckPhase, runWWCCDocPhase: vi.fn(), triggerCrossCheck: vi.fn() }));
