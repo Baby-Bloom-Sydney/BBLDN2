@@ -9,8 +9,8 @@
  * Contract
  * - Input: `parseIdentityEdits(unknown)` — the raw value from the client. Output: `{ ok: true, data }` holding only
  *   whitelisted `extracted_*` fields (trimmed; an empty field → null), or `{ ok: false, error }`.
- * - Dates are real `YYYY-MM-DD` calendar dates (the form `lib/dbs/match.ts` compares); a date of birth is not in the
- *   future and not before 1900.
+ * - Dates are real `YYYY-MM-DD` calendar dates (the form `lib/dbs/match.ts` compares); a date of birth is between 1900
+ *   and today, an expiry between 1900 and 2100. Text carries no control or zero-width characters (security review).
  * - `changedIdentityFields(before, after)` — the client sends only what the admin changed.
  * - Never: accepts a key outside `IDENTITY_EDIT_FIELDS` (no status, level or verified flag can ride along), or writes
  *   anything itself. Pure, so client components may import it.
@@ -32,11 +32,19 @@ export type IdentityEditField = (typeof IDENTITY_EDIT_FIELDS)[number];
 export type IdentityEdits = Partial<Record<IdentityEditField, string | null>>;
 
 const MAX_TEXT = 100;
-const EARLIEST_DOB = "1900-01-01";
+const EARLIEST_DATE = "1900-01-01";
+const LATEST_EXPIRY = "2100-12-31";
 
-/** Trimmed text; blank → null (the admin cleared the field). */
+/** Control (Cc) and format (Cf, e.g. zero-width) characters — never part of a name on a passport. */
+const INVISIBLE = /[\p{Cc}\p{Cf}]/u;
+
+/** Trimmed text without invisible characters; blank → null (the admin cleared the field). */
 const text = (max: number) =>
-  z.string().max(max).transform((s) => (s.trim() === "" ? null : s.trim()));
+  z
+    .string()
+    .max(max)
+    .refine((s) => !INVISIBLE.test(s), "No control or invisible characters")
+    .transform((s) => (s.trim() === "" ? null : s.trim()));
 
 const isoDate = z
   .string()
@@ -51,7 +59,7 @@ const schema = z
     extracted_surname: text(MAX_TEXT),
     extracted_given_names: text(MAX_TEXT),
     extracted_dob: isoDate.refine(
-      (d) => d === null || (d >= EARLIEST_DOB && d <= today()),
+      (d) => d === null || (d >= EARLIEST_DATE && d <= today()),
       "Date of birth must be between 1900 and today",
     ),
     extracted_nationality: text(MAX_TEXT),
@@ -59,7 +67,10 @@ const schema = z
       (s) => s === null || /^[A-Za-z0-9]+$/.test(s),
       "Passport number: letters and digits only",
     ),
-    extracted_passport_expiry: isoDate,
+    extracted_passport_expiry: isoDate.refine(
+      (d) => d === null || (d >= EARLIEST_DATE && d <= LATEST_EXPIRY),
+      "Expiry must be between 1900 and 2100",
+    ),
   })
   .partial()
   .strict();

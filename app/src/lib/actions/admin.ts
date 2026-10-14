@@ -40,15 +40,39 @@ import { requireAdmin } from '@/lib/admin/require-admin';
 import { sendDbsRejectedEmail } from '@/lib/email/dbs-emails';
 import { getUserEmailInfo } from '@/lib/email/helpers';
 import { ADMIN_REASON_MAX_LENGTH } from '@/lib/admin/dbs-queues';
-import { parseIdentityEdits } from '@/lib/admin/identity-edits';
+import { parseIdentityEdits, type IdentityEdits } from '@/lib/admin/identity-edits';
 
 // ── Admin: Verify Identity (approve passport check) ──
 // State transition: identity_status → verified, level 1 → 2
+
+type AdminDb = ReturnType<typeof createAdminClient>;
+
+/**
+ * W6-D3 audit (security review MEDIUM, code review LOW): one `admin_override` row per approval that corrected
+ * AI-extracted fields — which admin, which verification, which fields. Field NAMES only: the values are passport
+ * PII and stay in `verifications`, out of the activity log. A failed insert is reported, not swallowed; the approval
+ * already stands.
+ */
+async function logIdentityEdits(
+  supabase: AdminDb,
+  ctx: { adminId: string; verificationId: string; userId: string },
+  edits: IdentityEdits,
+): Promise<void> {
+  const fields = Object.keys(edits);
+  if (fields.length === 0) return;
+  const { error } = await supabase.from('activity_logs').insert({
+    user_id: ctx.userId,
+    action_type: 'admin_override',
+    action_details: { admin_id: ctx.adminId, kind: 'identity_extracted_fields_edited', verification_id: ctx.verificationId, fields },
+  });
+  if (error) console.error('[adminVerifyIdentity] could not write the edit audit row:', error.message);
+}
 
 /**
  * Approve the passport check. `edits` (W6-D3, 3w6fix) are the admin's corrections to the AI-extracted details from
  * Check ID — validated by `parseIdentityEdits` (whitelisted `extracted_*` fields only) before any read or write, and
  * saved in the same update as the approval, so the cross-check that follows reads them. Invalid edits → nothing written.
+ * Edits are refused once the passport is already verified (security review LOW), and each edit is audited.
  */
 export async function adminVerifyIdentity(
   verificationId: string,
@@ -64,12 +88,16 @@ export async function adminVerifyIdentity(
 
   const { data: verification, error: fetchErr } = await supabase
     .from('verifications')
-    .select('user_id, verification_status, wwcc_status')
+    .select('user_id, verification_status, wwcc_status, identity_status')
     .eq('id', verificationId)
     .single();
 
   if (fetchErr || !verification) {
     return { success: false, error: 'Verification record not found' };
+  }
+  const hasEdits = Object.keys(parsedEdits.data).length > 0;
+  if (hasEdits && verification.identity_status === IDENTITY_STATUS.VERIFIED) {
+    return { success: false, error: 'Passport details can only be corrected while the passport check is pending' };
   }
 
   const { error: updateVerErr } = await supabase
@@ -96,6 +124,7 @@ export async function adminVerifyIdentity(
     return { success: false, error: `Failed to update verification: ${updateVerErr.message}` };
   }
 
+  await logIdentityEdits(supabase, { adminId, verificationId, userId: verification.user_id }, parsedEdits.data);
   await syncNannyVerificationState(verification.user_id);
 
   // Check if WWCC is ready → trigger cross-check

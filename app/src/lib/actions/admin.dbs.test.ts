@@ -205,6 +205,30 @@ describe("removed / moved", () => {
     expect(v()).toMatchObject({ identity_status: "verified", extracted_dob: "1990-03-05", extracted_surname: "Taylor-Smith", identity_verified_by: "admin-1" });
   });
 
+  it("W6-D3 logs one admin_override row naming the edited fields, never their values (security review MEDIUM)", async () => {
+    seed({ identity_status: "review", identity_verified: false, verification_status: 11, wwcc_status: "not_started", cross_check_status: "not_started", ocg_result_status: null, extracted_dob: null, extracted_surname: "Taylor" });
+    await adminVerifyIdentity("v1", { extracted_dob: "1990-03-05" });
+    expect(logs("admin_override")).toHaveLength(1);
+    expect(logs("admin_override")[0]).toMatchObject({
+      user_id: "nanny-u",
+      action_details: { admin_id: "admin-1", kind: "identity_extracted_fields_edited", verification_id: "v1", fields: ["extracted_dob"] },
+    });
+    expect(JSON.stringify(logs("admin_override")[0])).not.toContain("1990-03-05");
+  });
+
+  it("W6-D3 writes no admin_override row when nothing was edited", async () => {
+    seed({ identity_status: "review", identity_verified: false, verification_status: 11, wwcc_status: "not_started", cross_check_status: "not_started", ocg_result_status: null });
+    await adminVerifyIdentity("v1", {});
+    expect(logs("admin_override")).toHaveLength(0);
+  });
+
+  it("W6-D3 refuses edits once the passport is already verified (security review LOW)", async () => {
+    seed({ identity_status: "verified", identity_verified: true, extracted_dob: null });
+    const r = await adminVerifyIdentity("v1", { extracted_dob: "1990-03-05" });
+    expect(r.success).toBe(false);
+    expect(h.db.writes).toHaveLength(0);
+  });
+
   it("W6-D3 refuses invalid or non-whitelisted edits before any write", async () => {
     seed({ identity_status: "review", identity_verified: false, verification_status: 11, wwcc_status: "not_started", cross_check_status: "not_started", ocg_result_status: null });
     for (const bad of [{ extracted_dob: "05/03/1990" }, { identity_status: "verified" }, { verification_status: 40 }, "x"]) {

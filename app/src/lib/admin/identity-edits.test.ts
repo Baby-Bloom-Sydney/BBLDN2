@@ -56,6 +56,16 @@ describe("parseIdentityEdits", () => {
     expect(parseIdentityEdits({ extracted_dob: "1899-12-31" }).ok).toBe(false);
   });
 
+  it("refuses a passport expiry outside 1900–2100 (security review LOW)", () => {
+    expect(parseIdentityEdits({ extracted_passport_expiry: "9999-12-31" }).ok).toBe(false);
+    expect(parseIdentityEdits({ extracted_passport_expiry: "0001-01-01" }).ok).toBe(false);
+  });
+
+  it("refuses control and zero-width characters in text (security review LOW)", () => {
+    expect(parseIdentityEdits({ extracted_surname: "Tay\u200Blor" }).ok).toBe(false);
+    expect(parseIdentityEdits({ extracted_given_names: "Sophie\nAnne" }).ok).toBe(false);
+  });
+
   it("refuses non-strings, over-long text and a non-object", () => {
     expect(parseIdentityEdits({ extracted_surname: 42 }).ok).toBe(false);
     expect(parseIdentityEdits({ extracted_surname: "x".repeat(101) }).ok).toBe(false);

@@ -138,6 +138,11 @@ export const ADMIN_FROM_LOCAL_PARTS = [
 
 export type AdminFromLocalPart = (typeof ADMIN_FROM_LOCAL_PARTS)[number];
 
+/**
+ * The full From allow-list, for server code and tests only. A client
+ * component must import `ADMIN_FROM_LOCAL_PARTS` instead — built in a
+ * browser bundle this list carries the wrong domain (W6-D4).
+ */
 export const ADMIN_FROM_ADDRESSES = ADMIN_FROM_LOCAL_PARTS.map(
   (local) => `${local}@${EMAIL_FROM_DOMAIN}`,
 );
