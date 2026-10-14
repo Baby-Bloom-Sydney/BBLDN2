@@ -943,7 +943,7 @@ export function ParentHubClient({
                             {placement.wwccVerified && (
                               <div className="flex items-center gap-1 text-green-600 text-xs font-medium mt-1">
                                 <ShieldCheck className="w-3.5 h-3.5" />
-                                Verified
+                                Enhanced DBS
                               </div>
                             )}
                           </div>

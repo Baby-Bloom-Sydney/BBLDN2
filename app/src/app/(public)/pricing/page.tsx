@@ -58,7 +58,8 @@ const NANNY_CARDS = [
 const CHECKLIST = [
   "Matching across 12 factors — location, schedule, experience, qualifications, developmental approach, and more",
   "Best matches contacted directly — no cold messages, no browsing",
-  "Every nanny WWCC verified and expertly vetted",
+  // [LEGAL] marketing claim (3g, LEDGER/3g.md legal section)
+  "Every nanny enhanced-DBS checked and expertly vetted",
   "No subscription, no commission, no placement fees",
 ];
 
@@ -114,10 +115,11 @@ const faqJsonLd = {
     },
     {
       '@type': 'Question',
-      name: 'Are Baby Bloom nannies WWCC verified?',
+      // [LEGAL] marketing claim (3g, LEDGER/3g.md legal section)
+      name: 'Are Baby Bloom nannies DBS checked?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: `Yes. Every nanny on ${SITE_NAME} has a verified Working With Children Check (WWCC) and undergoes identity verification before being visible to families.`,
+        text: `Yes. Every nanny on ${SITE_NAME} holds an enhanced DBS certificate, checked with the DBS Update Service, and completes identity verification before families can book her.`,
       },
     },
     {

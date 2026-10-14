@@ -296,7 +296,7 @@ describe("isChatTile", () => {
           steps: [
             { label: "Profile complete", status: "verified" },
             { label: "ID verified", status: "verified" },
-            { label: "Working With Children Check", status: "verified" },
+            { label: "Enhanced DBS check", status: "verified" },
           ],
         },
       }),

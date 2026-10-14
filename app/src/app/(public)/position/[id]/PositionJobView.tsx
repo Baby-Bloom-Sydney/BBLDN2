@@ -370,7 +370,7 @@ export function PositionJobView({
           <VerificationBanner
             role="nanny"
             message="Verify your account to apply for this position"
-            submessage="Upload your WWCC and ID to get verified"
+            submessage="Upload your passport and DBS certificate to get verified"
           />
         </div>
       )}

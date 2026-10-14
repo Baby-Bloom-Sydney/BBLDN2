@@ -290,7 +290,7 @@ export function PlacementCard({
           {placement.wwccVerified && (
             <div className="flex items-center gap-1 text-green-600 text-xs font-medium mt-1">
               <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
-              Verified
+              Enhanced DBS
             </div>
           )}
         </div>
@@ -391,7 +391,7 @@ export function PlacementCard({
           {placement.wwccVerified && (
             <div className="flex items-center gap-1 text-sm font-medium text-green-600">
               <ShieldCheck className="w-4 h-4" aria-hidden="true" />
-              Verified
+              Enhanced DBS
             </div>
           )}
         </div>

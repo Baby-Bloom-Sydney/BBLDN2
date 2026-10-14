@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw } from "lucide-react";
 import { adminRunDbsCheck } from "@/lib/actions/admin-dbs";
 
-// copy: 3g pins
+// Copy pinned by 3g (BB-LDN-3g-141026): admin-facing, true per P-8; no old-ladder words.
 const CONFIRM_TEXT =
   "Run the DBS check now? If the Update Service reports new information or no match, she drops to level 2.";
 
