@@ -138,13 +138,17 @@ export function hasRecordChip(r: Pick<DbsQueueRow, "ocg_result_status" | "extrac
   return r.ocg_result_status === DBS_API_RESULT.NON_BLANK || hasDisclosedContent(r);
 }
 
-/** Her latest `dbs_status_check` row whose result is ERROR (#25: read from the log, no counter column). */
+/**
+ * Her latest `dbs_status_check` row whose result is ERROR (#25: read from the log, no counter column) — or null when
+ * the API has answered since: a newer check with any other result ends the outage (W6-D6, 3w6fix).
+ */
 export function apiDownSince(history: readonly DbsHistoryEntry[]): string | null {
-  const errors = history
-    .filter((h) => h.action_type === DBS_ACTIVITY.STATUS_CHECK && h.action_details?.result === "ERROR")
-    .map((h) => h.created_at)
-    .sort();
-  return errors.length > 0 ? errors[errors.length - 1] : null;
+  const checks = history.filter((h) => h.action_type === DBS_ACTIVITY.STATUS_CHECK);
+  const latest = (rows: readonly DbsHistoryEntry[]) => rows.map((h) => h.created_at).sort().at(-1) ?? null;
+  const lastError = latest(checks.filter((h) => h.action_details?.result === "ERROR"));
+  if (!lastError) return null;
+  const lastAnswer = latest(checks.filter((h) => typeof h.action_details?.result === "string" && h.action_details.result !== "ERROR"));
+  return lastAnswer && lastAnswer > lastError ? null : lastError;
 }
 
 /** Longest admin-typed reason accepted (Reject, Bar). It is shown to her and kept in the audit log. */
