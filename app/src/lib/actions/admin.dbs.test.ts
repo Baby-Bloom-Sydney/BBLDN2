@@ -76,6 +76,18 @@ describe("adminRejectWWCC — Reject → 22 (#11, #26)", () => {
     expect(logs("verification_rejected")[0].action_details).toMatchObject({ admin_id: "admin-1", decision: "reject", reason: REASON });
   });
 
+  // Unit 3g (BB-LDN-3g-141026), orchestrator addendum 2026-10-14: status 22 offers Edit & Resubmit only, so the stored
+  // guidance no longer offers a manual review (copy pinned; marker removed).
+  it("3g the stored reject guidance asks her to upload page 1 again and offers no manual review", async () => {
+    seed();
+    await adminRejectWWCC("v1", REASON);
+    expect(v().wwcc_user_guidance).toEqual({
+      title: "Your DBS certificate needs another look",
+      explanation: REASON,
+      steps_to_fix: ["Upload page 1 of your certificate again"],
+    });
+  });
+
   it("D4b (P-4) sends sendDbsRejectedEmail once with the reason after a successful write", async () => {
     seed();
     await adminRejectWWCC("v1", REASON);

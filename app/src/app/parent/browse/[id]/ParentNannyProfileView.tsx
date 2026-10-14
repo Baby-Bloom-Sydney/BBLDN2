@@ -700,7 +700,7 @@ export function ParentNannyProfileView({
                   {isVerified && (
                     <GlanceItem
                       icon={ShieldCheck}
-                      label="WWCC"
+                      label="Enhanced DBS"
                       variant="green"
                     />
                   )}

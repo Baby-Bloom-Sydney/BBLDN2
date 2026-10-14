@@ -517,7 +517,7 @@ export async function runCrossCheckPhase(verificationId: string, trigger: CrossC
   if (outcome === 'passed') await sendVerifiedEmail(claimed.user_id);
 }
 
-/** VER-001 — only after an Update Service pass with no mismatch (copy stays for 3g). */
+/** VER-001 — only after an Update Service pass with no mismatch. Copy: deck §6.1 (3g — only the sub-line changed). */
 async function sendVerifiedEmail(userId: string): Promise<void> {
   const userInfo = await getUserEmailInfo(userId);
   if (!userInfo) return;
@@ -533,7 +533,7 @@ async function sendVerifiedEmail(userId: string): Promise<void> {
       <div style="display:inline-block;background:#f5f3ff;border-radius:50%;width:56px;height:56px;line-height:56px;font-size:28px;">&#127881;</div>
     </div>
     <h1 style="font-size:22px;font-weight:700;text-align:center;margin:0 0 8px;">You're verified, ${userInfo.firstName}!</h1>
-    <p style="text-align:center;color:#64748b;margin:0 0 24px;">Your identity and WWCC have been confirmed.</p>
+    <p style="text-align:center;color:#64748b;margin:0 0 24px;">Your identity and DBS certificate have been confirmed.</p>
     <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">Your profile is now visible to families on Baby Bloom. When a family is interested, they'll send you a connection request — you'll be notified by email and in your dashboard.</p>
     <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">Make sure your profile is up to date so families can see the best version of you.</p>
     <div style="text-align:center;margin-top:24px;">
