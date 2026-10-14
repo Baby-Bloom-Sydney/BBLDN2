@@ -184,7 +184,7 @@ const DBS_REJECTABLE: readonly number[] = [
  * Reject her certificate → 22. Writes the reason, `wwcc_verified_by` ("decided by"), `wwcc_status_at`, guidance for
  * her `GuidanceCard`, resets the cross-check, syncs (level 2), logs `verification_rejected`, then sends the P-4 email
  * once. Refuses barred rows (Lift bar is that path) and any status outside 20/21/30. A failed email returns a warning;
- * the reject stands. VER-003 keys on `wwcc_status='failed'`, so it does not double-send for 22.
+ * the reject stands. VER-003 never selects 22 (`selectVer003Candidates`: failed / 23 / 26 only), so it does not double-send.
  */
 export async function adminRejectWWCC(
   verificationId: string,

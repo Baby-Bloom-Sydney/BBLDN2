@@ -372,7 +372,7 @@ export async function GET(request: NextRequest) {
       group = 3; subVariant = 'wwcc_failed';
     } else if (v.wwcc_status === 'ocg_not_found') {
       group = 3; subVariant = 'dbs_no_match';
-    } else if (['expired'].includes(v.wwcc_status)) {
+    } else if (v.wwcc_status === 'expired') {
       group = 3; subVariant = 'dbs_new_info';
     } else if (v.identity_status === 'verified' && v.wwcc_status === 'not_started') {
       group = 2; subVariant = 'wwcc_not_started';

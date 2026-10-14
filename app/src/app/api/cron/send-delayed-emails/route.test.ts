@@ -158,6 +158,15 @@ describe("send-delayed-emails — VER-003 (deck §6.3, #20)", () => {
     expect(q?.calls).toContainEqual(["is", ["wwcc_verified_at", null]]);
   });
 
+  // Code review M1 (recorded for the orchestrator / 3i in LEDGER/3g.md): the brief's filter applies
+  // `wwcc_verified_at IS NULL` to every status, so a once-approved nanny whose NEW upload fails the AI check gets no
+  // VER-003 (LCY still nudges her). Pinned so the behaviour is explicit, not accidental.
+  it("pins the brief's rule: a once-approved nanny's later AI 'failed' gets no VER-003", async () => {
+    h.verifications = [ver("u-reupload", "failed", ELEVEN_MIN, { wwcc_verified_at: ago(30 * 24 * ONE_HOUR) })];
+    await run();
+    expect(ver003()).toHaveLength(0);
+  });
+
   it("keeps the 10-minute delay and the 'no action since' test", async () => {
     h.verifications = [
       ver("u-too-soon", "failed", 5 * 60 * 1000),

@@ -17,8 +17,9 @@ const OLD = new RegExp(["WW" + "CC", "Working With " + "Children", "Service " + 
 /** Identifier names (`admin…Reject…`, `…_STATUS` constants with the old check name): renamed by `cleanup`, not copy. */
 const IDENTIFIER = new RegExp(`\\w+(?:${"WW" + "CC"}|${"O" + "CG"})\\w*|(?:${"WW" + "CC"}|${"O" + "CG"})_\\w+`, "g");
 
-/** Legal-pointer lines (left as written; listed in LEDGER/3g.md's legal section). */
-const LEGAL_POINTERS = ["identity verified at onboarding"];
+/** Legal-pointer lines (left as written; listed in LEDGER/3g.md's legal section) — only in these two files. */
+const LEGAL_POINTER = "identity verified at onboarding";
+const LEGAL_POINTER_FILES = ["lib/email/templates/client-hire-confirmation.ts", "lib/pdf/client-hire-summary.tsx"];
 
 const SECTION_B = [
   "app/parent/browse/[id]/ParentNannyProfileView.tsx",
@@ -50,7 +51,7 @@ function hits(rel: string): string[] {
   return readFileSync(join(SRC, rel), "utf8")
     .split("\n")
     .map((line, i) => ({ line, n: i + 1 }))
-    .filter(({ line }) => !LEGAL_POINTERS.some((p) => line.includes(p)))
+    .filter(({ line }) => !(LEGAL_POINTER_FILES.includes(rel) && line.includes(LEGAL_POINTER)))
     .filter(({ line }) => OLD.test(line.replace(IDENTIFIER, "")))
     .map(({ line, n }) => `${rel}:${n}: ${line.trim()}`);
 }
