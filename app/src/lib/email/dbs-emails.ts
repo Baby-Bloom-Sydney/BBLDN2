@@ -16,7 +16,12 @@
  * phone, position, stage) so the team contacts them personally, or says no families were affected. Parents themselves
  * get nothing (P-9). `sendDbsRejectedEmail` — 3d (README P-4): the admin's Reject tells her the reason and how to get
  * approved. `sendDbsRecheckFailedEmail` — 3g writes it, **3i calls it** after a daily re-check fails (00-RULINGS #12,
- * README P-3): `NEW_INFO` → the 23 email, `NO_MATCH` → the 26 email.
+ * README P-3): `NEW_INFO` → the 23 email, `NO_MATCH` → the 26 email. `sendDbsRecheckAdminAlert` — 3i (00-RULINGS #35,
+ * brief change 6): one admin email per failed re-check (daily cron, or the admin's P-8 run on a level-4 nanny) with the
+ * result, the time and the link to list C; plain admin body, connection COUNTS only (P-9: families are not contacted
+ * by the system, and a re-check fail keeps her hired families — P-3 — so no family list, unlike VER-011).
+ * `sendDbsRecheckPausedAlert` — 3i, README P-15: ONE admin email when a run's failure share trips the safety cut-off
+ * and none of the failures were applied ("re-check paused: N of M failed — check the DBS service"); counts only.
  *
  * Contract
  * - Input: a user id (+ the affected families for VER-011); her name and address come from `getUserEmailInfo`.
@@ -202,4 +207,94 @@ export async function sendDbsRecheckFailedEmail(userId: string, result: DbsReche
     replyTo: SENDERS.hello,
   });
   if (!sent.success) throw new Error(`re-check email not sent: ${sent.error ?? "unknown"}`);
+}
+
+/** Admin wording per failed result (3i, change 6). */
+const RECHECK_ADMIN_LABEL: Record<DbsRecheckFailure, string> = {
+  NEW_INFO: "New information",
+  NO_MATCH: "No Update Service match",
+};
+
+/** What the re-check did to her connections (counts only) and when it ran. */
+export interface DbsRecheckAlertDetails {
+  checkedAt: string;
+  kept: number;
+  dropped: number;
+  notDropped: number;
+}
+
+/**
+ * The admin alert for a failed re-check (00-RULINGS #35, as the VER-011 admin alert does): to `ADMIN_EMAIL` (fallback
+ * `SENDERS.admin`), `emailType: 'admin_notification'`, one per failed nanny. Her row also appears in list C on the DBS
+ * tab by itself (3d's query) — no queue item. Throws on an unknown result (nothing sent) or a failed send, so the
+ * caller can log it. Her name is escaped in the body and stripped of line breaks in the subject.
+ */
+export async function sendDbsRecheckAdminAlert(
+  userId: string,
+  result: DbsRecheckFailure,
+  details: DbsRecheckAlertDetails,
+): Promise<void> {
+  const label = Object.hasOwn(RECHECK_ADMIN_LABEL, result) ? RECHECK_ADMIN_LABEL[result] : undefined;
+  if (!label) throw new Error(`re-check admin alert: unknown result ${String(result)}`);
+  const info = await getUserEmailInfo(userId);
+  const who = (info ? `${info.firstName} ${info.lastName}`.trim() : `user ${userId}`).replace(/[\r\n]+/g, " ").slice(0, 120);
+  const whoHtml = info ? `${esc(who)} (${esc(info.email)})` : `user ${esc(userId)}`;
+  const notClosed = details.notDropped > 0
+    ? `<p style="font-size:15px;color:#b91c1c;margin:0 0 12px;"><strong>${details.notDropped} connection(s) could NOT be closed</strong> — check them in the database and close them by hand.</p>`
+    : "";
+  const counts =
+    `<p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">Hired placements kept: ${details.kept} · ` +
+    `Other connections closed: ${details.dropped} (families were told nothing; they see the request as expired).</p>` +
+    notClosed +
+    `<p style="font-size:13px;color:#64748b;margin:0 0 12px;">She is in Admin ▸ Users ▸ Verification ▸ DBS ▸ list C (re-check alerts).</p>`;
+  const sent = await sendEmail({
+    to: process.env.ADMIN_EMAIL || SENDERS.admin,
+    subject: `DBS re-check failed: ${who} — ${label}`,
+    html: placeholder(
+      "DBS re-check failed",
+      `The DBS Update Service check for nanny ${whoHtml} returned <strong>${label}</strong> (checked ${esc(details.checkedAt)}). ` +
+        "She is now at level 2: out of matching, unable to accept, no Verified badge. She has been emailed what to do.",
+      { label: "View in Admin", href: `${SITE_URL}/admin/users` },
+      counts,
+    ),
+    emailType: "admin_notification",
+  });
+  if (!sent.success) throw new Error(`re-check admin alert not sent: ${sent.error ?? "unknown"}`);
+}
+
+/** What a paused run saw (README P-15). Counts only. */
+export interface DbsRecheckPausedDetails {
+  failed: number;
+  answered: number;
+  newInfo: number;
+  noMatch: number;
+  thresholdRatio: number;
+  minFailures: number;
+}
+
+/**
+ * README P-15 — the daily re-check paused itself: the share of NEW_INFO / NO_MATCH among the answered checks was above
+ * the cut-off, so NONE of those failures was applied. One admin email per paused run, counts only (no names). Throws on
+ * a failed send so the caller can log it. Every value is a number the run computed — nothing user-typed.
+ */
+export async function sendDbsRecheckPausedAlert(d: DbsRecheckPausedDetails): Promise<void> {
+  const pct = `${Math.round(d.thresholdRatio * 100)}%`;
+  const sent = await sendEmail({
+    to: process.env.ADMIN_EMAIL || SENDERS.admin,
+    subject: `DBS re-check paused: ${d.failed} of ${d.answered} failed — check the DBS service`,
+    html: placeholder(
+      "DBS re-check paused",
+      `Today's DBS Update Service re-check got <strong>${d.failed} of ${d.answered}</strong> answers back as failures — ` +
+        `above the ${pct} safety cut-off (at least ${d.minFailures} failures). That usually means a problem with the DBS ` +
+        "service or our checker set-up, not with the nannies, so <strong>none of these failures was applied</strong>: " +
+        "nobody's level, connections or emails changed. They are checked again tomorrow.",
+      { label: "View in Admin", href: `${SITE_URL}/admin/users` },
+      `<p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">New information: ${d.newInfo} · ` +
+        `No Update Service match: ${d.noMatch}</p>` +
+        `<p style="font-size:13px;color:#64748b;margin:0 0 12px;">Check the DBS service status and the checker details. ` +
+        `To act on one nanny now, open her in Admin ▸ Users and use "Run DBS check now".</p>`,
+    ),
+    emailType: "admin_notification",
+  });
+  if (!sent.success) throw new Error(`re-check paused alert not sent: ${sent.error ?? "unknown"}`);
 }
