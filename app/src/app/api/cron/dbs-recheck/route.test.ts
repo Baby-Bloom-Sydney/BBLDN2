@@ -331,7 +331,7 @@ describe("runDbsRecheck — throttle and time budget (change 3)", () => {
         sleeps.push(ms);
         clock += ms;
       },
-      config: { intervalMs: 500, batchLimit: 500, timeBudgetMs: 3_000, pauseRatio: 0.2, pauseMinFailures: 3 },
+      config: { intervalMs: 500, batchLimit: 500, timeBudgetMs: 3_000, applyDeadlineMs: 270_000, pauseRatio: 0.2, pauseMinFailures: 3 },
     });
     // t=0 check1 → 1000; sleep → 1500 check2 → 2500; sleep → 3000 ≥ budget → stop.
     expect(check).toHaveBeenCalledTimes(2);
@@ -493,5 +493,32 @@ describe("P-15 — re-check safety cut-off", () => {
     expect(h.sends[0]).toMatchObject({ to: "ops@example.test", emailType: "admin_notification" });
     expect(h.sends[0].html).toContain("/admin/users");
     expect(h.sends[0].html).toContain("4 of 4");
+  });
+});
+
+// P-15 code review MEDIUM 1/2: phase 2 (applying held failures) has its own hard deadline, so a run near the cut-off
+// cannot run past maxDuration; failures not reached stay unapplied (still 40) and are checked first tomorrow.
+describe("P-15 — phase 2 hard deadline", () => {
+  it("stops applying held failures at the deadline, leaves the rest at 40 and reports stopped_on_budget", async () => {
+    seed([level4(1), level4(2), level4(3)]);
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const { runDbsRecheck } = await import("@/lib/dbs/recheck");
+    let asked = 0;
+    let clock = 0;
+    const summary = await runDbsRecheck(createAdminClient(), {
+      check: async () => {
+        asked++;
+        return ok("NEW_INFO");
+      },
+      // phase 1 costs no time; every clock read once all three are asked advances 1 s (each apply "takes" 1 s)
+      now: () => (asked === 3 ? (clock += 1_000) : clock),
+      sleep: async () => {},
+      config: { intervalMs: 1, batchLimit: 500, timeBudgetMs: 60_000, applyDeadlineMs: 2_500, pauseRatio: 0.2, pauseMinFailures: 99 },
+    });
+    expect(summary).toMatchObject({ checked: 3, failed_new_info: 2, stopped_on_budget: true, failures_held: 1, paused_on_fail_ratio: false });
+    expect(ver("v1").verification_status).toBe(23);
+    expect(ver("v2").verification_status).toBe(23);
+    expect(ver("v3")).toMatchObject({ verification_status: 40, wwcc_verified: true });
+    expect(nannyEmails()).toHaveLength(2);
   });
 });

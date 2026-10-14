@@ -77,7 +77,7 @@ beforeEach(async () => {
 });
 
 const admin = () => h.db.client() as Parameters<typeof runDbsRecheck>[0];
-const fast = { intervalMs: 1, batchLimit: 500, timeBudgetMs: 60_000, pauseRatio: 0.2, pauseMinFailures: 3 };
+const fast = { intervalMs: 1, batchLimit: 500, timeBudgetMs: 60_000, applyDeadlineMs: 120_000, pauseRatio: 0.2, pauseMinFailures: 3 };
 const override = (status: string) =>
   fetch(`${fake.baseUrl.replace(/\/crsc$/, "")}/__override/${CERT}?status=${status}`, { method: "PUT" });
 

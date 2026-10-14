@@ -30,7 +30,8 @@
  *   errors are neither) is ABOVE `pauseRatio` (default 20 %) AND at least `pauseMinFailures` (default 3), the run applies
  *   NONE of them: one `dbs_status_check` row with no user `{result:'PAUSED', failed, answered, …}` and one admin email
  *   ("re-check paused: N of M failed — check the DBS service"); they are simply checked again tomorrow. Otherwise phase
- *   2 applies each failure exactly as #12 says.
+ *   2 applies each failure exactly as #12 says, until the apply deadline (code review MEDIUM 1): failures not reached
+ *   are left unapplied (`failures_held`, `stopped_on_budget`) and, still at 40, are checked first tomorrow.
  * - Output: counts only `{ checked, passed, failed_new_info, failed_no_match, errors, skipped, stopped_on_budget,
  *   reconciled, paused_on_fail_ratio, failures_held }` (failed_* = failures APPLIED).
  *
@@ -322,8 +323,13 @@ function tally(summary: RecheckSummary, kind: Kind): void {
 }
 
 /** Phase 1 over the batch: throttle, budget, ask each nanny; returns the held failures (see the module header). */
-async function askAll(admin: AdminClient, config: DbsRecheckConfig, deps: Required<Omit<RecheckDeps, "config">>, summary: RecheckSummary): Promise<HeldFailure[]> {
-  const started = deps.now();
+async function askAll(
+  admin: AdminClient,
+  config: DbsRecheckConfig,
+  deps: Required<Omit<RecheckDeps, "config">>,
+  summary: RecheckSummary,
+  started: number,
+): Promise<HeldFailure[]> {
   const held: HeldFailure[] = [];
   for (const { row, nannyId } of await selectCandidates(admin, config.batchLimit)) {
     if (!hasDetails(row)) {
@@ -353,6 +359,8 @@ async function askAll(admin: AdminClient, config: DbsRecheckConfig, deps: Requir
 /** The daily run (see the module header). Throws only when the selection read fails. */
 export async function runDbsRecheck(admin: AdminClient, deps: RecheckDeps = {}): Promise<RecheckSummary> {
   const config = deps.config ?? getDbsRecheckConfig();
+  const now = deps.now ?? Date.now;
+  const started = now();
   const summary: RecheckSummary = {
     checked: 0, passed: 0, failed_new_info: 0, failed_no_match: 0, errors: 0, skipped: 0, stopped_on_budget: false,
     reconciled: await reconcileHalfFailed(admin), paused_on_fail_ratio: false, failures_held: 0,
@@ -360,14 +368,18 @@ export async function runDbsRecheck(admin: AdminClient, deps: RecheckDeps = {}):
   const held = await askAll(admin, config, {
     check: deps.check ?? ((input: DbsCheckInput) => checkDbsStatus(input)),
     sleep: deps.sleep ?? realSleep,
-    now: deps.now ?? Date.now,
-  }, summary);
+    now,
+  }, summary, started);
 
   if (tripsCutOff(held.length, summary.passed + held.length, config)) {
     await pauseRun(admin, held, summary.passed + held.length, config);
     return { ...summary, paused_on_fail_ratio: true, failures_held: held.length };
   }
-  for (const f of held) {
+  for (const [i, f] of held.entries()) {
+    // Code review MEDIUM 1: phase 2 has its own hard deadline inside the route's 300 s.
+    if (now() - started >= config.applyDeadlineMs) {
+      return { ...summary, stopped_on_budget: true, failures_held: held.length - i };
+    }
     let kind: Kind;
     try {
       kind = await applyFailure(admin, f);

@@ -19,6 +19,10 @@
  * README P-15 (BAI 2026-10-14) safety cut-off: DBS_RECHECK_PAUSE_RATIO (default 0.2 — a run whose NEW_INFO + NO_MATCH
  * share among answered checks is ABOVE it applies none of them) and DBS_RECHECK_PAUSE_MIN_FAILURES (default 3 — the
  * small-number floor). A ratio outside (0, 1) or a non-number falls back to the default.
+ * Two phases share the route's 300 s (P-15 code review MEDIUM 1): DBS_RECHECK_TIME_BUDGET_MS (default 180000, cap
+ * 240000) stops phase 1 starting new checks; DBS_RECHECK_APPLY_DEADLINE_MS (default 270000, cap 280000) stops phase 2
+ * applying held failures — both measured from the start of the run. Failures not reached stay at 40 and go first
+ * tomorrow.
  */
 export interface DbsConfig {
   baseUrl: string;
@@ -64,7 +68,9 @@ function positiveInt(env: Env, key: string, fallback: number, max = Number.MAX_S
 export const DBS_RECHECK_DEFAULTS = {
   intervalMs: 1_000,
   batchLimit: 500,
-  timeBudgetMs: 240_000,
+  timeBudgetMs: 180_000,
+  /** Phase 2 (applying held failures) stops at this many ms from the run's start. */
+  applyDeadlineMs: 270_000,
   /** P-15: pause when failures / answered checks is above this … */
   pauseRatio: 0.2,
   /** … and there are at least this many failures. */
@@ -76,6 +82,7 @@ export interface DbsRecheckConfig {
   intervalMs: number;
   batchLimit: number;
   timeBudgetMs: number;
+  applyDeadlineMs: number;
   pauseRatio: number;
   pauseMinFailures: number;
 }
@@ -119,13 +126,16 @@ export function getDbsConfig(env: Env = process.env): DbsConfig {
 /** Caps for the re-check: a pause over a minute or a batch over 5000 is a typo, not a setting. */
 const MAX_RECHECK_INTERVAL_MS = 60_000;
 const MAX_RECHECK_BATCH = 5_000;
+const MAX_RECHECK_BUDGET_MS = 240_000;
+const MAX_APPLY_DEADLINE_MS = 280_000;
 
 /** Reads the daily re-check throttle. Pass `env` in tests; production reads `process.env`. Never throws. */
 export function getDbsRecheckConfig(env: Env = process.env): DbsRecheckConfig {
   return {
     intervalMs: positiveInt(env, "DBS_RECHECK_INTERVAL_MS", DBS_RECHECK_DEFAULTS.intervalMs, MAX_RECHECK_INTERVAL_MS),
     batchLimit: positiveInt(env, "DBS_RECHECK_BATCH_LIMIT", DBS_RECHECK_DEFAULTS.batchLimit, MAX_RECHECK_BATCH),
-    timeBudgetMs: positiveInt(env, "DBS_RECHECK_TIME_BUDGET_MS", DBS_RECHECK_DEFAULTS.timeBudgetMs, DBS_RECHECK_DEFAULTS.timeBudgetMs),
+    timeBudgetMs: positiveInt(env, "DBS_RECHECK_TIME_BUDGET_MS", DBS_RECHECK_DEFAULTS.timeBudgetMs, MAX_RECHECK_BUDGET_MS),
+    applyDeadlineMs: positiveInt(env, "DBS_RECHECK_APPLY_DEADLINE_MS", DBS_RECHECK_DEFAULTS.applyDeadlineMs, MAX_APPLY_DEADLINE_MS),
     pauseRatio: ratio(env, "DBS_RECHECK_PAUSE_RATIO", DBS_RECHECK_DEFAULTS.pauseRatio),
     pauseMinFailures: positiveInt(env, "DBS_RECHECK_PAUSE_MIN_FAILURES", DBS_RECHECK_DEFAULTS.pauseMinFailures, MAX_RECHECK_BATCH),
   };

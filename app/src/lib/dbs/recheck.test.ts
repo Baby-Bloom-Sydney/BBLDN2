@@ -23,7 +23,7 @@ vi.mock("@/lib/email/dbs-emails", () => ({
 import { onDbsRecheckFailed, runDbsRecheck } from "./recheck";
 
 type Admin = Parameters<typeof runDbsRecheck>[0];
-const fast = { intervalMs: 1, batchLimit: 10, timeBudgetMs: 60_000, pauseRatio: 0.2, pauseMinFailures: 3 };
+const fast = { intervalMs: 1, batchLimit: 10, timeBudgetMs: 60_000, applyDeadlineMs: 120_000, pauseRatio: 0.2, pauseMinFailures: 3 };
 const NEW_INFO = { result: "NEW_INFO", status: "NEW_INFO", raw: "<x/>", forename: null, surname: null, printDate: null } as DbsCheckResult;
 
 function seed() {
@@ -202,7 +202,7 @@ describe("runDbsRecheck — failure branches", () => {
 describe("P-15 — config and the paused email failing", () => {
   it("reads the cut-off from named defaults (20 %, 3) and env, rejecting nonsense", async () => {
     const { getDbsRecheckConfig, DBS_RECHECK_DEFAULTS } = await import("./config");
-    expect(DBS_RECHECK_DEFAULTS).toMatchObject({ pauseRatio: 0.2, pauseMinFailures: 3 });
+    expect(DBS_RECHECK_DEFAULTS).toMatchObject({ pauseRatio: 0.2, pauseMinFailures: 3, timeBudgetMs: 180_000, applyDeadlineMs: 270_000 });
     expect(getDbsRecheckConfig({})).toMatchObject({ pauseRatio: 0.2, pauseMinFailures: 3 });
     expect(getDbsRecheckConfig({ DBS_RECHECK_PAUSE_RATIO: "0.5", DBS_RECHECK_PAUSE_MIN_FAILURES: "10" })).toMatchObject({ pauseRatio: 0.5, pauseMinFailures: 10 });
     for (const bad of ["0", "1", "-0.1", "abc", ""]) expect(getDbsRecheckConfig({ DBS_RECHECK_PAUSE_RATIO: bad }).pauseRatio).toBe(0.2);
