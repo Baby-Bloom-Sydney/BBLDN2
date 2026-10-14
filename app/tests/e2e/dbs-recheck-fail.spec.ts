@@ -35,7 +35,7 @@ test.describe("daily DBS re-check (3i, test plan §4.2)", () => {
 
   async function verificationCard(page: Page) {
     await page.goto("/nanny/verification", { waitUntil: "networkidle" });
-    return page.locator("main");
+    return page.getByRole("main").last(); // the page content (the portal shell has its own outer <main>)
   }
 
   test(`a ${result} re-check shows the right state to her`, async ({ browser, request, baseURL }) => {
