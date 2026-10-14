@@ -35,8 +35,8 @@
  * existed) and the billing-portal configuration id (nothing reads it).
  */
 
-import { writeFileSync } from "node:fs";
-import { relative, resolve } from "node:path";
+import { existsSync, realpathSync, writeFileSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import Stripe from "stripe";
 
@@ -152,12 +152,33 @@ export function envLines(ids: CapturedIds): string[] {
   ];
 }
 
+/** Replaces each known secret value in `text` (e.g. an SDK error echoing the webhook URL). */
+export function redactSecrets(text: string, secrets: ReadonlyArray<string | undefined>): string {
+  return secrets.reduce<string>(
+    (acc, value) => (value ? acc.split(value).join("REDACTED") : acc),
+    text,
+  );
+}
+
+/**
+ * The signing-secret destination must be a NEW file in an EXISTING directory outside the
+ * repository, symlinks resolved — checked before anything is created in Stripe, so a bad
+ * path never costs the one-time secret.
+ */
 export function assertSecretOutPath(path: string, repoRoot: string): string {
-  const rel = relative(resolve(repoRoot), resolve(path));
-  if (!rel.startsWith("..")) {
-    throw new Error("--secret-out must be outside the repository");
-  }
+  const dir = dirname(resolve(path));
+  if (!existsSync(dir)) throw new Error("--secret-out directory does not exist");
+  if (existsSync(path)) throw new Error("--secret-out file already exists");
+  const real = join(realpathSync(dir), basename(path));
+  const rel = relative(realpathSync(repoRoot), real);
+  const outside = rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel);
+  if (!outside) throw new Error("--secret-out must be outside the repository");
   return path;
+}
+
+/** `wx`: fails on an existing file (its old mode could be world-readable); new file is 0600. */
+export function writeSecretFile(path: string, secret: string): void {
+  writeFileSync(path, secret, { mode: 0o600, flag: "wx" });
 }
 
 // ── Stripe operations (each takes the SDK so tests can fake it) ─────────────
@@ -166,6 +187,7 @@ export async function ensureProduct(stripe: Stripe, spec: PriceSpec): Promise<st
   let startingAfter: string | undefined;
   for (;;) {
     const page = await stripe.products.list({
+      active: true,
       limit: LIST_PAGE,
       ...(startingAfter ? { starting_after: startingAfter } : {}),
     });
@@ -186,12 +208,14 @@ export async function ensureProduct(stripe: Stripe, spec: PriceSpec): Promise<st
   return created.id;
 }
 
-function priceMatches(p: Stripe.Price, spec: PriceSpec): boolean {
+function priceMatches(p: Stripe.Price, spec: PriceSpec, productId: string): boolean {
   const recurringMatches =
     spec.recurring === null
       ? p.recurring === null
-      : p.recurring?.interval === spec.recurring.interval;
+      : p.recurring?.interval === spec.recurring.interval && p.recurring.interval_count === 1;
+  const priceProduct = typeof p.product === "string" ? p.product : p.product?.id;
   return (
+    priceProduct === productId &&
     p.unit_amount === spec.unitAmount &&
     p.currency === spec.currency &&
     p.tax_behavior === spec.taxBehavior &&
@@ -210,7 +234,7 @@ export async function ensurePrice(
     limit: 1,
   });
   const current = existing.data[0];
-  if (current && priceMatches(current, spec)) {
+  if (current && priceMatches(current, spec, productId)) {
     console.log(`  = price ${spec.lookupKey}: ${current.id}`);
     return current.id;
   }
@@ -242,9 +266,16 @@ export async function ensureWebhookEndpoint(
   const existing = list.data.find((e) => e.metadata?.[ROLE_KEY] === WEBHOOK_ROLE);
   const enabledEvents = [...WEBHOOK_EVENTS];
   if (existing) {
+    const hadBypass = new URL(existing.url).searchParams.has(BYPASS_PARAM);
+    if (hadBypass && !new URL(url).searchParams.has(BYPASS_PARAM)) {
+      throw new Error(
+        "the London endpoint carries a protection bypass; set VERCEL_PROTECTION_BYPASS or deliveries will 401",
+      );
+    }
     await stripe.webhookEndpoints.update(existing.id, {
       url,
       enabled_events: enabledEvents,
+      disabled: false,
     });
     console.log(`  = webhook ${existing.id} → ${redactUrl(url)} (url + events refreshed)`);
     return { id: existing.id, secret: null, created: false };
@@ -262,7 +293,8 @@ export async function ensureWebhookEndpoint(
 export type GbTaxOutcome =
   | { outcome: "exists"; id: string; status: string }
   | { outcome: "created"; id: string; status: string }
-  | { outcome: "refused"; detail: string };
+  | { outcome: "refused"; detail: string }
+  | { outcome: "error"; detail: string };
 
 export async function ensureGbTaxRegistration(stripe: Stripe): Promise<GbTaxOutcome> {
   try {
@@ -276,7 +308,10 @@ export async function ensureGbTaxRegistration(stripe: Stripe): Promise<GbTaxOutc
     });
     return { outcome: "created", id: created.id, status: created.status };
   } catch (err) {
-    return { outcome: "refused", detail: err instanceof Error ? err.message : String(err) };
+    const detail = err instanceof Error ? err.message : String(err);
+    // Only Stripe declining the request is a refusal; auth, permission and network failures are errors.
+    const isRefusal = (err as { type?: string }).type === "StripeInvalidRequestError";
+    return { outcome: isRefusal ? "refused" : "error", detail };
   }
 }
 
@@ -315,7 +350,7 @@ async function main(): Promise<void> {
   ids.STRIPE_WEBHOOK_ENDPOINT_ID = hook.id;
 
   if (hook.secret && secretOut) {
-    writeFileSync(secretOut, hook.secret, { mode: 0o600 });
+    writeSecretFile(secretOut, hook.secret);
     console.log("  signing secret written to --secret-out (mode 0600); move it and delete the file");
   } else if (hook.created) {
     console.warn("  ! endpoint created without --secret-out: roll its secret in the dashboard");
@@ -332,7 +367,8 @@ const isDirectRun =
   process.argv[1] !== undefined && resolve(process.argv[1]) === resolve(__filename);
 if (isDirectRun) {
   main().catch((err) => {
-    console.error("\nFAILED:", err instanceof Error ? err.message : err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("\nFAILED:", redactSecrets(message, [process.env.VERCEL_PROTECTION_BYPASS]));
     process.exit(1);
   });
 }

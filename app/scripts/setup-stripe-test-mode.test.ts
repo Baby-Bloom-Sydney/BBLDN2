@@ -231,11 +231,11 @@ function fakeStripe(state: {
 }) {
   const s = {
     products: {
-      list: vi.fn(async () => ({ data: state.products ?? [], has_more: false })),
+      list: vi.fn(async (_p?: Record<string, unknown>) => ({ data: state.products ?? [], has_more: false })),
       create: vi.fn(async (p: Record<string, unknown>) => ({ id: "prod_new", ...p })),
     },
     prices: {
-      list: vi.fn(async () => ({ data: state.prices ?? [], has_more: false })),
+      list: vi.fn(async (_p?: Record<string, unknown>) => ({ data: state.prices ?? [], has_more: false })),
       create: vi.fn(async (p: Record<string, unknown>) => ({ id: "price_new", ...p })),
     },
     webhookEndpoints: {
