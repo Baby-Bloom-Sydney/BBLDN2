@@ -1,387 +1,286 @@
 /**
- * setup-stripe-test-mode.ts
+ * setup-stripe-test-mode.ts — London (LDN2 unit 4f)
  *
- * Provisions the Stripe TEST-MODE resources required for the Baby
- * Bloom PAYMENTS build via the Stripe API:
+ * Provisions the Stripe TEST-MODE objects London needs, idempotently:
  *
- *  - 2 products (Monthly + Upfront) + their default prices
- *  - 1 Customer Portal configuration
- *  - 2 webhook endpoints (main + Connect)
+ *  - 2 products + 2 prices for the self-serve app, from `PRICES` in
+ *    `@/config/prices` (ADR-091): upfront to age 3 (one-time) and monthly
+ *    (recurring). Tax-inclusive (M-1 1a). Identified by product metadata
+ *    `bb_ldn_role` and price `lookup_key`; a changed amount creates a new
+ *    price and moves the lookup key to it.
+ *  - 1 webhook endpoint (no Connect — London has none) subscribed to the
+ *    non-Connect events the route handles. Identified by metadata
+ *    `bb_ldn_role=main`; re-running with a new `--base-url` updates its
+ *    URL in place.
+ *  - A GB Stripe Tax registration (M-1 1c), or the reason Stripe refused.
  *
- * Idempotent: re-running won't create duplicates. The script searches
- * for existing resources by name / URL and reuses them.
+ * Runs against the existing (non-UK) connected account in test mode until London's own
+ * account exists (P-20, M-2). It REFUSES any key that is not a test key.
  *
- * Run: `npx tsx scripts/setup-stripe-test-mode.ts`
+ * Writes NOTHING to any env file. It prints the ids and the env lines to
+ * set. The webhook signing secret (only returned by Stripe on create) is
+ * never printed: pass `--secret-out=<path outside the repo>` and it is
+ * written there with mode 0600, for the operator to move into the
+ * keychain and delete.
  *
- * Requirements:
- *  - STRIPE_SECRET_KEY in `.env.local`, starting with `sk_test_` (the
- *    script REFUSES to run against live keys — separate live setup
- *    happens AFTER Bailey + accountant + lawyer sign off).
- *  - You've already activated Connect in the Stripe Dashboard (Section 1
- *    of STRIPE-SETUP-INSTRUCTIONS.md).
- *  - Optional: pass `--base-url=https://<vercel-preview>` to override
- *    where webhook endpoints point. Defaults to NEXT_PUBLIC_APP_URL or
- *    `http://localhost:3000` (only useful with Stripe CLI forwarding).
+ * Run:
+ *   STRIPE_SECRET_KEY=<test key> \
+ *   VERCEL_PROTECTION_BYPASS=<bypass, optional> \
+ *   npx tsx scripts/setup-stripe-test-mode.ts \
+ *     --base-url=https://<preview host> [--secret-out=/path/outside/repo]
  *
- * Output: appends captured IDs + secrets to `.env.local` under a
- * managed block (won't clobber existing values).
+ * Env names (D5 fixed): STRIPE_PRODUCT_UPFRONT_ID, STRIPE_PRICE_UPFRONT_ID,
+ * STRIPE_PRODUCT_MONTHLY_ID, STRIPE_PRICE_MONTHLY_ID, STRIPE_WEBHOOK_SECRET,
+ * STRIPE_WEBHOOK_ENDPOINT_ID. Gone: the Connect webhook pair (its route never
+ * existed) and the billing-portal configuration id (nothing reads it).
  */
 
+import { writeFileSync } from "node:fs";
+import { relative, resolve } from "node:path";
+
 import Stripe from "stripe";
-import { config as loadEnv } from "dotenv";
-import { resolve } from "node:path";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
 
-const ROOT = resolve(__dirname, "..");
-const ENV_PATH = resolve(ROOT, ".env.local");
-const MANAGED_BLOCK_START =
-  "# ─── stripe-test-mode setup (managed by scripts/setup-stripe-test-mode.ts) ───";
-const MANAGED_BLOCK_END = "# ─── end stripe-test-mode setup ───";
+import { PRICES } from "@/config/prices";
+import { SITE_NAME } from "@/lib/constants";
 
-loadEnv({ path: ENV_PATH });
+// ── Pure data ────────────────────────────────────────────────────────────────
 
-const secretKey = process.env.STRIPE_SECRET_KEY;
-if (!secretKey) {
-  console.error("Missing STRIPE_SECRET_KEY in .env.local. Aborting.");
-  process.exit(1);
-}
-if (!secretKey.startsWith("sk_test_")) {
-  console.error(
-    "REFUSING TO RUN against a non-test key. STRIPE_SECRET_KEY must start with `sk_test_` for this script. Live-mode setup is a separate manual step after compliance sign-off.",
-  );
-  process.exit(1);
-}
+export type PriceRole = "self_serve_upfront" | "self_serve_monthly";
 
-const args = parseArgs(process.argv.slice(2));
-const baseUrl =
-  args["base-url"] ??
-  process.env.NEXT_PUBLIC_APP_URL ??
-  "http://localhost:3000";
-
-// Use the bare Stripe constructor — passing appInfo / apiVersion under
-// tsx surfaces a generic "connection retry" failure that doesn't repro
-// with `new Stripe(key)` alone. Earlier minimal test (test-stripe.ts)
-// confirmed bare form works against the same key + network.
-const stripe = new Stripe(secretKey);
-
-interface CapturedIds {
-  STRIPE_PRODUCT_MONTHLY_ID: string;
-  STRIPE_PRICE_MONTHLY_ID: string;
-  STRIPE_PRODUCT_UPFRONT_ID: string;
-  STRIPE_PRICE_UPFRONT_ID: string;
-  STRIPE_BILLING_PORTAL_CONFIGURATION_ID: string;
-  STRIPE_WEBHOOK_ENDPOINT_ID: string;
-  STRIPE_WEBHOOK_SECRET: string;
-  STRIPE_CONNECT_WEBHOOK_ENDPOINT_ID: string;
-  STRIPE_CONNECT_WEBHOOK_SECRET: string;
-}
-
-async function main() {
-  console.log("Stripe test-mode setup\n" + "=".repeat(60));
-  console.log(`Base URL for webhooks: ${baseUrl}`);
-  console.log("");
-
-  const monthly = await ensureProductWithPrice({
-    productName: "Baby Bloom — Monthly Subscription",
-    description:
-      "Monthly subscription giving the family full access to Baby Bloom's child-development tools, AI assistant, and recorded development history.",
-    unitAmount: 200_00,
-    currency: "aud",
-    recurring: { interval: "month" },
-  });
-
-  const upfront = await ensureProductWithPrice({
-    productName: "Baby Bloom — Upfront Subscription",
-    description:
-      "One-time payment covering up to 4 years of Baby Bloom access (until the child's 5th birthday).",
-    unitAmount: 2000_00,
-    currency: "aud",
-    recurring: null,
-  });
-
-  const portalConfigId = await ensurePortalConfig();
-
-  const mainWebhook = await ensureWebhookEndpoint({
-    url: `${baseUrl}/api/webhooks/stripe`,
-    description: "Baby Bloom main webhook — subscriptions, invoices, refunds",
-    enabledEvents: [
-      "checkout.session.completed",
-      "customer.subscription.updated",
-      "customer.subscription.deleted",
-      "invoice.payment_succeeded",
-      "invoice.payment_failed",
-      "payment_intent.succeeded",
-      "payment_intent.payment_failed",
-      "charge.refunded",
-    ],
-    connect: false,
-  });
-
-  const connectWebhook = await ensureWebhookEndpoint({
-    url: `${baseUrl}/api/webhooks/stripe-connect`,
-    description:
-      "Baby Bloom Connect webhook — nanny payouts + account verification",
-    enabledEvents: [
-      "account.updated",
-      "payout.paid",
-      "payout.failed",
-      "transfer.created",
-      "transfer.updated",
-      "transfer.reversed",
-    ],
-    connect: true,
-  });
-
-  const captured: CapturedIds = {
-    STRIPE_PRODUCT_MONTHLY_ID: monthly.productId,
-    STRIPE_PRICE_MONTHLY_ID: monthly.priceId,
-    STRIPE_PRODUCT_UPFRONT_ID: upfront.productId,
-    STRIPE_PRICE_UPFRONT_ID: upfront.priceId,
-    STRIPE_BILLING_PORTAL_CONFIGURATION_ID: portalConfigId,
-    STRIPE_WEBHOOK_ENDPOINT_ID: mainWebhook.id,
-    STRIPE_WEBHOOK_SECRET: mainWebhook.secret,
-    STRIPE_CONNECT_WEBHOOK_ENDPOINT_ID: connectWebhook.id,
-    STRIPE_CONNECT_WEBHOOK_SECRET: connectWebhook.secret,
-  };
-
-  appendToEnv(captured);
-
-  console.log("");
-  console.log("=".repeat(60));
-  console.log("Done. Captured IDs + secrets written to .env.local under:");
-  console.log(`  ${MANAGED_BLOCK_START}`);
-  console.log(`  ${MANAGED_BLOCK_END}`);
-  console.log("");
-  console.log("Next:");
-  console.log(
-    "  1. Set STRIPE_MODE=test in .env.local (if not already) so the client picks the right keys.",
-  );
-  console.log(
-    "  2. Set PAYMENTS_ENABLED=true to enable the Subscribe flow (still in test mode — real cards are sandboxed).",
-  );
-  console.log("  3. Replicate these env vars to Vercel Preview if desired.");
-  console.log("");
-  console.log(
-    "Note: webhook endpoints were registered against the URL above. If you're testing locally, use `stripe listen --forward-to localhost:3000/api/webhooks/stripe` and override STRIPE_WEBHOOK_SECRET with the CLI's value for local-only testing.",
-  );
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-interface ProductWithPriceInput {
+export interface PriceSpec {
+  role: PriceRole;
   productName: string;
   description: string;
+  lookupKey: string;
   unitAmount: number;
-  currency: "aud";
+  currency: typeof PRICES.currency;
   recurring: { interval: "month" } | null;
+  taxBehavior: "inclusive";
+  envProduct: "STRIPE_PRODUCT_UPFRONT_ID" | "STRIPE_PRODUCT_MONTHLY_ID";
+  envPrice: "STRIPE_PRICE_UPFRONT_ID" | "STRIPE_PRICE_MONTHLY_ID";
 }
 
-interface ProductWithPriceResult {
-  productId: string;
-  priceId: string;
-}
+export const PRICE_SPECS: readonly PriceSpec[] = [
+  {
+    role: "self_serve_upfront",
+    productName: `${SITE_NAME} app — upfront to age 3`,
+    description: "One payment for app access until your youngest child turns 3.",
+    lookupKey: "bb_ldn_self_serve_upfront",
+    unitAmount: PRICES.selfServe.upfrontToAge3Pence,
+    currency: PRICES.currency,
+    recurring: null,
+    taxBehavior: "inclusive",
+    envProduct: "STRIPE_PRODUCT_UPFRONT_ID",
+    envPrice: "STRIPE_PRICE_UPFRONT_ID",
+  },
+  {
+    role: "self_serve_monthly",
+    productName: `${SITE_NAME} app — monthly`,
+    description: "Monthly app access.",
+    lookupKey: "bb_ldn_self_serve_monthly",
+    unitAmount: PRICES.selfServe.monthlyPence,
+    currency: PRICES.currency,
+    recurring: { interval: "month" },
+    taxBehavior: "inclusive",
+    envProduct: "STRIPE_PRODUCT_MONTHLY_ID",
+    envPrice: "STRIPE_PRICE_MONTHLY_ID",
+  },
+];
 
-async function ensureProductWithPrice(
-  input: ProductWithPriceInput,
-): Promise<ProductWithPriceResult> {
-  // Search by name. The Search API requires a paid plan — fall back to
-  // list + filter for test mode reliability.
-  const existing = await findProductByName(input.productName);
+/** Connect / payout cases the route still carries until 4a-i; never subscribed. */
+export const CONNECT_EVENTS = [
+  "account.updated",
+  "account.application.deauthorized",
+  "capability.updated",
+  "payout.created",
+  "payout.paid",
+  "payout.failed",
+] as const;
 
-  let productId: string;
-  if (existing) {
-    console.log(`  ⊙ Product exists: ${input.productName} (${existing.id})`);
-    productId = existing.id;
-  } else {
-    const product = await stripe.products.create(
-      {
-        name: input.productName,
-        description: input.description,
-      },
-      { idempotencyKey: `product-${slug(input.productName)}` },
+/** The route's non-Connect cases (pinned against `route.ts` by the test). */
+export const WEBHOOK_EVENTS = [
+  "checkout.session.completed",
+  "customer.subscription.updated",
+  "customer.subscription.deleted",
+  "invoice.payment_succeeded",
+  "invoice.payment_failed",
+  "payment_intent.payment_failed",
+  "charge.refunded",
+] as const satisfies readonly Stripe.WebhookEndpointCreateParams.EnabledEvent[];
+
+const WEBHOOK_ROLE = "main";
+const ROLE_KEY = "bb_ldn_role";
+const WEBHOOK_PATH = "/api/webhooks/stripe";
+const BYPASS_PARAM = "x-vercel-protection-bypass";
+const LIST_PAGE = 100;
+
+// ── Guards and formatting ────────────────────────────────────────────────────
+
+export function assertTestKey(key: string | undefined): string {
+  if (!key || !(key.startsWith("sk_test_") || key.startsWith("rk_test_"))) {
+    throw new Error(
+      "STRIPE_SECRET_KEY must be a test key (sk_test_ or rk_test_). Live setup is not this script.",
     );
-    console.log(`  ✓ Product created: ${input.productName} (${product.id})`);
-    productId = product.id;
   }
-
-  // Find an active price matching shape (currency + amount + recurring).
-  const prices = await stripe.prices.list({
-    product: productId,
-    active: true,
-    limit: 100,
-  });
-  const matchingPrice = prices.data.find(
-    (p) =>
-      p.currency === input.currency &&
-      p.unit_amount === input.unitAmount &&
-      ((input.recurring === null && p.recurring === null) ||
-        (input.recurring !== null &&
-          p.recurring?.interval === input.recurring.interval)),
-  );
-
-  let priceId: string;
-  if (matchingPrice) {
-    console.log(
-      `  ⊙ Price exists for ${input.productName} (${matchingPrice.id})`,
-    );
-    priceId = matchingPrice.id;
-  } else {
-    const price = await stripe.prices.create(
-      {
-        product: productId,
-        unit_amount: input.unitAmount,
-        currency: input.currency,
-        tax_behavior: "inclusive",
-        ...(input.recurring
-          ? { recurring: { interval: input.recurring.interval } }
-          : {}),
-      },
-      {
-        idempotencyKey: `price-${slug(input.productName)}-${input.unitAmount}`,
-      },
-    );
-    console.log(`  ✓ Price created: ${input.productName} (${price.id})`);
-    priceId = price.id;
-  }
-
-  return { productId, priceId };
+  return key;
 }
 
-async function findProductByName(name: string): Promise<Stripe.Product | null> {
-  // Paginate manually; Stripe API caps list at 100 per page.
-  let starting_after: string | undefined = undefined;
-  for (let page = 0; page < 10; page++) {
-    const list: Stripe.ApiList<Stripe.Product> = await stripe.products.list({
-      limit: 100,
-      active: true,
-      ...(starting_after ? { starting_after } : {}),
+export function webhookUrl(baseUrl: string, bypass: string | undefined): string {
+  const url = new URL(WEBHOOK_PATH, baseUrl);
+  if (url.protocol !== "https:") {
+    throw new Error("--base-url must be https (Stripe delivers to public https only)");
+  }
+  if (bypass) url.searchParams.set(BYPASS_PARAM, bypass);
+  return url.toString();
+}
+
+export function redactUrl(url: string): string {
+  const u = new URL(url);
+  if (u.searchParams.has(BYPASS_PARAM)) u.searchParams.set(BYPASS_PARAM, "REDACTED");
+  return u.toString();
+}
+
+export type CapturedIds = Record<
+  PriceSpec["envProduct"] | PriceSpec["envPrice"] | "STRIPE_WEBHOOK_ENDPOINT_ID",
+  string
+>;
+
+export function envLines(ids: CapturedIds): string[] {
+  return [
+    ...Object.entries(ids).map(([k, v]) => `${k}=${v}`),
+    "STRIPE_WEBHOOK_SECRET=<from --secret-out on create; never printed>",
+  ];
+}
+
+export function assertSecretOutPath(path: string, repoRoot: string): string {
+  const rel = relative(resolve(repoRoot), resolve(path));
+  if (!rel.startsWith("..")) {
+    throw new Error("--secret-out must be outside the repository");
+  }
+  return path;
+}
+
+// ── Stripe operations (each takes the SDK so tests can fake it) ─────────────
+
+export async function ensureProduct(stripe: Stripe, spec: PriceSpec): Promise<string> {
+  let startingAfter: string | undefined;
+  for (;;) {
+    const page = await stripe.products.list({
+      limit: LIST_PAGE,
+      ...(startingAfter ? { starting_after: startingAfter } : {}),
     });
-    const match = list.data.find((p) => p.name === name);
-    if (match) return match;
-    if (!list.has_more) break;
-    starting_after = list.data[list.data.length - 1]?.id;
-    if (!starting_after) break;
+    const hit = page.data.find((p) => p.metadata?.[ROLE_KEY] === spec.role);
+    if (hit) {
+      console.log(`  = product ${spec.role}: ${hit.id}`);
+      return hit.id;
+    }
+    if (!page.has_more || page.data.length === 0) break;
+    startingAfter = page.data[page.data.length - 1].id;
   }
-  return null;
-}
-
-async function ensurePortalConfig(): Promise<string> {
-  const list = await stripe.billingPortal.configurations.list({ limit: 100 });
-  const active = list.data.find(
-    (c) =>
-      c.active &&
-      typeof c.business_profile === "object" &&
-      c.business_profile.headline?.includes("Baby Bloom"),
-  );
-  if (active) {
-    console.log(`  ⊙ Portal config exists: ${active.id}`);
-    return active.id;
-  }
-  const config = await stripe.billingPortal.configurations.create({
-    business_profile: {
-      headline: "Manage your Baby Bloom subscription",
-      privacy_policy_url: "https://babybloomsydney.com.au/privacy",
-      terms_of_service_url: "https://babybloomsydney.com.au/terms",
-    },
-    features: {
-      customer_update: {
-        enabled: true,
-        allowed_updates: ["email", "address", "phone", "tax_id"],
-      },
-      invoice_history: { enabled: true },
-      payment_method_update: { enabled: true },
-      subscription_cancel: {
-        enabled: true,
-        mode: "at_period_end",
-        cancellation_reason: {
-          enabled: true,
-          options: [
-            "too_expensive",
-            "missing_features",
-            "switched_service",
-            "unused",
-            "customer_service",
-            "too_complex",
-            "low_quality",
-            "other",
-          ],
-        },
-      },
-    },
-    default_return_url: "https://babybloomsydney.com.au/parent/subscription",
+  const created = await stripe.products.create({
+    name: spec.productName,
+    description: spec.description,
+    metadata: { [ROLE_KEY]: spec.role },
   });
-  console.log(`  ✓ Portal config created: ${config.id}`);
-  return config.id;
+  console.log(`  + product ${spec.role}: ${created.id}`);
+  return created.id;
 }
 
-interface WebhookEndpointInput {
-  url: string;
-  description: string;
-  enabledEvents: string[];
-  connect: boolean;
+function priceMatches(p: Stripe.Price, spec: PriceSpec): boolean {
+  const recurringMatches =
+    spec.recurring === null
+      ? p.recurring === null
+      : p.recurring?.interval === spec.recurring.interval;
+  return (
+    p.unit_amount === spec.unitAmount &&
+    p.currency === spec.currency &&
+    p.tax_behavior === spec.taxBehavior &&
+    recurringMatches
+  );
 }
 
-interface WebhookEndpointResult {
+export async function ensurePrice(
+  stripe: Stripe,
+  spec: PriceSpec,
+  productId: string,
+): Promise<string> {
+  const existing = await stripe.prices.list({
+    lookup_keys: [spec.lookupKey],
+    active: true,
+    limit: 1,
+  });
+  const current = existing.data[0];
+  if (current && priceMatches(current, spec)) {
+    console.log(`  = price ${spec.lookupKey}: ${current.id}`);
+    return current.id;
+  }
+  const created = await stripe.prices.create({
+    product: productId,
+    unit_amount: spec.unitAmount,
+    currency: spec.currency,
+    tax_behavior: spec.taxBehavior,
+    lookup_key: spec.lookupKey,
+    transfer_lookup_key: true,
+    ...(spec.recurring ? { recurring: { interval: spec.recurring.interval } } : {}),
+  });
+  console.log(`  + price ${spec.lookupKey}: ${created.id}`);
+  return created.id;
+}
+
+export interface WebhookResult {
   id: string;
-  secret: string;
+  /** Only Stripe's create response carries the signing secret. */
+  secret: string | null;
+  created: boolean;
 }
 
-async function ensureWebhookEndpoint(
-  input: WebhookEndpointInput,
-): Promise<WebhookEndpointResult> {
-  const list = await stripe.webhookEndpoints.list({ limit: 100 });
-  const existing = list.data.find((e) => e.url === input.url);
+export async function ensureWebhookEndpoint(
+  stripe: Stripe,
+  url: string,
+): Promise<WebhookResult> {
+  const list = await stripe.webhookEndpoints.list({ limit: LIST_PAGE });
+  const existing = list.data.find((e) => e.metadata?.[ROLE_KEY] === WEBHOOK_ROLE);
+  const enabledEvents = [...WEBHOOK_EVENTS];
   if (existing) {
-    console.log(`  ⊙ Webhook exists: ${input.url} (${existing.id})`);
-    // CRITICAL: Stripe only returns the signing secret on CREATE. If
-    // the endpoint already exists, we cannot recover the secret via the
-    // API — Bailey must look it up in the dashboard. Surface this loudly.
-    console.warn(
-      `    ! Cannot re-derive signing secret for existing webhook. Look it up at https://dashboard.stripe.com/test/webhooks/${existing.id}`,
-    );
-    return {
-      id: existing.id,
-      secret: `__LOOKUP_IN_DASHBOARD__${existing.id}`,
-    };
+    await stripe.webhookEndpoints.update(existing.id, {
+      url,
+      enabled_events: enabledEvents,
+    });
+    console.log(`  = webhook ${existing.id} → ${redactUrl(url)} (url + events refreshed)`);
+    return { id: existing.id, secret: null, created: false };
   }
   const created = await stripe.webhookEndpoints.create({
-    url: input.url,
-    description: input.description,
-    enabled_events:
-      input.enabledEvents as Stripe.WebhookEndpointCreateParams.EnabledEvent[],
-    ...(input.connect ? { connect: true } : {}),
+    url,
+    enabled_events: enabledEvents,
+    description: `${SITE_NAME} London preview — main webhook`,
+    metadata: { [ROLE_KEY]: WEBHOOK_ROLE },
   });
-  console.log(`  ✓ Webhook created: ${input.url} (${created.id})`);
-  return {
-    id: created.id,
-    secret: created.secret ?? "__MISSING_SECRET__",
-  };
+  console.log(`  + webhook ${created.id} → ${redactUrl(url)}`);
+  return { id: created.id, secret: created.secret ?? null, created: true };
 }
 
-function appendToEnv(captured: CapturedIds): void {
-  const current = existsSync(ENV_PATH) ? readFileSync(ENV_PATH, "utf-8") : "";
-  // Strip any existing managed block — we rewrite the whole thing each run.
-  const stripped = stripManagedBlock(current);
-  const lines: string[] = [
-    "",
-    MANAGED_BLOCK_START,
-    "# Last updated: " + new Date().toISOString(),
-    ...Object.entries(captured).map(([k, v]) => `${k}=${v}`),
-    MANAGED_BLOCK_END,
-    "",
-  ];
-  writeFileSync(ENV_PATH, stripped.trimEnd() + "\n" + lines.join("\n"));
+export type GbTaxOutcome =
+  | { outcome: "exists"; id: string; status: string }
+  | { outcome: "created"; id: string; status: string }
+  | { outcome: "refused"; detail: string };
+
+export async function ensureGbTaxRegistration(stripe: Stripe): Promise<GbTaxOutcome> {
+  try {
+    const regs = await stripe.tax.registrations.list({ limit: LIST_PAGE });
+    const gb = regs.data.find((r) => r.country === "GB");
+    if (gb) return { outcome: "exists", id: gb.id, status: gb.status };
+    const created = await stripe.tax.registrations.create({
+      country: "GB",
+      country_options: { gb: { type: "standard" } },
+      active_from: "now",
+    });
+    return { outcome: "created", id: created.id, status: created.status };
+  } catch (err) {
+    return { outcome: "refused", detail: err instanceof Error ? err.message : String(err) };
+  }
 }
 
-function stripManagedBlock(content: string): string {
-  const startIdx = content.indexOf(MANAGED_BLOCK_START);
-  const endIdx = content.indexOf(MANAGED_BLOCK_END);
-  if (startIdx === -1 || endIdx === -1 || endIdx < startIdx) return content;
-  return (
-    content.slice(0, startIdx) +
-    content.slice(endIdx + MANAGED_BLOCK_END.length)
-  );
-}
+// ── Entry point ──────────────────────────────────────────────────────────────
 
 function parseArgs(argv: string[]): Record<string, string> {
   const out: Record<string, string> = {};
@@ -392,14 +291,48 @@ function parseArgs(argv: string[]): Record<string, string> {
   return out;
 }
 
-function slug(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
+async function main(): Promise<void> {
+  const args = parseArgs(process.argv.slice(2));
+  const key = assertTestKey(process.env.STRIPE_SECRET_KEY);
+  const baseUrl = args["base-url"];
+  if (!baseUrl) throw new Error("--base-url=https://<preview host> is required");
+  const secretOut = args["secret-out"]
+    ? assertSecretOutPath(args["secret-out"], resolve(__dirname, "..", ".."))
+    : undefined;
+  const url = webhookUrl(baseUrl, process.env.VERCEL_PROTECTION_BYPASS);
+
+  const stripe = new Stripe(key);
+  const account = await stripe.accounts.retrieve(null);
+  console.log(`Stripe test-mode setup — account country ${account.country}`);
+
+  const ids: Partial<CapturedIds> = {};
+  for (const spec of PRICE_SPECS) {
+    const productId = await ensureProduct(stripe, spec);
+    ids[spec.envProduct] = productId;
+    ids[spec.envPrice] = await ensurePrice(stripe, spec, productId);
+  }
+  const hook = await ensureWebhookEndpoint(stripe, url);
+  ids.STRIPE_WEBHOOK_ENDPOINT_ID = hook.id;
+
+  if (hook.secret && secretOut) {
+    writeFileSync(secretOut, hook.secret, { mode: 0o600 });
+    console.log("  signing secret written to --secret-out (mode 0600); move it and delete the file");
+  } else if (hook.created) {
+    console.warn("  ! endpoint created without --secret-out: roll its secret in the dashboard");
+  }
+
+  const tax = await ensureGbTaxRegistration(stripe);
+  console.log(`  GB tax registration: ${JSON.stringify(tax)}`);
+
+  console.log("\nEnv lines to set (this script writes none):");
+  for (const line of envLines(ids as CapturedIds)) console.log(`  ${line}`);
 }
 
-main().catch((err) => {
-  console.error("\nFAILED:", err instanceof Error ? err.message : err);
-  process.exit(1);
-});
+const isDirectRun =
+  process.argv[1] !== undefined && resolve(process.argv[1]) === resolve(__filename);
+if (isDirectRun) {
+  main().catch((err) => {
+    console.error("\nFAILED:", err instanceof Error ? err.message : err);
+    process.exit(1);
+  });
+}

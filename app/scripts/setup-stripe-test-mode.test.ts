@@ -81,7 +81,7 @@ describe("PRICE_SPECS — London self-serve prices from config", () => {
   });
 });
 
-// The AUD / domain / city residue is the London sweep's job (currency + brand rules, ratchet on the
+// The currency / domain / city residue is the London sweep's job (currency + brand rules, ratchet on the
 // allow entries); this pins what the sweep cannot see.
 describe("the script carries no Connect, portal or env-writer residue", () => {
   it.each([
