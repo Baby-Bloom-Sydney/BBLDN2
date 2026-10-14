@@ -36,14 +36,15 @@ interface DBSCheckModalProps {
 
 type Confirm = "approve" | "reject" | "bar" | "lift" | null;
 
-// #26: the ID modal's chips with the document noun changed, keeping only those that apply to a certificate. copy: 3g pins
+// #26: the ID modal's chips with the document noun changed, keeping only those that apply to a certificate.
+// Copy pinned by 3g (BB-LDN-3g-141026): admin-facing, matches 03-admin-dbs-tab-spec §3.2; no old-ladder words.
 const REJECT_CHIPS = [
   "The surname on your DBS certificate does not match your passport",
   "The date of birth on your DBS certificate does not match your passport",
   "Your DBS certificate image is unclear or unreadable",
 ];
 
-// copy: 3g pins
+// Copy pinned by 3g (BB-LDN-3g-141026): nanny-facing, no deck row — 3d's text kept (#27), listed for BAI in LEDGER/3g.md.
 const PAGE2_SUBJECT = "Your DBS certificate — page 2";
 const PAGE2_BODY =
   "Thanks for uploading page 1 of your DBS certificate. To finish our review, please reply to this email with a clear photo of page 2 of the same certificate.";

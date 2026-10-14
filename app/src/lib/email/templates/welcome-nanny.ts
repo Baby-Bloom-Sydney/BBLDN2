@@ -2,7 +2,10 @@
  * Welcome email — nanny signup.
  *
  * Copy is preserved verbatim from the inline template that lived in
- * `lib/auth/actions.ts` prior to amendment A-01 (extraction only).
+ * `lib/auth/actions.ts` prior to amendment A-01 (extraction only), except the
+ * next-steps verification bullet: London words from copy deck §6.8 (unit 3g,
+ * BB-LDN-3g-141026). Input `{ firstName, appUrl }`; output `{ subject, html }`.
+ * Never sends or reads anything.
  */
 
 import type { EmailTemplate } from "./types";
@@ -38,7 +41,7 @@ export function buildWelcomeNannyEmail(
       <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:#7c3aed;">Next steps</p>
       <ol style="margin:0;padding-left:20px;font-size:14px;color:#475569;line-height:1.8;">
         <li>Complete your profile with your experience and qualifications</li>
-        <li>Upload your ID and WWCC for verification</li>
+        <li>Upload your passport and DBS certificate for verification</li>
         <li>Once verified, families in ${BRAND.city} can find and connect with you</li>
       </ol>
     </div>

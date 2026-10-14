@@ -4,8 +4,10 @@ import { sendEmail } from '@/lib/email/resend';
 import { getUserEmailInfo } from '@/lib/email/helpers';
 import { createInboxMessage } from '@/lib/actions/connection-helpers';
 import { emailFooter } from "@/lib/email/brand";
+import { selectVer003Candidates } from "@/lib/email/ver003-candidates";
 import {
   BRAND,
+  DBS_LINKS,
   fromAddress,
   SENDERS,
   SITE_NAME,
@@ -15,7 +17,12 @@ import {
 /**
  * Cron endpoint: checks for verification failures older than 10 minutes
  * where the user has NOT taken any further action (updated_at unchanged).
- * Sends VER-002 (identity failed) and VER-003 (WWCC failed) emails.
+ * Sends VER-002 (identity failed) and VER-003 (DBS failed) emails.
+ *
+ * Unit 3g (BB-LDN-3g-141026): VER-003 and the LCY-101…104 sub-variants use the copy deck's London words (§6.3, §6.9).
+ * VER-003 now also covers a FIRST-check 23 / 26 (00-RULINGS #20) via `selectVer003Candidates` — never a re-check
+ * failure (`wwcc_verified_at` set: 3i sends its own email) and never a 22 (README P-4's email). LCY sends no
+ * "still not verified" nudge after a re-check fail (README P-10). Never: changes any send condition beyond those.
  *
  * Called by Vercel Cron every 5 minutes (see vercel.json).
  * Also callable manually: GET /api/cron/send-delayed-emails
@@ -98,14 +105,10 @@ export async function GET(request: NextRequest) {
     sent++;
   }
 
-  // ── VER-003: WWCC failed, no action in 10 minutes ──
-  const { data: wwccFailed } = await supabase
-    .from('verifications')
-    .select('id, user_id, wwcc_status_at, updated_at')
-    .eq('wwcc_status', 'failed')
-    .lt('wwcc_status_at', tenMinutesAgo);
+  // ── VER-003: first-check DBS failure (failed / 23 / 26), no action in 10 minutes (#20) ──
+  const dbsFailed = await selectVer003Candidates(supabase, tenMinutesAgo);
 
-  for (const v of wwccFailed ?? []) {
+  for (const v of dbsFailed) {
     const statusAt = new Date(v.wwcc_status_at).getTime();
     const updatedAt = new Date(v.updated_at).getTime();
     if (Math.abs(updatedAt - statusAt) > 2000) {
@@ -130,7 +133,7 @@ export async function GET(request: NextRequest) {
 
     await sendEmail({
       to: userInfo.email,
-      subject: 'Action needed: Your WWCC verification',
+      subject: 'Action needed: Your DBS certificate',
       html: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1e293b;background:#f8fafc;">
 <div style="max-width:600px;margin:0 auto;padding:32px 16px;">
@@ -138,9 +141,9 @@ export async function GET(request: NextRequest) {
     <div style="margin-bottom:24px;">
       <span style="font-size:20px;font-weight:700;"><span style="color:#0f172a;">Baby</span><span style="color:#8b5cf6;">Bloom</span></span>
     </div>
-    <h1 style="font-size:22px;font-weight:700;margin:0 0 16px;">Your WWCC check needs attention</h1>
-    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">Hi ${userInfo.firstName}, we weren't able to verify your Working With Children Check. This can happen if the document was unclear, the details didn't match, or your WWCC number couldn't be confirmed.</p>
-    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">Visit your verification page to see what needs fixing and resubmit your WWCC details.</p>
+    <h1 style="font-size:22px;font-weight:700;margin:0 0 16px;">Your DBS check needs attention</h1>
+    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">Hi ${userInfo.firstName}, we weren't able to verify your DBS certificate. This can happen if the photo was unclear, it wasn't page 1, or we couldn't confirm it with the DBS Update Service.</p>
+    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">Visit your verification page to see what needs fixing. You can upload it again or ask our team to check it.</p>
     <div style="text-align:center;margin-top:24px;">
       <a href="${appUrl}/nanny/verification" style="display:inline-block;background:#8b5cf6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Fix It Now</a>
     </div>
@@ -323,7 +326,7 @@ export async function GET(request: NextRequest) {
   // ── LCY-101 to LCY-104: Verification reminder funnel ──
   // Nudges nannies stuck at various verification stages.
   // 4 emails at 30min, 24h, 48h, 7d — resets when updated_at changes.
-  // 3 groups: Complete ID (1), Complete WWCC (2), Fix & Retry (3).
+  // 3 groups: Complete ID (1), Complete DBS (2), Fix & Retry (3).
 
   const LCY_THRESHOLDS = [
     { minElapsedMs: 30 * 60 * 1000,              minSent: 0, emailId: 'LCY-101' },
@@ -335,11 +338,11 @@ export async function GET(request: NextRequest) {
   // Query nannies stuck in verification (level < 3, active account)
   const { data: stuckNannies } = await supabase
     .from('verifications')
-    .select('user_id, identity_status, wwcc_status, updated_at, created_at')
+    .select('user_id, identity_status, wwcc_status, wwcc_verified_at, updated_at, created_at')
     .or(
       'identity_status.in.(not_started,failed,rejected),' +
       'wwcc_status.eq.not_started,' +
-      'wwcc_status.in.(failed,rejected,ocg_not_found,expired,closed)'
+      'wwcc_status.in.(failed,rejected,ocg_not_found,expired)'
     );
 
   for (const v of stuckNannies ?? []) {
@@ -354,6 +357,11 @@ export async function GET(request: NextRequest) {
       continue;
     }
 
+    // P-10: a re-check fail (23 / 26 after an approval) already got 3i's re-check email — no reminder nudges.
+    if (v.wwcc_verified_at && ['expired', 'ocg_not_found'].includes(v.wwcc_status)) {
+      continue;
+    }
+
     // Determine group and sub-variant
     let group: 1 | 2 | 3;
     let subVariant: string;
@@ -363,9 +371,9 @@ export async function GET(request: NextRequest) {
     } else if (['failed', 'rejected'].includes(v.wwcc_status)) {
       group = 3; subVariant = 'wwcc_failed';
     } else if (v.wwcc_status === 'ocg_not_found') {
-      group = 3; subVariant = 'wwcc_ocg_not_found';
-    } else if (['expired', 'closed'].includes(v.wwcc_status)) {
-      group = 3; subVariant = 'wwcc_expired';
+      group = 3; subVariant = 'dbs_no_match';
+    } else if (['expired'].includes(v.wwcc_status)) {
+      group = 3; subVariant = 'dbs_new_info';
     } else if (v.identity_status === 'verified' && v.wwcc_status === 'not_started') {
       group = 2; subVariant = 'wwcc_not_started';
     } else if (['not_started'].includes(v.identity_status)) {
@@ -433,12 +441,12 @@ function getLcyContent(
     // Group 1
     id_not_started: 'To connect you with families, we need to verify your identity. It\u2019s a quick process \u2014 confirm your address, upload your passport, and take a selfie. Most people finish in under 3 minutes.',
     // Group 2
-    wwcc_not_started: 'Your identity is verified \u2014 you\u2019re one step away! Upload your Working With Children Check and your profile will be visible to families in your area.',
+    wwcc_not_started: 'Your identity is verified \u2014 you\u2019re one step away! Upload page 1 of your enhanced DBS certificate and your profile will be visible to families in your area.',
     // Group 3 sub-variants
     identity_failed: 'Your identity check needs a quick fix \u2014 most people get it right on the second try. Head to your verification page to see what needs adjusting.',
-    wwcc_failed: 'Your WWCC check needs a quick fix. If one upload method didn\u2019t work, try another \u2014 the Grant Email PDF is usually the most reliable.',
-    wwcc_ocg_not_found: 'The Office of the Children\u2019s Guardian couldn\u2019t find your WWCC with the details provided. This usually means a typo in the WWCC number or a surname mismatch.',
-    wwcc_expired: 'Your WWCC needs to be renewed before we can verify you. Once you have a new clearance from the Office of the Children\u2019s Guardian, come back and resubmit.',
+    wwcc_failed: 'Your DBS check needs a quick fix. A clearer photo of page 1 usually does it \u2014 or you can ask our team to check it by hand.',
+    dbs_no_match: 'We couldn\u2019t find your certificate on the DBS Update Service. This usually means you haven\u2019t joined yet, or your subscription has ended.',
+    dbs_new_info: 'The DBS Update Service shows there\u2019s new information since your certificate was issued, so you\u2019ll need a new enhanced DBS before we can verify you.',
   };
 
   // Group instructions (HTML formatted)
@@ -451,11 +459,9 @@ function getLcyContent(
       '5. Click \u201cVerify ID\u201d',
     wwcc_not_started:
       '1. Go to your Verification page<br/>' +
-      '2. Choose your WWCC verification method:<br/>' +
-      '&nbsp;&nbsp;&bull; <strong>Fastest:</strong> Upload your WWCC Grant Email as a PDF<br/>' +
-      '&nbsp;&nbsp;&bull; <strong>Also fast:</strong> Upload a screenshot from the Service NSW app<br/>' +
-      '&nbsp;&nbsp;&bull; <strong>Manual:</strong> Enter your WWCC number and expiry date<br/>' +
-      '3. Click \u201cVerify WWCC\u201d',
+      '2. Take a clear photo of page 1 of your DBS certificate (or use a PDF)<br/>' +
+      '3. Make sure you\u2019re on the DBS Update Service<br/>' +
+      '4. Click \u201cVerify DBS\u201d',
     identity_failed:
       '1. Go to your Verification page<br/>' +
       '2. Review the feedback on what went wrong<br/>' +
@@ -463,17 +469,18 @@ function getLcyContent(
       '4. Click \u201cVerify ID\u201d to resubmit',
     wwcc_failed:
       '1. Go to your Verification page<br/>' +
-      '2. Review the feedback on what went wrong<br/>' +
-      '3. Re-upload your WWCC document or try a different method<br/>' +
-      '4. Click \u201cVerify WWCC\u201d',
-    wwcc_ocg_not_found:
-      '1. Double-check your WWCC number (format: WWC1234567E)<br/>' +
-      '2. Ensure your surname matches exactly what\u2019s on your WWCC<br/>' +
-      '3. Go to your Verification page and resubmit',
-    wwcc_expired:
-      '1. Apply for a new WWCC at ocg.nsw.gov.au<br/>' +
-      '2. Once you receive your new clearance, go to your Verification page<br/>' +
-      '3. Upload your new WWCC grant email or enter details manually',
+      '2. Read the feedback on what went wrong<br/>' +
+      '3. Upload page 1 again, or click \u201cRequest manual review\u201d<br/>' +
+      '4. Click \u201cVerify DBS\u201d',
+    dbs_no_match:
+      '1. Join the Update Service, or check your subscription is active<br/>' +
+      '2. If your certificate is over 30 days old and not on it, you\u2019ll need a new enhanced DBS<br/>' +
+      '3. Go to your Verification page and upload page 1 again',
+    // Deck §6.9: the GOV.UK reference is a link to DBS_LINKS.getEnhanced (00-RULINGS #14), not plain text.
+    dbs_new_info:
+      `1. Apply for a new enhanced DBS (see <a href="${DBS_LINKS.getEnhanced}" style="color:#7c3aed;text-decoration:underline;">GOV.UK: dbs-checks-for-self-employed-people</a>)<br/>` +
+      '2. Join the Update Service when it arrives<br/>' +
+      '3. Upload page 1 on your Verification page',
   };
 
   const message = groupMessages[subVariant] || groupMessages.id_not_started;

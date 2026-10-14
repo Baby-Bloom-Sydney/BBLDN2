@@ -83,7 +83,6 @@ export async function sendHireConfirmationEmails(params: HireEmailParams): Promi
       professionalName: nannyName,
       referenceNumber: clientPdf.referenceNumber,
       hireDate,
-      wwccPortalLink: 'https://service.nsw.gov.au/transaction/apply-for-a-working-with-children-check',
       edtechLink: `${appUrl}/parent`,
     });
 

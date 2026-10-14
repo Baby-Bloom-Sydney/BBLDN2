@@ -224,11 +224,12 @@ export async function adminRejectWWCC(
       wwcc_status: WWCC_STATUS.REJECTED,
       wwcc_status_at: now,
       wwcc_verified_by: adminId,
-      // copy: 3g pins
+      // Copy pinned by 3g (BB-LDN-3g-141026): 22 offers Edit & Resubmit only (orchestrator addendum 2026-10-14), so
+      // the step offers no manual review. Title kept from 3d (no deck row — listed for BAI in LEDGER/3g.md).
       wwcc_user_guidance: {
         title: 'Your DBS certificate needs another look',
         explanation: trimmed,
-        steps_to_fix: ['Upload page 1 of your certificate again, or request a manual review'],
+        steps_to_fix: ['Upload page 1 of your certificate again'],
       },
       verification_status: deriveOverallStatus(
         verification.identity_status as IdentityStatus,
@@ -420,8 +421,8 @@ export async function adminRegenerateNannyBio(
 
   if (!nanny) return { success: false, error: 'Nanny record not found' };
 
-  // Fetch profile + credentials in parallel
-  const [{ data: profile }, { data: credentials }] = await Promise.all([
+  // Fetch profile + credentials + assurances in parallel (assurances: README P-13, 3g)
+  const [{ data: profile }, { data: credentials }, { data: assuranceRows }] = await Promise.all([
     admin
       .from('user_profiles')
       .select('first_name, last_name, suburb, date_of_birth')
@@ -430,6 +431,10 @@ export async function adminRegenerateNannyBio(
     admin
       .from('nanny_credentials')
       .select('credential_category, qualification_type, certification_type')
+      .eq('nanny_id', nanny.id),
+    admin
+      .from('nanny_assurances')
+      .select('assurance_type')
       .eq('nanny_id', nanny.id),
   ]);
 
@@ -471,6 +476,7 @@ export async function adminRegenerateNannyBio(
     childcareRoles,
     highestQualification: highest_qualification,
     certificates,
+    assurances: (assuranceRows || []).map(a => a.assurance_type),
     roleTypes: nanny.role_types_preferred || [],
     minAge: monthsToLabel(nanny.min_child_age_months),
     maxAge: monthsToLabel(nanny.max_child_age_months),

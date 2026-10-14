@@ -17,6 +17,9 @@
  *      truth for submissions + consent.
  *   4. Nanny only. London parents are never verified (LDN2 3h, D-7), so
  *      the module is not offered to parents and has no parent branch.
+ *   5. London words only (unit 3g, BB-LDN-3g-141026 — copy deck §7):
+ *      "DBS certificate" / "enhanced DBS" / "DBS Update Service". Never
+ *      the old check name or its regulator.
  *
  * Schema reference:
  *   - system/verification/nanny_verification/nanny_verification-data-systems.md
@@ -66,9 +69,9 @@ export interface VerificationSummary {
   /**
    * Extra context that must NOT be volunteered. Katie only surfaces these
    * items when the user explicitly asks — e.g. "is anything else happening
-   * with my verification?", "why can't I accept interviews?", "is my WWCC
+   * with my verification?", "why can't I accept interviews?", "is my DBS
    * fully confirmed?". For level-3 provisional nannies this is where the
-   * silent OCG confirmation + interview/babysitting holds live, so the
+   * silent admin approval + interview/babysitting holds live, so the
    * default experience matches the dashboard label of "Verified".
    */
   only_if_asked: string[];
@@ -144,26 +147,26 @@ export function summariseNannyState(
     );
   } else if (!hasSubmittedVerification) {
     out.whats_still_needed.push(
-      "Submit your verification form (passport, selfie, WWCC).",
+      "Submit your verification form (passport, selfie, DBS certificate).",
     );
   }
 
-  // ── WWCC stage ───────────────────────────────────────────────────────
+  // ── DBS certificate stage ───────────────────────────────────────────────────────
   if (level >= 4) {
     out.whats_complete.push(
-      "Your Working With Children Check has been fully confirmed.",
+      "Your enhanced DBS has been fully confirmed.",
     );
   } else if (level === 3) {
     // Provisional — auto-passed, silent admin check in progress.
     // Per product UX, the nanny sees "Verified" on their dashboard and
     // shouldn't be told about the pending final check unless they
-    // specifically ask. So the WWCC complete line goes in whats_complete
+    // specifically ask. So the DBS complete line goes in whats_complete
     // and the final-check-in-progress note is stashed in only_if_asked.
     out.whats_complete.push(
-      "Your Working With Children Check has been confirmed.",
+      "Your enhanced DBS has been confirmed.",
     );
     out.only_if_asked.push(
-      "A final administrative check on your Working With Children Check is still in progress with our team — you don't need to do anything, and we'll let you know once it's fully confirmed.",
+      "A final check on your DBS certificate is still in progress with our team — you don't need to do anything, and we'll let you know once it's fully confirmed.",
     );
   } else if (level === 2) {
     if (
@@ -172,11 +175,11 @@ export function summariseNannyState(
       wwccStatus === "pending"
     ) {
       out.whats_in_progress.push(
-        "We're checking your Working With Children Check.",
+        "We're checking your DBS certificate.",
       );
     } else if (status === 21 || wwccStatus === "review") {
       out.whats_in_progress.push(
-        "Your Working With Children Check is in our review queue.",
+        "Your DBS certificate is with our team for a check.",
       );
     } else if (
       status === 22 ||
@@ -185,12 +188,17 @@ export function summariseNannyState(
     ) {
       out.whats_still_needed.push(
         wwccReason
-          ? `Resubmit your WWCC — previous attempt failed: ${wwccReason}.`
-          : "Resubmit your Working With Children Check.",
+          ? `Upload your DBS certificate again — last time: ${wwccReason}.`
+          : "Upload your DBS certificate again.",
       );
     } else if (status === 23) {
       out.whats_still_needed.push(
-        "Renew your Working With Children Check — it has expired.",
+        "Upload a new DBS certificate — the Update Service shows new information on your current one.",
+      );
+    } else if (status === 26 || wwccStatus === "ocg_not_found") {
+      // 3b's decoder maps 26 to its own step; this is its "still needed" line (deck §7, NEW).
+      out.whats_still_needed.push(
+        "Check you're on the DBS Update Service, then upload page 1 again.",
       );
     }
   }
@@ -201,7 +209,7 @@ export function summariseNannyState(
   } else {
     out.cannot_do_yet.push({
       what: "Appear in parents' search results",
-      why: "your WWCC has not yet passed the initial check",
+      why: "your DBS certificate has not yet passed the initial check",
     });
   }
 
@@ -223,11 +231,11 @@ export function summariseNannyState(
     // blockers are informative.
     out.cannot_do_yet.push({
       what: "Accept interview requests",
-      why: "your Working With Children Check is not yet fully confirmed",
+      why: "your DBS certificate is not yet fully confirmed",
     });
     out.cannot_do_yet.push({
       what: "Accept babysitting jobs",
-      why: "your Working With Children Check is not yet fully confirmed",
+      why: "your DBS certificate is not yet fully confirmed",
     });
   }
 
@@ -287,7 +295,7 @@ export function summariseNannyState(
  *
  * Provisional UX rule: for a level-3 nanny, ALL steps are marked
  * `verified` so the tile reads "Verified" visually. The silent
- * OCG-confirmation-pending detail lives in
+ * admin-approval-pending detail lives in
  * VerificationSummary.only_if_asked and is surfaced only when the
  * user directly asks.
  */
@@ -321,7 +329,7 @@ export function deriveNannySteps(
 
   let wwccStep: string;
   if (level >= 3) {
-    // Level 3 = provisional (OCG passed initial check). Main-page UX
+    // Level 3 = provisional (Update Service passed the first check). Main-page UX
     // labels this "Verified", so the stepper shows verified too. The
     // final-admin-check pending story is only surfaced on direct
     // request via VerificationSummary.only_if_asked.
@@ -353,7 +361,7 @@ export function deriveNannySteps(
   return [
     { label: "Profile complete", status: profileStatus },
     { label: "ID verified", status: idStep },
-    { label: "Working With Children Check", status: wwccStep },
+    { label: "Enhanced DBS check", status: wwccStep },
   ];
 }
 
@@ -489,8 +497,8 @@ export const verificationModule: BloomBotModule = {
   systemPromptFragment:
     "For anything about the user's verification, call `read_verification_status` or `read_verification_next_steps`. Hard rules when talking about verification:\n\n" +
     "• NEVER mention 'level 1/2/3/4', 'status 10/11/20/30/40', 'tier 1/2/3', 'verification_level', 'verification_status', 'verification_tier', 'identity_status', 'wwcc_status', or any other internal field or code. Just describe what's happened and what's next in natural English.\n" +
-    "• NEVER offer to collect documents, take passport/WWCC numbers, tick the consent/waiver checkbox, or submit anything on the user's behalf. Verification is a legal process — it happens on the traditional form at /nanny/verification. Always redirect there with the `how_to_continue` link when there's something to do.\n" +
+    "• NEVER offer to collect documents, take passport or DBS certificate numbers, tick the consent/waiver checkbox, or submit anything on the user's behalf. Verification is a legal process — it happens on the traditional form at /nanny/verification. Always redirect there with the `how_to_continue` link when there's something to do.\n" +
     "• If the user asks for a status update, lead with the `headline`, mention what's `in_progress` if anything, then tell them what they can/can't do. If they ask 'what's next', use `read_verification_next_steps`.\n" +
-    "• DO NOT narrate anything in the `only_if_asked` list unsolicited. Those items are deliberately hidden to match the product UX (e.g. a provisionally-verified nanny sees 'Verified' on their dashboard and shouldn't be told unprompted that a background check is still pending). Only surface them when the user specifically asks — for example 'is anything else happening with my verification?', 'why can't I accept interviews?', 'is my WWCC fully confirmed?', 'tell me everything'. If they ask a general 'am I verified?' or 'what's my status?', lead with the headline and what they can do; don't volunteer the pending-check note.\n" +
+    "• DO NOT narrate anything in the `only_if_asked` list unsolicited. Those items are deliberately hidden to match the product UX (e.g. a provisionally-verified nanny sees 'Verified' on their dashboard and shouldn't be told unprompted that a background check is still pending). Only surface them when the user specifically asks — for example 'is anything else happening with my verification?', 'why can't I accept interviews?', 'is my DBS fully confirmed?', 'tell me everything'. If they ask a general 'am I verified?' or 'what's my status?', lead with the headline and what they can do; don't volunteer the pending-check note.\n" +
     "• If `system_guidance` is present, the verification pipeline has already chosen the exact wording to show the user — prefer that text over your own paraphrase.",
 };

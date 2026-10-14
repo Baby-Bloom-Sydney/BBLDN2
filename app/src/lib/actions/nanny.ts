@@ -998,6 +998,8 @@ export async function regenerateNannyAIContent(): Promise<{
     childcareRoles,
     highestQualification: highest_qualification,
     certificates,
+    // P-13 (3g): her assurances join the social-post credentials checklist.
+    assurances: (assuranceRes.data || []).map((a) => a.assurance_type),
     roleTypes: nanny.role_types_preferred || [],
     minAge: monthsToLabel(nanny.min_child_age_months),
     maxAge: monthsToLabel(nanny.max_child_age_months),

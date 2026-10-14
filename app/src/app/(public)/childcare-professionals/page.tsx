@@ -63,7 +63,7 @@ const WHY_CARDS = [
 const CHECKLIST = [
   "You understand that play is learning and structure builds confidence",
   "You have real experience with young children — whether formal or family",
-  "You hold a current Working With Children Check (or are ready to get one)",
+  "You hold an enhanced DBS certificate and are on the DBS Update Service (or are ready to get one)",
   "You\u2019re reliable, professional, and take pride in the work you do",
   "You want to make a genuine difference in a child\u2019s early years",
 ];
@@ -102,7 +102,7 @@ const HOW_IT_WORKS = [
     step: "02",
     title: "Get verified",
     description:
-      "Upload your WWCC and complete the verification process. This is why families trust the platform.",
+      "Upload your DBS certificate and complete the verification process. This is why families trust the platform.",
   },
   {
     icon: Users,
