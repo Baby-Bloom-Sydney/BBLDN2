@@ -236,7 +236,7 @@ export const MOCK_INBOX_MESSAGES: InboxMessage[] = [
     id: "mock-msg-004",
     type: "verification",
     title: "Verification update",
-    body: "Your WWCC auto-check passed — your profile is now visible to parents.",
+    body: "Your DBS check passed — your profile is now visible to parents.",
     action_url: "/nanny/verification",
     reference_id: null,
     reference_type: null,

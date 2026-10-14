@@ -1,5 +1,14 @@
 "use client";
 
+/**
+ * Admin Check ID modal: the passport + selfie review, approve (→ level 2) or reject.
+ *
+ * W6-D3 (unit 3w6fix, BB-LDN-3w6fix-141026): the "AI Extracted Details" edits are no longer state-only. The fields the
+ * admin changed (against the snapshot taken when Edit opened) go to `adminVerifyIdentity` with the approval, which
+ * validates and saves them; after Done the card shows the edited values. Dates use a date input (YYYY-MM-DD), the
+ * form the DBS cross-check compares (00-RULINGS #21).
+ * Never: saves edits without the approval, or sends a field outside `IDENTITY_EDIT_FIELDS`.
+ */
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -14,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { adminVerifyIdentity, adminRejectIdentity } from "@/lib/actions/admin";
+import { changedIdentityFields } from "@/lib/admin/identity-edits";
 import { formatRelativeTime } from "@/lib/utils";
 import { AlertTriangle, CheckCircle2, X, Loader2, ImageOff, Pencil } from "lucide-react";
 import type { PendingIdentityCheck } from "./page";
@@ -91,8 +101,13 @@ export function IDCheckModal({ check, open, onOpenChange }: IDCheckModalProps) {
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [editedFields, setEditedFields] = useState<Record<string, string>>({});
+  const [editSnapshot, setEditSnapshot] = useState<Record<string, string>>({});
 
   if (!check) return null;
+
+  const pendingEdits = changedIdentityFields(editSnapshot, editedFields);
+  // What the read-only card shows: the AI values with the admin's pending corrections on top.
+  const shown = { ...check, ...pendingEdits };
 
   const name = `${check.first_name || ""} ${check.last_name || ""}`.trim() || "Unknown";
 
@@ -114,7 +129,7 @@ export function IDCheckModal({ check, open, onOpenChange }: IDCheckModalProps) {
 
   async function handleVerify() {
     setLoading(true);
-    const result = await adminVerifyIdentity(check!.id);
+    const result = await adminVerifyIdentity(check!.id, pendingEdits);
     setLoading(false);
 
     if (result.success) {
@@ -153,6 +168,7 @@ export function IDCheckModal({ check, open, onOpenChange }: IDCheckModalProps) {
       setZoomedImage(null);
       setEditing(false);
       setEditedFields({});
+      setEditSnapshot({});
     }
     onOpenChange(openState);
   }
@@ -249,15 +265,17 @@ export function IDCheckModal({ check, open, onOpenChange }: IDCheckModalProps) {
                       <button
                         type="button"
                         onClick={() => {
-                          if (!editing) {
-                            setEditedFields({
+                          if (!editing && Object.keys(editSnapshot).length === 0) {
+                            const initial = {
                               extracted_surname: check.extracted_surname ?? '',
                               extracted_given_names: check.extracted_given_names ?? '',
                               extracted_dob: check.extracted_dob ?? '',
                               extracted_nationality: check.extracted_nationality ?? '',
                               extracted_passport_number: check.extracted_passport_number ?? '',
                               extracted_passport_expiry: check.extracted_passport_expiry ?? '',
-                            });
+                            };
+                            setEditSnapshot(initial);
+                            setEditedFields(initial);
                           }
                           setEditing(!editing);
                         }}
@@ -272,16 +290,18 @@ export function IDCheckModal({ check, open, onOpenChange }: IDCheckModalProps) {
                     editing ? (
                       <div className="space-y-2 text-sm">
                         {[
-                          { key: 'extracted_surname', label: 'Surname' },
-                          { key: 'extracted_given_names', label: 'Given Name(s)' },
-                          { key: 'extracted_dob', label: 'Date of Birth' },
-                          { key: 'extracted_nationality', label: 'Nationality' },
-                          { key: 'extracted_passport_number', label: 'Passport #' },
-                          { key: 'extracted_passport_expiry', label: 'Expiry' },
-                        ].map(({ key, label }) => (
+                          { key: 'extracted_surname', label: 'Surname', type: 'text' },
+                          { key: 'extracted_given_names', label: 'Given Name(s)', type: 'text' },
+                          { key: 'extracted_dob', label: 'Date of Birth', type: 'date' },
+                          { key: 'extracted_nationality', label: 'Nationality', type: 'text' },
+                          { key: 'extracted_passport_number', label: 'Passport #', type: 'text' },
+                          { key: 'extracted_passport_expiry', label: 'Expiry', type: 'date' },
+                        ].map(({ key, label, type }) => (
                           <div key={key} className="flex items-center gap-2">
-                            <span className="w-28 shrink-0 font-medium text-slate-500">{label}</span>
+                            <label htmlFor={`id-edit-${key}`} className="w-28 shrink-0 font-medium text-slate-500">{label}</label>
                             <Input
+                              id={`id-edit-${key}`}
+                              type={type}
                               value={editedFields[key] ?? ''}
                               onChange={(e) => setEditedFields(prev => ({ ...prev, [key]: e.target.value }))}
                               className="h-7 text-sm"
@@ -291,17 +311,17 @@ export function IDCheckModal({ check, open, onOpenChange }: IDCheckModalProps) {
                       </div>
                     ) : (
                       <div className="space-y-1.5 text-sm">
-                        <DetailRow label="Surname" submitted={check.surname} extracted={check.extracted_surname} />
-                        <DetailRow label="Given Name(s)" submitted={check.given_names} extracted={check.extracted_given_names} isGivenNames />
-                        <DetailRow label="Date of Birth" submitted={check.date_of_birth} extracted={check.extracted_dob} />
-                        <DetailRow label="Nationality" submitted={check.passport_country} extracted={check.extracted_nationality} isNationality />
+                        <DetailRow label="Surname" submitted={check.surname} extracted={shown.extracted_surname} />
+                        <DetailRow label="Given Name(s)" submitted={check.given_names} extracted={shown.extracted_given_names} isGivenNames />
+                        <DetailRow label="Date of Birth" submitted={check.date_of_birth} extracted={shown.extracted_dob} />
+                        <DetailRow label="Nationality" submitted={check.passport_country} extracted={shown.extracted_nationality} isNationality />
                         <div className="flex justify-between">
                           <span className="font-medium text-slate-500">Passport #</span>
-                          <span>{check.extracted_passport_number || "-"}</span>
+                          <span>{shown.extracted_passport_number || "-"}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium text-slate-500">Expiry</span>
-                          <span>{check.extracted_passport_expiry ? formatDate(check.extracted_passport_expiry) : "-"}</span>
+                          <span>{shown.extracted_passport_expiry ? formatDate(shown.extracted_passport_expiry) : "-"}</span>
                         </div>
                       </div>
                     )
