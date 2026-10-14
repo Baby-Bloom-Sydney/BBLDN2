@@ -12,15 +12,18 @@ const h = vi.hoisted(() => ({
   sync: vi.fn(async () => {}),
   nannyEmail: vi.fn(async () => {}),
   adminEmail: vi.fn(async () => {}),
+  pausedEmail: vi.fn(async () => {}),
 }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => h.db.client() }));
 vi.mock("@/lib/actions/verification", () => ({ syncNannyVerificationState: h.sync }));
-vi.mock("@/lib/email/dbs-emails", () => ({ sendDbsRecheckFailedEmail: h.nannyEmail, sendDbsRecheckAdminAlert: h.adminEmail }));
+vi.mock("@/lib/email/dbs-emails", () => ({
+  sendDbsRecheckFailedEmail: h.nannyEmail, sendDbsRecheckAdminAlert: h.adminEmail, sendDbsRecheckPausedAlert: h.pausedEmail,
+}));
 
 import { onDbsRecheckFailed, runDbsRecheck } from "./recheck";
 
 type Admin = Parameters<typeof runDbsRecheck>[0];
-const fast = { intervalMs: 1, batchLimit: 10, timeBudgetMs: 60_000 };
+const fast = { intervalMs: 1, batchLimit: 10, timeBudgetMs: 60_000, pauseRatio: 0.2, pauseMinFailures: 3 };
 const NEW_INFO = { result: "NEW_INFO", status: "NEW_INFO", raw: "<x/>", forename: null, surname: null, printDate: null } as DbsCheckResult;
 
 function seed() {
@@ -193,5 +196,23 @@ describe("runDbsRecheck — failure branches", () => {
   it("throws when the selection read fails", async () => {
     const broken = { from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ order: () => ({ limit: async () => ({ data: null, error: { message: "down" } }) }) }) }) }) }) };
     await expect(runDbsRecheck(broken as unknown as Admin, { check: async () => NEW_INFO, config: fast })).rejects.toThrow(/selection failed/);
+  });
+});
+
+describe("P-15 — config and the paused email failing", () => {
+  it("reads the cut-off from named defaults (20 %, 3) and env, rejecting nonsense", async () => {
+    const { getDbsRecheckConfig, DBS_RECHECK_DEFAULTS } = await import("./config");
+    expect(DBS_RECHECK_DEFAULTS).toMatchObject({ pauseRatio: 0.2, pauseMinFailures: 3 });
+    expect(getDbsRecheckConfig({})).toMatchObject({ pauseRatio: 0.2, pauseMinFailures: 3 });
+    expect(getDbsRecheckConfig({ DBS_RECHECK_PAUSE_RATIO: "0.5", DBS_RECHECK_PAUSE_MIN_FAILURES: "10" })).toMatchObject({ pauseRatio: 0.5, pauseMinFailures: 10 });
+    for (const bad of ["0", "1", "-0.1", "abc", ""]) expect(getDbsRecheckConfig({ DBS_RECHECK_PAUSE_RATIO: bad }).pauseRatio).toBe(0.2);
+  });
+
+  it("a failed paused email is logged in the PAUSED row and still applies nothing", async () => {
+    h.pausedEmail.mockRejectedValueOnce(new Error("resend down"));
+    const s = await runDbsRecheck(admin(), { check: async () => NEW_INFO, config: { ...fast, pauseMinFailures: 1 } });
+    expect(s).toMatchObject({ paused_on_fail_ratio: true, failures_held: 1 });
+    expect(h.db.tables.verifications[0]).toMatchObject({ verification_status: 40 });
+    expect(logs()[0]).toMatchObject({ user_id: null, action_details: expect.objectContaining({ result: "PAUSED", warnings: ["admin_email_failed"] }) });
   });
 });

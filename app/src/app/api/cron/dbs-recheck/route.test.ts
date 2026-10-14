@@ -59,9 +59,9 @@ function level4(n: number, over: Record<string, unknown> = {}) {
       wwcc_status: "doc_verified", wwcc_status_at: APPROVED_AT, wwcc_verified: true, wwcc_doc_verified: true,
       wwcc_verified_by: "admin-0", wwcc_verified_at: APPROVED_AT, cross_check_status: "passed",
       verification_status: 40, wwcc_user_guidance: null,
-      extracted_wwcc_number: `00000000000${n}`, extracted_wwcc_surname: "Taylor", extracted_wwcc_dob: "1990-03-05",
+      extracted_wwcc_number: String(n).padStart(12, "0"), extracted_wwcc_surname: "Taylor", extracted_wwcc_dob: "1990-03-05",
       extracted_wwcc_first_name: "Sophie", extracted_wwcc_expiry: "2024-01-10",
-      ocg_result_status: "BLANK_NO_NEW_INFO", ocg_result_text: "<old/>", ocg_verified_at: `2026-10-0${n}T00:00:00.000Z`,
+      ocg_result_status: "BLANK_NO_NEW_INFO", ocg_result_text: "<old/>", ocg_verified_at: new Date(Date.UTC(2026, 9, 1, 0, n)).toISOString(),
       ...over,
     },
     nanny: { id: `n${n}`, user_id: `u${n}`, verification_level: 4, status: "active", identity_verified: true, wwcc_verified: true },
@@ -173,12 +173,12 @@ describe("cron/dbs-recheck — pass (#12, #33)", () => {
     expect(verificationWrites()).toHaveLength(1);
     expect(Object.keys(verificationWrites()[0].payload).sort()).toEqual(["ocg_result_status", "ocg_result_text", "ocg_verified_at"]);
     expect(ver()).toMatchObject({ verification_status: 40, wwcc_verified: true, cross_check_status: "passed", ocg_result_status: ok(kind).result === "BLANK" ? "BLANK_NO_NEW_INFO" : "NON_BLANK_NO_NEW_INFO" });
-    expect(ver().ocg_verified_at).not.toBe("2026-10-01T00:00:00.000Z");
+    expect(ver().ocg_verified_at).not.toBe(new Date(Date.UTC(2026, 9, 1, 0, 1)).toISOString());
     expect(nannyRow().verification_level).toBe(4);
     expect(logs()).toHaveLength(0);
     expect(h.sends).toHaveLength(0);
     expect(h.db.writes.filter((w) => w.table !== "verifications")).toHaveLength(0);
-    expect(body).toEqual({ checked: 1, passed: 1, failed_new_info: 0, failed_no_match: 0, errors: 0, skipped: 0, stopped_on_budget: false, reconciled: 0 });
+    expect(body).toEqual({ checked: 1, passed: 1, failed_new_info: 0, failed_no_match: 0, errors: 0, skipped: 0, stopped_on_budget: false, reconciled: 0, paused_on_fail_ratio: false, failures_held: 0 });
   });
 });
 
@@ -331,7 +331,7 @@ describe("runDbsRecheck — throttle and time budget (change 3)", () => {
         sleeps.push(ms);
         clock += ms;
       },
-      config: { intervalMs: 500, batchLimit: 500, timeBudgetMs: 3_000 },
+      config: { intervalMs: 500, batchLimit: 500, timeBudgetMs: 3_000, pauseRatio: 0.2, pauseMinFailures: 3 },
     });
     // t=0 check1 → 1000; sleep → 1500 check2 → 2500; sleep → 3000 ≥ budget → stop.
     expect(check).toHaveBeenCalledTimes(2);
@@ -413,5 +413,85 @@ describe("R14 — VER-003 never also fires for a re-check failure (addendum M1)"
     const later = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // well past the 10-minute delay
     expect(ver().wwcc_status).toBe("ocg_not_found");
     expect(await selectVer003Candidates(createAdminClient(), later)).toEqual([]);
+  });
+});
+
+// README P-15 (BAI 2026-10-14): the daily re-check safety cut-off. The run decides every failure first; if NEW_INFO +
+// NO_MATCH among the nannies it got an answer for is ABOVE the ratio (default 20 %) AND at least the floor (default 3),
+// it applies none of them — one activity_logs row, one admin email — and nothing else changes. Below it, #12 as before.
+describe("P-15 — re-check safety cut-off", () => {
+  const nannies = (k: number) => Array.from({ length: k }, (_, i) => level4(i + 1));
+  const answer = (fails: Record<number, DbsCheckResult>) => {
+    let call = 0;
+    h.check.mockImplementation(async () => fails[++call] ?? ok("BLANK"));
+  };
+  const pausedRows = () => logs().filter((l) => (l.action_details as Record<string, unknown>).result === "PAUSED");
+
+  it("P15-1 trips above 20 % with at least 3 failures: applies none, one log row, one admin email, passes still recorded", async () => {
+    seed(nannies(5), {
+      connection_requests: [{ id: "c-open", nanny_id: "n1", parent_id: "p", position_id: null, connection_stage: 20, status: "accepted", source: null }],
+    });
+    answer({ 1: ok("NEW_INFO"), 2: ok("NO_MATCH"), 3: ok("NEW_INFO") });
+    const body = await runOk();
+    for (const id of ["v1", "v2", "v3"]) expect(ver(id)).toMatchObject({ verification_status: 40, wwcc_verified: true, cross_check_status: "passed" });
+    expect(h.db.tables.nannies.every((n) => n.verification_level === 4)).toBe(true);
+    expect(h.db.tables.connection_requests[0]).toMatchObject({ connection_stage: 20, status: "accepted" });
+    expect(verificationWrites().map((w) => Object.keys(w.payload).sort().join())).toEqual(["ocg_result_status,ocg_result_text,ocg_verified_at", "ocg_result_status,ocg_result_text,ocg_verified_at"]);
+    expect(nannyEmails()).toHaveLength(0);
+    expect(adminEmails()).toHaveLength(1);
+    expect(adminEmails()[0].subject).toBe("DBS re-check paused: 3 of 5 failed — check the DBS service");
+    expect(pausedRows()).toHaveLength(1);
+    expect(logs()).toHaveLength(1);
+    expect(logs()[0]).toMatchObject({ user_id: null, action_type: "dbs_status_check" });
+    expect(logs()[0].action_details).toEqual({ trigger: "recheck", result: "PAUSED", failed: 3, answered: 5, new_info: 2, no_match: 1, threshold_ratio: 0.2, min_failures: 3 });
+    expect(body).toMatchObject({ checked: 5, passed: 2, failed_new_info: 0, failed_no_match: 0, paused_on_fail_ratio: true, failures_held: 3 });
+  });
+
+  it("P15-2 does not trip at exactly 20 % (4 of 20): every failure is applied as #12 says", async () => {
+    seed(nannies(20));
+    answer({ 1: ok("NEW_INFO"), 5: ok("NO_MATCH"), 9: ok("NEW_INFO"), 13: ok("NO_MATCH") });
+    const body = await runOk();
+    expect(body).toMatchObject({ checked: 20, passed: 16, failed_new_info: 2, failed_no_match: 2, paused_on_fail_ratio: false, failures_held: 0 });
+    expect(pausedRows()).toHaveLength(0);
+    expect(nannyEmails()).toHaveLength(4);
+    expect(adminEmails().every((m) => m.subject.startsWith("DBS re-check failed:"))).toBe(true);
+  });
+
+  it("P15-3 the floor: 2 of 2 failing (100 %) is below 3 failures, so both are applied", async () => {
+    seed(nannies(2));
+    answer({ 1: ok("NEW_INFO"), 2: ok("NO_MATCH") });
+    const body = await runOk();
+    expect(body).toMatchObject({ failed_new_info: 1, failed_no_match: 1, paused_on_fail_ratio: false });
+    expect(ver("v1").verification_status).toBe(23);
+    expect(ver("v2").verification_status).toBe(26);
+  });
+
+  it("P15-4 API errors are not failures: 2 failures + 5 errors + 3 passes does not trip", async () => {
+    seed(nannies(10));
+    answer({ 1: ok("NEW_INFO"), 2: ERR, 3: ERR, 4: ERR, 5: ERR, 6: ERR, 7: ok("NO_MATCH") });
+    const body = await runOk();
+    expect(body).toMatchObject({ checked: 10, errors: 5, passed: 3, failed_new_info: 1, failed_no_match: 1, paused_on_fail_ratio: false });
+    expect(pausedRows()).toHaveLength(0);
+  });
+
+  it("P15-5 errors do not dilute the ratio either: 3 failures among 3 answers + 20 errors trips", async () => {
+    seed(nannies(23));
+    const fails: Record<number, DbsCheckResult> = { 1: ok("NEW_INFO"), 2: ok("NEW_INFO"), 3: ok("NO_MATCH") };
+    for (let i = 4; i <= 23; i++) fails[i] = ERR;
+    answer(fails);
+    const body = await runOk();
+    expect(body).toMatchObject({ paused_on_fail_ratio: true, failures_held: 3, errors: 20 });
+    expect(adminEmails()).toHaveLength(1);
+  });
+
+  it("P15-6 sends exactly one email to admin and none to any nanny, escaped, linking the admin page", async () => {
+    vi.stubEnv("ADMIN_EMAIL", "ops@example.test");
+    seed(nannies(4));
+    answer({ 1: ok("NEW_INFO"), 2: ok("NEW_INFO"), 3: ok("NEW_INFO"), 4: ok("NEW_INFO") });
+    await runOk();
+    expect(h.sends).toHaveLength(1);
+    expect(h.sends[0]).toMatchObject({ to: "ops@example.test", emailType: "admin_notification" });
+    expect(h.sends[0].html).toContain("/admin/users");
+    expect(h.sends[0].html).toContain("4 of 4");
   });
 });

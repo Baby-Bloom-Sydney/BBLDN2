@@ -16,6 +16,7 @@ import {
   sendDbsRejectedEmail,
   sendDbsRecheckFailedEmail,
   sendDbsRecheckAdminAlert,
+  sendDbsRecheckPausedAlert,
 } from "./dbs-emails";
 import type { AffectedFamily } from "@/lib/connections/silent-hold";
 import { SENDERS, SITE_URL } from "@/lib/constants";
@@ -261,5 +262,25 @@ describe("sendDbsRecheckAdminAlert (3i, #35)", () => {
   it("refuses an unknown result without sending", async () => {
     await expect(sendDbsRecheckAdminAlert("u1", "BLANK" as never, { checkedAt: "t", kept: 0, dropped: 0, notDropped: 0 })).rejects.toThrow(/result/);
     expect(h.sendEmail).not.toHaveBeenCalled();
+  });
+});
+
+// README P-15: one admin email when a run's failure share trips the cut-off. Counts only, no names.
+describe("sendDbsRecheckPausedAlert (3i, P-15)", () => {
+  it("sends one admin_notification with N of M, the split, the threshold and the admin link", async () => {
+    await sendDbsRecheckPausedAlert({ failed: 3, answered: 5, newInfo: 2, noMatch: 1, thresholdRatio: 0.2, minFailures: 3 });
+    const [m] = sent();
+    expect(m).toMatchObject({ to: SENDERS.admin, emailType: "admin_notification", subject: "DBS re-check paused: 3 of 5 failed — check the DBS service" });
+    expect(m.html).toContain("3 of 5");
+    expect(m.html).toContain("New information: 2");
+    expect(m.html).toContain("No Update Service match: 1");
+    expect(m.html).toContain("20%");
+    expect(m.html).toContain(`${SITE_URL}/admin/users`);
+    expect(h.sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws when the send fails, so the caller can log it", async () => {
+    h.sendEmail.mockResolvedValueOnce({ success: false, error: "down" } as never);
+    await expect(sendDbsRecheckPausedAlert({ failed: 3, answered: 3, newInfo: 3, noMatch: 0, thresholdRatio: 0.2, minFailures: 3 })).rejects.toThrow(/down/);
   });
 });

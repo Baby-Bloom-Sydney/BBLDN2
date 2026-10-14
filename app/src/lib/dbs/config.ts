@@ -16,6 +16,9 @@
  * (pause between nannies, default 1000), DBS_RECHECK_BATCH_LIMIT (nannies per run, default 500), DBS_RECHECK_TIME_BUDGET_MS
  * (no new check starts after this, default and cap 240000 — so the last call (≤ 2 × 20 s + delay) still ends inside the
  * route's 300 s maxDuration). Rulings: #12 (daily re-check), #32 (unchecked nannies simply go first tomorrow).
+ * README P-15 (BAI 2026-10-14) safety cut-off: DBS_RECHECK_PAUSE_RATIO (default 0.2 — a run whose NEW_INFO + NO_MATCH
+ * share among answered checks is ABOVE it applies none of them) and DBS_RECHECK_PAUSE_MIN_FAILURES (default 3 — the
+ * small-number floor). A ratio outside (0, 1) or a non-number falls back to the default.
  */
 export interface DbsConfig {
   baseUrl: string;
@@ -58,13 +61,31 @@ function positiveInt(env: Env, key: string, fallback: number, max = Number.MAX_S
   return Number.isInteger(n) && n > 0 ? Math.min(n, max) : fallback;
 }
 
-export const DBS_RECHECK_DEFAULTS = { intervalMs: 1_000, batchLimit: 500, timeBudgetMs: 240_000 } as const;
+export const DBS_RECHECK_DEFAULTS = {
+  intervalMs: 1_000,
+  batchLimit: 500,
+  timeBudgetMs: 240_000,
+  /** P-15: pause when failures / answered checks is above this … */
+  pauseRatio: 0.2,
+  /** … and there are at least this many failures. */
+  pauseMinFailures: 3,
+} as const;
 
 /** The re-check throttle (see the header). Separate from `getDbsConfig`: it never touches the base URL rule. */
 export interface DbsRecheckConfig {
   intervalMs: number;
   batchLimit: number;
   timeBudgetMs: number;
+  pauseRatio: number;
+  pauseMinFailures: number;
+}
+
+/** A ratio strictly between 0 and 1, else the fallback (P-15). */
+function ratio(env: Env, key: string, fallback: number): number {
+  const raw = env[key];
+  if (raw == null || raw.trim() === "") return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 && n < 1 ? n : fallback;
 }
 
 /** Caps so a poll-triggered retry always fits the route's 60 s maxDuration. */
@@ -105,5 +126,7 @@ export function getDbsRecheckConfig(env: Env = process.env): DbsRecheckConfig {
     intervalMs: positiveInt(env, "DBS_RECHECK_INTERVAL_MS", DBS_RECHECK_DEFAULTS.intervalMs, MAX_RECHECK_INTERVAL_MS),
     batchLimit: positiveInt(env, "DBS_RECHECK_BATCH_LIMIT", DBS_RECHECK_DEFAULTS.batchLimit, MAX_RECHECK_BATCH),
     timeBudgetMs: positiveInt(env, "DBS_RECHECK_TIME_BUDGET_MS", DBS_RECHECK_DEFAULTS.timeBudgetMs, DBS_RECHECK_DEFAULTS.timeBudgetMs),
+    pauseRatio: ratio(env, "DBS_RECHECK_PAUSE_RATIO", DBS_RECHECK_DEFAULTS.pauseRatio),
+    pauseMinFailures: positiveInt(env, "DBS_RECHECK_PAUSE_MIN_FAILURES", DBS_RECHECK_DEFAULTS.pauseMinFailures, MAX_RECHECK_BATCH),
   };
 }

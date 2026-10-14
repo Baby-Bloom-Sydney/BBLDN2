@@ -25,8 +25,14 @@
  *   failed, or a run was killed after the guarded UPDATE). It re-runs the idempotent sync and P-3 drop; no email is
  *   re-sent (the fail already sent them, or the log row's warnings say they failed). A read error here never blocks
  *   the run.
+ * - Two phases (README P-15, BAI 2026-10-14 — the safety cut-off): phase 1 asks every nanny and writes passes and
+ *   errors, but only DECIDES the failures. If NEW_INFO + NO_MATCH among the answered checks (passes + failures; API
+ *   errors are neither) is ABOVE `pauseRatio` (default 20 %) AND at least `pauseMinFailures` (default 3), the run applies
+ *   NONE of them: one `dbs_status_check` row with no user `{result:'PAUSED', failed, answered, …}` and one admin email
+ *   ("re-check paused: N of M failed — check the DBS service"); they are simply checked again tomorrow. Otherwise phase
+ *   2 applies each failure exactly as #12 says.
  * - Output: counts only `{ checked, passed, failed_new_info, failed_no_match, errors, skipped, stopped_on_budget,
- *   reconciled }`.
+ *   reconciled, paused_on_fail_ratio, failures_held }` (failed_* = failures APPLIED).
  *
  * `onDbsRecheckFailed(admin, { userId, nannyId?, result })` — after a guarded fail UPDATE matched her row (and the
  * marker row was written — code review MEDIUM 1): the unchanged sync (→ level 2), a re-read of her level (MEDIUM 2: the
@@ -44,8 +50,13 @@ import { applyDbsResult, type DbsApplyResult } from "./map-dbs-outcome";
 import { getDbsRecheckConfig, type DbsRecheckConfig } from "./config";
 import { completeRecheckFailure, logDbsStatusCheck, markRecheckFailure } from "./log";
 import { dropNonHiredConnections } from "./recheck-connections";
-import { sendDbsRecheckAdminAlert, sendDbsRecheckFailedEmail, type DbsRecheckFailure } from "@/lib/email/dbs-emails";
-import { VERIFICATION_LEVEL, VERIFICATION_STATUS, type IdentityStatus } from "@/lib/verification";
+import {
+  sendDbsRecheckAdminAlert,
+  sendDbsRecheckFailedEmail,
+  sendDbsRecheckPausedAlert,
+  type DbsRecheckFailure,
+} from "@/lib/email/dbs-emails";
+import { DBS_ACTIVITY, VERIFICATION_LEVEL, VERIFICATION_STATUS, type IdentityStatus } from "@/lib/verification";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -59,6 +70,10 @@ export interface RecheckSummary {
   stopped_on_budget: boolean;
   /** Half-failed earlier re-check fails repaired this run (security review M2). */
   reconciled: number;
+  /** README P-15: the failure share tripped the safety cut-off, so no failure was applied this run. */
+  paused_on_fail_ratio: boolean;
+  /** README P-15: failures decided but NOT applied because the run paused (0 otherwise). */
+  failures_held: number;
 }
 
 export interface RecheckDeps {
@@ -199,13 +214,32 @@ async function selectCandidates(admin: AdminClient, batchLimit: number): Promise
   return rows.filter((r) => nannyOf.has(r.user_id)).map((row) => ({ row, nannyId: nannyOf.get(row.user_id)! }));
 }
 
-/** Checks one nanny and applies the result (see the module header). */
-async function checkOne(
+/** A failure decided in phase 1 and not yet applied (README P-15). */
+interface HeldFailure {
+  row: Candidate;
+  nannyId: string;
+  result: DbsCheckResult & { result: "NEW_INFO" | "NO_MATCH" };
+}
+
+type Asked = { kind: "passed" | "skipped" | "error" } | { kind: "failed"; held: HeldFailure };
+
+const ctxOf = (row: Candidate) => ({
+  identityStatus: row.identity_status as IdentityStatus,
+  certificateIssueDate: row.extracted_wwcc_expiry,
+  certificateSurname: row.extracted_wwcc_surname,
+  certificateForenames: row.extracted_wwcc_first_name,
+});
+
+/**
+ * Phase 1 for one nanny: ask the Update Service. ERROR → one log row. Pass → the result block is written now (a pass
+ * is never held). NEW_INFO / NO_MATCH → returned as a held failure, nothing written yet (README P-15).
+ */
+async function askOne(
   admin: AdminClient,
   row: Candidate,
   nannyId: string,
   check: (input: DbsCheckInput) => Promise<DbsCheckResult>,
-): Promise<Kind> {
+): Promise<Asked> {
   let result: DbsCheckResult;
   try {
     result = await check({
@@ -217,28 +251,32 @@ async function checkOne(
     console.error("[dbs-recheck] Update Service adapter threw:", err instanceof Error ? err.message : "unknown");
     result = { result: "ERROR", reason: "exception" };
   }
-
   if (result.result === "ERROR") {
     await logDbsStatusCheck(row.user_id, { trigger: "recheck", result: "ERROR", reason: result.reason }, admin);
-    return "error";
+    return { kind: "error" };
   }
+  if (result.result === "NEW_INFO" || result.result === "NO_MATCH") {
+    return { kind: "failed", held: { row, nannyId, result: result as HeldFailure["result"] } };
+  }
+  try {
+    const { outcome } = await applyDbsResult(admin, row.id, row.user_id, ctxOf(row), result, { mode: "recheck" });
+    return { kind: outcome === "superseded" ? "skipped" : "passed" };
+  } catch {
+    await logDbsStatusCheck(row.user_id, { trigger: "recheck", result: result.result, reason: "write_refused" }, admin);
+    return { kind: "error" };
+  }
+}
 
-  const ctx = {
-    identityStatus: row.identity_status as IdentityStatus,
-    certificateIssueDate: row.extracted_wwcc_expiry,
-    certificateSurname: row.extracted_wwcc_surname,
-    certificateForenames: row.extracted_wwcc_first_name,
-  };
+/** Phase 2 for one held failure, below the cut-off: the guarded fail write, the marker, the after-fail step. */
+async function applyFailure(admin: AdminClient, { row, nannyId, result }: HeldFailure): Promise<Kind> {
   let applied: DbsApplyResult;
   try {
-    applied = await applyDbsResult(admin, row.id, row.user_id, ctx, result, { mode: "recheck" });
+    applied = await applyDbsResult(admin, row.id, row.user_id, ctxOf(row), result, { mode: "recheck" });
   } catch {
     await logDbsStatusCheck(row.user_id, { trigger: "recheck", result: result.result, reason: "write_refused" }, admin);
     return "error";
   }
-
-  if (applied.outcome === "superseded") return "skipped";
-  if (applied.outcome !== "new_info" && applied.outcome !== "no_match") return "passed";
+  if (applied.outcome !== "new_info" && applied.outcome !== "no_match") return "skipped";
 
   const failure: DbsRecheckFailure = applied.outcome === "new_info" ? "NEW_INFO" : "NO_MATCH";
   const statusAt = applied.statusAt ?? "";
@@ -248,44 +286,96 @@ async function checkOne(
   return applied.outcome;
 }
 
+/** README P-15: above the ratio AND at least the floor. Errors are neither failures nor answers. */
+function tripsCutOff(failed: number, answered: number, config: DbsRecheckConfig): boolean {
+  return answered > 0 && failed >= config.pauseMinFailures && failed / answered > config.pauseRatio;
+}
+
+/** README P-15: apply none of the held failures — one run-level log row (no user) and one admin email. */
+async function pauseRun(admin: AdminClient, held: HeldFailure[], answered: number, config: DbsRecheckConfig): Promise<void> {
+  const newInfo = held.filter((f) => f.result.result === "NEW_INFO").length;
+  const details: Record<string, unknown> = {
+    trigger: "recheck", result: "PAUSED", failed: held.length, answered, new_info: newInfo, no_match: held.length - newInfo,
+    threshold_ratio: config.pauseRatio, min_failures: config.pauseMinFailures,
+  };
+  try {
+    await sendDbsRecheckPausedAlert({
+      failed: held.length, answered, newInfo, noMatch: held.length - newInfo,
+      thresholdRatio: config.pauseRatio, minFailures: config.pauseMinFailures,
+    });
+  } catch (err) {
+    console.error("[dbs-recheck] paused alert not sent:", err instanceof Error ? err.message : "unknown");
+    details.warnings = ["admin_email_failed"];
+  }
+  const { error } = await admin.from("activity_logs").insert({ user_id: null, action_type: DBS_ACTIVITY.STATUS_CHECK, action_details: details });
+  if (error) console.error("[dbs-recheck] could not write the paused log row:", error.message);
+}
+
 const hasDetails = (r: Candidate) => !!(r.extracted_wwcc_number && r.extracted_wwcc_surname && r.extracted_wwcc_dob);
 
-/** The daily run (see the module header). Throws only when the selection read fails. */
-export async function runDbsRecheck(admin: AdminClient, deps: RecheckDeps = {}): Promise<RecheckSummary> {
-  const config = deps.config ?? getDbsRecheckConfig();
-  const check = deps.check ?? ((input: DbsCheckInput) => checkDbsStatus(input));
-  const sleep = deps.sleep ?? realSleep;
-  const now = deps.now ?? Date.now;
-  const started = now();
-  const summary: RecheckSummary = {
-    checked: 0, passed: 0, failed_new_info: 0, failed_no_match: 0, errors: 0, skipped: 0, stopped_on_budget: false,
-    reconciled: await reconcileHalfFailed(admin),
-  };
+function tally(summary: RecheckSummary, kind: Kind): void {
+  if (kind === "passed") summary.passed++;
+  else if (kind === "new_info") summary.failed_new_info++;
+  else if (kind === "no_match") summary.failed_no_match++;
+  else if (kind === "skipped") summary.skipped++;
+  else summary.errors++;
+}
 
+/** Phase 1 over the batch: throttle, budget, ask each nanny; returns the held failures (see the module header). */
+async function askAll(admin: AdminClient, config: DbsRecheckConfig, deps: Required<Omit<RecheckDeps, "config">>, summary: RecheckSummary): Promise<HeldFailure[]> {
+  const started = deps.now();
+  const held: HeldFailure[] = [];
   for (const { row, nannyId } of await selectCandidates(admin, config.batchLimit)) {
     if (!hasDetails(row)) {
       await logDbsStatusCheck(row.user_id, { trigger: "recheck", result: "ERROR", reason: "missing_details" }, admin);
       summary.skipped++;
       continue;
     }
-    if (summary.checked > 0) await sleep(config.intervalMs);
-    if (now() - started >= config.timeBudgetMs) {
+    if (summary.checked > 0) await deps.sleep(config.intervalMs);
+    if (deps.now() - started >= config.timeBudgetMs) {
       summary.stopped_on_budget = true;
       break;
     }
     summary.checked++;
-    let kind: Kind;
+    let asked: Asked;
     try {
-      kind = await checkOne(admin, row, nannyId, check);
+      asked = await askOne(admin, row, nannyId, deps.check);
     } catch (err) {
       console.error("[dbs-recheck] one nanny failed:", err instanceof Error ? err.message : "unknown");
+      asked = { kind: "error" };
+    }
+    if (asked.kind === "failed") held.push(asked.held);
+    else tally(summary, asked.kind);
+  }
+  return held;
+}
+
+/** The daily run (see the module header). Throws only when the selection read fails. */
+export async function runDbsRecheck(admin: AdminClient, deps: RecheckDeps = {}): Promise<RecheckSummary> {
+  const config = deps.config ?? getDbsRecheckConfig();
+  const summary: RecheckSummary = {
+    checked: 0, passed: 0, failed_new_info: 0, failed_no_match: 0, errors: 0, skipped: 0, stopped_on_budget: false,
+    reconciled: await reconcileHalfFailed(admin), paused_on_fail_ratio: false, failures_held: 0,
+  };
+  const held = await askAll(admin, config, {
+    check: deps.check ?? ((input: DbsCheckInput) => checkDbsStatus(input)),
+    sleep: deps.sleep ?? realSleep,
+    now: deps.now ?? Date.now,
+  }, summary);
+
+  if (tripsCutOff(held.length, summary.passed + held.length, config)) {
+    await pauseRun(admin, held, summary.passed + held.length, config);
+    return { ...summary, paused_on_fail_ratio: true, failures_held: held.length };
+  }
+  for (const f of held) {
+    let kind: Kind;
+    try {
+      kind = await applyFailure(admin, f);
+    } catch (err) {
+      console.error("[dbs-recheck] one failure could not be applied:", err instanceof Error ? err.message : "unknown");
       kind = "error";
     }
-    if (kind === "passed") summary.passed++;
-    else if (kind === "new_info") summary.failed_new_info++;
-    else if (kind === "no_match") summary.failed_no_match++;
-    else if (kind === "skipped") summary.skipped++;
-    else summary.errors++;
+    tally(summary, kind);
   }
   return summary;
 }

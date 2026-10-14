@@ -20,6 +20,8 @@
  * brief change 6): one admin email per failed re-check (daily cron, or the admin's P-8 run on a level-4 nanny) with the
  * result, the time and the link to list C; plain admin body, connection COUNTS only (P-9: families are not contacted
  * by the system, and a re-check fail keeps her hired families — P-3 — so no family list, unlike VER-011).
+ * `sendDbsRecheckPausedAlert` — 3i, README P-15: ONE admin email when a run's failure share trips the safety cut-off
+ * and none of the failures were applied ("re-check paused: N of M failed — check the DBS service"); counts only.
  *
  * Contract
  * - Input: a user id (+ the affected families for VER-011); her name and address come from `getUserEmailInfo`.
@@ -258,4 +260,41 @@ export async function sendDbsRecheckAdminAlert(
     emailType: "admin_notification",
   });
   if (!sent.success) throw new Error(`re-check admin alert not sent: ${sent.error ?? "unknown"}`);
+}
+
+/** What a paused run saw (README P-15). Counts only. */
+export interface DbsRecheckPausedDetails {
+  failed: number;
+  answered: number;
+  newInfo: number;
+  noMatch: number;
+  thresholdRatio: number;
+  minFailures: number;
+}
+
+/**
+ * README P-15 — the daily re-check paused itself: the share of NEW_INFO / NO_MATCH among the answered checks was above
+ * the cut-off, so NONE of those failures was applied. One admin email per paused run, counts only (no names). Throws on
+ * a failed send so the caller can log it. Every value is a number the run computed — nothing user-typed.
+ */
+export async function sendDbsRecheckPausedAlert(d: DbsRecheckPausedDetails): Promise<void> {
+  const pct = `${Math.round(d.thresholdRatio * 100)}%`;
+  const sent = await sendEmail({
+    to: process.env.ADMIN_EMAIL || SENDERS.admin,
+    subject: `DBS re-check paused: ${d.failed} of ${d.answered} failed — check the DBS service`,
+    html: placeholder(
+      "DBS re-check paused",
+      `Today's DBS Update Service re-check got <strong>${d.failed} of ${d.answered}</strong> answers back as failures — ` +
+        `above the ${pct} safety cut-off (at least ${d.minFailures} failures). That usually means a problem with the DBS ` +
+        "service or our checker set-up, not with the nannies, so <strong>none of these failures was applied</strong>: " +
+        "nobody's level, connections or emails changed. They are checked again tomorrow.",
+      { label: "View in Admin", href: `${SITE_URL}/admin/users` },
+      `<p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">New information: ${d.newInfo} · ` +
+        `No Update Service match: ${d.noMatch}</p>` +
+        `<p style="font-size:13px;color:#64748b;margin:0 0 12px;">Check the DBS service status and the checker details. ` +
+        `To act on one nanny now, open her in Admin ▸ Users and use "Run DBS check now".</p>`,
+    ),
+    emailType: "admin_notification",
+  });
+  if (!sent.success) throw new Error(`re-check paused alert not sent: ${sent.error ?? "unknown"}`);
 }
