@@ -9,9 +9,22 @@ const h = vi.hoisted(() => ({ sendEmail: vi.fn(async () => ({ success: true })),
 vi.mock("./resend", () => ({ sendEmail: h.sendEmail }));
 vi.mock("./helpers", () => ({ getUserEmailInfo: vi.fn(async () => h.info) }));
 
-import { sendDbsManualReviewEmail, sendBarredNannyEmail, sendBarredAdminAlert, sendDbsRejectedEmail } from "./dbs-emails";
+import {
+  sendDbsManualReviewEmail,
+  sendBarredNannyEmail,
+  sendBarredAdminAlert,
+  sendDbsRejectedEmail,
+  sendDbsRecheckFailedEmail,
+} from "./dbs-emails";
 import type { AffectedFamily } from "@/lib/connections/silent-hold";
-import { SENDERS } from "@/lib/constants";
+import { SENDERS, SITE_URL } from "@/lib/constants";
+import {
+  buildDbsManualReviewEmail,
+  buildDbsBarredEmail,
+  buildDbsRejectedEmail,
+  buildDbsRecheckNewInfoEmail,
+  buildDbsRecheckNoMatchEmail,
+} from "./templates/dbs-nanny-emails";
 
 type Sent = { to: string; subject: string; html: string; emailType: string; recipientUserId?: string; replyTo?: string };
 const sent = () => h.sendEmail.mock.calls.map((c) => (c as unknown as [Sent])[0]);
@@ -126,14 +139,73 @@ describe("lib/email/dbs-emails", () => {
     const [m] = sent();
     expect(m).toMatchObject({ to: "jane.doe@example.test", emailType: "verification_rejected", recipientUserId: "u1", replyTo: SENDERS.hello });
     expect(m.html).toContain("Surname &lt;b&gt;differs&lt;/b&gt;");
-    expect(m.html).toMatch(/Edit &amp; Resubmit|Edit & Resubmit/);
-    expect(m.html).toMatch(/manual review/);
-    expect(m.html).toContain("/nanny/verification");
+    // 3g (BB-LDN-3g-141026): the final P-4 copy from the builder — upload page 1 again; no manual review (22 =
+    // Edit & Resubmit only, orchestrator addendum 2026-10-14).
+    expect(m.subject).toBe(buildDbsRejectedEmail({ firstName: "Jane", appUrl: SITE_URL, reason: "x" }).subject);
+    expect(m.html).toContain("upload page 1 of your enhanced DBS certificate again");
+    expect(m.html).not.toMatch(/manual review/i);
+    expect(m.html).toContain(`${SITE_URL}/nanny/verification`);
   });
 
   it("P-4 reject email throws when the send fails, so the caller can warn", async () => {
     h.sendEmail.mockResolvedValueOnce({ success: false, error: "down" } as never);
     await expect(sendDbsRejectedEmail("u1", "r")).rejects.toThrow(/down/);
   });
-});
 
+  // ── Unit 3g (BB-LDN-3g-141026): the nanny senders send the template module's final copy (brief change 1) ──
+  const params = { firstName: "Jane", appUrl: SITE_URL };
+
+  it("3g VER-004-DBS sends the builder's subject and body", async () => {
+    await sendDbsManualReviewEmail("u1");
+    expect(sent()[0]).toMatchObject(buildDbsManualReviewEmail(params));
+  });
+
+  it("3g VER-010 sends the builder's subject and body; VER-011 keeps its family list (addendum)", async () => {
+    await sendBarredNannyEmail("u1");
+    expect(sent()[0]).toMatchObject(buildDbsBarredEmail(params));
+    vi.clearAllMocks();
+    await sendBarredAdminAlert("u1", [
+      { connectionId: "c", parentName: "Olivia Hartley", email: "olivia.hartley@example.test", phone: null, positionId: null, positionTitle: null, stage: 40 },
+    ], 0);
+    expect(sent()[0].html).toContain("Olivia Hartley");
+    expect(sent()[0].to).toBe(SENDERS.admin);
+  });
+
+  it("3g P-4 sends the builder's subject and body with the reason", async () => {
+    await sendDbsRejectedEmail("u1", "Your DBS certificate image is unclear or unreadable");
+    expect(sent()[0]).toMatchObject(
+      buildDbsRejectedEmail({ ...params, reason: "Your DBS certificate image is unclear or unreadable" }),
+    );
+  });
+
+  it.each([
+    ["NEW_INFO", buildDbsRecheckNewInfoEmail],
+    ["NO_MATCH", buildDbsRecheckNoMatchEmail],
+  ] as const)("3g sendDbsRecheckFailedEmail(%s) sends that builder's email to her (for 3i)", async (result, build) => {
+    await sendDbsRecheckFailedEmail("u1", result);
+    expect(sent()).toHaveLength(1);
+    expect(sent()[0]).toMatchObject({
+      to: "jane.doe@example.test",
+      emailType: "verification_rejected",
+      recipientUserId: "u1",
+      replyTo: SENDERS.hello,
+      ...build(params),
+    });
+  });
+
+  it("3g sendDbsRecheckFailedEmail sends nothing when she has no profile", async () => {
+    h.info = null;
+    await sendDbsRecheckFailedEmail("u1", "NEW_INFO");
+    expect(h.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("3g sendDbsRecheckFailedEmail throws when the send fails, so 3i can log it", async () => {
+    h.sendEmail.mockResolvedValueOnce({ success: false, error: "down" } as never);
+    await expect(sendDbsRecheckFailedEmail("u1", "NO_MATCH")).rejects.toThrow(/down/);
+  });
+
+  it("3g sendDbsRecheckFailedEmail refuses an unknown result without sending", async () => {
+    await expect(sendDbsRecheckFailedEmail("u1", "BLANK" as never)).rejects.toThrow(/result/);
+    expect(h.sendEmail).not.toHaveBeenCalled();
+  });
+});
