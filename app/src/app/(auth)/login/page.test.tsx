@@ -4,7 +4,7 @@
  * and the dev log. Without JS the form must POST to a fixed same-page path, so credentials are never in a query string.
  */
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, createEvent, fireEvent } from "@testing-library/react";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
@@ -23,5 +23,13 @@ describe("/login form — safe without JS", () => {
     expect(form).not.toBeNull();
     expect(form.getAttribute("method")).toBe("post");
     expect(form.getAttribute("action")).toBe("/login");
+  });
+
+  it("with JS, a submit is handled in the page (native submit prevented), so the form never navigates", () => {
+    render(<LoginPage />);
+    const form = screen.getByLabelText("Password").closest("form") as HTMLFormElement;
+    const submit = createEvent.submit(form);
+    fireEvent(form, submit);
+    expect(submit.defaultPrevented).toBe(true);
   });
 });

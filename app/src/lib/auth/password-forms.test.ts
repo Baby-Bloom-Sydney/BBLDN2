@@ -5,6 +5,8 @@
  *
  * Scope: every `.tsx` under `src/` that renders an `<input type="password">` (directly or through `<Input>`), tests
  * excluded. A new password form that skips the attributes fails here.
+ * Known limits (code review L4): a password input in a shared component file with no `<form>` of its own is not
+ * traced to the form that uses it; a `<form>` tag with an arrow function before `>` is cut short (fails loudly).
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -20,7 +22,8 @@ function walk(dir: string): string[] {
   });
 }
 
-const PASSWORD_INPUT = /type=["']password["']/;
+/** A literal `type="password"`, or a JSX expression that can yield it (e.g. a show/hide toggle). Security review LOW. */
+const PASSWORD_INPUT = /type=(["']password["']|\{[^}]*["']password["'][^}]*\})/;
 /** Each `<form …>` opening tag, attributes included (may span lines; JSX `{…}` values hold no `>` here). */
 const FORM_OPEN = /<form\b[^>]*>/g;
 
