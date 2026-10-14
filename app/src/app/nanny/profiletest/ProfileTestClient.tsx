@@ -713,7 +713,7 @@ export function ProfileTestClient() {
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       {MOCK_HERO.verificationLevel >= 3 && (
-                        <GlanceItem icon={ShieldCheck} label="WWCC" variant="green" />
+                        <GlanceItem icon={ShieldCheck} label="Enhanced DBS" variant="green" />
                       )}
                       {orderedCerts.map((cert) => (
                         <GlanceItem key={cert} icon={Award} label={cert} variant="green" />
