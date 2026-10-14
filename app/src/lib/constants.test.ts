@@ -14,6 +14,8 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   ADMIN_FROM_ADDRESSES,
+  ADMIN_FROM_LOCAL_PARTS,
+  adminFromAddress,
   EMAIL_FROM_DOMAIN,
   fromAddress,
   SITE_NAME,
@@ -246,6 +248,26 @@ describe("EMAIL_FROM_DOMAIN — BAI 2026-10-01, removed at B-50", () => {
       expect(address.split("@")[0]).toBe(ADMIN_FROM_ADDRESSES[i].split("@")[0]);
       expect(address.split("@")[1]).toBe(OVERRIDE);
     }
+  });
+
+  // W6-D4 / dispatch D3 (3w6fix): the client bundle cannot read EMAIL_FROM_DOMAIN, so the admin picker carries local
+  // parts only and the server builds the address on its own From host. One list, one domain.
+  it("W6-D4 adminFromAddress builds a listed local part on the server's From host", async () => {
+    vi.stubEnv("EMAIL_FROM_DOMAIN", OVERRIDE);
+    vi.resetModules();
+    const fresh = await import("./constants");
+    expect(fresh.adminFromAddress("verification")).toBe(`verification@${OVERRIDE}`);
+    expect(fresh.ADMIN_FROM_LOCAL_PARTS.map((l) => fresh.adminFromAddress(l))).toEqual([...fresh.ADMIN_FROM_ADDRESSES]);
+  });
+
+  it("W6-D4 adminFromAddress refuses anything that is not exactly a listed local part", () => {
+    for (const bad of ["", "evil", "Verification", " verification", "verification@example-sender.test", `noreply@${SITE_DOMAIN}`, "noreply@"]) {
+      expect(adminFromAddress(bad)).toBeNull();
+    }
+  });
+
+  it("W6-D4 the local-part list carries no domain", () => {
+    for (const local of ADMIN_FROM_LOCAL_PARTS) expect(local).toMatch(/^[a-z]+$/);
   });
 
   it("fromAddress re-hosts only the host, keeping the local part", () => {

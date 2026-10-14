@@ -119,15 +119,45 @@ export const SUPPORT_INBOX = SENDERS.support;
  * This list is a **From** allowlist — `adminSendEmail` refuses any address
  * not in it and then sends with it — so it is built on `EMAIL_FROM_DOMAIN`,
  * not `SITE_DOMAIN`. BAI 2026-10-01; removed when B-50 lands.
+ *
+ * W6-D4 (3w6fix, BB-LDN-3w6fix-141026): `EMAIL_FROM_DOMAIN` is a server-only
+ * variable, so a browser bundle that built these addresses itself fell back
+ * to `SITE_DOMAIN` and every admin email failed "Invalid from address"
+ * wherever the two differ. The picker now carries `ADMIN_FROM_LOCAL_PARTS`
+ * only and the server builds the address with `adminFromAddress` — one list,
+ * one domain, decided on the server.
  */
-export const ADMIN_FROM_ADDRESSES = [
-  fromAddress(SENDERS.noreply),
-  `verification@${EMAIL_FROM_DOMAIN}`,
-  `nannies@${EMAIL_FROM_DOMAIN}`,
-  fromAddress(SENDERS.support),
-  `contact@${EMAIL_FROM_DOMAIN}`,
-  `parents@${EMAIL_FROM_DOMAIN}`,
+export const ADMIN_FROM_LOCAL_PARTS = [
+  "noreply",
+  "verification",
+  "nannies",
+  "support",
+  "contact",
+  "parents",
 ] as const;
+
+export type AdminFromLocalPart = (typeof ADMIN_FROM_LOCAL_PARTS)[number];
+
+/**
+ * The full From allow-list, for server code and tests only. A client
+ * component must import `ADMIN_FROM_LOCAL_PARTS` instead — built in a
+ * browser bundle this list carries the wrong domain (W6-D4).
+ */
+export const ADMIN_FROM_ADDRESSES = ADMIN_FROM_LOCAL_PARTS.map(
+  (local) => `${local}@${EMAIL_FROM_DOMAIN}`,
+);
+
+/**
+ * The From address for a picker value: the listed local part on
+ * `EMAIL_FROM_DOMAIN`, or null for anything that is not exactly one of
+ * `ADMIN_FROM_LOCAL_PARTS` (a full address, another domain, an unknown
+ * name). Call it on the server only — the domain must come from the server's
+ * environment.
+ */
+export function adminFromAddress(localPart: string): string | null {
+  const listed = (ADMIN_FROM_LOCAL_PARTS as readonly string[]).includes(localPart);
+  return listed ? `${localPart}@${EMAIL_FROM_DOMAIN}` : null;
+}
 
 /**
  * ADR-171 — the trading entity's legal name is not ours to invent. The

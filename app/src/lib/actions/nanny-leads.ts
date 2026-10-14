@@ -6,6 +6,8 @@
  * Unit 3e (BB-LDN-3e-061026) changed only the conversion's right-to-work write (E-1, security review): the lead JSON
  * is written by an unauthenticated client, so conversion stores one of 3a's four UK keys or nothing, and derives
  * `right_to_work` from the key. The DB CHECK (3a, amendments 07/08) is the second guard, not the only one.
+ * Unit 3w6fix (W6-D1): the ACC-001 welcome email's verification step uses 3g's house wording (`welcome-nanny.ts`,
+ * copy deck §6.8) — passport and DBS certificate.
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -533,7 +535,7 @@ export async function convertLeadToAccount(
       <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:#7c3aed;">Next steps</p>
       <ol style="margin:0;padding-left:20px;font-size:14px;color:#475569;line-height:1.8;">
         <li>Complete your profile with your experience and qualifications</li>
-        <li>Upload your ID and WWCC for verification</li>
+        <li>Upload your passport and DBS certificate for verification</li>
         <li>Once verified, families in ${BRAND.city} can find and connect with you</li>
       </ol>
     </div>

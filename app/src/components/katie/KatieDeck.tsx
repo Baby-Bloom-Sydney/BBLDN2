@@ -6,6 +6,8 @@
  * Scrollable message list + input pinned to bottom + footer disclaimer.
  * Fetches message history on mount (Phase 1); Realtime subscription
  * comes in Phase 1D.
+ * Unit 3w6fix (W6-D7): the empty-state greeting's topics come from
+ * `katieGreetingTopics(role)` — parents are not offered "verification" (D-7).
  */
 
 import {
@@ -18,6 +20,7 @@ import {
 import { KatieFooter } from "./KatieFooter";
 import { KatieInput } from "./KatieInput";
 import { KatieQuickActions } from "./KatieQuickActions";
+import { katieGreetingTopics } from "./greeting";
 import { ImageAttachmentProvider } from "./image-attachment-context";
 import { DraftActionsProvider } from "./tiles/draft-actions-context";
 import { MessageRow } from "./messages/MessageRow";
@@ -46,8 +49,7 @@ function EmptyState({ role, onChipSelect }: EmptyStateProps) {
         Hi — I&apos;m Katie.
       </p>
       <p>
-        I can help you across all of Baby Bloom — child development, jobs,
-        babysitting, verification, your profile.
+        I can help you across all of Baby Bloom — {katieGreetingTopics(role)}.
       </p>
       <KatieQuickActions role={role} onSelect={onChipSelect} />
     </div>
