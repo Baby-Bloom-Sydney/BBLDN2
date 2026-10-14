@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * The /signup page (parent sign-up) → `signUp` with role parent.
+ *
+ * 3d follow-up (BB-LDN-3dfix-141026, finding 4 — hardening): the form declares `method="post"` and the fixed
+ * same-page `action="/signup"`, so a submit before hydration (no JS yet) never does the browser's default GET
+ * with the password in the URL, history or server logs. With JS, `onSubmit` prevents the native submit as before.
+ * Never: credentials in a query string; never drop `method`/`action` (guarded by `lib/auth/password-forms.test.ts`).
+ */
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -193,6 +201,8 @@ function SignupForm() {
 
             <Form {...form}>
               <form
+                method="post"
+                action="/signup"
                 onSubmit={form.handleSubmit(onSubmit)}
                 className="space-y-3.5"
               >

@@ -2843,6 +2843,27 @@
   },
   {
     "rule": "identity",
+    "file": "app/src/app/admin/users/DbsQueueTab.test.tsx",
+    "match": "WWCC",
+    "owner": "cleanup",
+    "note": "D-4 kept name (wwcc_* / ocg_* columns, adminVerifyWWCC / adminRejectWWCC) in the 3d follow-up's DbsQueueTab test fixture (BB-LDN-3dfix-141026, finding 2); renaming the columns is cleanup's. Not user-visible text. [3dfix, 2 hit(s): lines 10, 12]"
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/app/admin/users/DbsQueueTab.test.tsx",
+    "match": "wwcc",
+    "owner": "cleanup",
+    "note": "D-4 kept name (wwcc_* / ocg_* columns, adminVerifyWWCC / adminRejectWWCC) in the 3d follow-up's DbsQueueTab test fixture (BB-LDN-3dfix-141026, finding 2); renaming the columns is cleanup's. Not user-visible text. [3dfix, 7 hit(s): lines 23, 26, 27, 28, 30, 31, 33]"
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/app/admin/users/DbsQueueTab.test.tsx",
+    "match": "ocg",
+    "owner": "cleanup",
+    "note": "D-4 kept name (wwcc_* / ocg_* columns, adminVerifyWWCC / adminRejectWWCC) in the 3d follow-up's DbsQueueTab test fixture (BB-LDN-3dfix-141026, finding 2); renaming the columns is cleanup's. Not user-visible text. [3dfix, 4 hit(s): lines 26, 27, 55, 72]"
+  },
+  {
+    "rule": "identity",
     "file": "app/src/app/admin/users/DBSCheckModal.tsx",
     "match": "WWCC",
     "owner": "cleanup",

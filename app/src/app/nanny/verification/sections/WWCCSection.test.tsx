@@ -195,3 +195,37 @@ describe("WWCCSection — edit mode", () => {
     expect(await screen.findByText("We couldn't save your certificate. Please try again.")).toBeInTheDocument();
   });
 });
+
+/**
+ * 3d follow-up (BB-LDN-3dfix-141026), finding 3 — 3d's admin Reject stores guidance whose explanation IS the reason
+ * (`adminRejectWWCC`), so the 22 page printed it twice (red box + guidance card). Show it once; keep the card (#6);
+ * 22 stays Edit & Resubmit only (orchestrator ruling 2026-10-06).
+ */
+describe("WWCCSection — rejected (22) shows the admin's reason once", () => {
+  const REASON = "The surname on your DBS certificate does not match your passport";
+  // The shape `adminRejectWWCC` writes (lib/actions/admin.ts).
+  const adminRejectGuidance: UserGuidance = {
+    title: "Your DBS certificate needs another look",
+    explanation: REASON,
+    steps_to_fix: ["Upload page 1 of your certificate again, or request a manual review"],
+  };
+
+  it("with the admin's guidance: the reason appears once, in the guidance card, with Edit & Resubmit only", () => {
+    show({ code: 22, section: "rejected", rejection: REASON, guidance: adminRejectGuidance });
+    expect(screen.getAllByText(REASON)).toHaveLength(1);
+    expect(screen.getByText("Your DBS certificate needs another look")).toBeInTheDocument();
+    expect(screen.getByText("We couldn't accept your DBS certificate")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit & Resubmit" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Request manual review" })).toBeNull();
+  });
+
+  it("without stored guidance: the reason still shows (once) under the 22 title", () => {
+    show({ code: 22, section: "rejected", rejection: REASON });
+    expect(screen.getAllByText(REASON)).toHaveLength(1);
+  });
+
+  it("when the card on screen says something else, the admin's reason is still shown", () => {
+    show({ code: 22, section: "rejected", rejection: REASON, guidance: failGuidance });
+    expect(screen.getAllByText(REASON)).toHaveLength(1);
+  });
+});
