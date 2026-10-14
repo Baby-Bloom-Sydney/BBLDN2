@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * The matchmaking funnel sign-up form (parent) → `signUpAndConvertLead`.
+ *
+ * 3d follow-up (BB-LDN-3dfix-141026, finding 4 — hardening): the form declares `method="post"` and the fixed
+ * same-page `action="/matchmaking/signup"`, so a submit before hydration (no JS yet) never does the browser's default GET
+ * with the password in the URL, history or server logs. With JS, `onSubmit` prevents the native submit as before.
+ * Never: credentials in a query string; never drop `method`/`action` (guarded by `lib/auth/password-forms.test.ts`).
+ */
 import { useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -207,6 +215,8 @@ export function MatchmakingSignupClient({
 
             <Form {...form}>
               <form
+                method="post"
+                action="/matchmaking/signup"
                 onSubmit={form.handleSubmit(onSubmit)}
                 className="space-y-3.5"
               >

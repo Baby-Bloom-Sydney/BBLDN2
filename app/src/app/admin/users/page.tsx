@@ -1,7 +1,8 @@
 /**
  * Admin users page (server): users, user stats, verification stats, the ID queue and — unit 3d — the DBS queues
  * (`lib/admin/dbs-queues.ts`: lists A–D, stats from ADMIN_PENDING_CODES). Service-role reads only; the page is
- * behind the admin layout. Never: returns a storage path instead of a signed URL.
+ * behind the admin layout. Each user row also carries its `verifications.id` (3d follow-up: the drawer's
+ * "Run DBS check now", P-8). Never: returns a storage path instead of a signed URL.
  */
 import { Suspense } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -28,6 +29,8 @@ export interface UserData {
   // New integer-based verification fields
   verification_level: number | null;
   verification_status: number | null;
+  /** `verifications.id` — the drawer's "Run DBS check now" needs it (3d follow-up, finding 1). */
+  verification_id?: string | null;
   // Legacy booleans (still on nannies table)
   wwcc_verified: boolean | null;
   identity_verified: boolean | null;
@@ -97,7 +100,7 @@ async function getUsers(): Promise<UserData[]> {
       .select('user_id, status'),
     supabase
       .from('verifications')
-      .select('user_id, verification_status'),
+      .select('id, user_id, verification_status'),
   ]);
 
   if (profilesResult.error) {
@@ -123,9 +126,9 @@ async function getUsers(): Promise<UserData[]> {
     for (const p of parentsResult.data) parentMap.set(p.user_id, p);
   }
 
-  const verificationMap = new Map<string, number>();
+  const verificationMap = new Map<string, { id: string; status: number }>();
   if (verificationsResult.data) {
-    for (const v of verificationsResult.data) verificationMap.set(v.user_id, v.verification_status);
+    for (const v of verificationsResult.data) verificationMap.set(v.user_id, { id: v.id, status: v.verification_status });
   }
 
   return profilesResult.data.map((user) => {
@@ -146,7 +149,8 @@ async function getUsers(): Promise<UserData[]> {
       role: roleMap.get(user.user_id) ?? 'unknown',
       nanny_status: nanny?.status ?? null,
       verification_level: nanny?.verification_level ?? null,
-      verification_status: verificationMap.get(user.user_id) ?? null,
+      verification_status: verificationMap.get(user.user_id)?.status ?? null,
+      verification_id: verificationMap.get(user.user_id)?.id ?? null,
       wwcc_verified: nanny?.wwcc_verified ?? null,
       identity_verified: nanny?.identity_verified ?? null,
       parent_status: parent?.status ?? null,
