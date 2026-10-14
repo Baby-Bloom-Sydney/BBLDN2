@@ -2,9 +2,12 @@
  * The one DBS sender module (unit 3c creates it; README "DBS emails").
  *
  * 3c: VER-004-DBS (manual review submitted), VER-010 (barred, to her) and VER-011 (barred, to admin) — moved out of
- * the deleted regulator webhook with the same email types and recipients. Bodies are PLACEHOLDERS (one plain
- * paragraph); 3g writes the final copy as builders in `lib/email/templates/dbs-nanny-emails.ts` and rewires the nanny
- * senders here. Later units add their senders to this file: 3d `sendDbsRejectedEmail`, 3i `sendDbsRecheckAdminAlert`.
+ * the deleted regulator webhook with the same email types and recipients. Later units add their senders to this file:
+ * 3d `sendDbsRejectedEmail`, 3g `sendDbsRecheckFailedEmail`, 3i `sendDbsRecheckAdminAlert`.
+ *
+ * Copy (3g, BB-LDN-3g-141026): every NANNY email's subject and body come from the builders in
+ * `lib/email/templates/dbs-nanny-emails.ts` (copy deck §6.4–§6.6, README P-3/P-4). The admin-facing VER-011 (and 3i's
+ * admin re-check alert) keep their plain bodies here — admin copy is not 3g's.
  *
  * Barred (3d, README P-14 — BAI 2026-10-14): VER-010 and VER-011 are separate senders so a bar alerts admin exactly once
  * whatever path barred her. `sendBarredNannyEmail` (VER-010, to her) — caller: the admin Bar action (`adminBarDbs`).
@@ -12,18 +15,27 @@
  * lib/connections/silent-hold.ts), once per bar; it lists every family whose connection was dropped (parent name, email,
  * phone, position, stage) so the team contacts them personally, or says no families were affected. Parents themselves
  * get nothing (P-9). `sendDbsRejectedEmail` — 3d (README P-4): the admin's Reject tells her the reason and how to get
- * approved. Placeholder bodies; 3g writes the copy.
+ * approved. `sendDbsRecheckFailedEmail` — 3g writes it, **3i calls it** after a daily re-check fails (00-RULINGS #12,
+ * README P-3): `NEW_INFO` → the 23 email, `NO_MATCH` → the 26 email.
  *
  * Contract
  * - Input: a user id (+ the affected families for VER-011); her name and address come from `getUserEmailInfo`.
  * - Output: Resend sends. Her emails: nothing when she has no profile. VER-011 is sent even then (the families matter).
- * - Never: writes to the database, decides who may be barred, or interpolates user text unescaped (`esc`) — family
- *   fields are user data and are escaped one by one. `placeholder()` takes trusted strings only.
+ * - Never: writes to the database, decides who may be barred, or interpolates user text unescaped (`esc` here; the
+ *   builders escape their own) — family fields are user data and are escaped one by one. `placeholder()` (VER-011
+ *   only) takes trusted strings only.
  */
 import { sendEmail } from "./resend";
 import { getUserEmailInfo } from "./helpers";
 import { emailFooter } from "./brand";
 import { SENDERS, SITE_URL } from "@/lib/constants";
+import {
+  buildDbsManualReviewEmail,
+  buildDbsBarredEmail,
+  buildDbsRejectedEmail,
+  buildDbsRecheckNewInfoEmail,
+  buildDbsRecheckNoMatchEmail,
+} from "./templates/dbs-nanny-emails";
 import { CONNECTION_STAGE_LABELS, type ConnectionStage } from "@/lib/position/constants";
 import type { AffectedFamily } from "@/lib/connections/silent-hold";
 
@@ -51,34 +63,25 @@ function placeholder(heading: string, paragraph: string, cta?: { label: string; 
 </body></html>`;
 }
 
-/** VER-004-DBS — she asked for a manual review of her certificate. Turnaround string kept as it is today (#18). */
+/** VER-004-DBS — she asked for a manual review of her certificate (deck §6.4; turnaround string kept as it is, #18). */
 export async function sendDbsManualReviewEmail(userId: string): Promise<void> {
   const info = await getUserEmailInfo(userId);
   if (!info) return;
   await sendEmail({
     to: info.email,
-    subject: "We're reviewing your DBS certificate",
-    html: placeholder(
-      "We've received your certificate",
-      `Hi ${esc(info.firstName)}, your DBS certificate has been sent to our team for a manual review. We'll get back to you within 24–48 hours.`,
-      { label: "View Status", href: `${SITE_URL}/nanny/verification` },
-    ),
+    ...buildDbsManualReviewEmail({ firstName: info.firstName, appUrl: SITE_URL }),
     emailType: "verification_pending",
     recipientUserId: userId,
   });
 }
 
-/** VER-010 to her (replies go to hello@). Caller: 3d's Bar. `[LEGAL]` wording pending. */
+/** VER-010 to her (replies go to hello@). Caller: 3d's Bar. Deck §6.5 copy; `[LEGAL]` wording pending. */
 export async function sendBarredNannyEmail(userId: string): Promise<void> {
   const info = await getUserEmailInfo(userId);
   if (!info) return;
   await sendEmail({
     to: info.email,
-    subject: "Important: Your Baby Bloom account has been restricted",
-    html: placeholder(
-      "Your account has been restricted",
-      `Hi ${esc(info.firstName)}, following a review of your DBS certificate, we've suspended your account and your profile is no longer visible to families. If you have questions, reply to this email and our team will get back to you.`,
-    ),
+    ...buildDbsBarredEmail({ firstName: info.firstName, appUrl: SITE_URL }),
     emailType: "verification_rejected",
     recipientUserId: userId,
     replyTo: SENDERS.hello,
@@ -154,24 +157,49 @@ export async function sendBarredAdminAlert(
 /**
  * P-4 — the admin rejected her certificate (status 22). From the default sender with replies to hello@,
  * `emailType: 'verification_rejected'`. Caller: the admin Reject action (lib/actions/admin.ts), once, after its write succeeded.
- * PLACEHOLDER body (one paragraph: the reason + the two next steps); 3g replaces it with its builder (W4).
- * `reason` is admin-typed text — escaped here. Throws on a send failure so the caller can report it.
+ * Copy from `buildDbsRejectedEmail` (the reason + upload page 1 again; no manual review — 22 is Edit & Resubmit only).
+ * `reason` is admin-typed text — the builder escapes it. Throws on a send failure so the caller can report it.
  */
 export async function sendDbsRejectedEmail(userId: string, reason: string): Promise<void> {
   const info = await getUserEmailInfo(userId);
   if (!info) return;
   const result = await sendEmail({
     to: info.email,
-    subject: "Your DBS certificate needs another look",
-    html: placeholder(
-      "Your DBS certificate needs another look",
-      `Hi ${esc(info.firstName)}, we reviewed your DBS certificate and couldn't approve it yet. The reason: ${esc(reason)}. ` +
-        "To be approved, upload page 1 of your certificate again (Edit & Resubmit), or ask us for a manual review.",
-      { label: "Go to verification", href: `${SITE_URL}/nanny/verification` },
-    ),
+    ...buildDbsRejectedEmail({ firstName: info.firstName, appUrl: SITE_URL, reason }),
     emailType: "verification_rejected",
     recipientUserId: userId,
     replyTo: SENDERS.hello,
   });
   if (!result.success) throw new Error(`reject email not sent: ${result.error ?? "unknown"}`);
+}
+
+/** The two Update Service results a daily re-check can fail with (00-RULINGS #12). */
+export type DbsRecheckFailure = "NEW_INFO" | "NO_MATCH";
+
+const RECHECK_BUILDERS = {
+  NEW_INFO: buildDbsRecheckNewInfoEmail,
+  NO_MATCH: buildDbsRecheckNoMatchEmail,
+} as const;
+
+/**
+ * Re-check failed — her email (00-RULINGS #12, README P-3). **Caller: 3i's daily re-check** (and any path P-8 treats as
+ * a failed re-check), once, after its guarded write succeeded and her other connections were dropped.
+ * `NEW_INFO` → "you'll need a new DBS certificate" (23); `NO_MATCH` → "we couldn't confirm your DBS certificate" (26).
+ * From the default sender with replies to hello@ (the close invites a reply), `emailType: 'verification_rejected'`.
+ * Sends nothing when she has no profile. Throws on an unknown `result` (nothing sent) and on a send failure, so the
+ * caller can log it; it never writes anything.
+ */
+export async function sendDbsRecheckFailedEmail(userId: string, result: DbsRecheckFailure): Promise<void> {
+  const build = Object.hasOwn(RECHECK_BUILDERS, result) ? RECHECK_BUILDERS[result] : undefined;
+  if (!build) throw new Error(`re-check email: unknown result ${String(result)}`);
+  const info = await getUserEmailInfo(userId);
+  if (!info) return;
+  const sent = await sendEmail({
+    to: info.email,
+    ...build({ firstName: info.firstName, appUrl: SITE_URL }),
+    emailType: "verification_rejected",
+    recipientUserId: userId,
+    replyTo: SENDERS.hello,
+  });
+  if (!sent.success) throw new Error(`re-check email not sent: ${sent.error ?? "unknown"}`);
 }

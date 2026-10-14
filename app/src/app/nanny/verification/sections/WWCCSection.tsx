@@ -7,6 +7,10 @@
  * Edit mode is the same body as onboarding step 3 (`DbsCertificateStep`). Display mode is one branch per
  * `getDbsDisplayState` state. Fail states carry Edit & Resubmit + Request manual review (3c's
  * `submitDbsForManualReview`); barred carries none.
+ *
+ * 3d follow-up (BB-LDN-3dfix-141026, finding 3): at 22 the admin's reason is shown ONCE. 3d's `adminRejectWWCC` stores
+ * guidance whose explanation is the reason, so when the guidance card on screen already says it, the red box keeps
+ * only its title (#6: failure reasons via the guidance card). Without stored guidance the red box still shows it.
  */
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -145,6 +149,10 @@ export function WWCCSection({ verification, identityVerified, onSaved }: WWCCSec
     : {};
   // 22 shows the admin's reason in the red box; a guidance card is added only if one was stored.
   const showCard = (failed || state === "barred") && (state !== "rejected" || !!guidance);
+  const card = guidance || reason ? dbsCardFor(reason, guidance) : NO_GUIDANCE_CARD;
+  const rejection = verification?.wwcc_rejection_reason?.trim() ?? "";
+  // Finding 3: don't print the admin's reason in the red box when the card below already says it.
+  const reasonInCard = showCard && !!rejection && card.explanation.trim() === rejection;
 
   return (
     <div className="space-y-4">
@@ -160,13 +168,13 @@ export function WWCCSection({ verification, identityVerified, onSaved }: WWCCSec
       {state === "rejected" && (
         <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
           <p className="font-medium">We couldn&apos;t accept your DBS certificate</p>
-          {verification?.wwcc_rejection_reason && <p className="mt-1">{verification.wwcc_rejection_reason}</p>}
+          {rejection && !reasonInCard && <p className="mt-1">{verification?.wwcc_rejection_reason}</p>}
         </div>
       )}
 
       {showCard && (
         <GuidanceCard
-          guidance={guidance || reason ? dbsCardFor(reason, guidance) : NO_GUIDANCE_CARD}
+          guidance={card}
           {...dbsCardExtras(reason)}
           {...actions}
         />

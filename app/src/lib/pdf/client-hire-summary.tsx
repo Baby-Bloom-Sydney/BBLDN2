@@ -1,3 +1,11 @@
+/**
+ * Client Hire Summary PDF — LEGAL-OWNED file (00-RULINGS #17).
+ *
+ * Unit 3g (BB-LDN-3g-141026, D-7) made only the instruction removal: the section telling the parent to link the
+ * nanny's check through a state portal, and the portal line under "Important Links", are gone; the sections after
+ * it are renumbered. Every other sentence (employer obligations, commitments, privacy) is legal text left as written
+ * for the legal chat (LEDGER/3g.md legal section). Input: names, reference, dates. Output: a react-pdf `Document`.
+ */
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 import { SITE_DOMAIN, SITE_NAME } from '@/lib/constants';
 
@@ -54,31 +62,25 @@ export function ClientHireSummaryPDF({
           As the employer, you are responsible for compliance with the Fair Work Act 2009 (Cth), including correct pay rates, superannuation, and working conditions. Baby Bloom is a facilitator only and is not the employer of your nanny. You should seek independent legal and financial advice about your obligations as an employer.
         </Text>
 
-        <Text style={styles.sectionTitle}>2. WWCC Monitoring</Text>
-        <Text style={styles.paragraph}>
-          Baby Bloom verified {professionalName}&apos;s Working With Children Check (WWCC) at onboarding on {verificationDate}. However, WWCC status can change. You are responsible for linking to their WWCC via Service NSW for ongoing status alerts. Baby Bloom does not guarantee ongoing WWCC validity.
-        </Text>
-
-        <Text style={styles.sectionTitle}>3. EdTech Developmental Logging</Text>
+        <Text style={styles.sectionTitle}>2. EdTech Developmental Logging</Text>
         <Text style={styles.paragraph}>
           You may optionally use Baby Bloom&apos;s EdTech tools. Your nanny can record the child&apos;s developmental milestones, activities, and observations. Data is stored on Baby Bloom servers and accessible to you. Third-party AI analysis may be used.
         </Text>
 
-        <Text style={styles.sectionTitle}>4. AI Content Notice</Text>
+        <Text style={styles.sectionTitle}>3. AI Content Notice</Text>
         <Text style={styles.paragraph}>
           Some content on the Platform, including nanny bios and matching summaries, is generated using AI (OpenAI GPT-4o or similar). AI-generated content is labelled and should be independently verified.
         </Text>
 
-        <Text style={styles.sectionTitle}>5. Baby Bloom&apos;s Commitments</Text>
+        <Text style={styles.sectionTitle}>4. Baby Bloom&apos;s Commitments</Text>
         <Text style={styles.paragraph}>
           Baby Bloom commits to maintaining the Platform, providing support, and ensuring all professionals have been WWCC and identity verified at onboarding. We comply with the Privacy Act 1988 (Cth) and the Australian Privacy Principles.
         </Text>
 
-        <Text style={styles.sectionTitle}>6. Important Links</Text>
+        <Text style={styles.sectionTitle}>5. Important Links</Text>
         <Text style={styles.listItem}>Client Terms of Service: {SITE_DOMAIN}/legal/client-terms</Text>
         <Text style={styles.listItem}>Privacy Policy: {SITE_DOMAIN}/legal/privacy-policy</Text>
         <Text style={styles.listItem}>Code of Conduct: {SITE_DOMAIN}/legal/code-of-conduct</Text>
-        <Text style={styles.listItem}>Service NSW WWCC: service.nsw.gov.au/transaction/apply-for-a-working-with-children-check</Text>
 
         <View style={styles.footer}>
           <Text>{SITE_NAME}</Text>

@@ -68,7 +68,7 @@ export default async function NannyApplyPage() {
     {
       icon: ShieldCheck,
       title: 'Get verified',
-      description: 'Upload your WWCC and identity documents for verification.',
+      description: 'Upload your passport and DBS certificate for verification.',
       active: userState === 'nanny_unverified',
       done: userState === 'nanny_complete',
     },

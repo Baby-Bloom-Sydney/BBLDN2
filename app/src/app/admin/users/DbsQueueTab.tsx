@@ -5,6 +5,8 @@
  * A Awaiting approval (30) · B Needs a person (21 + API down) · C Re-check alerts (approved once, now 23/26) ·
  * D Barred (27, collapsed). "Review" opens `DBSCheckModal` with the list, which decides the actions shown.
  * Props: the split queues from `getDbsQueues`. Never: writes anything or re-sorts the lists (the server sorted A).
+ * The open modal shows the row as it is in the latest `queues` (3d follow-up, finding 2): after "Run DBS check now"
+ * the modal's `router.refresh()` brings the stored result, so the open modal must not keep the row it was opened with.
  */
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -126,8 +128,24 @@ function QueueTable({ rows, list, onReview }: { rows: PendingDbsCheck[]; list: D
   );
 }
 
+type Selected = { check: PendingDbsCheck; list: DbsListKey };
+
+/**
+ * The selected row as it is in the latest queues (and the list it is in now — e.g. API-down B → A after the phase
+ * passes). If it left every list, the row it was opened with is kept so the modal does not vanish mid-review.
+ */
+function currentSelection(queues: DbsQueues<PendingDbsCheck>, selected: Selected | null): Selected | null {
+  if (!selected) return null;
+  for (const { key } of LISTS) {
+    const fresh = queues[key].find((r) => r.id === selected.check.id);
+    if (fresh) return { check: fresh, list: key };
+  }
+  return selected;
+}
+
 export function DbsQueueTab({ queues }: { queues: DbsQueues<PendingDbsCheck> }) {
-  const [selected, setSelected] = useState<{ check: PendingDbsCheck; list: DbsListKey } | null>(null);
+  const [selected, setSelected] = useState<Selected | null>(null);
+  const shown = currentSelection(queues, selected);
 
   return (
     <Card>
@@ -160,8 +178,8 @@ export function DbsQueueTab({ queues }: { queues: DbsQueues<PendingDbsCheck> }) 
         })}
       </CardContent>
       <DBSCheckModal
-        check={selected?.check ?? null}
-        list={selected?.list ?? "awaiting"}
+        check={shown?.check ?? null}
+        list={shown?.list ?? "awaiting"}
         open={!!selected}
         onOpenChange={(open) => !open && setSelected(null)}
       />

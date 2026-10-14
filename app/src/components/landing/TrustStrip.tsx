@@ -3,8 +3,9 @@ import { ShieldCheck, UserCheck, GraduationCap } from "lucide-react";
 const TRUST_ITEMS = [
   {
     icon: ShieldCheck,
-    title: "WWCC Verified",
-    description: "Current Working With Children Check held and verified",
+    // [LEGAL] marketing claim (3g, LEDGER/3g.md legal section) — true once 3i re-checks daily.
+    title: "Enhanced DBS checked",
+    description: "Enhanced DBS certificate checked with the DBS Update Service",
   },
   {
     icon: UserCheck,

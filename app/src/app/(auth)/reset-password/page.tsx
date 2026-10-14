@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * Set a new password after the recovery link.
+ *
+ * 3d follow-up (BB-LDN-3dfix-141026, finding 4 — hardening): the form declares `method="post"` and the fixed
+ * same-page `action="/reset-password"`, so a submit before hydration (no JS yet) never does the browser's default GET
+ * with the password in the URL, history or server logs. With JS, `onSubmit` prevents the native submit as before.
+ * Never: credentials in a query string; never drop `method`/`action` (guarded by `lib/auth/password-forms.test.ts`).
+ */
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -146,7 +154,7 @@ export default function ResetPasswordPage() {
       )}
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form method="post" action="/reset-password" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <FormField
             control={form.control}
             name="password"

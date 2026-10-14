@@ -2,10 +2,15 @@
  * Shared V2 AI profile generation helpers.
  * Used by both nanny-onboarding-ai.ts (lead funnel) and nanny.ts (profile regeneration).
  * NOT a server action file — pure functions + constants only.
+ *
+ * Unit 3g (BB-LDN-3g-141026), README P-13: the `<bio>` (the social share post) credentials checklist names
+ * "Enhanced DBS" first, then her certificates (CERTIFICATE_OPTIONS order), then her assurances (ASSURANCE_OPTIONS
+ * order); `buildV2Prompt` passes both lists in that order. Never: names the old check, or invents a credential the
+ * data does not hold.
  */
 
 import { BRAND, SITE_NAME } from "@/lib/constants";
-import { CERTIFICATE_OPTIONS, byOptionOrder } from "@/lib/nanny-options";
+import { ASSURANCE_OPTIONS, CERTIFICATE_OPTIONS, byOptionOrder } from "@/lib/nanny-options";
 
 // ── V2 System Prompt (8-section profile + Facebook bio) ──
 
@@ -141,7 +146,7 @@ Structure:
 3. Personality paragraph (2-3 sentences): Weave Personality Traits into how she cares for children. Direct language ("your kids"). Warm, personal, benefit-focused. Not a list. The parent should feel what it would be like to have this nanny in their home.
 4. Experience checklist: ✨ Total Experience, 👼 Under 3 / Newborn experience (only if non-zero, BEFORE roles), 🌟 Childcare Roles (list without durations), 👩‍🎓 Qualification (if any). One item per line.
 5. Values checklist: ⭐️ Professional Values — group naturally, 2-3 per line, phrased as "I {value}" statements. 2-3 lines.
-6. Credentials checklist: ✅ "Verified nanny/babysitter" (always first), 💚 WWCC + Certificates on one line with · separator (WWCC first), 🪪 Driver's License (if yes), 🚗 Car (if yes), 🩺 Fully Vaccinated (if yes). One item per line.
+6. Credentials checklist: ✅ "Verified nanny/babysitter" (always first), 💚 Enhanced DBS + Certificates + Assurances on one line with · separator (Enhanced DBS first, then certificates, then assurances), 🪪 Driver's License (if yes), 🚗 Car (if yes), 🩺 Fully Vaccinated (if yes). One item per line.
 7. CTA (1 sentence): Mention 2-3 Personality Traits so the parent pictures this nanny with their children. Direct them to see if the availability works for their needs — zero commitment, no pressure, just a gentle downward nudge. Include 👇 and a warm emoji. Vary the wording each time.
 </bio>`;
 
@@ -180,6 +185,8 @@ export interface V2PromptData {
   childcareRoles: Array<{ role: string; duration: number }>;
   highestQualification: string | null;
   certificates: string[];
+  /** P-13: `nanny_assurances.assurance_type` values (profile-side; a funnel lead has none yet). */
+  assurances?: string[];
   roleTypes: string[];
   minAge: string | null;
   maxAge: string | null;
@@ -236,7 +243,8 @@ Minimum Age: ${data.minAge || 'Any'}
 Maximum Age: ${data.maxAge || 'Any'}
 Additional Child Needs: ${yesNo(data.additionalNeeds)}
 Qualifications: ${data.highestQualification || 'None'}
-Certifications: ${data.certificates.join(', ') || 'None'}
+Certifications: ${[...data.certificates].sort(byOptionOrder(CERTIFICATE_OPTIONS)).join(', ') || 'None'}
+Assurances: ${[...(data.assurances ?? [])].sort(byOptionOrder(ASSURANCE_OPTIONS)).join(', ') || 'None'}
 Languages: ${data.languages.join(', ') || 'English'}
 Driver's License: ${yesNo(data.driversLicense)}
 Access to a Car: ${yesNo(data.hasCar)}

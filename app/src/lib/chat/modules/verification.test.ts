@@ -119,8 +119,8 @@ describe("summariseNannyState — ID rejected", () => {
   });
 });
 
-describe("summariseNannyState — ID done, WWCC pending", () => {
-  it("headline reflects WWCC-in-progress", () => {
+describe("summariseNannyState — ID done, DBS certificate pending", () => {
+  it("headline reflects DBS-in-progress", () => {
     const s = summariseNannyState(
       { verification_level: 2 },
       {
@@ -136,7 +136,7 @@ describe("summariseNannyState — ID done, WWCC pending", () => {
     );
     expect(s.whats_complete.some((x) => /identity/i.test(x))).toBe(true);
     expect(
-      s.whats_in_progress.some((x) => /working with children/i.test(x)),
+      s.whats_in_progress.includes("We're checking your DBS certificate."),
     ).toBe(true);
     // Not visible to parents yet
     expect(s.cannot_do_yet.some((x) => /search results/i.test(x.what))).toBe(
@@ -169,12 +169,12 @@ describe("summariseNannyState — provisionally verified (level 3)", () => {
     expect(s.headline).not.toMatch(/finalising|pending|not (yet|fully)/i);
   });
 
-  it("WWCC is in whats_complete, not in whats_in_progress", () => {
-    expect(s.whats_complete.some((x) => /working with children/i.test(x))).toBe(
+  it("the DBS certificate is in whats_complete, not in whats_in_progress", () => {
+    expect(s.whats_complete.some((x) => /enhanced DBS/i.test(x))).toBe(
       true,
     );
     expect(
-      s.whats_in_progress.some((x) => /working with children/i.test(x)),
+      s.whats_in_progress.some((x) => /DBS/i.test(x)),
     ).toBe(false);
   });
 
@@ -191,7 +191,7 @@ describe("summariseNannyState — provisionally verified (level 3)", () => {
 
   it("hides the final-check note + accept-holds in only_if_asked", () => {
     expect(
-      s.only_if_asked.some((x) => /final administrative check/i.test(x)),
+      s.only_if_asked.some((x) => /final check on your DBS certificate/i.test(x)),
     ).toBe(true);
     expect(s.only_if_asked.some((x) => /accept(ing)? interview/i.test(x))).toBe(
       true,
@@ -264,7 +264,7 @@ describe("summariseNannyState — system_guidance pass-through", () => {
         wwcc_status: "pending",
         cross_check_status: "passed",
         identity_user_guidance: "Your ID looked good.",
-        wwcc_user_guidance: "WWCC auto-check may take up to 24 hours.",
+        wwcc_user_guidance: "DBS auto-check may take up to 24 hours.",
         identity_rejection_reason: null,
         wwcc_rejection_reason: null,
       },
@@ -434,7 +434,7 @@ describe("verification module — read_verification_status", () => {
 
   it("at level 3 the tile shows all steps 'verified' — the final check pending note is stripped from tile output", async () => {
     // Provisional level 3 UX: dashboard + Katie tile both say
-    // "Verified". The silent OCG confirmation sits in only_if_asked and
+    // "Verified". The silent admin approval sits in only_if_asked and
     // must NOT show on the tile.
     const ctx = makeCtx("nanny", {
       nanny: { verification_level: 3 },
@@ -602,5 +602,94 @@ describe("G14 — DBS states leak no internal code (FORBIDDEN_TOKENS)", () => {
 
   it("maps barred (27) to the barred step, which carries no action", () => {
     expect(deriveNannySteps({ verification_level: 0 }, row(27, "barred"))[2].status).toBe("barred");
+  });
+});
+
+// ── Unit 3g (BB-LDN-3g-141026) — copy deck §7: Katie's strings in London words ──
+describe("3g — Katie's DBS strings (deck §7)", () => {
+  const row = (verification_status: number, wwcc_status: string, wwcc_rejection_reason: string | null = null) => ({
+    verification_status,
+    identity_status: "verified",
+    wwcc_status,
+    cross_check_status: "not_started",
+    identity_user_guidance: null,
+    wwcc_user_guidance: null,
+    identity_rejection_reason: null,
+    wwcc_rejection_reason,
+  });
+
+  it("returns \"Your enhanced DBS has been confirmed.\" when level 3, and the level-4 line when level 4", () => {
+    const l3 = summariseNannyState({ verification_level: 3 }, row(30, "doc_verified"));
+    expect(l3.whats_complete).toContain("Your enhanced DBS has been confirmed.");
+    expect(l3.only_if_asked).toContain(
+      "A final check on your DBS certificate is still in progress with our team — you don't need to do anything, and we'll let you know once it's fully confirmed.",
+    );
+    const l4 = summariseNannyState({ verification_level: 4 }, row(40, "doc_verified"));
+    expect(l4.whats_complete).toContain("Your enhanced DBS has been fully confirmed.");
+  });
+
+  it("returns the new 26 line when the nanny is at 26", () => {
+    const s = summariseNannyState({ verification_level: 2 }, row(26, STORED_SECTION.NO_MATCH));
+    expect(s.whats_still_needed).toContain("Check you're on the DBS Update Service, then upload page 1 again.");
+    assertNoLeaks(s);
+  });
+
+  it("returns the 23 line and the failed lines (with and without a reason)", () => {
+    expect(summariseNannyState({ verification_level: 2 }, row(23, "expired")).whats_still_needed).toContain(
+      "Upload a new DBS certificate — the Update Service shows new information on your current one.",
+    );
+    expect(summariseNannyState({ verification_level: 2 }, row(24, "failed", "the photo was blurry")).whats_still_needed)
+      .toContain("Upload your DBS certificate again — last time: the photo was blurry.");
+    expect(summariseNannyState({ verification_level: 2 }, row(24, "failed")).whats_still_needed).toContain(
+      "Upload your DBS certificate again.",
+    );
+    expect(summariseNannyState({ verification_level: 2 }, row(21, "review")).whats_in_progress).toContain(
+      "Your DBS certificate is with our team for a check.",
+    );
+  });
+
+  it("asks for the DBS certificate in the verification form line and names it in the blockers", () => {
+    const s = summariseNannyState({ verification_level: 1 }, null);
+    expect(s.whats_still_needed).toContain("Submit your verification form (passport, selfie, DBS certificate).");
+    expect(s.cannot_do_yet).toContainEqual({
+      what: "Appear in parents' search results",
+      why: "your DBS certificate has not yet passed the initial check",
+    });
+    expect(s.cannot_do_yet).toContainEqual({
+      what: "Accept interview requests",
+      why: "your DBS certificate is not yet fully confirmed",
+    });
+  });
+
+  it("labels the tile step \"Enhanced DBS check\"", () => {
+    expect(deriveNannySteps({ verification_level: 2 }, row(20, "pending"))[2].label).toBe("Enhanced DBS check");
+  });
+
+  // Case-sensitive: the prompt's ban list legitimately names the internal field `wwcc_status` (an identifier, D-4).
+  const OLD = new RegExp(["WW" + "CC", "Working With " + "Children"].join("|"));
+  it.each([
+    [0, 0, "not_started"],
+    [1, 0, "not_started"],
+    [1, 10, "not_started"],
+    [2, 20, "pending"],
+    [2, 20, "processing"],
+    [2, 21, "review"],
+    [2, 22, "rejected"],
+    [2, 23, "expired"],
+    [2, 24, "failed"],
+    [2, 26, STORED_SECTION.NO_MATCH],
+    [0, 27, "barred"],
+    [3, 30, "doc_verified"],
+    [4, 40, "doc_verified"],
+  ])("never returns the old check name for level %s / status %s / %s", (level, status, section) => {
+    const s = summariseNannyState({ verification_level: level }, row(status, section, "a reason"));
+    const steps = deriveNannySteps({ verification_level: level }, row(status, section));
+    expect(JSON.stringify(s)).not.toMatch(OLD);
+    expect(JSON.stringify(steps)).not.toMatch(OLD);
+  });
+
+  it("the prompt instructions name the DBS certificate, not the old check", () => {
+    const text = JSON.stringify(verificationModule);
+    expect(text).not.toMatch(OLD);
   });
 });

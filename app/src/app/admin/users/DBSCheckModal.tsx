@@ -36,14 +36,15 @@ interface DBSCheckModalProps {
 
 type Confirm = "approve" | "reject" | "bar" | "lift" | null;
 
-// #26: the ID modal's chips with the document noun changed, keeping only those that apply to a certificate. copy: 3g pins
+// #26: the ID modal's chips with the document noun changed, keeping only those that apply to a certificate.
+// Copy pinned by 3g (BB-LDN-3g-141026): admin-facing, matches 03-admin-dbs-tab-spec §3.2; no old-ladder words.
 const REJECT_CHIPS = [
   "The surname on your DBS certificate does not match your passport",
   "The date of birth on your DBS certificate does not match your passport",
   "Your DBS certificate image is unclear or unreadable",
 ];
 
-// copy: 3g pins
+// Copy pinned by 3g (BB-LDN-3g-141026): nanny-facing, no deck row — 3d's text kept (#27), listed for BAI in LEDGER/3g.md.
 const PAGE2_SUBJECT = "Your DBS certificate — page 2";
 const PAGE2_BODY =
   "Thanks for uploading page 1 of your DBS certificate. To finish our review, please reply to this email with a clear photo of page 2 of the same certificate.";
@@ -51,7 +52,8 @@ const PAGE2_BODY =
 const CONFIRM_TEXT: Record<Exclude<Confirm, null>, string> = {
   approve: "Approve? She becomes fully verified and her held replies are sent to parents.",
   reject: "Reject this certificate? She is emailed the reason and can upload again.",
-  bar: "Bar this nanny? Her account is suspended, her pending connections are cancelled, and she is emailed.",
+  // P-14 (orchestrator ruling 2026-10-14, 3g): every connection is dropped and VER-011 lists the families.
+  bar: "Bar this nanny? Her account is suspended, all her connections are closed, and she is emailed. Admin is emailed the families to contact.",
   lift: "Lift the bar? She can upload a new certificate; she is not verified until you approve again.",
 };
 
