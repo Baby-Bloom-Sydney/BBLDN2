@@ -76,6 +76,22 @@ describe("chips", () => {
     ])).toBe("2026-10-06T09:00:00Z");
     expect(apiDownSince([])).toBeNull();
   });
+
+  // W6-D6 (3w6fix): a clear result after the outage ends it — the banner must not outlive the outage.
+  it("W6-D6 is null when a non-ERROR dbs_status_check is newer than the latest ERROR", () => {
+    expect(apiDownSince([
+      { action_type: "dbs_status_check", action_details: { result: "ERROR" }, created_at: "2026-10-06T08:00:00Z" },
+      { action_type: "dbs_status_check", action_details: { result: "BLANK" }, created_at: "2026-10-06T10:00:00Z" },
+    ])).toBeNull();
+  });
+
+  it("W6-D6 still reports the outage when the ERROR is the newest check", () => {
+    expect(apiDownSince([
+      { action_type: "dbs_status_check", action_details: { result: "BLANK" }, created_at: "2026-10-06T08:00:00Z" },
+      { action_type: "dbs_status_check", action_details: { result: "ERROR" }, created_at: "2026-10-06T10:00:00Z" },
+      { action_type: "verification_rejected", action_details: {}, created_at: "2026-10-06T11:00:00Z" },
+    ])).toBe("2026-10-06T10:00:00Z");
+  });
 });
 
 /** Captures `.in()` / `.eq()` per counted query, so the code lists are asserted, not re-implemented. */

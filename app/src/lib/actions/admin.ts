@@ -3,6 +3,9 @@
 /**
  * Admin server actions: identity approve/reject, DBS reject (→ 22), user delete/role/reset, bio regenerate, contact email.
  *
+ * Unit 3w6fix: `adminVerifyIdentity` saves the admin's validated Check ID edits (W6-D3); `adminSendEmail` takes a From
+ * local part and builds the address on the server's From host (W6-D4).
+ *
  * Unit 3d changes: `requireAdmin` moved to `lib/admin/require-admin.ts` (same body; R-A1); the OCG "Confirm" stamp
  * (`adminConfirmWWCC`) is deleted (spec §4); `adminRejectWWCC` is wired, stamps the deciding admin, writes her guidance,
  * logs, and sends the P-4 reject email; `adminSendEmail` can log "Ask for page 2" (#27). Approve / Bar / Lift bar /
@@ -32,36 +35,75 @@ import { sendEmail } from '@/lib/email/resend';
 import { openai } from '@/lib/ai/client';
 import { V2_SYSTEM_PROMPT, buildV2Prompt, parseAIProfileSections, generateV2Checklist } from '@/lib/ai/nanny-profile-prompts';
 import { emailFooter } from "@/lib/email/brand";
-import { ADMIN_FROM_ADDRESSES } from "@/lib/constants";
+import { adminFromAddress } from "@/lib/constants";
 import { requireAdmin } from '@/lib/admin/require-admin';
 import { sendDbsRejectedEmail } from '@/lib/email/dbs-emails';
 import { getUserEmailInfo } from '@/lib/email/helpers';
 import { ADMIN_REASON_MAX_LENGTH } from '@/lib/admin/dbs-queues';
+import { parseIdentityEdits, type IdentityEdits } from '@/lib/admin/identity-edits';
 
 // ── Admin: Verify Identity (approve passport check) ──
 // State transition: identity_status → verified, level 1 → 2
 
+type AdminDb = ReturnType<typeof createAdminClient>;
+
+/**
+ * W6-D3 audit (security review MEDIUM, code review LOW): one `admin_override` row per approval that corrected
+ * AI-extracted fields — which admin, which verification, which fields. Field NAMES only: the values are passport
+ * PII and stay in `verifications`, out of the activity log. A failed insert is reported, not swallowed; the approval
+ * already stands.
+ */
+async function logIdentityEdits(
+  supabase: AdminDb,
+  ctx: { adminId: string; verificationId: string; userId: string },
+  edits: IdentityEdits,
+): Promise<void> {
+  const fields = Object.keys(edits);
+  if (fields.length === 0) return;
+  const { error } = await supabase.from('activity_logs').insert({
+    user_id: ctx.userId,
+    action_type: 'admin_override',
+    action_details: { admin_id: ctx.adminId, kind: 'identity_extracted_fields_edited', verification_id: ctx.verificationId, fields },
+  });
+  if (error) console.error('[adminVerifyIdentity] could not write the edit audit row:', error.message);
+}
+
+/**
+ * Approve the passport check. `edits` (W6-D3, 3w6fix) are the admin's corrections to the AI-extracted details from
+ * Check ID — validated by `parseIdentityEdits` (whitelisted `extracted_*` fields only) before any read or write, and
+ * saved in the same update as the approval, so the cross-check that follows reads them. Invalid edits → nothing written.
+ * Edits are refused once the passport is already verified (security review LOW), and each edit is audited.
+ */
 export async function adminVerifyIdentity(
-  verificationId: string
+  verificationId: string,
+  edits?: unknown
 ): Promise<{ success: boolean; error: string | null }> {
   const { userId: adminId, error: authErr } = await requireAdmin();
   if (authErr) return { success: false, error: authErr };
+
+  const parsedEdits = parseIdentityEdits(edits);
+  if (!parsedEdits.ok) return { success: false, error: parsedEdits.error };
 
   const supabase = createAdminClient();
 
   const { data: verification, error: fetchErr } = await supabase
     .from('verifications')
-    .select('user_id, verification_status, wwcc_status')
+    .select('user_id, verification_status, wwcc_status, identity_status')
     .eq('id', verificationId)
     .single();
 
   if (fetchErr || !verification) {
     return { success: false, error: 'Verification record not found' };
   }
+  const hasEdits = Object.keys(parsedEdits.data).length > 0;
+  if (hasEdits && verification.identity_status === IDENTITY_STATUS.VERIFIED) {
+    return { success: false, error: 'Passport details can only be corrected while the passport check is pending' };
+  }
 
   const { error: updateVerErr } = await supabase
     .from('verifications')
     .update({
+      ...parsedEdits.data,
       identity_verified: true,
       identity_verified_at: new Date().toISOString(),
       identity_verified_by: adminId,
@@ -82,6 +124,7 @@ export async function adminVerifyIdentity(
     return { success: false, error: `Failed to update verification: ${updateVerErr.message}` };
   }
 
+  await logIdentityEdits(supabase, { adminId, verificationId, userId: verification.user_id }, parsedEdits.data);
   await syncNannyVerificationState(verification.user_id);
 
   // Check if WWCC is ready → trigger cross-check
@@ -571,7 +614,8 @@ const ADMIN_EMAIL_LOG_TYPES = ['dbs_page2_requested'] as const;
 export async function adminSendEmail(params: {
   toEmail: string;
   toUserId: string;
-  fromAddress: string;
+  /** A local part from `ADMIN_FROM_LOCAL_PARTS`; the server adds its own From host (W6-D4, 3w6fix). */
+  fromLocalPart: string;
   subject: string;
   body: string;
   logActionType?: typeof ADMIN_EMAIL_LOG_TYPES[number];
@@ -579,7 +623,7 @@ export async function adminSendEmail(params: {
   const { userId: adminId, error: authErr } = await requireAdmin();
   if (authErr) return { success: false, error: authErr };
 
-  const { toEmail, toUserId, fromAddress, subject, body, logActionType } = params;
+  const { toEmail, toUserId, fromLocalPart, subject, body, logActionType } = params;
 
   if (logActionType !== undefined && !(ADMIN_EMAIL_LOG_TYPES as readonly string[]).includes(logActionType)) {
     return { success: false, error: 'Invalid log type' };
@@ -596,7 +640,8 @@ export async function adminSendEmail(params: {
     return { success: false, error: 'Email, subject, and body are required' };
   }
 
-  if (!(ADMIN_FROM_ADDRESSES as readonly string[]).includes(fromAddress)) {
+  const fromAddress = adminFromAddress(fromLocalPart);
+  if (!fromAddress) {
     return { success: false, error: 'Invalid from address' };
   }
 
