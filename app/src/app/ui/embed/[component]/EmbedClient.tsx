@@ -19,6 +19,7 @@ import {
   MOCK_INBOX_MESSAGES,
   MOCK_CONNECTION_REQUESTS,
   MOCK_VERIFICATION_DATA,
+  MOCK_VERIFICATION_DATA_REJECTED,
   MOCK_NANNY_SHARE_DATA,
   MOCK_NANNY_PLACEMENTS,
   MOCK_NANNY_UPCOMING_INTROS,
@@ -88,6 +89,11 @@ const COMPONENTS: Record<string, { name: string; render: () => React.ReactNode }
   "nanny-verification": {
     name: "VerificationPageClient",
     render: () => <VerificationPageClient initialData={MOCK_VERIFICATION_DATA} profileData={null} />,
+  },
+  // 3d follow-up render proof (finding 3): DBS rejected by an admin (22).
+  "nanny-verification-rejected": {
+    name: "VerificationPageClient",
+    render: () => <VerificationPageClient initialData={MOCK_VERIFICATION_DATA_REJECTED} profileData={null} />,
   },
   "nanny-share": {
     name: "NannyShareClient",

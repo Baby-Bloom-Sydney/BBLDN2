@@ -371,6 +371,27 @@ export const MOCK_VERIFICATION_DATA: VerificationData = {
   updated_at: "2026-03-10T00:00:00Z",
 };
 
+/**
+ * 3d follow-up (finding 3, render proof): her DBS section after an admin Reject (22) — the guidance shape
+ * `adminRejectWWCC` writes (explanation = the admin's reason), so the page must show the reason once.
+ */
+const MOCK_ADMIN_REJECT_REASON = "The surname on your DBS certificate does not match your passport";
+export const MOCK_VERIFICATION_DATA_REJECTED: VerificationData = {
+  ...MOCK_VERIFICATION_DATA,
+  id: "mock-verif-022",
+  contact_status: "saved",
+  wwcc_status: "rejected",
+  verification_status: 22,
+  wwcc_doc_verified: false,
+  wwcc_verified: false,
+  wwcc_rejection_reason: MOCK_ADMIN_REJECT_REASON,
+  wwcc_user_guidance: {
+    title: "Your DBS certificate needs another look",
+    explanation: MOCK_ADMIN_REJECT_REASON,
+    steps_to_fix: ["Upload page 1 of your certificate again, or request a manual review"],
+  },
+};
+
 // ── Nanny Share Data (CMP-054) ─────────────────────────────────────
 
 export const MOCK_NANNY_SHARE_DATA = {
@@ -769,6 +790,29 @@ export const MOCK_ADMIN_USERS: UserData[] = [
     identity_verified: false,
     parent_status: null,
     babysitter_eligible: false,
+    nanny_id: null,
+  },
+  // 3d follow-up (finding 1, render proof): an approved level-4 nanny — the drawer shows "Run DBS check now".
+  {
+    user_id: "mock-user-006",
+    first_name: "Amelia",
+    last_name: "Clarke",
+    email: "amelia@example.com",
+    suburb: "Islington",
+    postcode: "N1",
+    profile_picture_url: null,
+    mobile_number: "07700900654",
+    date_of_birth: "1994-07-21",
+    created_at: "2026-03-05T00:00:00Z",
+    role: "nanny",
+    nanny_status: "active",
+    verification_level: 4,
+    verification_status: 40,
+    verification_id: "mock-verif-040",
+    wwcc_verified: true,
+    identity_verified: true,
+    parent_status: null,
+    babysitter_eligible: true,
     nanny_id: null,
   },
 ];
