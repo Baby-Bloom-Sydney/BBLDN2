@@ -32,7 +32,7 @@ vi.mock("./connection-helpers", () => ({ createInboxMessage: vi.fn() }));
 
 import * as adminActions from "./admin";
 import { adminRejectWWCC, adminSendEmail, adminVerifyIdentity, adminRejectIdentity } from "./admin";
-import { ADMIN_FROM_ADDRESSES } from "@/lib/constants";
+import { EMAIL_FROM_DOMAIN } from "@/lib/constants";
 
 function seed(over: Record<string, unknown> = {}) {
   h.db = createMemoryDb({
@@ -121,7 +121,7 @@ describe("adminRejectWWCC — Reject → 22 (#11, #26)", () => {
 });
 
 describe("D8 — Ask for page 2 (#27)", () => {
-  const base = { toEmail: "sophie.taylor+3d@example.test", toUserId: "nanny-u", fromAddress: ADMIN_FROM_ADDRESSES[0], subject: "Your DBS certificate — page 2", body: "Please reply with a photo of page 2." };
+  const base = { toEmail: "sophie.taylor+3d@example.test", toUserId: "nanny-u", fromLocalPart: "noreply", subject: "Your DBS certificate — page 2", body: "Please reply with a photo of page 2." };
 
   it("sends one email via adminSendEmail, writes one dbs_page2_requested row and changes no status", async () => {
     seed();
@@ -140,6 +140,39 @@ describe("D8 — Ask for page 2 (#27)", () => {
     await adminSendEmail({ ...base, logActionType: "dbs_page2_requested" });
     await adminSendEmail(base);
     expect(h.db.tables.activity_logs).toHaveLength(0);
+  });
+
+  // W6-D4 / dispatch D3 (3w6fix): the client sends a local part; the server builds the From on EMAIL_FROM_DOMAIN.
+  it("W6-D4 sends From the listed local part on the server's From host", async () => {
+    seed();
+    const r = await adminSendEmail({ ...base, fromLocalPart: "verification" });
+    expect(r).toEqual({ success: true, error: null });
+    expect(h.sendEmail).toHaveBeenCalledWith(expect.objectContaining({ from: `Baby Bloom <verification@${EMAIL_FROM_DOMAIN}>` }));
+  });
+
+  it("W6-D4 works when EMAIL_FROM_DOMAIN differs from the site domain", async () => {
+    seed();
+    vi.stubEnv("EMAIL_FROM_DOMAIN", "example-sender.test");
+    vi.resetModules();
+    try {
+      const fresh = await import("./admin");
+      const r = await fresh.adminSendEmail({ ...base, fromLocalPart: "verification", logActionType: "dbs_page2_requested" });
+      expect(r).toEqual({ success: true, error: null });
+      expect(h.sendEmail).toHaveBeenCalledWith(expect.objectContaining({ from: "Baby Bloom <verification@example-sender.test>" }));
+      expect(logs("dbs_page2_requested")).toHaveLength(1);
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
+
+  it("W6-D4 refuses a full address or an unlisted local part (allow-list stays strict)", async () => {
+    seed();
+    for (const bad of [`noreply@${EMAIL_FROM_DOMAIN}`, "noreply@elsewhere.test", "ceo", ""]) {
+      const r = await adminSendEmail({ ...base, fromLocalPart: bad });
+      expect(r).toEqual({ success: false, error: "Invalid from address" });
+    }
+    expect(h.sendEmail).not.toHaveBeenCalled();
   });
 
   it("refuses an unknown logActionType (fail closed)", async () => {
@@ -164,6 +197,40 @@ describe("removed / moved", () => {
     expect(v()).toMatchObject({ identity_status: "verified", identity_verified: true });
   });
 
+  // W6-D3 / dispatch D4 (3w6fix): the admin's edits to the AI-extracted details are saved with the approval.
+  it("W6-D3 saves the admin's corrected passport details in the same write as the approval", async () => {
+    seed({ identity_status: "review", identity_verified: false, verification_status: 11, wwcc_status: "not_started", cross_check_status: "not_started", ocg_result_status: null, extracted_dob: null, extracted_surname: "Taylor" });
+    const r = await adminVerifyIdentity("v1", { extracted_dob: "1990-03-05", extracted_surname: " Taylor-Smith " });
+    expect(r).toEqual({ success: true, error: null });
+    expect(v()).toMatchObject({ identity_status: "verified", extracted_dob: "1990-03-05", extracted_surname: "Taylor-Smith", identity_verified_by: "admin-1" });
+  });
+
+  it("W6-D3 refuses invalid or non-whitelisted edits before any write", async () => {
+    seed({ identity_status: "review", identity_verified: false, verification_status: 11, wwcc_status: "not_started", cross_check_status: "not_started", ocg_result_status: null });
+    for (const bad of [{ extracted_dob: "05/03/1990" }, { identity_status: "verified" }, { verification_status: 40 }, "x"]) {
+      const r = await adminVerifyIdentity("v1", bad);
+      expect(r.success).toBe(false);
+    }
+    expect(h.db.writes).toHaveLength(0);
+    expect(v().identity_status).toBe("review");
+  });
+
+  it("W6-D3 a non-admin's edits are refused and nothing is written", async () => {
+    seed({ identity_status: "review", identity_verified: false, verification_status: 11, wwcc_status: "not_started", cross_check_status: "not_started", ocg_result_status: null });
+    h.user = { id: "nanny-u" };
+    expect((await adminVerifyIdentity("v1", { extracted_dob: "1990-03-05" })).success).toBe(false);
+    expect(h.db.writes).toHaveLength(0);
+  });
+
+  it("W6-D3 the cross-check that follows reads the corrected date of birth", async () => {
+    seed({ identity_status: "review", identity_verified: false, verification_status: 11, wwcc_status: "doc_verified", cross_check_status: "not_started", ocg_result_status: null, extracted_dob: null });
+    let dobSeen: unknown;
+    h.runCrossCheckPhase.mockImplementationOnce(async () => { dobSeen = v().extracted_dob; });
+    await adminVerifyIdentity("v1", { extracted_dob: "1990-03-05" });
+    expect(h.runCrossCheckPhase).toHaveBeenCalledWith("v1");
+    expect(dobSeen).toBe("1990-03-05");
+  });
+
   it("R-A1 adminRejectIdentity still rejects identity for an admin", async () => {
     seed({ identity_status: "review", identity_verified: false, verification_status: 11, wwcc_status: "not_started", cross_check_status: "not_started", ocg_result_status: null });
     expect((await adminRejectIdentity("v1", "Your passport image is unclear or unreadable")).success).toBe(true);
@@ -174,7 +241,7 @@ describe("removed / moved", () => {
 describe("review fixes (security M1, L4)", () => {
   it("M1 a logged page-2 email is refused when the address does not belong to the user", async () => {
     seed();
-    const r = await adminSendEmail({ toEmail: "someone.else@example.test", toUserId: "nanny-u", fromAddress: ADMIN_FROM_ADDRESSES[0], subject: "s", body: "b", logActionType: "dbs_page2_requested" });
+    const r = await adminSendEmail({ toEmail: "someone.else@example.test", toUserId: "nanny-u", fromLocalPart: "noreply", subject: "s", body: "b", logActionType: "dbs_page2_requested" });
     expect(r.success).toBe(false);
     expect(h.sendEmail).not.toHaveBeenCalled();
     expect(h.db.tables.activity_logs).toHaveLength(0);

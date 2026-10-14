@@ -4,7 +4,8 @@
  * Admin → one user email (the existing contact path). Unit 3d (#27) adds optional prefill — `defaultSubject`,
  * `defaultBody` — and `logActionType`, which `adminSendEmail` turns into one `activity_logs` row after a successful send
  * ("Ask for page 2" → `dbs_page2_requested`). Without the new props it behaves exactly as before.
- * Never: changes any verification status; the server re-validates the sender and the log type.
+ * Never: changes any verification status; the server re-validates the sender and the log type. The From picker sends
+ * a local part only — never a domain (W6-D4, 3w6fix: the server owns `EMAIL_FROM_DOMAIN`).
  */
 import { useState } from "react";
 import {
@@ -18,16 +19,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { adminSendEmail } from "@/lib/actions/admin";
-import { ADMIN_FROM_ADDRESSES } from "@/lib/constants";
+import { ADMIN_FROM_LOCAL_PARTS } from "@/lib/constants";
 import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 
-// The server validates `fromAddress` against the same list (adminSendEmail);
-// one source is what keeps the picker's value acceptable to it.
+// W6-D4 (3w6fix): the picker carries local parts only. This bundle cannot read the server's `EMAIL_FROM_DOMAIN`, so
+// the server (adminSendEmail → adminFromAddress) adds the domain from the same list it validates against.
 const FROM_OPTIONS: ReadonlyArray<{ value: string; label: string }> =
-  ADMIN_FROM_ADDRESSES.map((value) => ({
-    value,
-    label: `${value.split("@")[0]}@`,
-  }));
+  ADMIN_FROM_LOCAL_PARTS.map((value) => ({ value, label: `${value}@` }));
 
 interface ContactUserModalProps {
   userEmail: string;
@@ -50,7 +48,7 @@ export function ContactUserModal({
   defaultBody = "",
   logActionType,
 }: ContactUserModalProps) {
-  const [fromAddress, setFromAddress] = useState(FROM_OPTIONS[0].value);
+  const [fromLocalPart, setFromLocalPart] = useState(FROM_OPTIONS[0].value);
   const [subject, setSubject] = useState(defaultSubject);
   const [body, setBody] = useState(defaultBody);
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
@@ -59,7 +57,7 @@ export function ContactUserModal({
   function reset() {
     setSubject(defaultSubject);
     setBody(defaultBody);
-    setFromAddress(FROM_OPTIONS[0].value);
+    setFromLocalPart(FROM_OPTIONS[0].value);
     setStatus("idle");
     setError(null);
   }
@@ -78,7 +76,7 @@ export function ContactUserModal({
     const result = await adminSendEmail({
       toEmail: userEmail,
       toUserId: userId,
-      fromAddress,
+      fromLocalPart,
       subject: subject.trim(),
       body: body.trim(),
       ...(logActionType ? { logActionType } : {}),
@@ -116,13 +114,13 @@ export function ContactUserModal({
             <div>
               <label className="text-sm font-medium text-slate-700 mb-1.5 block">From</label>
               <select
-                value={fromAddress}
-                onChange={(e) => setFromAddress(e.target.value)}
+                value={fromLocalPart}
+                onChange={(e) => setFromLocalPart(e.target.value)}
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
               >
                 {FROM_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
-                    {opt.value}
+                    {opt.label}
                   </option>
                 ))}
               </select>
