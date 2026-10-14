@@ -15,6 +15,7 @@ import {
   sendBarredAdminAlert,
   sendDbsRejectedEmail,
   sendDbsRecheckFailedEmail,
+  sendDbsRecheckAdminAlert,
 } from "./dbs-emails";
 import type { AffectedFamily } from "@/lib/connections/silent-hold";
 import { SENDERS, SITE_URL } from "@/lib/constants";
@@ -206,6 +207,59 @@ describe("lib/email/dbs-emails", () => {
 
   it("3g sendDbsRecheckFailedEmail refuses an unknown result without sending", async () => {
     await expect(sendDbsRecheckFailedEmail("u1", "BLANK" as never)).rejects.toThrow(/result/);
+    expect(h.sendEmail).not.toHaveBeenCalled();
+  });
+});
+
+// Unit 3i (BB-LDN-3i-141026, brief change 6, 00-RULINGS #35): the admin alert for a failed re-check — admin-facing,
+// plain body, one per failed nanny. List C on the DBS tab is the other half of the alert (3d's query).
+describe("sendDbsRecheckAdminAlert (3i, #35)", () => {
+  it.each([
+    ["NEW_INFO", "New information"],
+    ["NO_MATCH", "No Update Service match"],
+  ] as const)("sends %s to ADMIN_EMAIL (fallback SENDERS.admin) as admin_notification with the result, the time and the admin link", async (result, label) => {
+    await sendDbsRecheckAdminAlert("u1", result, { checkedAt: "2026-10-14T05:00:00.000Z", kept: 1, dropped: 2, notDropped: 0 });
+    const [m] = sent();
+    expect(m).toMatchObject({ to: SENDERS.admin, emailType: "admin_notification", subject: `DBS re-check failed: Jane Doe — ${label}` });
+    expect(m.recipientUserId).toBeUndefined();
+    expect(m.html).toContain(label);
+    expect(m.html).toContain("2026-10-14T05:00:00.000Z");
+    expect(m.html).toContain(`${SITE_URL}/admin/users`);
+    expect(m.html).toContain("list C");
+    expect(m.html).toContain("Hired placements kept: 1");
+    expect(m.html).toContain("Other connections closed: 2");
+    vi.stubEnv("ADMIN_EMAIL", "ops@example.test");
+    await sendDbsRecheckAdminAlert("u1", result, { checkedAt: "2026-10-14T05:00:00.000Z", kept: 0, dropped: 0, notDropped: 0 });
+    expect(sent()[1].to).toBe("ops@example.test");
+  });
+
+  it("flags connections that could NOT be closed, so admin closes them by hand", async () => {
+    await sendDbsRecheckAdminAlert("u1", "NEW_INFO", { checkedAt: "t", kept: 0, dropped: 1, notDropped: 2 });
+    expect(sent()[0].html).toContain("2 connection(s) could NOT be closed");
+  });
+
+  it("escapes her name and strips line breaks from the subject", async () => {
+    h.info = { email: "x@example.test", firstName: "<b>Jane\r\nBcc: a@b</b>", lastName: "Doe", userId: "u1" };
+    await sendDbsRecheckAdminAlert("u1", "NO_MATCH", { checkedAt: "t", kept: 0, dropped: 0, notDropped: 0 });
+    const [m] = sent();
+    expect(m.subject).not.toMatch(/[\r\n]/);
+    expect(m.html).not.toContain("<b>Jane");
+    expect(m.html).toContain("&lt;b&gt;Jane");
+  });
+
+  it("still goes to admin when her profile is missing", async () => {
+    h.info = null;
+    await sendDbsRecheckAdminAlert("u1", "NEW_INFO", { checkedAt: "t", kept: 0, dropped: 0, notDropped: 0 });
+    expect(sent()[0]).toMatchObject({ to: SENDERS.admin, subject: "DBS re-check failed: user u1 — New information" });
+  });
+
+  it("throws when the send fails, so the caller can log it", async () => {
+    h.sendEmail.mockResolvedValueOnce({ success: false, error: "down" } as never);
+    await expect(sendDbsRecheckAdminAlert("u1", "NEW_INFO", { checkedAt: "t", kept: 0, dropped: 0, notDropped: 0 })).rejects.toThrow(/down/);
+  });
+
+  it("refuses an unknown result without sending", async () => {
+    await expect(sendDbsRecheckAdminAlert("u1", "BLANK" as never, { checkedAt: "t", kept: 0, dropped: 0, notDropped: 0 })).rejects.toThrow(/result/);
     expect(h.sendEmail).not.toHaveBeenCalled();
   });
 });

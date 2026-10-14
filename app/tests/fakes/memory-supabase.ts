@@ -3,7 +3,8 @@
  *
  * Supports the chained-builder calls the verification pipeline, the DBS mapper and the sync function make:
  * select / eq / neq / in / is / lt / lte / gt / gte / order / limit / single / maybeSingle / update / insert / delete
- * (delete added by unit 3d for the silent-hold release/cleanup paths),
+ * (delete added by unit 3d for the silent-hold release/cleanup paths; `order(col, { nullsFirst })` added by unit 3i for
+ * the re-check's least-recently-checked-first order — nulls sort as Postgres does: last ascending unless nullsFirst),
  * plus `storage.from(bucket).createSignedUrl(path)`. Filters apply to updates, so the atomic claims
  * (`update(...).eq('cross_check_status','pending')`) behave as they do in Postgres.
  *
@@ -57,7 +58,7 @@ export function createMemoryDb(seed: Record<string, Row[]> = {}): MemoryDb {
     let payload: Row | Row[] | null = null;
     let returning = false;
     let limitN: number | null = null;
-    let orderBy: { col: string; asc: boolean } | null = null;
+    let orderBy: { col: string; asc: boolean; nullsFirst: boolean } | null = null;
 
     const run = (): { data: Row[] | null; error: { message: string; code?: string } | null } => {
       const rows = table(name);
@@ -90,8 +91,15 @@ export function createMemoryDb(seed: Record<string, Row[]> = {}): MemoryDb {
         return { data: returning ? matched.map((r) => ({ ...r })) : null, error: null };
       }
       if (orderBy) {
-        const { col, asc } = orderBy;
-        matched = [...matched].sort((a, b) => (String(a[col]) < String(b[col]) ? -1 : 1) * (asc ? 1 : -1));
+        const { col, asc, nullsFirst } = orderBy;
+        const isNull = (r: Row) => r[col] == null;
+        matched = [...matched].sort((a, b) => {
+          if (isNull(a) || isNull(b)) {
+            if (isNull(a) && isNull(b)) return 0;
+            return (isNull(a) ? -1 : 1) * (nullsFirst ? 1 : -1);
+          }
+          return (String(a[col]) < String(b[col]) ? -1 : 1) * (asc ? 1 : -1);
+        });
       }
       if (limitN != null) matched = matched.slice(0, limitN);
       return { data: matched.map((r) => ({ ...r })), error: null };
@@ -125,7 +133,11 @@ export function createMemoryDb(seed: Record<string, Row[]> = {}): MemoryDb {
       gt: (c: string, v: string) => (filters.push((r) => String(r[c]) > v), b),
       gte: (c: string, v: string) => (filters.push((r) => String(r[c]) >= v), b),
       not: () => b,
-      order: (col: string, opts?: { ascending?: boolean }) => ((orderBy = { col, asc: opts?.ascending !== false }), b),
+      order: (col: string, opts?: { ascending?: boolean; nullsFirst?: boolean }) => {
+        const asc = opts?.ascending !== false;
+        orderBy = { col, asc, nullsFirst: opts?.nullsFirst ?? !asc };
+        return b;
+      },
       limit: (n: number) => ((limitN = n), b),
       single: async () => {
         const { data, error } = run();

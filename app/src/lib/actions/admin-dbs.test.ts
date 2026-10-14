@@ -15,6 +15,8 @@ const h = vi.hoisted(() => ({
   runCrossCheckPhase: vi.fn(async () => {}),
   sendBarredNannyEmail: vi.fn(async () => {}),
   sendBarredAdminAlert: vi.fn(async () => {}),
+  sendDbsRecheckFailedEmail: vi.fn(async () => {}),
+  sendDbsRecheckAdminAlert: vi.fn(async () => {}),
   createInboxMessage: vi.fn(async () => {}),
   revalidatePath: vi.fn(),
 }));
@@ -34,6 +36,7 @@ vi.mock("@/lib/dbs/update-service", async (orig) => ({
 vi.mock("@/lib/ai/verification-pipeline", () => ({ runCrossCheckPhase: h.runCrossCheckPhase, triggerCrossCheck: vi.fn() }));
 vi.mock("@/lib/email/dbs-emails", () => ({
   sendBarredNannyEmail: h.sendBarredNannyEmail, sendBarredAdminAlert: h.sendBarredAdminAlert, sendDbsRejectedEmail: vi.fn(),
+  sendDbsRecheckFailedEmail: h.sendDbsRecheckFailedEmail, sendDbsRecheckAdminAlert: h.sendDbsRecheckAdminAlert,
 }));
 vi.mock("@/lib/email/resend", () => ({ sendEmail: vi.fn(async () => ({ success: true })) }));
 vi.mock("@/lib/email/helpers", () => ({ getUserEmailInfo: vi.fn(async () => null) }));
@@ -328,6 +331,47 @@ describe("adminRunDbsCheck — Run DBS check now (#30, P-8, #33)", () => {
     });
     expect(nanny()).toMatchObject({ verification_level: 2 });
     expect(logs("dbs_status_check")).toHaveLength(1);
+  });
+
+  // Unit 3i (BB-LDN-3i-141026), README P-8: "Run DBS check now" on a level-4 nanny returning NEW_INFO / NO_MATCH is the
+  // SAME as a failed re-check — her email, the admin alert, and P-3's connection drop (hired kept, the rest closed).
+  it.each([
+    ["NEW_INFO", "NEW_INFO"],
+    ["NO_MATCH", "NO_MATCH_FOUND"],
+  ] as const)("P-8 a status-40 %s also drops non-hired connections, emails her and alerts admin, with the re-check marker", async (kind, status) => {
+    seed(
+      { verification_status: 40, wwcc_verified: true, wwcc_verified_by: "admin-0", wwcc_verified_at: "2026-10-01T00:00:00Z" },
+      { verification_level: 4 },
+      {
+        connection_requests: [
+          { id: "hired", nanny_id: "n1", parent_id: "p1", position_id: "x", connection_stage: 40, status: "confirmed", source: null },
+          { id: "open", nanny_id: "n1", parent_id: "p2", position_id: "y", connection_stage: 20, status: "accepted", source: null },
+        ],
+      },
+    );
+    h.dbs = { result: kind, status, raw: "<x/>", forename: null, surname: null, printDate: null } as unknown as DbsCheckResult;
+    const r = await adminRunDbsCheck("v1");
+    h.dbs = { result: "BLANK", status: "BLANK_NO_NEW_INFO", raw: "<xml/>", forename: "SOPHIE", surname: "TAYLOR", printDate: "2024-01-10" } as DbsCheckResult;
+    expect(r).toMatchObject({ success: true, result: kind });
+    expect(r.warning).toBeUndefined();
+    expect(h.sendDbsRecheckFailedEmail).toHaveBeenCalledTimes(1);
+    expect(h.sendDbsRecheckFailedEmail).toHaveBeenCalledWith("nanny-u", kind);
+    expect(h.sendDbsRecheckAdminAlert).toHaveBeenCalledTimes(1);
+    expect(h.sendDbsRecheckAdminAlert).toHaveBeenCalledWith("nanny-u", kind, expect.objectContaining({ kept: 1, dropped: 1, notDropped: 0 }));
+    const conns = h.db.tables.connection_requests;
+    expect(conns.find((c) => c.id === "hired")).toMatchObject({ connection_stage: 40, status: "confirmed" });
+    expect(conns.find((c) => c.id === "open")).toMatchObject({ connection_stage: 1, status: "expired" });
+    expect(h.createInboxMessage).not.toHaveBeenCalled();
+    expect(logs("dbs_status_check")).toHaveLength(1);
+    expect(logs("dbs_status_check")[0].action_details).toMatchObject({ trigger: "admin", result: kind, recheck_fail: true, status_at: v().wwcc_status_at, kept: 1, dropped: 1 });
+    expect(nanny()).toMatchObject({ verification_level: 2 });
+  });
+
+  it("P-8 a status-40 pass sends no re-check email and drops nothing", async () => {
+    seed({ verification_status: 40, wwcc_verified: true, wwcc_verified_by: "admin-0", wwcc_verified_at: "2026-10-01T00:00:00Z" }, { verification_level: 4 });
+    expect((await adminRunDbsCheck("v1")).success).toBe(true);
+    expect(h.sendDbsRecheckFailedEmail).not.toHaveBeenCalled();
+    expect(h.sendDbsRecheckAdminAlert).not.toHaveBeenCalled();
   });
 
   it("on a status-40 row a pass refreshes the ocg_* block and leaves her at 40", async () => {

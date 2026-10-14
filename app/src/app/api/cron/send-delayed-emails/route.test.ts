@@ -1,6 +1,8 @@
 /**
  * Unit 3g (BB-LDN-3g-141026) — `send-delayed-emails` cron: VER-003 copy + the #20 trigger, LCY sub-variants (brief
  * changes 3–4), and P-10 (no "still not verified" nudge after a re-check fail).
+ * Unit 3i (BB-LDN-3i-141026, addendum M1): VER-003 skips a once-approved row only when its CURRENT failure is marked as
+ * a re-check failure in `activity_logs` (`dbs_status_check`, `recheck_fail: true`, `status_at` = her `wwcc_status_at`).
  *
  * Hoisted-mock pattern from `api/cron/trial-reminders/route.test.ts`, with a small chainable Supabase fake that
  * records every call and applies the simple filters (`eq`, `in`, `is`, `lt`) to the `verifications` rows, so a row the
@@ -20,6 +22,8 @@ const h = vi.hoisted(() => ({
   queries: [] as Query[],
   sends: [] as Array<{ to: string; subject: string; html: string; emailType: string }>,
   readError: null as null | { message: string },
+  logs: [] as Row[],
+  logsError: null as null | { message: string },
 }));
 
 function applyFilters(rows: Row[], calls: Call[]): Row[] {
@@ -39,6 +43,8 @@ function resolve(q: Query): { data: unknown; error: null; count?: number } {
   if (q.table === "verifications" && h.readError) return { data: null, error: h.readError } as never;
   if (q.table === "verifications") return { data: applyFilters(h.verifications, q.calls), error: null };
   if (q.table === "nannies") return { data: h.nanny, error: null };
+  if (q.table === "activity_logs" && h.logsError) return { data: null, error: h.logsError } as never;
+  if (q.table === "activity_logs") return { data: applyFilters(h.logs, q.calls), error: null };
   if (q.table === "email_logs") return { data: null, error: null, count: 0 };
   return { data: [], error: null };
 }
@@ -96,6 +102,16 @@ function ver(userId: string, wwcc_status: string, idleMs: number, extra: Row = {
   };
 }
 
+/** The 3i marker row for the re-check failure that set her CURRENT wwcc_status_at (addendum M1). */
+function recheckMarker(userId: string): Row {
+  const v = h.verifications.find((r) => r.user_id === userId)!;
+  return {
+    user_id: userId,
+    action_type: "dbs_status_check",
+    action_details: { trigger: "recheck", result: "NEW_INFO", recheck_fail: true, status_at: v.wwcc_status_at },
+  };
+}
+
 async function run() {
   delete process.env.CRON_SECRET;
   const { GET } = await import("./route");
@@ -115,6 +131,8 @@ beforeEach(() => {
   h.queries = [];
   h.sends = [];
   h.readError = null;
+  h.logs = [];
+  h.logsError = null;
   vi.resetModules();
 });
 
@@ -145,26 +163,44 @@ describe("send-delayed-emails — VER-003 (deck §6.3, #20)", () => {
     expect(ver003().map((s) => s.to)).toEqual(["u-first@example.test"]);
   });
 
-  it("never selects a row with wwcc_verified_at set (a re-check failure — 3i emails it) or a 22 rejected row (P-4 email)", async () => {
+  // Retargeted by 3i (addendum M1): the exclusion is the re-check marker, not `wwcc_verified_at IS NULL`.
+  it("never selects a re-check failure (marked in activity_logs — 3i emails it) or a 22 rejected row (P-4 email)", async () => {
     h.verifications = [
       ver("u-recheck-23", "expired", ELEVEN_MIN, { wwcc_verified_at: ago(30 * 24 * ONE_HOUR) }),
       ver("u-recheck-26", "ocg_not_found", ELEVEN_MIN, { wwcc_verified_at: ago(30 * 24 * ONE_HOUR) }),
       ver("u-rejected", "rejected", ELEVEN_MIN),
     ];
+    h.logs = [recheckMarker("u-recheck-23"), recheckMarker("u-recheck-26")];
     await run();
     expect(ver003()).toHaveLength(0);
     const q = ver003Query();
     expect(q?.calls).toContainEqual(["in", ["wwcc_status", ["failed", "expired", "ocg_not_found"]]]);
-    expect(q?.calls).toContainEqual(["is", ["wwcc_verified_at", null]]);
+    expect(q?.calls).not.toContainEqual(["is", ["wwcc_verified_at", null]]);
   });
 
-  // Code review M1 (recorded for the orchestrator / 3i in LEDGER/3g.md): the brief's filter applies
-  // `wwcc_verified_at IS NULL` to every status, so a once-approved nanny whose NEW upload fails the AI check gets no
-  // VER-003 (LCY still nudges her). Pinned so the behaviour is explicit, not accidental.
-  it("pins the brief's rule: a once-approved nanny's later AI 'failed' gets no VER-003", async () => {
+  // 3g code review M1, resolved by 3i (addendum): a once-approved nanny whose NEW upload fails gets VER-003 — her
+  // current failure is not a re-check failure (no marker carries her current wwcc_status_at).
+  it("M1 a once-approved nanny's later AI 'failed' gets VER-003", async () => {
     h.verifications = [ver("u-reupload", "failed", ELEVEN_MIN, { wwcc_verified_at: ago(30 * 24 * ONE_HOUR) })];
     await run();
-    expect(ver003()).toHaveLength(0);
+    expect(ver003().map((s) => s.to)).toEqual(["u-reupload@example.test"]);
+  });
+
+  it("M1 an older re-check marker does not hide a later first-check 23/26 after she re-uploaded", async () => {
+    h.verifications = [ver("u-again", "expired", ELEVEN_MIN, { wwcc_verified_at: ago(30 * 24 * ONE_HOUR) })];
+    h.logs = [{ ...recheckMarker("u-again"), action_details: { trigger: "recheck", result: "NEW_INFO", recheck_fail: true, status_at: ago(3 * 24 * ONE_HOUR) } }];
+    await run();
+    expect(ver003().map((s) => s.to)).toEqual(["u-again@example.test"]);
+  });
+
+  it("M1 a log read error holds back once-approved rows this run (never a double email) and still sends first checks", async () => {
+    h.verifications = [ver("u-first", "failed", ELEVEN_MIN), ver("u-once", "expired", ELEVEN_MIN, { wwcc_verified_at: ago(ONE_HOUR) })];
+    h.logsError = { message: "logs down" };
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    await run();
+    expect(ver003().map((s) => s.to)).toEqual(["u-first@example.test"]);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("VER-003"), "logs down");
+    log.mockRestore();
   });
 
   it("keeps the 10-minute delay and the 'no action since' test", async () => {
@@ -182,6 +218,7 @@ describe("send-delayed-emails — VER-003 (deck §6.3, #20)", () => {
       ver("u-first", "ocg_not_found", ELEVEN_MIN),
       ver("u-recheck", "ocg_not_found", ELEVEN_MIN, { wwcc_verified_at: ago(ONE_HOUR) }),
     ];
+    h.logs = [recheckMarker("u-recheck")];
     const { createAdminClient } = await import("@/lib/supabase/admin");
     const rows = await selectVer003Candidates(createAdminClient(), ago(10 * 60 * 1000));
     expect(rows.map((r) => r.user_id)).toEqual(["u-first"]);
