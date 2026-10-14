@@ -182,7 +182,9 @@ describe("applyDbsResult — admin_result_only + recheck", () => {
     ["NO_MATCH", 26, "ocg_not_found", "no_match", GUIDANCE_MESSAGES.DBS_NO_MATCH],
   ] as const)("RC1 recheck %s on a level-4 row → %i in ONE update with wwcc_verified=false (40 CHECK, P-7, #28)", async (kind, code, wwcc, outcome, guidance) => {
     levelFour();
-    expect(await apply(ok(kind), "recheck")).toEqual({ outcome });
+    const r = await apply(ok(kind), "recheck");
+    // 3i (BB-LDN-3i-141026): the result also carries the wwcc_status_at it wrote — the VER-003 marker (addendum M1).
+    expect(r).toEqual({ outcome, statusAt: row().wwcc_status_at });
     expect(updates()).toHaveLength(1);
     expect(row()).toMatchObject({
       verification_status: code, wwcc_status: wwcc, wwcc_verified: false, cross_check_status: "not_started",
@@ -193,10 +195,23 @@ describe("applyDbsResult — admin_result_only + recheck", () => {
     expect(row().wwcc_status_at).toBeTruthy();
   });
 
-  it.each([["BLANK"], ["NON_BLANK"]] as const)("RC2 recheck %s writes nothing (#12 — a pass changes nothing)", async (kind) => {
+  // Retargeted by 3i (BB-LDN-3i-141026; brief change 4 table + R4, #12, #28): a re-check pass moves only "last checked"
+  // — the result block — so the oldest-checked-first order rotates. Status, level and everything else stay.
+  it.each([["BLANK"], ["NON_BLANK"]] as const)("RC2 recheck %s writes only ocg_result_status, ocg_result_text and ocg_verified_at (#12, #28)", async (kind) => {
     levelFour();
-    expect(await apply(ok(kind), "recheck")).toEqual({ outcome: "no_write" });
-    expect(updates()).toHaveLength(0);
+    expect(await apply(ok(kind), "recheck")).toEqual({ outcome: "result_recorded" });
+    expect(updates()).toHaveLength(1);
+    expect(Object.keys(updates()[0].payload).sort()).toEqual(["ocg_result_status", "ocg_result_text", "ocg_verified_at"]);
+    expect(row()).toMatchObject({ verification_status: 40, wwcc_verified: true, cross_check_status: "passed", ocg_result_text: RAW });
+    expect(row().ocg_verified_at).not.toBe("2026-10-01T00:00:00Z");
+  });
+
+  it("RC5 (3i) recheck writes nothing on a row that still says wwcc_verified but is no longer 40 (status guard)", async () => {
+    levelFour();
+    Object.assign(row(), { verification_status: 21 });
+    expect(await apply(ok("NEW_INFO"), "recheck")).toEqual({ outcome: "superseded" });
+    expect(await apply(ok("BLANK"), "recheck")).toEqual({ outcome: "superseded" });
+    expect(row()).toMatchObject({ verification_status: 21, ocg_result_text: "<old/>" });
   });
 
   it("RC3 recheck ERROR writes nothing (#32)", async () => {

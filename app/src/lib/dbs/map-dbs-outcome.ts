@@ -22,15 +22,20 @@
  * - Modes: `first` (3c, table above) · `admin_result_only` (3d "Run DBS check now": only ocg_result_status /
  *   ocg_result_text / ocg_verified_at, nothing on ERROR) · `recheck` (a level-4 nanny checked again — written by 3d
  *   for P-8 so "Run DBS check now" on a 40 row and 3i's daily cron share one meaning): NEW_INFO / NO_MATCH → the
- *   23 / 26 row of the table above PLUS `wwcc_verified=false`, in ONE update guarded on `wwcc_verified=true` (the 40
- *   CHECK refuses a non-pass result on a 40 row, and P-7 needs cross-check `not_started` in the same write); a pass
- *   or ERROR writes nothing (#12, #32). `wwcc_verified_at` / `_by` are kept as history (#28).
+ *   23 / 26 row of the table above PLUS `wwcc_verified=false`, in ONE update (the 40 CHECK refuses a non-pass result
+ *   on a 40 row, and P-7 needs cross-check `not_started` in the same write); ERROR writes nothing (#32). Unit 3i
+ *   (BB-LDN-3i-141026, brief change 4 + R4): a pass writes ONLY the result block — `ocg_result_status`,
+ *   `ocg_result_text`, `ocg_verified_at` ("last checked", #12 + #28) — so the daily re-check's oldest-first order
+ *   rotates. Every recheck write is guarded on `verification_status=40 AND wwcc_verified=true`, so a row an admin
+ *   moved meanwhile is left alone (`superseded`). A fail also returns `statusAt` (the `wwcc_status_at` written) — the
+ *   VER-003 re-check marker (3i addendum M1). `wwcc_verified_at` / `_by` are kept as history (#28).
  * - Never: writes `wwcc_verified=true`, writes 40, writes an ocg_* block on ERROR, touches identity (P-8), drops
  *   connections (P-3, 3i), sends email, or calls sync.
  */
 import {
   CROSS_CHECK_STATUS,
   GUIDANCE_MESSAGES,
+  VERIFICATION_STATUS,
   WWCC_STATUS,
   deriveOverallStatus,
   type CrossCheckStatus,
@@ -64,6 +69,12 @@ export type DbsApplyOutcome =
   | "superseded";
 
 type Row = Record<string, unknown>;
+
+/** What a write did. `statusAt` is set only on a re-check fail: the `wwcc_status_at` it wrote (3i, addendum M1). */
+export interface DbsApplyResult {
+  outcome: DbsApplyOutcome;
+  statusAt?: string;
+}
 
 /**
  * Why an API pass still needs a person (spec §5 `api_mismatch`): print date ≠ certificate issue date, or the API
@@ -168,7 +179,7 @@ export async function applyDbsResult(
   ctx: DbsApplyContext,
   result: DbsCheckResult,
   { mode }: { mode: DbsApplyMode },
-): Promise<{ outcome: DbsApplyOutcome }> {
+): Promise<DbsApplyResult> {
   const now = new Date().toISOString();
 
   if (mode === "recheck") return applyRecheck(admin, verificationId, ctx, result, now);
@@ -196,8 +207,9 @@ export async function applyDbsResult(
 }
 
 /**
- * A level-4 nanny checked again (P-8 / #12 / #28). Fail → 23 / 26 with `wwcc_verified=false` in one update, guarded
- * on `wwcc_verified=true` so a row an admin already moved is left alone (`superseded`). Pass / ERROR → `no_write`.
+ * A level-4 nanny checked again (#12 / #28 / P-8; 3i). Fail → 23 / 26 with `wwcc_verified=false` in one update and
+ * `statusAt` returned. Pass → the result block only (`result_recorded`). ERROR → `no_write`. Both writes are guarded on
+ * status 40 + `wwcc_verified=true`, so a row an admin already moved is left alone (`superseded`).
  * @throws when the database refuses the write — the caller reports it and leaves her unchanged.
  */
 async function applyRecheck(
@@ -206,16 +218,20 @@ async function applyRecheck(
   ctx: DbsApplyContext,
   result: DbsCheckResult,
   now: string,
-): Promise<{ outcome: DbsApplyOutcome }> {
-  if (result.result !== "NEW_INFO" && result.result !== "NO_MATCH") return { outcome: "no_write" };
-  const { payload, outcome } = failedResultUpdate(result, ctx, now);
+): Promise<DbsApplyResult> {
+  if (result.result === "ERROR") return { outcome: "no_write" };
+  const failed = result.result === "NEW_INFO" || result.result === "NO_MATCH";
+  const { payload, outcome } = failed
+    ? failedResultUpdate(result, ctx, now)
+    : { payload: { ocg_result_status: result.status, ocg_result_text: result.raw, ocg_verified_at: now }, outcome: "result_recorded" as const };
   const { data, error } = await admin
     .from("verifications")
-    .update({ ...payload, wwcc_verified: false })
+    .update(failed ? { ...payload, wwcc_verified: false } : payload)
     .eq("id", verificationId)
+    .eq("verification_status", VERIFICATION_STATUS.FULLY_VERIFIED)
     .eq("wwcc_verified", true)
     .select("id");
   if (error) throw new Error(`DBS re-check write refused: ${error.message}`);
   if (!data || data.length === 0) return { outcome: "superseded" };
-  return { outcome };
+  return failed ? { outcome, statusAt: now } : { outcome };
 }
