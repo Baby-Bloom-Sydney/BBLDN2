@@ -291,8 +291,8 @@ describe("cron/dbs-recheck — API error, throws, races (#32)", () => {
       return ok("NEW_INFO");
     });
     const body = await runOk();
-    expect(ver()).toMatchObject({ wwcc_status: "barred", verification_status: 27 });
-    expect(verificationWrites()).toHaveLength(0);
+    // (the fake records a guarded UPDATE even when it matched no row — what matters is that her row is untouched)
+    expect(ver()).toMatchObject({ wwcc_status: "barred", verification_status: 27, ocg_result_text: "<old/>", cross_check_status: "passed" });
     expect(h.sends).toHaveLength(0);
     expect(logs()).toHaveLength(0);
     expect(body).toMatchObject({ checked: 1, skipped: 1, failed_new_info: 0 });
@@ -308,6 +308,8 @@ describe("cron/dbs-recheck — API error, throws, races (#32)", () => {
     const res = await callRoute();
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ error: "recheck_failed" });
+    h.db.client = () => ({ ...client, from: () => ({ select: () => { throw "not an Error"; } }) });
+    expect((await callRoute()).status).toBe(500);
   });
 });
 
@@ -378,7 +380,7 @@ describe("cron/dbs-recheck — connections on a re-check fail (P-3, P-9)", () =>
     await runOk();
     expect(byId("done-41")).toMatchObject({ connection_stage: CONNECTION_STAGE.FINISHED, status: "confirmed", updated_at: APPROVED_AT });
     expect(byId("done-2")).toMatchObject({ connection_stage: CONNECTION_STAGE.DECLINED, status: "declined", updated_at: APPROVED_AT });
-    expect(byId("other-nanny-20")).toMatchObject({ connection_stage: CONNECTION_STAGE.INTRO_SCHEDULED, status: "accepted", updated_at: APPROVED_AT });
+    expect(byId("other-nanny-20")).toMatchObject({ connection_stage: CONNECTION_STAGE.INTRO_SCHEDULED, status: "pending", updated_at: APPROVED_AT });
   });
 
   it.each([["BLANK"], ["NON_BLANK"], ["ERROR"]] as const)("R18 drops nothing on %s", async (kind) => {

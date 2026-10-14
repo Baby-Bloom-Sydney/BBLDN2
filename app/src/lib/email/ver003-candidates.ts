@@ -7,14 +7,21 @@
  *
  * Rule: a FIRST-check DBS failure that has sat untouched past the cutoff —
  *   `wwcc_status IN ('failed', 'expired', 'ocg_not_found')` (AI fail · 23 new information · 26 no match; D-4 names)
- *   AND `wwcc_verified_at IS NULL` (never approved: a re-check failure has an approval in its history and gets 3i's
- *   re-check email instead) AND `wwcc_status_at < cutoff` (the 10-minute delay).
+ *   AND `wwcc_status_at < cutoff` (the 10-minute delay) AND her CURRENT failure is not a re-check failure.
+ * Re-check failure (unit 3i, BB-LDN-3i-141026 — orchestrator addendum M1, replacing 3g's blanket
+ *   `wwcc_verified_at IS NULL`): a level-4 failure (daily re-check or the admin's P-8 run) writes a `dbs_status_check`
+ *   row with `recheck_fail: true` and `status_at` = the `wwcc_status_at` it set; she gets 3i's re-check email instead.
+ *   A row is skipped only when such a marker matches her current `wwcc_status_at` — so a once-approved nanny whose
+ *   LATER new upload fails gets VER-003 again. Only once-approved rows (`wwcc_verified_at` set) can carry a marker, so
+ *   only they are looked up. If the marker read fails, once-approved rows are held back this run (never a double email;
+ *   the cron retries every 5 minutes) and first checks still go.
  * Admin Reject (22, `rejected`) is not in the list: README P-4's own email covers it.
  * The caller keeps the "no action since" (2-second) test and the `email_logs` dedupe.
  *
  * Input: an admin Supabase client and the cutoff ISO time. Output: the rows (id, user_id, wwcc_status_at, updated_at).
  * Never: writes, sends, or throws — a read error is logged and returns no rows, so the cron's other emails still go.
  */
+import { DBS_ACTIVITY } from "@/lib/verification";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -27,19 +34,46 @@ export interface Ver003Candidate {
   user_id: string;
   wwcc_status_at: string;
   updated_at: string;
+  wwcc_verified_at?: string | null;
+}
+
+/** True when `a` and `b` are the same instant (Postgres and JS print timestamps differently). */
+function sameInstant(a: unknown, b: unknown): boolean {
+  const x = Date.parse(String(a));
+  return Number.isFinite(x) && x === Date.parse(String(b));
+}
+
+/** Drops rows whose current failure is a marked re-check failure (see the header). Never throws. */
+async function withoutRecheckFailures(supabase: AdminClient, rows: Ver003Candidate[]): Promise<Ver003Candidate[]> {
+  const onceApproved = rows.filter((r) => r.wwcc_verified_at);
+  if (onceApproved.length === 0) return rows;
+  const { data, error } = await supabase
+    .from("activity_logs")
+    .select("user_id, action_details")
+    .eq("action_type", DBS_ACTIVITY.STATUS_CHECK)
+    .in("user_id", [...new Set(onceApproved.map((r) => r.user_id))]);
+  if (error) {
+    console.error("[Delayed Emails] VER-003 re-check marker read failed:", error.message);
+    return rows.filter((r) => !r.wwcc_verified_at);
+  }
+  const markers = ((data ?? []) as Array<{ user_id: string; action_details: Record<string, unknown> | null }>).filter(
+    (l) => l.action_details?.recheck_fail === true,
+  );
+  return rows.filter(
+    (r) => !markers.some((m) => m.user_id === r.user_id && sameInstant(m.action_details?.status_at, r.wwcc_status_at)),
+  );
 }
 
 /** First-check DBS failures idle since before `cutoffIso` (see the module header for the rule). */
 export async function selectVer003Candidates(supabase: AdminClient, cutoffIso: string): Promise<Ver003Candidate[]> {
   const { data, error } = await supabase
     .from("verifications")
-    .select("id, user_id, wwcc_status_at, updated_at")
+    .select("id, user_id, wwcc_status_at, updated_at, wwcc_verified_at")
     .in("wwcc_status", [...VER003_DBS_STATUSES])
-    .is("wwcc_verified_at", null)
     .lt("wwcc_status_at", cutoffIso);
   if (error) {
     console.error("[Delayed Emails] VER-003 candidates read failed:", error.message);
     return [];
   }
-  return (data ?? []) as Ver003Candidate[];
+  return withoutRecheckFailures(supabase, (data ?? []) as Ver003Candidate[]);
 }

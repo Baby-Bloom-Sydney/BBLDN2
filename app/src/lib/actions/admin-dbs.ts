@@ -11,8 +11,11 @@
  *                       (README P-14, BAI 2026-10-14); this action sends her VER-010 (`sendBarredNannyEmail`).
  * - `adminLiftDbsBar`   Lift bar → DBS section `not_started` (20, level 2) + `nannies.status='active'` (#36).
  * - `adminRunDbsCheck`  Run DBS check now (#30, P-8, #33): API-down row → 3c's full cross-check phase; level-4 row
- *                       with NEW_INFO / NO_MATCH → the failed re-check row (23 / 26, level 2); otherwise only the
- *                       result block. One `dbs_status_check` log row per call.
+ *                       with NEW_INFO / NO_MATCH → the failed re-check row (23 / 26, level 2) AND, since 3i
+ *                       (BB-LDN-3i-141026, P-8 "same as a failed re-check"), the shared after-fail step
+ *                       `onDbsRecheckFailed`: hired connections kept, the rest dropped silently (P-3, P-9), her
+ *                       re-check email, the admin alert (#35); otherwise only the result block. One `dbs_status_check`
+ *                       log row per call (a level-4 fail carries the re-check marker VER-003 reads).
  * Reject (→ 22, P-4 email) and Ask for page 2 (#27) live in `lib/actions/admin.ts` (`adminRejectWWCC`, `adminSendEmail`).
  *
  * Contract
@@ -28,7 +31,9 @@ import { requireAdmin } from '@/lib/admin/require-admin';
 import { syncNannyVerificationState } from '@/lib/actions/verification';
 import { runCrossCheckPhase } from '@/lib/ai/verification-pipeline';
 import { checkDbsStatus, type DbsCheckResult } from '@/lib/dbs/update-service';
-import { applyDbsResult, type DbsApplyOutcome } from '@/lib/dbs/map-dbs-outcome';
+import { applyDbsResult, type DbsApplyOutcome, type DbsApplyResult } from '@/lib/dbs/map-dbs-outcome';
+import { onDbsRecheckFailed } from '@/lib/dbs/recheck';
+import type { RecheckFailMarker } from '@/lib/dbs/log';
 import { logDbsStatusCheck } from '@/lib/dbs/log';
 import { sendBarredNannyEmail } from '@/lib/email/dbs-emails';
 import { ADMIN_REASON_MAX_LENGTH, isApiResultCurrent } from '@/lib/admin/dbs-queues';
@@ -381,20 +386,30 @@ export async function adminRunDbsCheck(verificationId: string): Promise<AdminDbs
   const failedOnLevelFour =
     row.verification_status === VERIFICATION_STATUS.FULLY_VERIFIED && !isDbsApiPass(result.status);
 
-  let outcome: DbsApplyOutcome;
+  let applied: DbsApplyResult;
   try {
-    ({ outcome } = await applyDbsResult(admin, verificationId, row.user_id, ctx, result, {
+    applied = await applyDbsResult(admin, verificationId, row.user_id, ctx, result, {
       mode: failedOnLevelFour ? 'recheck' : 'admin_result_only',
-    }));
+    });
   } catch (err) {
     await logDbsStatusCheck(row.user_id, { ...logEntry, reason: 'write_refused' }, admin);
     return { success: false, error: `The result could not be saved: ${err instanceof Error ? err.message : 'unknown'}`, result: result.result };
   }
 
-  // P-8: a level-4 fail drops her to level 2. Connections (P-3), her email and the admin alert email are 3i's path.
-  const syncWarning = failedOnLevelFour ? await syncAfterDecision(row.user_id) : undefined;
-  await logDbsStatusCheck(row.user_id, logEntry, admin);
+  // P-8: a level-4 fail = a failed re-check — the same after-fail step as 3i's cron (sync → level 2, P-3 drop, her
+  // email, admin alert). A fail write that matched nothing (superseded) only re-syncs, as before.
+  const { outcome } = applied;
+  let followUpWarning: string | undefined;
+  let recheckFail: RecheckFailMarker | undefined;
+  if (outcome === 'new_info' || outcome === 'no_match') {
+    const after = await onDbsRecheckFailed(admin, { userId: row.user_id, result: outcome === 'new_info' ? 'NEW_INFO' : 'NO_MATCH' });
+    recheckFail = { statusAt: applied.statusAt ?? '', ...after };
+    followUpWarning = after.warnings.length ? `Saved, but a follow-up failed (${after.warnings.join(', ')})` : undefined;
+  } else if (failedOnLevelFour) {
+    followUpWarning = await syncAfterDecision(row.user_id);
+  }
+  await logDbsStatusCheck(row.user_id, recheckFail ? { ...logEntry, recheckFail } : logEntry, admin);
 
   revalidatePath('/admin/users');
-  return { success: true, error: null, result: result.result, outcome, ...withWarning([syncWarning]) };
+  return { success: true, error: null, result: result.result, outcome, ...withWarning([followUpWarning]) };
 }

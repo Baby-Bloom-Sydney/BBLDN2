@@ -11,6 +11,11 @@
  *   DBS_CHECKER_SURNAME, DBS_TIMEOUT_MS, DBS_ATTEMPTS, DBS_RETRY_DELAY_MS, DBS_RETRY_COOLDOWN_MS, DBS_REFERENCE_*_PATH).
  * - Output: a plain `DbsConfig`; numbers are clamped so a poll-triggered retry fits the 60 s route budget.
  * - Never: invents a checker name, accepts an http:// base URL in production (throws), or reads env anywhere else.
+ *
+ * Unit 3i (BB-LDN-3i-141026, brief change 3): `getDbsRecheckConfig` — the daily re-check's throttle. DBS_RECHECK_INTERVAL_MS
+ * (pause between nannies, default 1000), DBS_RECHECK_BATCH_LIMIT (nannies per run, default 500), DBS_RECHECK_TIME_BUDGET_MS
+ * (no new check starts after this, default and cap 240000 — so the last call (≤ 2 × 20 s + delay) still ends inside the
+ * route's 300 s maxDuration). Rulings: #12 (daily re-check), #32 (unchecked nannies simply go first tomorrow).
  */
 export interface DbsConfig {
   baseUrl: string;
@@ -53,6 +58,15 @@ function positiveInt(env: Env, key: string, fallback: number, max = Number.MAX_S
   return Number.isInteger(n) && n > 0 ? Math.min(n, max) : fallback;
 }
 
+export const DBS_RECHECK_DEFAULTS = { intervalMs: 1_000, batchLimit: 500, timeBudgetMs: 240_000 } as const;
+
+/** The re-check throttle (see the header). Separate from `getDbsConfig`: it never touches the base URL rule. */
+export interface DbsRecheckConfig {
+  intervalMs: number;
+  batchLimit: number;
+  timeBudgetMs: number;
+}
+
 /** Caps so a poll-triggered retry always fits the route's 60 s maxDuration. */
 const MAX_TIMEOUT_MS = 20_000;
 const MAX_ATTEMPTS = 3;
@@ -78,5 +92,18 @@ export function getDbsConfig(env: Env = process.env): DbsConfig {
     retryCooldownMs: positiveInt(env, "DBS_RETRY_COOLDOWN_MS", DBS_DEFAULTS.retryCooldownMs),
     referenceEnhancedPath: text(env, "DBS_REFERENCE_ENHANCED_PATH"),
     referenceStandardPath: text(env, "DBS_REFERENCE_STANDARD_PATH"),
+  };
+}
+
+/** Caps for the re-check: a pause over a minute or a batch over 5000 is a typo, not a setting. */
+const MAX_RECHECK_INTERVAL_MS = 60_000;
+const MAX_RECHECK_BATCH = 5_000;
+
+/** Reads the daily re-check throttle. Pass `env` in tests; production reads `process.env`. Never throws. */
+export function getDbsRecheckConfig(env: Env = process.env): DbsRecheckConfig {
+  return {
+    intervalMs: positiveInt(env, "DBS_RECHECK_INTERVAL_MS", DBS_RECHECK_DEFAULTS.intervalMs, MAX_RECHECK_INTERVAL_MS),
+    batchLimit: positiveInt(env, "DBS_RECHECK_BATCH_LIMIT", DBS_RECHECK_DEFAULTS.batchLimit, MAX_RECHECK_BATCH),
+    timeBudgetMs: positiveInt(env, "DBS_RECHECK_TIME_BUDGET_MS", DBS_RECHECK_DEFAULTS.timeBudgetMs, DBS_RECHECK_DEFAULTS.timeBudgetMs),
   };
 }

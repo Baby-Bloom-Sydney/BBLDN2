@@ -367,6 +367,17 @@ describe("adminRunDbsCheck — Run DBS check now (#30, P-8, #33)", () => {
     expect(nanny()).toMatchObject({ verification_level: 2 });
   });
 
+  it("P-8 a failed follow-up (her email) is returned as a warning; the decision stands", async () => {
+    seed({ verification_status: 40, wwcc_verified: true, wwcc_verified_by: "admin-0", wwcc_verified_at: "2026-10-01T00:00:00Z" }, { verification_level: 4 });
+    h.dbs = { result: "NEW_INFO", status: "NEW_INFO", raw: "<x/>", forename: null, surname: null, printDate: null } as unknown as DbsCheckResult;
+    h.sendDbsRecheckFailedEmail.mockRejectedValueOnce(new Error("resend down"));
+    const r = await adminRunDbsCheck("v1");
+    h.dbs = { result: "BLANK", status: "BLANK_NO_NEW_INFO", raw: "<xml/>", forename: "SOPHIE", surname: "TAYLOR", printDate: "2024-01-10" } as DbsCheckResult;
+    expect(r).toMatchObject({ success: true, result: "NEW_INFO", warning: expect.stringContaining("nanny_email_failed") });
+    expect(v().verification_status).toBe(23);
+    expect(logs("dbs_status_check")[0].action_details).toMatchObject({ recheck_fail: true, warnings: ["nanny_email_failed"] });
+  });
+
   it("P-8 a status-40 pass sends no re-check email and drops nothing", async () => {
     seed({ verification_status: 40, wwcc_verified: true, wwcc_verified_by: "admin-0", wwcc_verified_at: "2026-10-01T00:00:00Z" }, { verification_level: 4 });
     expect((await adminRunDbsCheck("v1")).success).toBe(true);

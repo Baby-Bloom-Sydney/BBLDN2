@@ -1,7 +1,7 @@
 /**
  * Unit 3i (BB-LDN-3i-141026) — `dropNonHiredConnections` (README P-3 + P-9; brief change 4b as amended by P-9).
  * Hired = CONFIRMED / ACTIVE, kept untouched; already-closed (hidden) stages untouched; every other row of hers is
- * dropped to Sydney's neutral expiry (held rows the parent never saw are deleted). Parents are told nothing.
+ * dropped to the app's existing neutral expiry (held rows the parent never saw are deleted). Parents are told nothing.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createMemoryDb, type MemoryDb } from "../../../tests/fakes/memory-supabase";
