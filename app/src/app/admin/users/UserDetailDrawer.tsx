@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * The admin user drawer: profile, role/status, the verification summary and admin actions.
+ * 3d follow-up (BB-LDN-3dfix-141026, finding 1; P-8, BAI 2026-10-14): the Enhanced DBS row of an approved (status 40)
+ * nanny carries "Run DBS check now" (`DrawerRunDbsCheck` → the existing `adminRunDbsCheck`), the only UI entry point
+ * for re-checking a level-4 nanny — she is in no DBS list. Never decides a DBS outcome itself.
+ */
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -14,10 +20,11 @@ import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { LEVEL_LABELS, STATUS_LABELS, STATUS_META, statusTone, type StatusTone } from "@/lib/verification";
+import { LEVEL_LABELS, STATUS_LABELS, STATUS_META, VERIFICATION_STATUS, statusTone, type StatusTone } from "@/lib/verification";
 import { adminDeleteUser, adminChangeRole, adminResetVerification, adminRegenerateNannyBio } from "@/lib/actions/admin";
 import { CheckCircle2, Clock, XCircle, MapPin, Mail, Phone, Calendar, Shield, Baby, Loader2, Trash2, RefreshCw, UserCog, ExternalLink, Send, Eye } from "lucide-react";
 import { ContactUserModal } from "./ContactUserModal";
+import { DrawerRunDbsCheck } from "./DrawerRunDbsCheck";
 import type { UserData } from "./page";
 
 interface UserDetailDrawerProps {
@@ -468,6 +475,9 @@ export function UserDetailDrawer({ user, open, onOpenChange }: UserDetailDrawerP
                       <span className="text-slate-400">Not started</span>
                     )}
                   </div>
+                  {status === VERIFICATION_STATUS.FULLY_VERIFIED && user.verification_id && (
+                    <DrawerRunDbsCheck verificationId={user.verification_id} />
+                  )}
                 </div>
               </CardContent>
             </Card>

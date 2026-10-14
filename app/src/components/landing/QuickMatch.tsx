@@ -455,7 +455,7 @@ export function QuickMatch() {
           <div className="mt-8 flex flex-wrap justify-center gap-x-8 gap-y-3 text-sm text-slate-500">
             <div className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-violet-500" />
-              <span>WWCC verified</span>
+              <span>Enhanced DBS checked</span>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-violet-500" />

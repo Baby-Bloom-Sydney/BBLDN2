@@ -1,3 +1,12 @@
+/**
+ * Client (parent) hire confirmation email.
+ *
+ * Unit 3g (BB-LDN-3g-141026, D-7): London parents are never verified and are never told to link the nanny's check
+ * through a state portal, so that section and its link parameter are gone and the sections after it renumbered.
+ * The commitment sentence ("…identity verified at onboarding") and the employer-obligations line are LEGAL text, left
+ * as written for the legal chat (00-RULINGS #17; LEDGER/3g.md legal section).
+ * Input: names, reference, date, EdTech link. Output: `{ subject, html, text }`. Never sends or reads anything.
+ */
 import { emailFooter } from "@/lib/email/brand";
 import { LEGAL_ENTITY } from "@/lib/constants";
 
@@ -6,7 +15,6 @@ interface ClientHireEmailParams {
   professionalName: string;
   referenceNumber: string;
   hireDate: string;
-  wwccPortalLink: string;
   edtechLink: string;
 }
 
@@ -15,7 +23,7 @@ export function buildClientHireConfirmationEmail(params: ClientHireEmailParams):
   html: string;
   text: string;
 } {
-  const { clientName, professionalName, referenceNumber, hireDate, wwccPortalLink, edtechLink } = params;
+  const { clientName, professionalName, referenceNumber, hireDate, edtechLink } = params;
 
   const subject = `Congratulations! Your hire of ${professionalName} is confirmed — Ref: ${referenceNumber}`;
 
@@ -44,18 +52,14 @@ export function buildClientHireConfirmationEmail(params: ClientHireEmailParams):
     <h3 style="font-size:15px;margin:16px 0 8px;">1. Your Employer Obligations</h3>
     <p style="font-size:14px;color:#475569;line-height:1.6;">As the employer, you are responsible for ensuring compliance with the Fair Work Act 2009, including correct pay rates, superannuation, and working conditions. Baby Bloom is a facilitator only and is not the employer of your nanny.</p>
 
-    <h3 style="font-size:15px;margin:16px 0 8px;">2. WWCC Monitoring</h3>
-    <p style="font-size:14px;color:#475569;line-height:1.6;">Please link to ${professionalName}'s WWCC via Service NSW for ongoing status alerts. Baby Bloom verified it at onboarding but does not guarantee ongoing validity.</p>
-    <p style="margin:8px 0;"><a href="${wwccPortalLink}" style="color:#7c3aed;text-decoration:underline;">Link WWCC via Service NSW</a></p>
-
-    <h3 style="font-size:15px;margin:16px 0 8px;">3. EdTech Tools</h3>
+    <h3 style="font-size:15px;margin:16px 0 8px;">2. EdTech Tools</h3>
     <p style="font-size:14px;color:#475569;line-height:1.6;">You now have access to Baby Bloom's EdTech developmental logging tools. Your nanny can record developmental milestones, activities, and observations.</p>
     <p style="margin:8px 0;"><a href="${edtechLink}" style="color:#7c3aed;text-decoration:underline;">Explore EdTech Tools</a></p>
 
-    <h3 style="font-size:15px;margin:16px 0 8px;">4. AI Content Notice</h3>
+    <h3 style="font-size:15px;margin:16px 0 8px;">3. AI Content Notice</h3>
     <p style="font-size:14px;color:#475569;line-height:1.6;">Some content on the Platform, including nanny bios and matching summaries, is generated using AI (OpenAI GPT-4o). AI-generated content is clearly labelled and should be independently verified.</p>
 
-    <h3 style="font-size:15px;margin:16px 0 8px;">5. Baby Bloom's Commitments to You</h3>
+    <h3 style="font-size:15px;margin:16px 0 8px;">4. Baby Bloom's Commitments to You</h3>
     <p style="font-size:14px;color:#475569;line-height:1.6;">We commit to maintaining the Platform, providing support, and ensuring that all professionals on the Platform have been WWCC and identity verified at onboarding.</p>
 
     ${emailFooter({ terms: "client", termsLabel: "Terms of Service", notice: "This email was sent to you because you confirmed a hire on Baby Bloom.", preferencesPath: "/parent/settings" })}

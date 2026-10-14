@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * Embeddable single-component showcase (dev surface). Unit 3d: admin users block uses `MOCK_ADMIN_DBS_QUEUES`.
+ * Never: reads real data.
+ */
 import { Suspense, useState, useEffect } from "react";
 import { ShowcaseErrorBoundary } from "../../ErrorBoundary";
 
@@ -15,6 +19,7 @@ import {
   MOCK_INBOX_MESSAGES,
   MOCK_CONNECTION_REQUESTS,
   MOCK_VERIFICATION_DATA,
+  MOCK_VERIFICATION_DATA_REJECTED,
   MOCK_NANNY_SHARE_DATA,
   MOCK_NANNY_PLACEMENTS,
   MOCK_NANNY_UPCOMING_INTROS,
@@ -28,7 +33,7 @@ import {
   MOCK_ADMIN_USER_STATS,
   MOCK_ADMIN_VERIFICATION_STATS,
   MOCK_ADMIN_IDENTITY_CHECKS,
-  MOCK_ADMIN_WWCC_CHECKS,
+  MOCK_ADMIN_DBS_QUEUES,
 } from "../../page-client-mocks";
 import { MOCK_MATCH_RESULT, MOCK_DFY_STATUS } from "../../mock-data";
 
@@ -84,6 +89,11 @@ const COMPONENTS: Record<string, { name: string; render: () => React.ReactNode }
   "nanny-verification": {
     name: "VerificationPageClient",
     render: () => <VerificationPageClient initialData={MOCK_VERIFICATION_DATA} profileData={null} />,
+  },
+  // 3d follow-up render proof (finding 3): DBS rejected by an admin (22).
+  "nanny-verification-rejected": {
+    name: "VerificationPageClient",
+    render: () => <VerificationPageClient initialData={MOCK_VERIFICATION_DATA_REJECTED} profileData={null} />,
   },
   "nanny-share": {
     name: "NannyShareClient",
@@ -157,7 +167,7 @@ const COMPONENTS: Record<string, { name: string; render: () => React.ReactNode }
           userStats={MOCK_ADMIN_USER_STATS}
           verificationStats={MOCK_ADMIN_VERIFICATION_STATS}
           identityChecks={MOCK_ADMIN_IDENTITY_CHECKS}
-          wwccChecks={MOCK_ADMIN_WWCC_CHECKS}
+          dbsQueues={MOCK_ADMIN_DBS_QUEUES}
         />
       </Suspense>
     ),

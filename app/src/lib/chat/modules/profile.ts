@@ -108,7 +108,7 @@ function ageRangeText(min: number | null, max: number | null): string | null {
  * column name.
  *
  * Provisional (level 3) UX rule carries over from the verification
- * module: "your profile is live" rather than "your WWCC is pending".
+ * module: "your profile is live" rather than "your DBS certificate is pending".
  */
 function nannyVisibilityText(
   level: number | null | undefined,
@@ -121,7 +121,7 @@ function nannyVisibilityText(
     return "Your profile is complete. The next step is to verify your ID before parents can see you.";
   }
   if (level === 2) {
-    return "Your ID is verified. Next up is the Working With Children Check — once that passes, your profile goes live to parents.";
+    return "Your ID is verified. Next up is your enhanced DBS check — once that passes, your profile goes live to parents.";
   }
   if (level === 3) {
     // Provisional — see memory: no "pending final check" language unless asked.

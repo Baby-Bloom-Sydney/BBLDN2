@@ -1,3 +1,8 @@
+/**
+ * Admin pipeline analytics (funnels by cohort). Unit 3d re-labels only (brief change 14): level labels follow 3a's
+ * ladder (1 Registered · 2 ID verified · 3 Provisional, awaiting approval · 4 Fully verified), the DBS cohort reads
+ * DBS words, and the deleted "closed" outcome is gone. Never: changes a count's query.
+ */
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
 import { PipelineTable } from "@/components/analytics/PipelineTable";
@@ -81,7 +86,7 @@ const TABLE_NAMES: Record<string, string> = {
   nf: 'Nanny Flow', pd: 'Page Drop-off',
   pf: 'Parent Pipeline', pc: 'Position Connections', nc: 'Nanny Connections',
   nv: 'Nanny Verification', ni: 'Identity Verification',
-  nw: 'WWCC Verification',
+  nw: 'DBS Verification',
   kn: 'Key Nanny Metrics', kp: 'Key Parent Metrics',
   df: 'DFY Matchmaking', dc: 'DFY Connections',
   vn: 'Nanny Shares', vp: 'Position Shares', vb: 'BSR Shares',
@@ -478,7 +483,7 @@ function statusCounts(
 
 const IDENTITY_OUTCOMES = ["verified", "rejected", "failed"];
 const IDENTITY_PAST_PENDING = ["processing", "review", ...IDENTITY_OUTCOMES];
-const WWCC_OUTCOMES = ["doc_verified", "review", "rejected", "failed", "expired", "barred", "ocg_not_found", "closed"];
+const WWCC_OUTCOMES = ["doc_verified", "review", "rejected", "failed", "expired", "barred", "ocg_not_found"]; // 3d: "closed" deleted with the regulator flow (D-3)
 const WWCC_PAST_APP_PENDING = ["pending", "processing", ...WWCC_OUTCOMES];
 const WWCC_PAST_PENDING = ["processing", ...WWCC_OUTCOMES];
 
@@ -582,7 +587,7 @@ async function getPipelineData(
     { label: "Submitted Form", tooltip: "Completed and submitted the application", total: nfCnt(2, nfLeads.filter((l: any) => ["applied", "ai_generated", "converted"].includes(l.lead_status)), 'id'), override: nfRo[2] },
     { label: "Profile Generated", tooltip: "AI-generated nanny profile created from form data", total: nfCnt(3, nfLeads.filter((l: any) => ["ai_generated", "converted"].includes(l.lead_status)), 'id'), override: nfRo[3] },
     { label: "Account Created", tooltip: "Nanny account registered on the platform", total: nfCnt(4, nfLeads.filter((l: any) => l.lead_status === "converted"), 'id'), override: nfRo[4] },
-    { label: "Fully Verified", tooltip: "All verification steps completed (ID + WWCC + references)", total: nfCnt(5, nfNannies.filter((n: any) => n.verification_level === 4), 'user_id'), override: nfRo[5] },
+    { label: "Fully Verified", tooltip: "Fully verified: ID verified, Update Service passed, admin approved", total: nfCnt(5, nfNannies.filter((n: any) => n.verification_level === 4), 'user_id'), override: nfRo[5] },
     { label: "Requested", tooltip: "Received at least one connection request from a parent", total: nfCnt(6, nfCohortConn, 'nanny_id'), override: nfRo[6] },
     { label: "Accepted", tooltip: "Accepted a connection request", total: nfCnt(7, nfConnFiltered((c) => c.connection_stage >= 10), 'nanny_id'), override: nfRo[7] },
     { label: "Meet Scheduled", tooltip: "Meet and greet time confirmed with a parent", total: nfCnt(8, nfConnFiltered((c) => c.connection_stage >= 20), 'nanny_id'), override: nfRo[8] },
@@ -829,17 +834,17 @@ async function getPipelineData(
   const nvNannies = filterByActivity(nvRaw.nannies, 'user_id', userLastActive, nvCfg.active);
   const nannyVerifLevelsCumulative = [
     { label: "Nannies", tooltip: "Total nanny accounts", total: nvNannies.length },
-    { label: "ID Verified", tooltip: "Identity document verified (Level 1)", total: nvNannies.filter((n: any) => n.verification_level >= 1).length },
-    { label: "WWCC Verified", tooltip: "Working With Children Check verified (Level 2)", total: nvNannies.filter((n: any) => n.verification_level >= 2).length },
-    { label: "Provisional", tooltip: "Basic verifications complete (Level 3)", total: nvNannies.filter((n: any) => n.verification_level >= 3).length },
-    { label: "Fully Verified", tooltip: "All verification steps completed (Level 4)", total: nvNannies.filter((n: any) => n.verification_level >= 4).length },
+    { label: "Registered", tooltip: "Identity submitted, not yet verified (Level 1)", total: nvNannies.filter((n: any) => n.verification_level >= 1).length },
+    { label: "ID Verified", tooltip: "Passport verified (Level 2)", total: nvNannies.filter((n: any) => n.verification_level >= 2).length },
+    { label: "Provisional (awaiting approval)", tooltip: "Update Service passed; accepts held until an admin approves (Level 3)", total: nvNannies.filter((n: any) => n.verification_level >= 3).length },
+    { label: "Fully Verified", tooltip: "Admin approved after an Update Service pass (Level 4)", total: nvNannies.filter((n: any) => n.verification_level >= 4).length },
   ];
   const nannyVerifLevelsLive = [
     { label: "Nannies", tooltip: "Total nanny accounts", total: nvNannies.length },
-    { label: "ID Verified", tooltip: "Identity document verified (Level 1)", total: nvNannies.filter((n: any) => n.verification_level === 1).length },
-    { label: "WWCC Verified", tooltip: "Working With Children Check verified (Level 2)", total: nvNannies.filter((n: any) => n.verification_level === 2).length },
-    { label: "Provisional", tooltip: "Basic verifications complete (Level 3)", total: nvNannies.filter((n: any) => n.verification_level === 3).length },
-    { label: "Fully Verified", tooltip: "All verification steps completed (Level 4)", total: nvNannies.filter((n: any) => n.verification_level === 4).length },
+    { label: "Registered", tooltip: "Identity submitted, not yet verified (Level 1)", total: nvNannies.filter((n: any) => n.verification_level === 1).length },
+    { label: "ID Verified", tooltip: "Passport verified (Level 2)", total: nvNannies.filter((n: any) => n.verification_level === 2).length },
+    { label: "Provisional (awaiting approval)", tooltip: "Update Service passed; accepts held until an admin approves (Level 3)", total: nvNannies.filter((n: any) => n.verification_level === 3).length },
+    { label: "Fully Verified", tooltip: "Admin approved after an Update Service pass (Level 4)", total: nvNannies.filter((n: any) => n.verification_level === 4).length },
   ];
 
   // ── Identity Verification (uses ni cohort) ──
@@ -878,11 +883,11 @@ async function getPipelineData(
 
   const nannyWwccCumulative = [
     { label: "Nannies", tooltip: "Nannies with a verification record", total: nwNannyVerifs.length },
-    { label: "Initiated", tooltip: "Started WWCC process", total: nwNannyVerifs.filter((v: any) => v.wwcc_status !== "not_started").length },
-    { label: "Submitted", tooltip: "WWCC application submitted", total: nwNannyVerifs.filter((v: any) => WWCC_PAST_APP_PENDING.includes(v.wwcc_status)).length },
-    { label: "Processing", tooltip: "WWCC being processed", total: nwNannyVerifs.filter((v: any) => WWCC_PAST_PENDING.includes(v.wwcc_status)).length },
+    { label: "Initiated", tooltip: "Started the DBS step", total: nwNannyVerifs.filter((v: any) => v.wwcc_status !== "not_started").length },
+    { label: "Submitted", tooltip: "DBS certificate uploaded", total: nwNannyVerifs.filter((v: any) => WWCC_PAST_APP_PENDING.includes(v.wwcc_status)).length },
+    { label: "Processing", tooltip: "DBS certificate being read", total: nwNannyVerifs.filter((v: any) => WWCC_PAST_PENDING.includes(v.wwcc_status)).length },
     { label: "Outcome", tooltip: "Processing complete — result received", total: nwNannyVerifs.filter((v: any) => WWCC_OUTCOMES.includes(v.wwcc_status)).length },
-    { label: "Verified", tooltip: "WWCC document verified and current", total: nwNannyVerifs.filter((v: any) => v.wwcc_status === "doc_verified").length },
+    { label: "Verified", tooltip: "DBS certificate read and accepted", total: nwNannyVerifs.filter((v: any) => v.wwcc_status === "doc_verified").length },
   ];
   const nannyWwccLive = [
     { label: "Nannies", tooltip: "Nannies with a verification record", total: nwNannyVerifs.length },
@@ -895,10 +900,9 @@ async function getPipelineData(
       { label: "Manual Review", statuses: ["review"] },
       { label: "Rejected", statuses: ["rejected"] },
       { label: "Failed", statuses: ["failed"] },
-      { label: "Expired", statuses: ["expired"] },
+      { label: "New information", statuses: ["expired"] },
       { label: "Barred", statuses: ["barred"] },
-      { label: "OCG Not Found", statuses: ["ocg_not_found"] },
-      { label: "Closed", statuses: ["closed"] },
+      { label: "No Update Service match", statuses: ["ocg_not_found"] },
     ]),
   ];
 
@@ -1050,7 +1054,7 @@ async function getPipelineData(
     { label: "Submitted Form", tooltip: "Completed and submitted the application", records: nfLeads.filter((l: any) => ["applied", "ai_generated", "converted"].includes(l.lead_status)), liveRecords: nfLeads.filter((l: any) => l.lead_status === "applied"), idKey: 'id' },
     { label: "Profile Generated", tooltip: "AI-generated nanny profile created from form data", records: nfLeads.filter((l: any) => ["ai_generated", "converted"].includes(l.lead_status)), liveRecords: nfLeads.filter((l: any) => l.lead_status === "ai_generated"), idKey: 'id' },
     { label: "Account Created", tooltip: "Nanny account registered on the platform", records: nfLeads.filter((l: any) => l.lead_status === "converted"), idKey: 'id' },
-    { label: "Fully Verified", tooltip: "All verification steps completed (ID + WWCC + references)", records: nfNannies.filter((n: any) => n.verification_level === 4), idKey: 'user_id' },
+    { label: "Fully Verified", tooltip: "Fully verified: ID verified, Update Service passed, admin approved", records: nfNannies.filter((n: any) => n.verification_level === 4), idKey: 'user_id' },
     { label: "Connections", tooltip: "Total connection requests involving this nanny (toggle unique/all)", records: nfCohortConn, liveRecords: nfActiveConns, idKey: 'nanny_id' },
     ...buildConnInternalStages(nfCohortConn, 'nanny_id'),
   ]);
@@ -1102,10 +1106,10 @@ async function getPipelineData(
   // Nanny Verification Levels (all-time = cumulative >=, live = exact ===)
   internalCatalog.set('nv', [
     { label: "Unverified", tooltip: "No verification completed (Level 0)", records: nvNannies.filter((n: any) => n.verification_level === 0), idKey: 'user_id' },
-    { label: "ID Verified", tooltip: "Identity document verified (Level 1)", records: nvNannies.filter((n: any) => n.verification_level >= 1), liveRecords: nvNannies.filter((n: any) => n.verification_level === 1), idKey: 'user_id' },
-    { label: "WWCC Verified", tooltip: "Working With Children Check verified (Level 2)", records: nvNannies.filter((n: any) => n.verification_level >= 2), liveRecords: nvNannies.filter((n: any) => n.verification_level === 2), idKey: 'user_id' },
-    { label: "Provisional", tooltip: "Basic verifications complete (Level 3)", records: nvNannies.filter((n: any) => n.verification_level >= 3), liveRecords: nvNannies.filter((n: any) => n.verification_level === 3), idKey: 'user_id' },
-    { label: "Fully Verified", tooltip: "All verification steps completed (Level 4)", records: nvNannies.filter((n: any) => n.verification_level >= 4), idKey: 'user_id' },
+    { label: "Registered", tooltip: "Identity submitted, not yet verified (Level 1)", records: nvNannies.filter((n: any) => n.verification_level >= 1), liveRecords: nvNannies.filter((n: any) => n.verification_level === 1), idKey: 'user_id' },
+    { label: "ID Verified", tooltip: "Passport verified (Level 2)", records: nvNannies.filter((n: any) => n.verification_level >= 2), liveRecords: nvNannies.filter((n: any) => n.verification_level === 2), idKey: 'user_id' },
+    { label: "Provisional (awaiting approval)", tooltip: "Update Service passed; accepts held until an admin approves (Level 3)", records: nvNannies.filter((n: any) => n.verification_level >= 3), liveRecords: nvNannies.filter((n: any) => n.verification_level === 3), idKey: 'user_id' },
+    { label: "Fully Verified", tooltip: "Admin approved after an Update Service pass (Level 4)", records: nvNannies.filter((n: any) => n.verification_level >= 4), idKey: 'user_id' },
   ]);
 
   // Identity Verification
@@ -1123,20 +1127,20 @@ async function getPipelineData(
   ]);
 
   // WWCC Verification
-  const nwNegativeStatuses = ["failed", "rejected", "barred", "ocg_not_found", "expired", "closed"];
+  const nwNegativeStatuses = ["failed", "rejected", "barred", "ocg_not_found", "expired"];
   internalCatalog.set('nw', [
-    { label: "WWCC: Initiated", tooltip: "Started WWCC process", records: nwNannyVerifs.filter((v: any) => v.wwcc_status !== "not_started"), idKey: 'user_id' },
-    { label: "WWCC: Submitted", tooltip: "WWCC application submitted", records: nwNannyVerifs.filter((v: any) => WWCC_PAST_APP_PENDING.includes(v.wwcc_status)), idKey: 'user_id' },
-    { label: "WWCC: Processing", tooltip: "WWCC being processed", records: nwNannyVerifs.filter((v: any) => WWCC_PAST_PENDING.includes(v.wwcc_status)), idKey: 'user_id' },
-    { label: "WWCC: Outcome", tooltip: "Processing complete — result received", records: nwNannyVerifs.filter((v: any) => WWCC_OUTCOMES.includes(v.wwcc_status)), idKey: 'user_id' },
-    { label: "WWCC: Verified", tooltip: "WWCC document verified and current", records: nwNannyVerifs.filter((v: any) => v.wwcc_status === "doc_verified"), idKey: 'user_id' },
-    { label: "WWCC: Unverified", tooltip: "Not yet started WWCC verification", records: nwNannyVerifs.filter((v: any) => v.wwcc_status === "not_started"), idKey: 'user_id' },
-    { label: "WWCC: Failed (Total)", tooltip: "All negative WWCC outcomes combined", records: nwNannyVerifs.filter((v: any) => nwNegativeStatuses.includes(v.wwcc_status)), idKey: 'user_id' },
-    { label: "WWCC: Failed (Auto)", tooltip: "Automated WWCC check failed", records: nwNannyVerifs.filter((v: any) => v.wwcc_status === "failed"), idKey: 'user_id' },
-    { label: "WWCC: Rejected", tooltip: "WWCC manually rejected", records: nwNannyVerifs.filter((v: any) => v.wwcc_status === "rejected"), idKey: 'user_id' },
-    { label: "WWCC: OCG Not Found", tooltip: "Office of Children's Guardian record not found", records: nwNannyVerifs.filter((v: any) => v.wwcc_status === "ocg_not_found"), idKey: 'user_id' },
-    { label: "WWCC: Barred", tooltip: "Person barred from working with children", records: nwNannyVerifs.filter((v: any) => v.wwcc_status === "barred"), idKey: 'user_id' },
-    { label: "WWCC: Expired", tooltip: "WWCC has expired and needs renewal", records: nwNannyVerifs.filter((v: any) => v.wwcc_status === "expired"), idKey: 'user_id' },
+    { label: "DBS: Initiated", tooltip: "Started the DBS step", records: nwNannyVerifs.filter((v: any) => v.wwcc_status !== "not_started"), idKey: 'user_id' },
+    { label: "DBS: Submitted", tooltip: "DBS certificate uploaded", records: nwNannyVerifs.filter((v: any) => WWCC_PAST_APP_PENDING.includes(v.wwcc_status)), idKey: 'user_id' },
+    { label: "DBS: Processing", tooltip: "DBS certificate being read", records: nwNannyVerifs.filter((v: any) => WWCC_PAST_PENDING.includes(v.wwcc_status)), idKey: 'user_id' },
+    { label: "DBS: Outcome", tooltip: "Processing complete — result received", records: nwNannyVerifs.filter((v: any) => WWCC_OUTCOMES.includes(v.wwcc_status)), idKey: 'user_id' },
+    { label: "DBS: Verified", tooltip: "DBS certificate read and accepted", records: nwNannyVerifs.filter((v: any) => v.wwcc_status === "doc_verified"), idKey: 'user_id' },
+    { label: "DBS: Unverified", tooltip: "Not yet started the DBS step", records: nwNannyVerifs.filter((v: any) => v.wwcc_status === "not_started"), idKey: 'user_id' },
+    { label: "DBS: Failed (Total)", tooltip: "All negative DBS outcomes combined", records: nwNannyVerifs.filter((v: any) => nwNegativeStatuses.includes(v.wwcc_status)), idKey: 'user_id' },
+    { label: "DBS: Failed (Auto)", tooltip: "The AI check of the certificate failed", records: nwNannyVerifs.filter((v: any) => v.wwcc_status === "failed"), idKey: 'user_id' },
+    { label: "DBS: Rejected", tooltip: "Certificate rejected by an admin", records: nwNannyVerifs.filter((v: any) => v.wwcc_status === "rejected"), idKey: 'user_id' },
+    { label: "DBS: No Update Service match", tooltip: "The Update Service found no matching certificate", records: nwNannyVerifs.filter((v: any) => v.wwcc_status === "ocg_not_found"), idKey: 'user_id' },
+    { label: "DBS: Barred", tooltip: "Person barred from working with children", records: nwNannyVerifs.filter((v: any) => v.wwcc_status === "barred"), idKey: 'user_id' },
+    { label: "DBS: New information", tooltip: "The Update Service reports new information; a new certificate is needed", records: nwNannyVerifs.filter((v: any) => v.wwcc_status === "expired"), idKey: 'user_id' },
   ]);
 
   // ── DFY Matchmaking (uses df section config + shared dfy data) ──
@@ -1832,8 +1836,8 @@ export default async function AdminPipelinePage({
       <Card>
         <CardContent className="pt-5">
           <PipelineTable
-            title="WWCC Verification"
-            subtitle="Nanny WWCC verification progression"
+            title="DBS Verification"
+            subtitle="Nanny DBS verification progression"
             metricType="cumulative"
             stages={data.nannyWwccCumulative}
             liveStages={data.nannyWwccLive}

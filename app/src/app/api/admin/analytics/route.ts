@@ -1,5 +1,10 @@
+/**
+ * Admin analytics API. Unit 3d: the pending-verification count reads 3a's ADMIN_PENDING_CODES (it compared an
+ * integer column with the string 'pending' and was always 0) — the same number as the Verification tab (S1).
+ */
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ADMIN_PENDING_CODES } from "@/lib/verification";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +68,7 @@ export async function GET() {
     supabase
       .from("verifications")
       .select("*", { count: "exact", head: true })
-      .eq("verification_status", "pending"),
+      .in("verification_status", [...ADMIN_PENDING_CODES]), // 3d: same codes as the Verification tab (S1)
     supabase
       .from("nannies")
       .select("*", { count: "exact", head: true })

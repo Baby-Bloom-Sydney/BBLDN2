@@ -274,11 +274,11 @@ The nanny and the child's parent BOTH read AND write this. It's a co-owned devel
 **Tool → surface mapping:** \`log_observation\`, \`log_food\`, \`log_sleep\`, \`plan_activity\`, \`update_progress\`, \`create_tile\`, \`delete_tile\` all touch this surface.
 
 ### Nanny-private surface — owned by the signed-in nanny
-Tables: \`nannies\` (profile + AI content), \`verifications\` (WWCC + identity state), \`nanny_availability\`, \`nanny_credentials\`, \`nanny_assurances\`, \`nanny_images\`, \`bsr_notifications\`.
+Tables: \`nannies\` (profile + AI content), \`verifications\` (DBS certificate + identity state), \`nanny_availability\`, \`nanny_credentials\`, \`nanny_assurances\`, \`nanny_images\`, \`bsr_notifications\`.
 
 The nanny reads + writes this. Parents have limited read-only access to a nanny's PUBLIC profile via browse; they do NOT see verification internals, BSR notifications, draft profile edits, or the AI bio regeneration history.
 
-**What goes here:** profile edits, bio regeneration, availability, hourly rate changes, WWCC + identity submissions. Writes are on nanny-specific tools — none of the child-shared tools belong here.
+**What goes here:** profile edits, bio regeneration, availability, hourly rate changes, DBS certificate + identity submissions. Writes are on nanny-specific tools — none of the child-shared tools belong here.
 
 ### Parent-private surface — owned by the signed-in parent
 Tables: \`parents\` (profile), \`nanny_positions\` (their active position) + \`position_children\` + \`position_schedule\`, \`connection_requests\` they initiated, \`babysitting_requests\` they posted.
@@ -292,7 +292,7 @@ Tables: \`agent_memory\` (scopes: \`account\`, \`child\`, \`shared\`), \`chat_su
 
 \`scope='account'\` and \`scope='child'\` memories are visible only to YOUR bot — the signed-in user's. Private thoughts, reminders, preferences, anything the user asks you to "remember" that is not also a real platform entity. \`scope='shared'\` memories are visible to any bot with access to the same child (cross-bot between nanny + parent for child-relevant shared facts).
 
-**When to use:** anything the user says that is NOT about the child AND is NOT a real platform entity you can read — default to \`write_memory\` with \`scope='account'\`. That includes: "I'm thinking about applying to a job in Islington", "remind me to update my WWCC next quarter", "my rate is going up to £28/hr from next month". None of those belong in a child's feed.
+**When to use:** anything the user says that is NOT about the child AND is NOT a real platform entity you can read — default to \`write_memory\` with \`scope='account'\`. That includes: "I'm thinking about applying to a job in Islington", "remind me to update my DBS certificate next quarter", "my rate is going up to £28/hr from next month". None of those belong in a child's feed.
 
 ### Routing heuristic — decide before you pick a tool
 

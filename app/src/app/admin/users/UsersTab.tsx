@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * The admin Users tab: stats, filters, the user table and the user detail drawer.
+ * 3d follow-up (BB-LDN-3dfix-141026, code review M1): the open drawer shows the user as it is in the latest `users`
+ * (e.g. after the drawer's "Run DBS check now" + `router.refresh()` drops her from 40), falling back to the clicked
+ * row only if that user left the list. Never: writes anything itself.
+ */
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -349,7 +355,7 @@ export function UsersTab({ users, stats }: UsersTabProps) {
 
       {/* User Detail Drawer */}
       <UserDetailDrawer
-        user={selectedUser}
+        user={selectedUser ? (users.find((u) => u.user_id === selectedUser.user_id) ?? selectedUser) : null}
         open={!!selectedUser}
         onOpenChange={(open) => !open && setSelectedUser(null)}
       />
