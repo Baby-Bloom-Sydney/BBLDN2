@@ -4,7 +4,8 @@
  * one webhook endpoint with the route's non-Connect events (D5), nothing
  * secret printed, idempotent re-runs.
  */
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
@@ -22,7 +23,9 @@ import {
   ensureWebhookEndpoint,
   envLines,
   redactUrl,
+  redactSecrets,
   webhookUrl,
+  writeSecretFile,
 } from "./setup-stripe-test-mode";
 
 const SCRIPT = readFileSync(
@@ -162,10 +165,58 @@ describe("assertSecretOutPath", () => {
     ).toThrow(/outside/);
   });
 
-  it("accepts a path outside the repository", () => {
-    expect(assertSecretOutPath("/tmp/elsewhere/whsec.txt", "/repo")).toBe(
-      "/tmp/elsewhere/whsec.txt",
+  it("accepts a new file in an existing directory outside the repository", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "bb4f-"));
+    const repo = mkdtempSync(resolve(tmpdir(), "bb4f-repo-"));
+    expect(assertSecretOutPath(resolve(dir, "whsec.txt"), repo)).toBe(resolve(dir, "whsec.txt"));
+  });
+
+  it("refuses a repo directory whose name merely starts with two dots", () => {
+    const repo = mkdtempSync(resolve(tmpdir(), "bb4f-repo-"));
+    const fixed = mkdtempSync(resolve(repo, "..c-"));
+    expect(() => assertSecretOutPath(resolve(fixed, "whsec.txt"), repo)).toThrow(/outside/);
+  });
+
+  it("refuses a path that reaches into the repository through a symlink", () => {
+    const repo = mkdtempSync(resolve(tmpdir(), "bb4f-repo-"));
+    const outside = mkdtempSync(resolve(tmpdir(), "bb4f-"));
+    const link = resolve(outside, "link");
+    symlinkSync(repo, link);
+    expect(() => assertSecretOutPath(resolve(link, "whsec.txt"), repo)).toThrow(/outside/);
+  });
+
+  it("refuses an existing file and a missing directory", () => {
+    const repo = mkdtempSync(resolve(tmpdir(), "bb4f-repo-"));
+    const dir = mkdtempSync(resolve(tmpdir(), "bb4f-"));
+    const existing = resolve(dir, "old.txt");
+    writeFileSync(existing, "x", { mode: 0o644 });
+    expect(() => assertSecretOutPath(existing, repo)).toThrow(/exists/);
+    expect(() => assertSecretOutPath(resolve(dir, "nope", "f.txt"), repo)).toThrow(/directory/);
+  });
+});
+
+describe("writeSecretFile", () => {
+  it("creates the file with mode 0600", () => {
+    const f = resolve(mkdtempSync(resolve(tmpdir(), "bb4f-")), "s.txt");
+    writeSecretFile(f, "whsec_fake");
+    expect(statSync(f).mode & 0o777).toBe(0o600);
+    expect(readFileSync(f, "utf-8")).toBe("whsec_fake");
+  });
+
+  it("never writes into an existing file (which may be world-readable)", () => {
+    const f = resolve(mkdtempSync(resolve(tmpdir(), "bb4f-")), "s.txt");
+    writeFileSync(f, "old", { mode: 0o644 });
+    expect(() => writeSecretFile(f, "whsec_fake")).toThrow();
+    expect(readFileSync(f, "utf-8")).toBe("old");
+  });
+});
+
+describe("redactSecrets", () => {
+  it("removes the bypass value from an error message", () => {
+    expect(redactSecrets("bad url https://x/?x-vercel-protection-bypass=s3cret!", ["s3cret"])).toBe(
+      "bad url https://x/?x-vercel-protection-bypass=REDACTED!",
     );
+    expect(redactSecrets("plain", [undefined])).toBe("plain");
   });
 });
 
@@ -224,6 +275,12 @@ describe("ensureProduct", () => {
     expect(s.products.create).not.toHaveBeenCalled();
   });
 
+  it("lists active products only, so an archived London product is not reused", async () => {
+    const s = fakeStripe({});
+    await ensureProduct(asStripe(s), spec);
+    expect(s.products.list.mock.calls[0][0]).toMatchObject({ active: true });
+  });
+
   it("creates the product with the role metadata when none exists", async () => {
     const s = fakeStripe({ products: [{ id: "prod_other", metadata: {} }] });
     expect(await ensureProduct(asStripe(s), spec)).toBe("prod_new");
@@ -241,17 +298,54 @@ describe("ensurePrice", () => {
       prices: [
         {
           id: "price_old",
+          product: "prod_x",
           lookup_key: spec.lookupKey,
           unit_amount: spec.unitAmount,
           currency: spec.currency,
           tax_behavior: "inclusive",
-          recurring: { interval: "month" },
+          recurring: { interval: "month", interval_count: 1 },
           active: true,
         },
       ],
     });
     expect(await ensurePrice(asStripe(s), spec, "prod_x")).toBe("price_old");
     expect(s.prices.create).not.toHaveBeenCalled();
+  });
+
+  const good = {
+    id: "price_old",
+    product: "prod_x",
+    lookup_key: spec.lookupKey,
+    unit_amount: spec.unitAmount,
+    currency: spec.currency,
+    tax_behavior: "inclusive",
+    recurring: { interval: "month", interval_count: 1 },
+    active: true,
+  };
+
+  it("asks Stripe for the active price under the lookup key", async () => {
+    const s = fakeStripe({ prices: [good] });
+    await ensurePrice(asStripe(s), spec, "prod_x");
+    expect(s.prices.list.mock.calls[0][0]).toMatchObject({
+      lookup_keys: [spec.lookupKey],
+      active: true,
+    });
+  });
+
+  it.each([
+    ["another product", { product: "prod_other" }],
+    ["another currency", { currency: "usd" }],
+    ["exclusive tax", { tax_behavior: "exclusive" }],
+    ["every two months", { recurring: { interval: "month", interval_count: 2 } }],
+    ["one-time", { recurring: null }],
+  ])("does not reuse a price on %s", async (_label, patch) => {
+    const s = fakeStripe({ prices: [{ ...good, ...patch }] });
+    expect(await ensurePrice(asStripe(s), spec, "prod_x")).toBe("price_new");
+  });
+
+  it("reuses a price whose product comes back expanded", async () => {
+    const s = fakeStripe({ prices: [{ ...good, product: { id: "prod_x" } }] });
+    expect(await ensurePrice(asStripe(s), spec, "prod_x")).toBe("price_old");
   });
 
   it("creates a GBP, tax-inclusive price and moves the lookup key when the amount changed", async () => {
@@ -306,10 +400,25 @@ describe("ensureWebhookEndpoint", () => {
     const r = await ensureWebhookEndpoint(asStripe(s), url);
     expect(r).toEqual({ id: "we_ldn", secret: null, created: false });
     expect(s.webhookEndpoints.create).not.toHaveBeenCalled();
-    expect(s.webhookEndpoints.update).toHaveBeenCalledWith(
-      "we_ldn",
-      expect.objectContaining({ url }),
-    );
+    const [, params] = s.webhookEndpoints.update.mock.calls[0];
+    expect(params).toMatchObject({ url, disabled: false });
+    expect([...(params.enabled_events as string[])].sort()).toEqual([...WEBHOOK_EVENTS].sort());
+  });
+
+  it("refuses to drop the bypass from an endpoint that had one", async () => {
+    const s = fakeStripe({
+      hooks: [
+        {
+          id: "we_ldn",
+          url: "https://old.vercel.app/api/webhooks/stripe?x-vercel-protection-bypass=b",
+          metadata: { bb_ldn_role: "main" },
+        },
+      ],
+    });
+    await expect(
+      ensureWebhookEndpoint(asStripe(s), "https://new.vercel.app/api/webhooks/stripe"),
+    ).rejects.toThrow(/VERCEL_PROTECTION_BYPASS/);
+    expect(s.webhookEndpoints.update).not.toHaveBeenCalled();
   });
 });
 
@@ -332,9 +441,19 @@ describe("ensureGbTaxRegistration (M-1 1c)", () => {
     });
   });
 
-  it("reports Stripe's refusal as a fact instead of throwing", async () => {
-    const s = fakeStripe({ registrationCreateError: new Error("not allowed for AU accounts") });
+  it("reports Stripe's refusal (an invalid-request error) as a fact instead of throwing", async () => {
+    const refusal = Object.assign(new Error("not allowed for AU accounts"), {
+      type: "StripeInvalidRequestError",
+    });
+    const s = fakeStripe({ registrationCreateError: refusal });
     const r = await ensureGbTaxRegistration(asStripe(s));
     expect(r).toEqual({ outcome: "refused", detail: "not allowed for AU accounts" });
+  });
+
+  it("labels auth, permission or network failures as errors, not refusals", async () => {
+    const auth = Object.assign(new Error("Invalid API Key"), { type: "StripeAuthenticationError" });
+    const s = fakeStripe({ registrationCreateError: auth });
+    const r = await ensureGbTaxRegistration(asStripe(s));
+    expect(r).toEqual({ outcome: "error", detail: "Invalid API Key" });
   });
 });
