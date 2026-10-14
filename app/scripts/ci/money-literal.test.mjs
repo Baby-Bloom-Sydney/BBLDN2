@@ -33,6 +33,9 @@ export const PATTERNS = [
   { name: "a pound amount", re: /£\d/ },
   { name: "a pence-shaped number literal", re: /\d+_00\b/ },
   { name: "a `_pence` field set to a number", re: /_pence\s*[:=]\s*\d/ },
+  // Added at review (4-0): the config's own spelling, `feePence: 150_000`, which none of the three
+  // brief patterns can see — so an amount copied out of config/ would pass. Matches 0 lines on main.
+  { name: "a `*Pence` field set to a number", re: /[a-z]Pence\s*[:=]\s*\d/ },
 ];
 
 const isTestFile = (name) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(name);
@@ -77,6 +80,7 @@ describe("money literal", () => {
       "const fee = 1500_00;",
       "{ fee_pence: 150000 }",
       "row.deposit_pence = 15000",
+      "const price = { feePence: 150_000 };",
     ];
     for (const spelling of spellings) {
       expect(
@@ -93,6 +97,10 @@ describe("money literal", () => {
   });
 
   it("scans the real tree, not an empty directory", () => {
-    expect(sourceFiles(SRC).length).toBeGreaterThan(500);
+    const rels = sourceFiles(SRC).map((f) => path.relative(SRC, f).split(path.sep).join("/"));
+    expect(rels.length).toBeGreaterThan(500);
+    // A walk that half-skips the tree would still clear 500; these must be in it.
+    expect(rels).toContain("app/parent/subscribe/SubscribeClient.tsx");
+    expect(rels).toContain("lib/constants.ts");
   });
 });

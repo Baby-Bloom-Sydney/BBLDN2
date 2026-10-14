@@ -3,7 +3,8 @@
  * `LDN/TARGET/offer/README.md` and ADR-082…100. Every value carries its source;
  * a value with no source in the offer or an ADR is not added here (P-25).
  *
- * Frozen at every level: `as const` for the types, `Object.freeze` at runtime.
+ * Objects are frozen at every level (`as const` for the types, `Object.freeze` at
+ * runtime); the plain numbers are immutable `const` bindings.
  */
 
 /** First week on us: discount ≤ 15 per hour × ≤ 40 contracted hours, in pence (ADR-100, offer §2). */
