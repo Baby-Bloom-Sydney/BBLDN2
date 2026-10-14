@@ -157,6 +157,16 @@ describe("review fixes (code-reviewer M3, L1; M2 mirror)", () => {
     expect(screen.getByRole("button", { name: /Yes, bar/ })).toBeDisabled();
   });
 
+  // 3g (BB-LDN-3g-141026), orchestrator ruling 2026-10-14: P-14 drops every connection, hired ones too.
+  it("3g the Bar confirm says all her connections are closed and admin gets the families to contact", () => {
+    open(check());
+    fireEvent.click(screen.getByRole("button", { name: /^BAR$/ }));
+    expect(
+      screen.getByText("Bar this nanny? Her account is suspended, all her connections are closed, and she is emailed. Admin is emailed the families to contact."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/pending connections/)).toBeNull();
+  });
+
   it("M2 Approve is disabled when the Update Service result is older than the current upload", () => {
     open(check({ wwcc_status_at: "2026-10-06T12:00:00Z", ocg_verified_at: "2026-10-01T00:00:00Z" }));
     expect(screen.getByRole("button", { name: /APPROVE DBS/ })).toBeDisabled();

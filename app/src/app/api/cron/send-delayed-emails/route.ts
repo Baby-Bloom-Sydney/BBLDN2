@@ -22,7 +22,8 @@ import {
  * Unit 3g (BB-LDN-3g-141026): VER-003 and the LCY-101…104 sub-variants use the copy deck's London words (§6.3, §6.9).
  * VER-003 now also covers a FIRST-check 23 / 26 (00-RULINGS #20) via `selectVer003Candidates` — never a re-check
  * failure (`wwcc_verified_at` set: 3i sends its own email) and never a 22 (README P-4's email). LCY sends no
- * "still not verified" nudge after a re-check fail (README P-10). Never: changes any send condition beyond those.
+ * "still not verified" nudge after a re-check fail (README P-10). A 22 (admin rejected) gets the failed copy without its
+ * manual-review half (`wwcc_rejected`; 22 = Edit & Resubmit only, orchestrator ruling 2026-10-14). Never: changes any send condition beyond those.
  *
  * Called by Vercel Cron every 5 minutes (see vercel.json).
  * Also callable manually: GET /api/cron/send-delayed-emails
@@ -368,7 +369,10 @@ export async function GET(request: NextRequest) {
 
     if (['failed', 'rejected'].includes(v.identity_status)) {
       group = 3; subVariant = 'identity_failed';
-    } else if (['failed', 'rejected'].includes(v.wwcc_status)) {
+    } else if (v.wwcc_status === 'rejected') {
+      // 22 = Edit & Resubmit only (orchestrator ruling 2026-10-14): wwcc_failed's copy without its manual-review half.
+      group = 3; subVariant = 'wwcc_rejected';
+    } else if (v.wwcc_status === 'failed') {
       group = 3; subVariant = 'wwcc_failed';
     } else if (v.wwcc_status === 'ocg_not_found') {
       group = 3; subVariant = 'dbs_no_match';
@@ -445,6 +449,7 @@ function getLcyContent(
     // Group 3 sub-variants
     identity_failed: 'Your identity check needs a quick fix \u2014 most people get it right on the second try. Head to your verification page to see what needs adjusting.',
     wwcc_failed: 'Your DBS check needs a quick fix. A clearer photo of page 1 usually does it \u2014 or you can ask our team to check it by hand.',
+    wwcc_rejected: 'Your DBS check needs a quick fix. A clearer photo of page 1 usually does it.',
     dbs_no_match: 'We couldn\u2019t find your certificate on the DBS Update Service. This usually means you haven\u2019t joined yet, or your subscription has ended.',
     dbs_new_info: 'The DBS Update Service shows there\u2019s new information since your certificate was issued, so you\u2019ll need a new enhanced DBS before we can verify you.',
   };
@@ -471,6 +476,11 @@ function getLcyContent(
       '1. Go to your Verification page<br/>' +
       '2. Read the feedback on what went wrong<br/>' +
       '3. Upload page 1 again, or click \u201cRequest manual review\u201d<br/>' +
+      '4. Click \u201cVerify DBS\u201d',
+    wwcc_rejected:
+      '1. Go to your Verification page<br/>' +
+      '2. Read the feedback on what went wrong<br/>' +
+      '3. Upload page 1 again<br/>' +
       '4. Click \u201cVerify DBS\u201d',
     dbs_no_match:
       '1. Join the Update Service, or check your subscription is active<br/>' +

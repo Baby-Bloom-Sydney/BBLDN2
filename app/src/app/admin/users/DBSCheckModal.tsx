@@ -52,7 +52,8 @@ const PAGE2_BODY =
 const CONFIRM_TEXT: Record<Exclude<Confirm, null>, string> = {
   approve: "Approve? She becomes fully verified and her held replies are sent to parents.",
   reject: "Reject this certificate? She is emailed the reason and can upload again.",
-  bar: "Bar this nanny? Her account is suspended, her pending connections are cancelled, and she is emailed.",
+  // P-14 (orchestrator ruling 2026-10-14, 3g): every connection is dropped and VER-011 lists the families.
+  bar: "Bar this nanny? Her account is suspended, all her connections are closed, and she is emailed. Admin is emailed the families to contact.",
   lift: "Lift the bar? She can upload a new certificate; she is not verified until you approve again.",
 };
 

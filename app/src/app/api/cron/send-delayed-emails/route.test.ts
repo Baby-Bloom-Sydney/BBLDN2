@@ -268,6 +268,21 @@ describe("send-delayed-emails — LCY-101…104 (deck §6.9)", () => {
     );
   });
 
+  // Orchestrator ruling 2026-10-14 (review M2): 22 = Edit & Resubmit only — the manual-review half is dropped, no new words.
+  it("renders the 22 (rejected) reminder without the manual-review half", async () => {
+    h.verifications = [ver("u-22", "rejected", ONE_HOUR)];
+    await run();
+    const [m] = reminders();
+    expect(m.html).toContain("Your DBS check needs a quick fix. A clearer photo of page 1 usually does it.");
+    expect(m.html).toContain(
+      "1. Go to your Verification page<br/>" +
+        "2. Read the feedback on what went wrong<br/>" +
+        "3. Upload page 1 again<br/>" +
+        "4. Click “Verify DBS”",
+    );
+    expect(m.html).not.toMatch(/manual review|check it by hand/i);
+  });
+
   it.each([
     ["new information", "expired"],
     ["no match", "ocg_not_found"],

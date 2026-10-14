@@ -214,7 +214,7 @@ export function QuickMatchResultsClient() {
                 <div className="flex items-center justify-center gap-4 mb-2.5">
                   <span className="inline-flex items-center gap-1 text-xs text-slate-500">
                     <ShieldCheck className="w-3.5 h-3.5 text-green-500" /> Enhanced
-                    DBS verified
+                    DBS checked
                   </span>
                   <span className="inline-flex items-center gap-1 text-xs text-slate-500">
                     <CheckCircle className="w-3.5 h-3.5 text-violet-500" />{" "}
