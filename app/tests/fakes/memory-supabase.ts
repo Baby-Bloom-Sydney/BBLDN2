@@ -133,6 +133,15 @@ export function createMemoryDb(seed: Record<string, Row[]> = {}): MemoryDb {
       gt: (c: string, v: string) => (filters.push((r) => String(r[c]) > v), b),
       gte: (c: string, v: string) => (filters.push((r) => String(r[c]) >= v), b),
       not: () => b,
+      // `filter('col->>key', 'eq', value)` — the JSON text operator, enough for the 3i VER-003 marker read.
+      filter: (c: string, op: string, v: unknown) => {
+        const [col, key] = c.split("->>");
+        filters.push((r) => {
+          const cell = key ? (r[col] as Record<string, unknown> | null)?.[key] : r[col];
+          return op === "eq" && cell != null && String(cell) === String(v);
+        });
+        return b;
+      },
       order: (col: string, opts?: { ascending?: boolean; nullsFirst?: boolean }) => {
         const asc = opts?.ascending !== false;
         orderBy = { col, asc, nullsFirst: opts?.nullsFirst ?? !asc };

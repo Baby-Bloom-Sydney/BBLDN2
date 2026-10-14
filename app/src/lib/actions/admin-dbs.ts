@@ -33,8 +33,7 @@ import { runCrossCheckPhase } from '@/lib/ai/verification-pipeline';
 import { checkDbsStatus, type DbsCheckResult } from '@/lib/dbs/update-service';
 import { applyDbsResult, type DbsApplyOutcome, type DbsApplyResult } from '@/lib/dbs/map-dbs-outcome';
 import { onDbsRecheckFailed } from '@/lib/dbs/recheck';
-import type { RecheckFailMarker } from '@/lib/dbs/log';
-import { logDbsStatusCheck } from '@/lib/dbs/log';
+import { completeRecheckFailure, logDbsStatusCheck, markRecheckFailure } from '@/lib/dbs/log';
 import { sendBarredNannyEmail } from '@/lib/email/dbs-emails';
 import { ADMIN_REASON_MAX_LENGTH, isApiResultCurrent } from '@/lib/admin/dbs-queues';
 import {
@@ -400,15 +399,17 @@ export async function adminRunDbsCheck(verificationId: string): Promise<AdminDbs
   // email, admin alert). A fail write that matched nothing (superseded) only re-syncs, as before.
   const { outcome } = applied;
   let followUpWarning: string | undefined;
-  let recheckFail: RecheckFailMarker | undefined;
   if (outcome === 'new_info' || outcome === 'no_match') {
+    // Code review MEDIUM 1: the marker first (VER-003 reads it), then the follow-ups, then the counts on the same row.
+    const statusAt = applied.statusAt ?? '';
+    const markerId = await markRecheckFailure(admin, row.user_id, { trigger: 'admin', result: result.result, statusAt });
     const after = await onDbsRecheckFailed(admin, { userId: row.user_id, result: outcome === 'new_info' ? 'NEW_INFO' : 'NO_MATCH' });
-    recheckFail = { statusAt: applied.statusAt ?? '', ...after };
+    await completeRecheckFailure(admin, row.user_id, markerId, { trigger: 'admin', result: result.result, marker: { statusAt, ...after } });
     followUpWarning = after.warnings.length ? `Saved, but a follow-up failed (${after.warnings.join(', ')})` : undefined;
-  } else if (failedOnLevelFour) {
-    followUpWarning = await syncAfterDecision(row.user_id);
+  } else {
+    if (failedOnLevelFour) followUpWarning = await syncAfterDecision(row.user_id);
+    await logDbsStatusCheck(row.user_id, logEntry, admin);
   }
-  await logDbsStatusCheck(row.user_id, recheckFail ? { ...logEntry, recheckFail } : logEntry, admin);
 
   revalidatePath('/admin/users');
   return { success: true, error: null, result: result.result, outcome, ...withWarning([followUpWarning]) };

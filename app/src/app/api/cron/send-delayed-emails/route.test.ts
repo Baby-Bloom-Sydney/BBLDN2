@@ -176,6 +176,9 @@ describe("send-delayed-emails — VER-003 (deck §6.3, #20)", () => {
     const q = ver003Query();
     expect(q?.calls).toContainEqual(["in", ["wwcc_status", ["failed", "expired", "ocg_not_found"]]]);
     expect(q?.calls).not.toContainEqual(["is", ["wwcc_verified_at", null]]);
+    // 3i code review LOW: the marker filter runs in the database (no 1000-row page can push a marker out)
+    const logQ = h.queries.find((x) => x.table === "activity_logs");
+    expect(logQ?.calls).toContainEqual(["filter", ["action_details->>recheck_fail", "eq", "true"]]);
   });
 
   // 3g code review M1, resolved by 3i (addendum): a once-approved nanny whose NEW upload fails gets VER-003 — her

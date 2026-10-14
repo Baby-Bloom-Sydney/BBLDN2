@@ -178,7 +178,7 @@ describe("cron/dbs-recheck — pass (#12, #33)", () => {
     expect(logs()).toHaveLength(0);
     expect(h.sends).toHaveLength(0);
     expect(h.db.writes.filter((w) => w.table !== "verifications")).toHaveLength(0);
-    expect(body).toEqual({ checked: 1, passed: 1, failed_new_info: 0, failed_no_match: 0, errors: 0, skipped: 0, stopped_on_budget: false });
+    expect(body).toEqual({ checked: 1, passed: 1, failed_new_info: 0, failed_no_match: 0, errors: 0, skipped: 0, stopped_on_budget: false, reconciled: 0 });
   });
 });
 

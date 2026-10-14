@@ -51,7 +51,7 @@ describe("onDbsRecheckFailed — every follow-up failure is a warning, the rest 
     h.nannyEmail.mockRejectedValueOnce(new Error("resend down"));
     h.adminEmail.mockRejectedValueOnce("not an Error");
     const r = await onDbsRecheckFailed(admin(), { userId: "u1", result: "NEW_INFO" });
-    expect(r).toEqual({ kept: 0, dropped: 1, notDropped: 0, warnings: ["sync_failed", "nanny_email_failed", "admin_email_failed"] });
+    expect(r).toEqual({ kept: 0, dropped: 1, notDropped: 0, warnings: ["sync_failed", "sync_not_applied", "nanny_email_failed", "admin_email_failed"] });
     expect(h.db.tables.connection_requests[0]).toMatchObject({ connection_stage: 1, status: "expired" });
   });
 
@@ -64,7 +64,7 @@ describe("onDbsRecheckFailed — every follow-up failure is a warning, the rest 
           : base.from(t),
     };
     const r = await onDbsRecheckFailed(broken as unknown as Admin, { userId: "u1", result: "NO_MATCH" });
-    expect(r.warnings).toEqual(["nanny_read_failed"]);
+    expect(r.warnings).toEqual(["nanny_read_failed"]); // the level re-read uses the same broken nannies read
     expect(r).toMatchObject({ kept: 0, dropped: 0, notDropped: 0 });
     expect(h.db.tables.connection_requests[0]).toMatchObject({ connection_stage: 20 });
     expect(h.nannyEmail).toHaveBeenCalledWith("u1", "NO_MATCH");
@@ -78,7 +78,77 @@ describe("onDbsRecheckFailed — every follow-up failure is a warning, the rest 
         t === "connection_requests" ? { select: () => ({ eq: async () => ({ data: null, error: { message: "down" } }) }) } : base.from(t),
     };
     const r = await onDbsRecheckFailed(broken as unknown as Admin, { userId: "u1", nannyId: "n1", result: "NEW_INFO" });
-    expect(r.warnings).toEqual(["connections_not_dropped"]);
+    expect(r.warnings).toEqual(["sync_not_applied", "connections_not_dropped"]);
+  });
+});
+
+// Code review (3i) MEDIUM 1 + 2 — written red first.
+describe("review fixes — the marker is written first; a sync that did not apply is caught", () => {
+  it("MEDIUM 1 writes the re-check marker before any follow-up, then completes the same row with the counts", async () => {
+    let markerAtEmailTime: unknown;
+    h.nannyEmail.mockImplementationOnce(async () => {
+      markerAtEmailTime = logs()[0]?.action_details;
+    });
+    await runDbsRecheck(admin(), { check: async () => NEW_INFO, config: fast });
+    expect(markerAtEmailTime).toMatchObject({ trigger: "recheck", result: "NEW_INFO", recheck_fail: true, status_at: expect.any(String) });
+    expect(logs()).toHaveLength(1);
+    expect(logs()[0].action_details).toMatchObject({ recheck_fail: true, kept: 0, dropped: 1, not_dropped: 0 });
+  });
+
+  it("MEDIUM 2 warns sync_not_applied when her nannies row is still level 3+ after the sync", async () => {
+    // the mocked sync does nothing — exactly a sync whose nannies UPDATE silently failed
+    const r = await onDbsRecheckFailed(admin(), { userId: "u1", result: "NEW_INFO" });
+    expect(r.warnings).toContain("sync_not_applied");
+  });
+
+  it("MEDIUM 2 no warning when the sync did apply (level 2)", async () => {
+    h.sync.mockImplementationOnce(async () => {
+      h.db.tables.nannies[0].verification_level = 2;
+    });
+    const r = await onDbsRecheckFailed(admin(), { userId: "u1", result: "NEW_INFO" });
+    expect(r.warnings).toEqual([]);
+  });
+});
+
+// Security review MEDIUM 2 — a re-check whose after-fail step half-failed (sync or drop failed, or the run was killed
+// after the guarded UPDATE) is repaired by the next run: she is 23/26 with an approval in her history but her nannies
+// row still says level 4. Written red first.
+describe("security review M2 — reconcile a half-failed re-check at the start of each run", () => {
+  function halfFailed() {
+    Object.assign(h.db.tables.verifications[0], { verification_status: 23, wwcc_status: "expired", wwcc_verified: false, cross_check_status: "not_started" });
+  }
+
+  it("re-syncs her and drops her non-hired connections; sends no second email", async () => {
+    halfFailed();
+    const s = await runDbsRecheck(admin(), { check: async () => NEW_INFO, config: fast });
+    expect(h.sync).toHaveBeenCalledWith("u1");
+    expect(h.db.tables.connection_requests[0]).toMatchObject({ connection_stage: 1, status: "expired" });
+    expect(h.nannyEmail).not.toHaveBeenCalled();
+    expect(h.adminEmail).not.toHaveBeenCalled();
+    expect(s).toMatchObject({ reconciled: 1, checked: 0 });
+  });
+
+  it("leaves a healthy level-4 nanny to the normal check", async () => {
+    const s = await runDbsRecheck(admin(), { check: async () => ({ result: "BLANK", status: "BLANK_NO_NEW_INFO", raw: "<x/>", forename: null, surname: null, printDate: null }) as DbsCheckResult, config: fast });
+    expect(s).toMatchObject({ reconciled: 0, checked: 1, passed: 1 });
+    expect(h.sync).not.toHaveBeenCalled();
+  });
+
+  it("a reconcile read error never blocks the run", async () => {
+    halfFailed();
+    const base = h.db.client() as { from: (t: string) => unknown };
+    let first = true;
+    const broken = {
+      from: (t: string) => {
+        if (t === "nannies" && first) {
+          first = false;
+          return { select: () => ({ eq: async () => ({ data: null, error: { message: "down" } }) }) };
+        }
+        return base.from(t);
+      },
+    };
+    const s = await runDbsRecheck(broken as unknown as Admin, { check: async () => NEW_INFO, config: fast });
+    expect(s).toMatchObject({ reconciled: 0 });
   });
 });
 
@@ -86,7 +156,7 @@ describe("runDbsRecheck — failure branches", () => {
   it("records the warnings of a failed follow-up in the log row", async () => {
     h.nannyEmail.mockRejectedValueOnce(new Error("resend down"));
     await runDbsRecheck(admin(), { check: async () => NEW_INFO, config: fast });
-    expect(logs()[0].action_details).toMatchObject({ trigger: "recheck", result: "NEW_INFO", recheck_fail: true, warnings: ["nanny_email_failed"] });
+    expect(logs()[0].action_details).toMatchObject({ trigger: "recheck", result: "NEW_INFO", recheck_fail: true, warnings: ["sync_not_applied", "nanny_email_failed"] });
   });
 
   it("a write the database refuses is logged as write_refused and counted as an error; she is unchanged", async () => {

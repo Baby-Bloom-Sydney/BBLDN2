@@ -20,11 +20,19 @@
  *   nothing written, one error row. Pass → the mapper writes the result block only, nothing logged. NEW_INFO / NO_MATCH
  *   → the mapper's guarded fail UPDATE; if it matched her row → `onDbsRecheckFailed` → one log row with the marker. A
  *   guarded UPDATE that matched nothing (an admin moved her meanwhile) → no email, no log (`skipped`).
- * - Output: counts only `{ checked, passed, failed_new_info, failed_no_match, errors, skipped, stopped_on_budget }`.
+ * - First (security review M2): `reconcileHalfFailed` repairs any nanny whose earlier re-check fail half-applied — her
+ *   `nannies` row still says level 4 while her verification is 23 / 26 with an approval in its history (sync or drop
+ *   failed, or a run was killed after the guarded UPDATE). It re-runs the idempotent sync and P-3 drop; no email is
+ *   re-sent (the fail already sent them, or the log row's warnings say they failed). A read error here never blocks
+ *   the run.
+ * - Output: counts only `{ checked, passed, failed_new_info, failed_no_match, errors, skipped, stopped_on_budget,
+ *   reconciled }`.
  *
- * `onDbsRecheckFailed(admin, { userId, nannyId?, result })` — after a guarded fail UPDATE matched her row: the unchanged
- * sync (→ level 2), the P-3 drop, her email (3g's `sendDbsRecheckFailedEmail`), the admin alert. Each step's failure is
- * caught and returned as a warning, so the rest still run and the log row records it.
+ * `onDbsRecheckFailed(admin, { userId, nannyId?, result })` — after a guarded fail UPDATE matched her row (and the
+ * marker row was written — code review MEDIUM 1): the unchanged sync (→ level 2), a re-read of her level (MEDIUM 2: the
+ * sync ignores its own write error, so a level still ≥ 3 is reported as `sync_not_applied`), the P-3 drop, her email
+ * (3g's `sendDbsRecheckFailedEmail`), the admin alert. Each step's failure is caught and returned as a warning, so the
+ * rest still run and the log row records it.
  *
  * Never: logs or returns a name, certificate number or date of birth; writes 40 or `wwcc_verified=true`; touches
  * identity; calls the live DBS URL in tests (the adapter is injected); messages a parent.
@@ -34,7 +42,7 @@ import { syncNannyVerificationState } from "@/lib/actions/verification";
 import { checkDbsStatus, type DbsCheckInput, type DbsCheckResult } from "./update-service";
 import { applyDbsResult, type DbsApplyResult } from "./map-dbs-outcome";
 import { getDbsRecheckConfig, type DbsRecheckConfig } from "./config";
-import { logDbsStatusCheck } from "./log";
+import { completeRecheckFailure, logDbsStatusCheck, markRecheckFailure } from "./log";
 import { dropNonHiredConnections } from "./recheck-connections";
 import { sendDbsRecheckAdminAlert, sendDbsRecheckFailedEmail, type DbsRecheckFailure } from "@/lib/email/dbs-emails";
 import { VERIFICATION_LEVEL, VERIFICATION_STATUS, type IdentityStatus } from "@/lib/verification";
@@ -49,6 +57,8 @@ export interface RecheckSummary {
   errors: number;
   skipped: number;
   stopped_on_budget: boolean;
+  /** Half-failed earlier re-check fails repaired this run (security review M2). */
+  reconciled: number;
 }
 
 export interface RecheckDeps {
@@ -109,13 +119,13 @@ export async function onDbsRecheckFailed(
   const warnings: string[] = [];
   await attempt(warnings, "sync_failed", () => syncNannyVerificationState(args.userId));
 
-  const nannyId =
-    args.nannyId ??
-    (await attempt(warnings, "nanny_read_failed", async () => {
-      const { data, error } = await admin.from("nannies").select("id").eq("user_id", args.userId).maybeSingle();
-      if (error) throw new Error(error.message);
-      return (data?.id as string | undefined) ?? undefined;
-    }));
+  const nanny = await attempt(warnings, "nanny_read_failed", async () => {
+    const { data, error } = await admin.from("nannies").select("id, verification_level").eq("user_id", args.userId).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data as { id: string; verification_level: number } | null;
+  });
+  if (nanny && nanny.verification_level >= VERIFICATION_LEVEL.PROVISIONALLY_VERIFIED) warnings.push("sync_not_applied");
+  const nannyId = args.nannyId ?? nanny?.id;
 
   const counts = nannyId
     ? await attempt(warnings, "connections_not_dropped", () => dropNonHiredConnections(admin, nannyId))
@@ -127,6 +137,40 @@ export async function onDbsRecheckFailed(
     sendDbsRecheckAdminAlert(args.userId, args.result, { checkedAt: new Date().toISOString(), kept, dropped, notDropped }),
   );
   return { kept, dropped, notDropped, warnings };
+}
+
+/** A failed re-check's verification status (23 / 26) — the rows reconcile looks for. */
+const RECHECK_FAIL_STATUSES = [VERIFICATION_STATUS.DBS_NEW_INFO, VERIFICATION_STATUS.DBS_NO_MATCH];
+
+/**
+ * Security review M2: nannies still at level 4 whose verification is a re-check fail (23 / 26, approval in history) —
+ * re-sync + P-3 drop, no emails. Returns how many were repaired; never throws.
+ */
+async function reconcileHalfFailed(admin: AdminClient): Promise<number> {
+  try {
+    const { data: nannies, error } = await admin.from("nannies").select("id, user_id").eq("verification_level", VERIFICATION_LEVEL.FULLY_VERIFIED);
+    if (error) throw new Error(error.message);
+    const nannyOf = new Map((nannies ?? []).map((n) => [n.user_id as string, n.id as string]));
+    const userIds = [...nannyOf.keys()];
+    let repaired = 0;
+    for (let i = 0; i < userIds.length; i += USER_ID_CHUNK) {
+      const { data: rows, error: vErr } = await admin
+        .from("verifications")
+        .select("user_id, wwcc_verified_at")
+        .in("verification_status", RECHECK_FAIL_STATUSES)
+        .in("user_id", userIds.slice(i, i + USER_ID_CHUNK));
+      if (vErr) throw new Error(vErr.message);
+      for (const r of (rows ?? []).filter((x) => x.wwcc_verified_at)) {
+        await syncNannyVerificationState(r.user_id as string);
+        await dropNonHiredConnections(admin, nannyOf.get(r.user_id as string)!);
+        repaired++;
+      }
+    }
+    return repaired;
+  } catch (err) {
+    console.error("[dbs-recheck] reconcile pass failed:", err instanceof Error ? err.message : "unknown");
+    return 0;
+  }
 }
 
 /** The level-4 rows to check today, oldest-checked first (see the module header). Throws on a read error. */
@@ -197,12 +241,10 @@ async function checkOne(
   if (applied.outcome !== "new_info" && applied.outcome !== "no_match") return "passed";
 
   const failure: DbsRecheckFailure = applied.outcome === "new_info" ? "NEW_INFO" : "NO_MATCH";
+  const statusAt = applied.statusAt ?? "";
+  const markerId = await markRecheckFailure(admin, row.user_id, { trigger: "recheck", result: failure, statusAt });
   const after = await onDbsRecheckFailed(admin, { userId: row.user_id, nannyId, result: failure });
-  await logDbsStatusCheck(
-    row.user_id,
-    { trigger: "recheck", result: failure, recheckFail: { statusAt: applied.statusAt ?? "", ...after } },
-    admin,
-  );
+  await completeRecheckFailure(admin, row.user_id, markerId, { trigger: "recheck", result: failure, marker: { statusAt, ...after } });
   return applied.outcome;
 }
 
@@ -215,7 +257,10 @@ export async function runDbsRecheck(admin: AdminClient, deps: RecheckDeps = {}):
   const sleep = deps.sleep ?? realSleep;
   const now = deps.now ?? Date.now;
   const started = now();
-  const summary: RecheckSummary = { checked: 0, passed: 0, failed_new_info: 0, failed_no_match: 0, errors: 0, skipped: 0, stopped_on_budget: false };
+  const summary: RecheckSummary = {
+    checked: 0, passed: 0, failed_new_info: 0, failed_no_match: 0, errors: 0, skipped: 0, stopped_on_budget: false,
+    reconciled: await reconcileHalfFailed(admin),
+  };
 
   for (const { row, nannyId } of await selectCandidates(admin, config.batchLimit)) {
     if (!hasDetails(row)) {

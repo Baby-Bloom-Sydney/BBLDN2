@@ -51,6 +51,7 @@ async function withoutRecheckFailures(supabase: AdminClient, rows: Ver003Candida
     .from("activity_logs")
     .select("user_id, action_details")
     .eq("action_type", DBS_ACTIVITY.STATUS_CHECK)
+    .filter("action_details->>recheck_fail", "eq", "true") // in the database: no row page can push a marker out
     .in("user_id", [...new Set(onceApproved.map((r) => r.user_id))]);
   if (error) {
     console.error("[Delayed Emails] VER-003 re-check marker read failed:", error.message);
