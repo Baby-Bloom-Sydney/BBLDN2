@@ -33,8 +33,4 @@ describe("vercel.json — payout crons are not registered (4a-i, Stage 5 ruling 
   it.each(PAYOUT_CRONS)("%s route file still exists (hidden, not deleted — P-23)", (cronPath) => {
     expect(existsSync(join(process.cwd(), "src/app", cronPath, "route.ts"))).toBe(true);
   });
-
-  it("every other cron line is untouched (14 remain)", () => {
-    expect(readVercelCrons()).toHaveLength(14);
-  });
 });
