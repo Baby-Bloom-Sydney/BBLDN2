@@ -1555,6 +1555,20 @@
   },
   {
     "rule": "identity",
+    "file": "app/src/app/admin/leads/payouts-abn-hidden.test.tsx",
+    "match": "ABN",
+    "owner": "money",
+    "note": "4a-i (BB-LDN-4a-i-151026): the hide spec names the kept tax-ID column and the label it hides (P-23; card 4b: hide only, the column stays) and asserts its absence with PAYOUTS_ENABLED off and presence with it on. Goes when the money/removals stage deletes the column."
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/app/admin/leads/payouts-abn-hidden.test.tsx",
+    "match": "abn",
+    "owner": "money",
+    "note": "4a-i (BB-LDN-4a-i-151026): the hide spec names the kept tax-ID column and the label it hides (P-23; card 4b: hide only, the column stays) and asserts its absence with PAYOUTS_ENABLED off and presence with it on. Goes when the money/removals stage deletes the column."
+  },
+  {
+    "rule": "identity",
     "file": "app/src/app/admin/pipeline/page.tsx",
     "match": "WWCC",
     "owner": "cleanup",

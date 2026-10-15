@@ -9,14 +9,16 @@
  * - `system/APP/PAYMENTS/04-stripe-integration.md` §2 (env vars)
  * - `system/APP/PAYMENTS/02-business-model.md` §10 (kill-switch semantics)
  *
- * Default for these flags is **true** (payments + payouts + new trials all
- * ON). This matches the staging/production rollout where the env vars are
+ * Default for `PAYMENTS_ENABLED` and `NEW_TRIALS_ENABLED` is **true**
+ * (`payoutsEnabled()` is the exception: default off, see below). This
+ * matches the staging/production rollout where the env vars are
  * explicitly set; any agent forgetting to wire the env vars in dev still
  * gets a working flow. To disable, set the env var to the literal string
  * `"false"` (case-insensitive). Anything else evaluates to true.
  *
  * Server-only — these flags must never be exposed via `NEXT_PUBLIC_*`.
- * Kill-switch state is privileged information.
+ * Kill-switch state is privileged information. (Exception: the payouts
+ * hide switch is inlined for client chrome — its state is not secret.)
  */
 
 function parseBool(value: string | undefined, defaultValue: boolean): boolean {
@@ -42,16 +44,25 @@ function parseBool(value: string | undefined, defaultValue: boolean): boolean {
 export const PAYMENTS_ENABLED = parseBool(process.env.PAYMENTS_ENABLED, true);
 
 /**
- * Master switch for the nanny-payout side.
+ * The one switch for the nanny payout / Stripe Connect / tax-ID surface.
  *
- * When false, `startPayoutApplication` blocks with `'payouts_disabled'`,
- * and the daily `send-nanny-payouts` cron skips the transfer step (rows
- * stay in `pending`, picked up on the next eligible run). Webhook
- * processing of Connect events still runs so account state stays fresh.
+ * London (P-23, card 4b, unit 4a-i): the surface is **hidden, not deleted**.
+ * Off unless the env var is the literal string "true" (trimmed) — absent
+ * means hidden, and it is deliberately in no Vercel env. While off: the
+ * `/nanny/payouts/**` pages and `/admin/payouts` call `notFound()`, the
+ * payout API routes and both payout crons answer 404, the two Connect
+ * server actions refuse with `'payouts_disabled'`, and the nav badge,
+ * admin menu entry, settings "Contributions" branch and admin-lead tax-ID /
+ * payout displays render nothing.
  *
- * Default: true.
+ * Read at call time (tests flip it). Client components reach the same
+ * expression because `next.config.mjs` inlines `PAYOUTS_ENABLED` at build;
+ * flipping it therefore needs a rebuild. Fails closed: anything other than
+ * "true" keeps the surface hidden.
  */
-export const PAYOUTS_ENABLED = parseBool(process.env.PAYOUTS_ENABLED, true);
+export function payoutsEnabled(): boolean {
+  return process.env.PAYOUTS_ENABLED?.trim() === "true";
+}
 
 /**
  * Gate for kicking off NEW family trials.
@@ -82,7 +93,7 @@ export interface PaymentsFlags {
 export function getPaymentsFlags(): PaymentsFlags {
   return {
     PAYMENTS_ENABLED,
-    PAYOUTS_ENABLED,
+    PAYOUTS_ENABLED: payoutsEnabled(),
     NEW_TRIALS_ENABLED,
   };
 }

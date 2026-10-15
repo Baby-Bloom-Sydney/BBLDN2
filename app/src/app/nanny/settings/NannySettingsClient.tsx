@@ -74,6 +74,7 @@ import {
 } from "@/lib/uk-contact";
 import type { SettingsNode } from "@/components/settings/tree";
 import { formatDbsDate, formatDbsNumber, type DbsDisplayState } from "@/lib/dbs/nanny-display";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 /** The DBS leaf's data, decoded on the server by `getDbsDisplayState` (3b, brief change 11). */
 export interface NannyDbsSettings {
@@ -184,6 +185,12 @@ function formatDate(iso: string | null): string {
   });
 }
 
+const PAYOUT_LEAF_IDS = new Set([
+  "upcoming-contributions",
+  "contribution-history",
+  "contribution-settings",
+]);
+
 function buildTree(args: {
   identityStatus: ReturnType<typeof publicIdentityStatus>;
   dbsStatus: ReturnType<typeof publicDbsStatus>;
@@ -240,16 +247,22 @@ function buildTree(args: {
     // surfaces — three siblings under a shared Contributions parent.
     // Standalone routes (under /nanny/payouts/) still work; the URLs
     // are intentionally unchanged (backend identifiers stay the same).
-    {
-      id: "contributions",
-      label: "Contributions",
-      icon: Wallet,
-      children: [
-        { id: "upcoming-contributions", label: "Upcoming Contributions" },
-        { id: "contribution-history", label: "Contribution History" },
-        { id: "contribution-settings", label: "Contribution Settings" },
-      ],
-    },
+    // 4a-i (P-23): the whole payout surface (incl. Connect onboarding) is
+    // hidden unless PAYOUTS_ENABLED.
+    ...(payoutsEnabled()
+      ? [
+          {
+            id: "contributions",
+            label: "Contributions",
+            icon: Wallet,
+            children: [
+              { id: "upcoming-contributions", label: "Upcoming Contributions" },
+              { id: "contribution-history", label: "Contribution History" },
+              { id: "contribution-settings", label: "Contribution Settings" },
+            ],
+          },
+        ]
+      : []),
     { id: "contact-us", label: "Contact Us", icon: LifeBuoy },
     // Hidden danger leaf — reached only via the small link at the
     // bottom of Account's drill-down menu.
@@ -305,6 +318,8 @@ export function NannySettingsClient({
           : undefined
       }
       renderLeaf={(node) => {
+        // 4a-i (P-23): deep links to the payout leaves render nothing while hidden.
+        if (!payoutsEnabled() && PAYOUT_LEAF_IDS.has(node.id)) return null;
         switch (node.id) {
           case "profile":
             return (

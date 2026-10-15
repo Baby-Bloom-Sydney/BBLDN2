@@ -1,14 +1,17 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PayoutHistoryView } from "@/components/payments/PayoutHistoryView";
 import { fetchPayoutHistory } from "@/lib/payments/queryPayoutHistory";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 /**
  * `/nanny/payouts/history` — standalone history route. Renders the
  * same `PayoutHistoryView` that the settings tree embeds.
  */
 export default async function NannyPayoutHistoryPage() {
+  // 4a-i (P-23): hidden unless PAYOUTS_ENABLED — 404 before any auth or data read.
+  if (!payoutsEnabled()) notFound();
   const supabase = createClient();
   const {
     data: { user },

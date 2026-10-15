@@ -7,6 +7,7 @@ import { SubscriptionStatsGrid } from "./SubscriptionStatsGrid";
 import { SubscriptionTimeline } from "./SubscriptionTimeline";
 import { buildTimelineEntries } from "./build-timeline";
 import type { TimelineEntry } from "./build-timeline";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 /**
  * `/admin/users/[userId]/subscription` — full subscription dossier.
@@ -26,6 +27,9 @@ export default async function AdminUserSubscriptionPage({
 }) {
   await requireAdmin();
   const admin = createAdminClient();
+  // 4a-i (P-23): the payout rows and the nanny's payout logs are hidden unless PAYOUTS_ENABLED.
+  const showPayouts = payoutsEnabled();
+  const noRows = Promise.resolve({ data: [] as PayoutRow[] });
 
   const [
     parentUserData,
@@ -54,14 +58,16 @@ export default async function AdminUserSubscriptionPage({
       .eq("parent_user_id", params.userId)
       .order("created_at", { ascending: true })
       .returns<ChildClientRow[]>(),
-    admin
-      .from("nanny_payouts")
-      .select(
-        "id, status, amount_aud_cents, paid_at, period_start, period_end, scheduled_release_at, frozen_at, failure_reason, created_at",
-      )
-      .eq("parent_user_id", params.userId)
-      .order("created_at", { ascending: true })
-      .returns<PayoutRow[]>(),
+    showPayouts
+      ? admin
+          .from("nanny_payouts")
+          .select(
+            "id, status, amount_aud_cents, paid_at, period_start, period_end, scheduled_release_at, frozen_at, failure_reason, created_at",
+          )
+          .eq("parent_user_id", params.userId)
+          .order("created_at", { ascending: true })
+          .returns<PayoutRow[]>()
+      : noRows,
     admin
       .from("refund_requests")
       .select(
@@ -131,24 +137,25 @@ export default async function AdminUserSubscriptionPage({
   // Pull nanny-side activity logs too — commission events log against
   // the parent user (already covered) but a subset (e.g. payout_paid)
   // logs against the nanny. We merge a narrow set in for completeness.
-  const nannyLogs: ActivityLogRow[] = nannyUserId
-    ? ((
-        await admin
-          .from("activity_logs")
-          .select("id, action_type, action_details, created_at, user_id")
-          .eq("user_id", nannyUserId)
-          .in("action_type", [
-            "payout_paid",
-            "payout_failed",
-            "payout_created",
-            "nanny_account_updated",
-            "payout_application_status_changed",
-          ])
-          .order("created_at", { ascending: true })
-          .limit(200)
-          .returns<ActivityLogRow[]>()
-      ).data ?? [])
-    : [];
+  const nannyLogs: ActivityLogRow[] =
+    showPayouts && nannyUserId
+      ? ((
+          await admin
+            .from("activity_logs")
+            .select("id, action_type, action_details, created_at, user_id")
+            .eq("user_id", nannyUserId)
+            .in("action_type", [
+              "payout_paid",
+              "payout_failed",
+              "payout_created",
+              "nanny_account_updated",
+              "payout_application_status_changed",
+            ])
+            .order("created_at", { ascending: true })
+            .limit(200)
+            .returns<ActivityLogRow[]>()
+        ).data ?? [])
+      : [];
 
   // Derived metrics — everything an admin glances at on the stats grid.
   const cumulativeSpendAud = computeCumulativeSpend({ sub, activityLogs });

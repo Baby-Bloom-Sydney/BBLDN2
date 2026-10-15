@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { scheduleCommissionFor } from "@/lib/payments/commission-scheduler";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 /**
  * Cron — schedule-upfront-cycles
@@ -20,6 +21,10 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const CYCLE_DURATION_DAYS = 30;
 
 export async function GET(request: NextRequest) {
+  // 4a-i (P-23): hidden unless PAYOUTS_ENABLED — 404 before any auth, read or work.
+  if (!payoutsEnabled()) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const authHeader = request.headers.get("authorization");

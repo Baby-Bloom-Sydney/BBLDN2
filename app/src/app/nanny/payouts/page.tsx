@@ -1,16 +1,19 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { UpcomingPayoutsView } from "@/components/payments/UpcomingPayoutsView";
 import { fetchPayoutsDashboardData } from "@/lib/payments/queryPayoutsDashboard";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 /**
  * `/nanny/payouts` — standalone dashboard route. Renders the same
  * `UpcomingPayoutsView` that the settings tree now embeds.
  */
 export default async function NannyPayoutsPage() {
+  // 4a-i (P-23): hidden unless PAYOUTS_ENABLED — 404 before any auth or data read.
+  if (!payoutsEnabled()) notFound();
   const supabase = createClient();
   const {
     data: { user },

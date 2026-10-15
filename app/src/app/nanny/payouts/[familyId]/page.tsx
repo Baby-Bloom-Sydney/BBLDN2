@@ -1,9 +1,10 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 /**
  * `/nanny/payouts/[familyId]` — per-family detail (S12).
@@ -18,6 +19,8 @@ export default async function FamilyPayoutDetailPage({
 }: {
   params: { familyId: string };
 }) {
+  // 4a-i (P-23): hidden unless PAYOUTS_ENABLED — 404 before any auth or data read.
+  if (!payoutsEnabled()) notFound();
   const supabase = createClient();
   const {
     data: { user },

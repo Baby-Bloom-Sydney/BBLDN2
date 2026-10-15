@@ -1,5 +1,5 @@
 /**
- * Unit 4a-i (BB-LDN-4a-i-151026) — `PAYOUTS_ENABLED` is the one switch for the hidden payout / Connect / ABN
+ * Unit 4a-i (BB-LDN-4a-i-151026) — `PAYOUTS_ENABLED` is the one switch for the hidden payout / Connect / tax-ID
  * surface (P-23, card 4b). Absent means hidden; only the literal "true" opens it.
  */
 import { describe, it, expect, afterEach, vi } from "vitest";

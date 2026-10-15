@@ -1,4 +1,6 @@
+import { notFound } from "next/navigation";
 import Link from "next/link";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 /**
  * `/nanny/payouts/terms` — contribution terms reference.
@@ -9,6 +11,8 @@ import Link from "next/link";
  * row created until the family's first paid charge lands).
  */
 export default function NannyPayoutsTermsPage() {
+  // 4a-i (P-23): hidden unless PAYOUTS_ENABLED — 404 before any auth or data read.
+  if (!payoutsEnabled()) notFound();
   return (
     <div className="mx-auto max-w-2xl px-4 py-12">
       <Link

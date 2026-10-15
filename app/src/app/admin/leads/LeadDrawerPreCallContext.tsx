@@ -7,6 +7,7 @@ interface LeadDrawerPreCallContextProps {
 }
 
 import { formatLeadDateTime } from "@/lib/leads/format";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 function composeContext(detail: LeadDetail): string {
   const parts: string[] = [];
@@ -20,7 +21,8 @@ function composeContext(detail: LeadDetail): string {
   if (v?.identity_verified === true) verBadges.push("ID");
   if (v?.wwcc_verified === true) verBadges.push("DBS");
   if (detail.user_profile?.profile_picture_url) verBadges.push("photo");
-  if (detail.nanny?.abn) verBadges.push("ABN");
+  // 4a-i (P-23): hidden unless PAYOUTS_ENABLED.
+  if (payoutsEnabled() && detail.nanny?.abn) verBadges.push("ABN");
   if (verBadges.length > 0) parts.push(`${verBadges.join(" + ")} done`);
   else parts.push("no verification yet");
 

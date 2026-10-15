@@ -1,7 +1,8 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PayoutOnboardingPageClient } from "./PayoutOnboardingPageClient";
 import { fetchPayoutOnboardingViewData } from "@/lib/payments/queryNannyPayoutOnboarding";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 /**
  * `/nanny/payouts/onboarding` — standalone onboarding route. Renders
@@ -9,6 +10,8 @@ import { fetchPayoutOnboardingViewData } from "@/lib/payments/queryNannyPayoutOn
  * embeds. Card-style layout modelled on `/nanny/verification`.
  */
 export default async function NannyOnboardingPage() {
+  // 4a-i (P-23): hidden unless PAYOUTS_ENABLED — 404 before any auth or data read.
+  if (!payoutsEnabled()) notFound();
   const supabase = createClient();
   const {
     data: { user },

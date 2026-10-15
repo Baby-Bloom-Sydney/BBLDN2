@@ -10,10 +10,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  // 4a-i (P-23): hidden unless PAYOUTS_ENABLED — 404 before any auth, read or work.
+  if (!payoutsEnabled()) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
   const supabase = createClient();
   const {
     data: { user },

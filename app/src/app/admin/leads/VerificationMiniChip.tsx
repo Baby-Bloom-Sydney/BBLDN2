@@ -3,6 +3,7 @@
 
 import { Check, X, Minus } from "lucide-react";
 import type { VerificationSnapshot } from "@/lib/leads/types";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 interface VerificationMiniChipProps {
   verification: VerificationSnapshot;
@@ -56,7 +57,10 @@ export function VerificationMiniChip({
         state={boolToState(verification.identity_verified, true)}
       />
       <Chip label="Photo" state={verification.photo_present ? "yes" : "no"} />
-      <Chip label="ABN" state={verification.abn_present ? "yes" : "no"} />
+      {/* 4a-i (P-23): hidden unless PAYOUTS_ENABLED. */}
+      {payoutsEnabled() && (
+        <Chip label="ABN" state={verification.abn_present ? "yes" : "no"} />
+      )}
     </div>
   );
 }

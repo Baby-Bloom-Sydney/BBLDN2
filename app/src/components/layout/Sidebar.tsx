@@ -34,6 +34,7 @@ import {
   Phone,
 } from "lucide-react";
 import Link from "next/link";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 type UserRole = "nanny" | "parent" | "admin" | "super_admin" | "guest";
 
@@ -107,7 +108,10 @@ export function Sidebar({ role: propRole, collapsed, onToggle }: SidebarProps) {
   // Use auth role if user is logged in, otherwise fall back to prop
   const role: UserRole = user && authRole ? (authRole as UserRole) : propRole;
   const isGuest = role === "guest";
-  const navItems = navItemsByRole[role] || publicNavItems;
+  // 4a-i (P-23): the admin Payouts entry is hidden unless PAYOUTS_ENABLED.
+  const navItems = (navItemsByRole[role] || publicNavItems).filter(
+    (item) => payoutsEnabled() || item.href !== "/admin/payouts",
+  );
 
   const fullName = displayFullName(profile, user);
   const firstName = displayName(profile, user);

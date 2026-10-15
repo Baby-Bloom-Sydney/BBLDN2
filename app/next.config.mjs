@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // 4a-i (P-23): the payout / Connect / tax-ID surface is hidden unless PAYOUTS_ENABLED is "true". Inlined so client
+  // chrome (nav badge, admin menu, settings, admin leads) reads the same switch as the server (`payoutsEnabled()`).
+  env: { PAYOUTS_ENABLED: process.env.PAYOUTS_ENABLED ?? "" },
   typescript: {
     // strict: build fails on TS errors
     ignoreBuildErrors: false,

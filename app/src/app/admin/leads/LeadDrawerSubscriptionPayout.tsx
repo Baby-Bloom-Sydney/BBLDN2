@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight, Wallet } from "lucide-react";
 import type { LeadDetail } from "@/lib/leads/fetch-lead-detail";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 interface LeadDrawerSubscriptionPayoutProps {
   detail: LeadDetail;
@@ -15,6 +16,9 @@ export function LeadDrawerSubscriptionPayout({
 }: LeadDrawerSubscriptionPayoutProps) {
   const [open, setOpen] = useState(false);
   const n = detail.nanny;
+
+  // 4a-i (P-23): every field here is Connect / payout / tax ID — hidden unless PAYOUTS_ENABLED.
+  if (!payoutsEnabled()) return null;
 
   return (
     <section>
