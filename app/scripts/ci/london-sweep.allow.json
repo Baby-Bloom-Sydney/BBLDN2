@@ -906,15 +906,15 @@
     "rule": "brand",
     "file": "app/scripts/test-checkout-tax.ts",
     "match": "babybloomsydney.com.au",
-    "owner": "money",
-    "note": "Stripe test-mode / tax configuration script. 03-triage §9 routes the Stripe scripts to the money stage, which owns currency, country, tax and Connect (04 §4 money); its URLs and the AU billing city move when that configuration does."
+    "owner": "removals",
+    "note": "Stripe test-mode / tax configuration script. 03-triage §9 routes the Stripe scripts to the money stage, which owns currency, country, tax and Connect (04 §4 money); its URLs and the AU billing city move when that configuration does. — 4-w5fix (BB-LDN-w5fix-151026, W5-M5, planner ruling) re-owned money → removals: Sydney GST test script; hidden stage, delete later."
   },
   {
     "rule": "brand",
     "file": "app/scripts/test-checkout-tax.ts",
     "match": "city: \"Sydney\"",
-    "owner": "money",
-    "note": "Stripe test-mode / tax configuration script. 03-triage §9 routes the Stripe scripts to the money stage, which owns currency, country, tax and Connect (04 §4 money); its URLs and the AU billing city move when that configuration does."
+    "owner": "removals",
+    "note": "Stripe test-mode / tax configuration script. 03-triage §9 routes the Stripe scripts to the money stage, which owns currency, country, tax and Connect (04 §4 money); its URLs and the AU billing city move when that configuration does. — 4-w5fix (BB-LDN-w5fix-151026, W5-M5, planner ruling) re-owned money → removals: Sydney GST test script; hidden stage, delete later."
   },
   {
     "rule": "brand",
@@ -997,8 +997,8 @@
     "rule": "jurisdiction",
     "file": "app/scripts/test-checkout-tax.ts",
     "match": "NSW",
-    "owner": "money",
-    "note": "NSW / Australian jurisdiction fact stated beside a verification requirement. It moves with the verification ladder, not before it. 04-sequence.md §4 `identity`, fate row 12.08.  [W6, 1 hit(s): line 44] Re-owned to money by 3w6fix (BB-LDN-3w6fix-141026, W6-D2): a Stripe checkout-tax test script — Stage 4 rewrites tax for the UK; flagged to the Stage 4 planner."
+    "owner": "removals",
+    "note": "NSW / Australian jurisdiction fact stated beside a verification requirement. It moves with the verification ladder, not before it. 04-sequence.md §4 `identity`, fate row 12.08.  [W6, 1 hit(s): line 44] Re-owned to money by 3w6fix (BB-LDN-3w6fix-141026, W6-D2): a Stripe checkout-tax test script — Stage 4 rewrites tax for the UK; flagged to the Stage 4 planner. — 4-w5fix (BB-LDN-w5fix-151026, W5-M5, planner ruling) re-owned money → removals: Sydney GST test script; hidden stage, delete later."
   },
   {
     "rule": "identity",
@@ -1475,6 +1475,20 @@
     "match": "abn",
     "owner": "removals",
     "note": "4a-i (BB-LDN-4a-i-151026): the hide spec names the kept tax-ID column and the label it hides (P-23; card 4b: hide only, the column stays) and asserts its absence with PAYOUTS_ENABLED off and presence with it on. Goes when the money/removals stage deletes the column. — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: 4a-i's spec asserting the ABN surface is hidden — goes with that surface (P-23)."
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/lib/leads/fetch-lead-detail.test.ts",
+    "match": "abn",
+    "owner": "removals",
+    "note": "4-w5fix (BB-LDN-w5fix-151026, W5-M2): the hide spec names the kept tax-ID column `abn` and asserts it is absent from the lead payload with PAYOUTS_ENABLED off and as before with it on (P-23: hide only, the column stays). Goes with that surface."
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/lib/leads/fetch-leads.test.ts",
+    "match": "abn",
+    "owner": "removals",
+    "note": "4-w5fix (BB-LDN-w5fix-151026, W5-M2): the hide spec names the kept tax-ID column `abn` and asserts it is not filtered on (`?abn=` ignored) with PAYOUTS_ENABLED off and as before with it on (P-23: hide only, the column stays). Goes with that surface."
   },
   {
     "rule": "identity",

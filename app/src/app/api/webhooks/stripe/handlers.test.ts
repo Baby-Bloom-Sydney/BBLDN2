@@ -8,7 +8,7 @@
  * touches access (offer §4 G2).
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type Stripe from "stripe";
 
 const stripeState = vi.hoisted(() => ({
@@ -627,5 +627,176 @@ describe("handleInvoiceFailed — grace window from GRACE_DAYS (card 3a)", () =>
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4-w5fix (W5-M1): commission / payout calls from kept self-serve flows run only
+// when PAYOUTS_ENABLED (P-23 hide — the engine code stays).
+// ---------------------------------------------------------------------------
+
+describe("commission calls are behind PAYOUTS_ENABLED (4-w5fix, W5-M1)", () => {
+  const checkout = evt<Stripe.CheckoutSessionCompletedEvent>({
+    id: "cs_1",
+    metadata: { user_id: "u1", plan: "upfront" },
+    customer: "cus_1",
+    subscription: null,
+    payment_intent: "pi_1",
+  });
+  const checkoutScript = () => ({
+    "parent_subscriptions.select": [{ data: null }, { data: { id: "ps1" } }],
+    "child_client.select": [{ data: [] }],
+  });
+  const renewalScript = () => ({
+    "parent_subscriptions.select": [
+      { data: { status: "active_monthly", parent_user_id: "u1" } },
+      { data: { id: "ps1" } },
+    ],
+  });
+  const renewal = evt<Stripe.InvoicePaymentSucceededEvent>({ id: "in_1", subscription: "sub_1", amount_paid: 1 });
+  const deleted = evt<Stripe.CustomerSubscriptionDeletedEvent>({ id: "sub_1" });
+  const failed = evt<Stripe.InvoicePaymentFailedEvent>({ id: "in_1", subscription: "sub_1" });
+  const rowScript = () => ({ "parent_subscriptions.update": [{ data: { id: "ps1", parent_user_id: "u1" } }] });
+
+  beforeEach(async () => {
+    const { scheduleCommissionFor } = await import("@/lib/payments/commission-scheduler");
+    const { cancelInFlightCommission } = await import("@/lib/payments/commission-cancel");
+    vi.mocked(scheduleCommissionFor).mockClear();
+    vi.mocked(cancelInFlightCommission).mockClear();
+    stripeState.retrieveSub.mockResolvedValue({ current_period_end: 1 });
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  const mocks = async () => ({
+    schedule: vi.mocked((await import("@/lib/payments/commission-scheduler")).scheduleCommissionFor),
+    cancel: vi.mocked((await import("@/lib/payments/commission-cancel")).cancelInFlightCommission),
+  });
+
+  it("flag off: a paid self-serve checkout schedules no commission (no nanny_payouts row)", async () => {
+    vi.stubEnv("PAYOUTS_ENABLED", "");
+    const { admin, calls } = fakeAdmin(checkoutScript());
+    expect(await handleCheckoutCompleted(admin, checkout)).toBe("applied");
+    expect((await mocks()).schedule).not.toHaveBeenCalled();
+    expect(calls.some((c) => c.table === "nanny_payouts")).toBe(false);
+  });
+
+  it("flag on: the same checkout schedules cycle 1 as before", async () => {
+    vi.stubEnv("PAYOUTS_ENABLED", "true");
+    const { admin } = fakeAdmin(checkoutScript());
+    expect(await handleCheckoutCompleted(admin, checkout)).toBe("applied");
+    expect((await mocks()).schedule).toHaveBeenCalledWith({ parentSubscriptionId: "ps1", cycleIndex: 1 });
+  });
+
+  it("flag off: a renewal schedules no commission; flag on: it does", async () => {
+    vi.stubEnv("PAYOUTS_ENABLED", "");
+    expect(await handleInvoiceSucceeded(fakeAdmin(renewalScript()).admin, renewal)).toBe("applied");
+    expect((await mocks()).schedule).not.toHaveBeenCalled();
+    vi.stubEnv("PAYOUTS_ENABLED", "true");
+    await handleInvoiceSucceeded(fakeAdmin(renewalScript()).admin, renewal);
+    expect((await mocks()).schedule).toHaveBeenCalledWith({ parentSubscriptionId: "ps1", cycleIndex: 1 });
+  });
+
+  it("flag off: a deleted subscription freezes no commission; flag on: it does", async () => {
+    vi.stubEnv("PAYOUTS_ENABLED", "");
+    expect(await handleSubscriptionDeleted(fakeAdmin(rowScript()).admin, deleted)).toBe("applied");
+    expect((await mocks()).cancel).not.toHaveBeenCalled();
+    vi.stubEnv("PAYOUTS_ENABLED", "true");
+    await handleSubscriptionDeleted(fakeAdmin(rowScript()).admin, deleted);
+    expect((await mocks()).cancel).toHaveBeenCalledWith("ps1", "parent_cancelled");
+  });
+
+  it("flag off: a failed invoice defers no nanny_payouts row; flag on: it does", async () => {
+    vi.stubEnv("PAYOUTS_ENABLED", "");
+    const off = fakeAdmin(rowScript());
+    expect(await handleInvoiceFailed(off.admin, failed)).toBe("applied");
+    expect(off.calls.some((c) => c.table === "nanny_payouts")).toBe(false);
+    vi.stubEnv("PAYOUTS_ENABLED", "true");
+    const on = fakeAdmin(rowScript());
+    await handleInvoiceFailed(on.admin, failed);
+    expect(on.calls.filter((c) => c.table === "nanny_payouts" && c.op === "update")).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4-w5fix (W5-M3): a DFY refund resolves the family by customer, or else by the
+// refunded payment intent against the deposit / bill intent.
+// ---------------------------------------------------------------------------
+
+describe("handleChargeRefunded — DFY family by payment intent (4-w5fix, W5-M3)", () => {
+  const refund = { id: "re_dfy", amount: 15_000, currency: "gbp" };
+  const charge = (fields: Record<string, unknown> = {}) =>
+    evt<Stripe.ChargeRefundedEvent>({
+      id: "ch_dfy",
+      customer: null,
+      payment_intent: "pi_dfy_dep",
+      currency: "gbp",
+      refunds: { data: [refund] },
+      ...fields,
+    });
+
+  it("deposit refund with no customer: found by deposit intent → refund_requests row + deposit_refunded_at", async () => {
+    const { admin, calls } = fakeAdmin({
+      "refund_requests.select": [{ data: null }],
+      "parent_subscriptions.select": [
+        { data: { id: "ps1", parent_user_id: "u1" } }, // by deposit intent
+        { data: { deposit_stripe_payment_intent_id: "pi_dfy_dep" } }, // stamp read
+      ],
+    });
+    expect(await handleChargeRefunded(admin, charge())).toBe("applied");
+    const lookup = calls.filter((c) => c.table === "parent_subscriptions" && c.op === "select")[0];
+    expect(lookup.filters).toContainEqual(["eq", "deposit_stripe_payment_intent_id", "pi_dfy_dep"]);
+    const insert = calls.find((c) => c.table === "refund_requests" && c.op === "insert");
+    expect(insert?.payload).toMatchObject({
+      parent_subscription_id: "ps1",
+      parent_user_id: "u1",
+      reason_category: "other",
+      reason_text: "Refund issued in the Stripe Dashboard",
+      stripe_refund_id: "re_dfy",
+    });
+    const stamp = calls.find((c) => c.table === "parent_subscriptions" && c.op === "update");
+    expect(Object.keys(stamp?.payload as object)).toEqual(["deposit_refunded_at"]);
+  });
+
+  it("bill refund: customer unknown, not the deposit → found by bill intent → row written, no stamp, no access write", async () => {
+    const { admin, calls } = fakeAdmin({
+      "refund_requests.select": [{ data: null }],
+      "parent_subscriptions.select": [
+        { data: null }, // by customer
+        { data: null }, // by deposit intent
+        { data: { id: "ps1", parent_user_id: "u1" } }, // by bill intent
+        { data: { deposit_stripe_payment_intent_id: "pi_dfy_dep" } },
+      ],
+    });
+    const res = await handleChargeRefunded(admin, charge({ customer: "cus_unknown", payment_intent: "pi_dfy_bill" }));
+    expect(res).toBe("applied");
+    const lookups = calls.filter((c) => c.table === "parent_subscriptions" && c.op === "select");
+    expect(lookups[2].filters).toContainEqual(["eq", "bill_stripe_payment_intent_id", "pi_dfy_bill"]);
+    expect(calls.some((c) => c.table === "refund_requests" && c.op === "insert")).toBe(true);
+    expect(calls.some((c) => c.table === "parent_subscriptions" && ["update", "upsert"].includes(c.op))).toBe(false);
+  });
+
+  it("the customer still wins when it resolves: no intent lookup is made", async () => {
+    const { admin, calls } = fakeAdmin({
+      "refund_requests.select": [{ data: null }],
+      "parent_subscriptions.select": [{ data: { id: "ps1", parent_user_id: "u1" } }, { data: null }],
+    });
+    await handleChargeRefunded(admin, charge({ customer: "cus_1" }));
+    const lookups = calls.filter((c) => c.table === "parent_subscriptions" && c.op === "select");
+    expect(lookups[0].filters).toContainEqual(["eq", "stripe_customer_id", "cus_1"]);
+    expect(lookups.some((c) => c.filters.some(([, col]) => col.endsWith("_payment_intent_id")))).toBe(false);
+  });
+
+  it("no customer and no matching intent → ignored, nothing inserted", async () => {
+    const { admin, calls } = fakeAdmin({ "refund_requests.select": [{ data: null }] });
+    expect(await handleChargeRefunded(admin, charge())).toBe("ignored");
+    expect(calls.some((c) => c.table === "refund_requests" && c.op === "insert")).toBe(false);
+  });
+
+  it("an intent lookup error throws (→ unresolved), never mistaken for 'no family'", async () => {
+    const { admin } = fakeAdmin({
+      "refund_requests.select": [{ data: null }],
+      "parent_subscriptions.select": [{ error: { message: "down" } }],
+    });
+    await expect(handleChargeRefunded(admin, charge())).rejects.toThrow(/lookup failed/);
   });
 });

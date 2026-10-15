@@ -11,12 +11,16 @@ const h = vi.hoisted(() => ({
   admin: { userId: "admin-1", error: null as string | null },
   fake: null as unknown as FakeAdmin,
   create: vi.fn(),
+  createCustomer: vi.fn(),
 }));
 
 vi.mock("@/lib/admin/require-admin", () => ({ requireAdmin: async () => h.admin }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => h.fake.client }));
 vi.mock("@/lib/stripe/client", () => ({
-  getStripeClient: () => ({ checkout: { sessions: { create: h.create } } }),
+  getStripeClient: () => ({
+    checkout: { sessions: { create: h.create } },
+    customers: { create: h.createCustomer },
+  }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
@@ -49,6 +53,8 @@ beforeEach(() => {
   h.fake = fakeAdmin({ parent_subscriptions: sub(), user_profiles: { email: "parent@example.com" } });
   h.create.mockReset();
   h.create.mockResolvedValue({ id: "cs_test_1", url: "https://checkout.stripe.com/c/pay/cs_test_1" });
+  h.createCustomer.mockReset();
+  h.createCustomer.mockResolvedValue({ id: "cus_new_1" });
 });
 
 describe("createDfyPaymentLink", () => {
@@ -150,6 +156,44 @@ describe("createDfyPaymentLink", () => {
     await createDfyPaymentLink(PARENT, "deposit");
     expect(h.create.mock.calls[0][0]).toMatchObject({ customer: "cus_test_1" });
     expect(h.create.mock.calls[0][0]).not.toHaveProperty("customer_email");
+  });
+
+  // 4-w5fix (W5-M3): every link carries a Stripe customer, so a refund of it can be traced to the family.
+  it("a family with no row: creates a customer with the parent's email and mints the link on it", async () => {
+    h.fake.reads.parent_subscriptions = null;
+    await createDfyPaymentLink(PARENT, "deposit");
+    expect(h.createCustomer).toHaveBeenCalledTimes(1);
+    const [params, opts] = h.createCustomer.mock.calls[0];
+    expect(params).toMatchObject({ email: "parent@example.com", metadata: { user_id: PARENT } });
+    expect(opts).toMatchObject({ idempotencyKey: expect.stringContaining(PARENT) });
+    expect(h.create.mock.calls[0][0]).toMatchObject({ customer: "cus_new_1" });
+    expect(h.create.mock.calls[0][0]).not.toHaveProperty("customer_email");
+    expect(writesTo(h.fake, "parent_subscriptions")).toHaveLength(0); // no row to store it on yet
+  });
+
+  it("a row with no customer: creates one, stores it on the row, mints the link on it", async () => {
+    await createDfyPaymentLink(PARENT, "balance-after-week-1", { firstWeekWagesPence: 30_000 });
+    expect(h.createCustomer).toHaveBeenCalledTimes(1);
+    const writes = writesTo(h.fake, "parent_subscriptions");
+    expect(writes).toHaveLength(1);
+    expect(writes[0].payload).toEqual({ stripe_customer_id: "cus_new_1" });
+    expect(writes[0].filters).toContainEqual(["eq", "id", "s1"]);
+    expect(writes[0].filters).toContainEqual(["is", "stripe_customer_id", null]);
+    expect(h.create.mock.calls[0][0]).toMatchObject({ customer: "cus_new_1" });
+  });
+
+  it("a row that already has a customer: no customer is created and the row is not written", async () => {
+    h.fake.reads.parent_subscriptions = sub({ stripe_customer_id: "cus_test_1" });
+    await createDfyPaymentLink(PARENT, "balance-after-week-1", { firstWeekWagesPence: 30_000 });
+    expect(h.createCustomer).not.toHaveBeenCalled();
+    expect(writesTo(h.fake, "parent_subscriptions")).toHaveLength(0);
+  });
+
+  it("a failed customer store is reported, not swallowed: no link is minted", async () => {
+    h.fake.writeErrors.parent_subscriptions = { message: "boom" };
+    const res = await createDfyPaymentLink(PARENT, "balance-after-week-1", { firstWeekWagesPence: 30_000 });
+    expect(res).toEqual({ success: false, error: "stripe_error" });
+    expect(h.create).not.toHaveBeenCalled();
   });
 
   it("refuses a second deposit or a second bill (review MEDIUM — no double charge)", async () => {

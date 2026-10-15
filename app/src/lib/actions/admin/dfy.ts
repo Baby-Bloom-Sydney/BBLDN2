@@ -11,7 +11,10 @@
  *   - `custom` = the admin's pence.
  * A Stripe Checkout Session, `mode: "payment"`, inline `price_data` (no price id), tax-inclusive with Stripe
  * Tax on (M-1 1a/1c), metadata `{ user_id, link_kind, pence }` (+ `first_week_wages_pence` on a balance link,
- * so the webhook can record it). Returns the URL for the admin to copy. Mints only — writes no row.
+ * so the webhook can record it). Every link carries a Stripe customer (4-w5fix, W5-M3): the family's
+ * `stripe_customer_id`, else one created with the parent's email and stored on the family's row when it has
+ * one (the deposit webhook stores it for a family with no row yet) — so a refund of it traces back to the
+ * family. Returns the URL for the admin to copy.
  *
  * `setFamilyAccess` — the admin access toggle (ADR-093, card 7b): on / off / null (no override) with a reason,
  * written to the toggle columns and audited as `access.toggled`.
@@ -80,6 +83,35 @@ async function snapshotWagesPence(admin: Admin, placementId: string | null): Pro
   return wagesPenceFromSnapshot(data?.weekly_hours, data?.hourly_rate);
 }
 
+/**
+ * The Stripe customer every link is minted on (4-w5fix, W5-M3). Reuses the row's; else creates one with the
+ * parent's email (idempotent per parent for Stripe's 24 h key window, so a double click mints one customer)
+ * and stores it on the row — never over an existing id. A failed store throws: no link without a traceable
+ * customer.
+ */
+async function customerFor(
+  admin: Admin,
+  parentUserId: string,
+  sub: SubRow | null,
+  email: string | null,
+): Promise<string> {
+  if (sub?.stripe_customer_id) return sub.stripe_customer_id;
+  const customer = await getStripeClient().customers.create(
+    { ...(email ? { email } : {}), metadata: { user_id: parentUserId } },
+    { idempotencyKey: `dfy-customer-${parentUserId}` },
+  );
+  if (sub) {
+    const { error } = await admin
+      .from("parent_subscriptions")
+      .update({ stripe_customer_id: customer.id })
+      .eq("id", sub.id)
+      .is("stripe_customer_id", null);
+    // A concurrent mint that stored first matches zero rows here; the idempotency key gave it this same customer.
+    if (error) throw new Error(`customer store failed: ${error.message}`);
+  }
+  return customer.id;
+}
+
 const isWholePence = (n: unknown): n is number =>
   typeof n === "number" && Number.isInteger(n) && n > 0 && n <= STRIPE_MAX_AMOUNT;
 
@@ -138,13 +170,11 @@ export async function createDfyPaymentLink(
       pence: String(amount.pence),
       ...(amount.wages !== undefined ? { first_week_wages_pence: String(amount.wages) } : {}),
     };
+    const customer = await customerFor(admin, parentUserId, sub, profile?.email ?? null);
     const session = await getStripeClient().checkout.sessions.create({
       mode: "payment",
-      ...(sub?.stripe_customer_id
-        ? { customer: sub.stripe_customer_id, customer_update: { address: "auto", name: "auto" } }
-        : profile?.email
-          ? { customer_email: profile.email }
-          : {}),
+      customer,
+      customer_update: { address: "auto", name: "auto" },
       client_reference_id: parentUserId,
       line_items: [
         {

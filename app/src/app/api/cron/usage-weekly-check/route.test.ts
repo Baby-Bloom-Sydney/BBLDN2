@@ -193,4 +193,26 @@ describe("usage-weekly-check", () => {
     expect(h.fake.ops.map((o) => o.table)).toEqual(["parent_subscriptions"]);
     expect(h.alert).not.toHaveBeenCalled();
   });
+
+  // 4-w5fix (W5-M4): the automatic "X has been added" tile is system-authored (the dispatcher writes it as
+  // `type: "custom"`, child-onboarding-dispatch.ts:70) and is not use. Identified by that field, not by text.
+  it("a family whose only post this week is the automatic tile is low (system tiles are not counted)", async () => {
+    const rows: Record<string, Array<{ type: string }>> = {
+      c1: [{ type: "custom" }], // the "Mila has been added" tile only
+      c2: Array.from({ length: T }, () => ({ type: "diary" })),
+    };
+    const countOf = (op: Op) => {
+      const excluded = op.filters.filter((f) => f[0] === "neq" && f[1] === "type").map((f) => f[2]);
+      return { count: (rows[childOf(op)] ?? []).filter((r) => !excluded.includes(r.type)).length };
+    };
+    h.fake = seed({ bapp_logs: countOf });
+    const res = await GET(req(AUTH));
+    expect(await res.json()).toEqual({ ok: true, checked: 2, low: 1, skipped: 0 });
+    expect(h.alert.mock.calls[0][0]).toEqual([
+      expect.objectContaining({ parentUserId: "p1", children: [{ childId: "c1", firstName: "Mila", posts: 0 }] }),
+    ]);
+    const countOp = h.fake.ops.find((o) => o.table === "bapp_logs")!;
+    expect(countOp.filters).toContainEqual(["neq", "type", "custom"]);
+  });
 });
+

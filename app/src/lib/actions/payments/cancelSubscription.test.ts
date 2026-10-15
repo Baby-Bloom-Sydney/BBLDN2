@@ -7,6 +7,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const state = vi.hoisted(() => ({
   authUser: { id: "parent-uuid" } as { id: string } | null,
   paymentsEnabled: true,
+  // 4-w5fix (W5-M1): the commission freeze runs only when PAYOUTS_ENABLED. The T-018 tests below
+  // pin the flag-on behaviour (default true here); the flag-off test sets it false.
+  payoutsEnabled: true,
   subRow: null as null | {
     id: string;
     status: string;
@@ -33,6 +36,7 @@ const state = vi.hoisted(() => ({
 beforeEach(() => {
   state.authUser = { id: "parent-uuid" };
   state.paymentsEnabled = true;
+  state.payoutsEnabled = true;
   state.subRow = {
     id: "sub-row-1",
     status: "active_monthly",
@@ -66,6 +70,7 @@ vi.mock("@/lib/payments/flags", () => ({
   get isPaymentsEnabled() {
     return state.paymentsEnabled;
   },
+  payoutsEnabled: () => state.payoutsEnabled,
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -341,5 +346,14 @@ describe("cancelSubscription", () => {
     state.subRow!.status = "lapsed";
     await cancelSubscription({ reason: "not_using" });
     expect(state.cancelCalls).toHaveLength(0);
+  });
+
+  it("flag off (PAYOUTS_ENABLED unset): the cancel succeeds and no commission freeze is called (4-w5fix, W5-M1)", async () => {
+    state.payoutsEnabled = false;
+    const r = await cancelSubscription({ reason: "too_expensive" });
+    expect(r.success).toBe(true);
+    expect(state.dbUpdateCalls[0]?.payload).toMatchObject({ status: "cancelled" });
+    expect(state.cancelCalls).toHaveLength(0);
+    expect(state.activityLogInserts.some((row) => row.action_type === "commission_cancelled")).toBe(false);
   });
 });

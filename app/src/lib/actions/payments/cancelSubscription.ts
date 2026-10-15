@@ -26,7 +26,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripeClient } from "@/lib/stripe/client";
-import { PAYMENTS_ENABLED } from "@/lib/payments/flags";
+import { PAYMENTS_ENABLED, payoutsEnabled } from "@/lib/payments/flags";
 import { cancelInFlightCommission } from "@/lib/payments/commission-cancel";
 
 /** Locked enum — schema CHECK constraint on parent_subscriptions
@@ -216,34 +216,38 @@ export async function cancelSubscription(
     // Posture: best-effort. The cancel has already succeeded by this
     // point; a failure here must not surface as a cancel failure to
     // the caller. Trigger is the real guarantee.
-    try {
-      const { cancelled } = await cancelInFlightCommission(
-        sub.id,
-        "parent_cancelled",
-      );
-      if (cancelled > 0) {
-        try {
-          await admin.from("activity_logs").insert({
-            user_id: user.id,
-            action_type: "commission_cancelled",
-            action_details: {
-              parent_subscription_id: sub.id,
-              cancelled_count: cancelled,
-              reason: "parent_cancelled",
-            },
-          });
-        } catch (logErr: unknown) {
-          // Nested catch so a failed activity_log insert isn't
-          // misattributed to the cancel-in-flight call itself (the
-          // cancel succeeded and returned a non-zero count).
-          console.error(
-            "[cancelSubscription] commission_cancelled log insert failed",
-            logErr,
-          );
+    //
+    // 4-w5fix (W5-M1, P-23): commission is hidden unless PAYOUTS_ENABLED — no freeze is called.
+    if (payoutsEnabled()) {
+      try {
+        const { cancelled } = await cancelInFlightCommission(
+          sub.id,
+          "parent_cancelled",
+        );
+        if (cancelled > 0) {
+          try {
+            await admin.from("activity_logs").insert({
+              user_id: user.id,
+              action_type: "commission_cancelled",
+              action_details: {
+                parent_subscription_id: sub.id,
+                cancelled_count: cancelled,
+                reason: "parent_cancelled",
+              },
+            });
+          } catch (logErr: unknown) {
+            // Nested catch so a failed activity_log insert isn't
+            // misattributed to the cancel-in-flight call itself (the
+            // cancel succeeded and returned a non-zero count).
+            console.error(
+              "[cancelSubscription] commission_cancelled log insert failed",
+              logErr,
+            );
+          }
         }
+      } catch (cancelErr: unknown) {
+        console.error("[cancelSubscription] cancel-in-flight failed", cancelErr);
       }
-    } catch (cancelErr: unknown) {
-      console.error("[cancelSubscription] cancel-in-flight failed", cancelErr);
     }
 
     return {
