@@ -6,6 +6,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CERTIFICATE_OPTIONS } from '@/lib/nanny-options';
+import { sendEmail } from '@/lib/email/resend';
 
 type Row = Record<string, unknown>;
 const h = vi.hoisted(() => ({
@@ -119,5 +120,18 @@ describe('convertLeadToAccount — London funnel answers', () => {
     const [nanny] = insertsInto('nannies');
     expect(nanny.residency_status).toBeNull();
     expect(nanny.right_to_work).toBeNull();
+  });
+});
+
+// W6-D1 (3w6fix, BB-LDN-3w6fix-141026): the ACC-001 welcome email from the /apply conversion uses the house wording of
+// 3g's welcome email (`welcome-nanny.ts`, copy deck §6.8).
+describe('convertLeadToAccount — ACC-001 welcome email (W6-D1)', () => {
+  it('asks for her passport and DBS certificate, in London words', async () => {
+    vi.mocked(sendEmail).mockClear();
+    h.lead = leadWith({ residency_status: 'citizen', right_to_work: true }, {});
+    await convertLeadToAccount('lead-1', 'pw-123456');
+    const welcome = vi.mocked(sendEmail).mock.calls.map(([arg]) => arg).find((a) => a.emailType === 'welcome');
+    expect(welcome?.html).toContain('<li>Upload your passport and DBS certificate for verification</li>');
+    expect(welcome?.html).not.toContain('WW' + 'CC');
   });
 });

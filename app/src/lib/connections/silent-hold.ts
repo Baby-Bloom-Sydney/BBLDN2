@@ -23,6 +23,10 @@
  * - Known limit: "already barred" = old level 0 + suspended (the sync cannot see the previous DBS state); a nanny
  *   suspended for another reason at level 0 and barred with nothing to drop gets no sync alert (ledger 3d §10).
  * - Never: messages a parent, says why, touches placements / positions / schema, or touches another nanny's rows.
+ *
+ * Unit 3i (BB-LDN-3i-141026): `LiveRow`, `CONNECTION_COLUMNS`, `isUnseenByParent`, `neutralExpiryStage` and `expireRow`
+ * are exported (bodies unchanged) so the re-check's P-3 drop (`lib/dbs/recheck-connections.ts`) uses the SAME P-9
+ * neutral expiry as a bar — one meaning of "dropped silently".
  */
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email/resend';
@@ -56,7 +60,7 @@ export interface BarredDropResult {
   removedUnseen: number;
 }
 
-interface LiveRow {
+export interface LiveRow {
   id: string;
   parent_id: string;
   position_id: string | null;
@@ -68,14 +72,17 @@ interface LiveRow {
 
 const HIDDEN: readonly number[] = HIDDEN_CONNECTION_STAGES;
 
+/** The columns a drop reads (the `LiveRow` shape). */
+export const CONNECTION_COLUMNS = 'id, parent_id, position_id, connection_stage, status, source, parent_phone_shared';
+
 /** True for the held rows a parent never saw: stage 4, and a DFY stage 9. */
-function isUnseenByParent(r: LiveRow): boolean {
+export function isUnseenByParent(r: LiveRow): boolean {
   if (r.connection_stage === CONNECTION_STAGE.NANNY_APPLIED_PENDING) return true;
   return r.connection_stage === CONNECTION_STAGE.ACCEPTED_PENDING && r.source === 'dfy';
 }
 
 /** The existing neutral expiry for a row the parent saw (see the module contract). */
-function neutralExpiryStage(stage: number): number {
+export function neutralExpiryStage(stage: number): number {
   return stage === CONNECTION_STAGE.ACCEPTED ? CONNECTION_STAGE.SCHEDULE_EXPIRED : CONNECTION_STAGE.REQUEST_EXPIRED;
 }
 
@@ -120,7 +127,7 @@ async function describeFamilies(admin: AdminClient, rows: LiveRow[]): Promise<Af
 }
 
 /** Moves one row to its neutral expiry, guarded on the stage read (a row that moved on is left alone). True = moved. */
-async function expireRow(admin: AdminClient, nannyId: string, r: LiveRow, now: string): Promise<boolean> {
+export async function expireRow(admin: AdminClient, nannyId: string, r: LiveRow, now: string): Promise<boolean> {
   const { data, error } = await admin
     .from('connection_requests')
     .update({ connection_stage: neutralExpiryStage(r.connection_stage), status: 'expired', updated_at: now })
@@ -136,10 +143,7 @@ async function expireRow(admin: AdminClient, nannyId: string, r: LiveRow, now: s
  * checked, and a row that did not move is returned in `notDropped` (never silently listed as dropped).
  */
 export async function dropBarredConnections(admin: AdminClient, nannyId: string): Promise<BarredDropResult> {
-  const read = await admin
-    .from('connection_requests')
-    .select('id, parent_id, position_id, connection_stage, status, source, parent_phone_shared')
-    .eq('nanny_id', nannyId);
+  const read = await admin.from('connection_requests').select(CONNECTION_COLUMNS).eq('nanny_id', nannyId);
   const live = (must(read, 'connection_requests') as unknown as LiveRow[]).filter((r) => !HIDDEN.includes(r.connection_stage));
   const unseen = live.filter(isUnseenByParent);
   const visible = live.filter((r) => !isUnseenByParent(r));

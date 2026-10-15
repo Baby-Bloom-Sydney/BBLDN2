@@ -134,13 +134,13 @@ export const MOCK_NANNY_SCHEDULE: Record<string, string[]> = {
 // ── Verification steps ──────────────────────────────────────────
 
 export const MOCK_VERIFICATION_STEPS_PARTIAL = [
-  { label: "WWCC Check", status: "verified" },
+  { label: "Enhanced DBS", status: "verified" },
   { label: "Passport", status: "pending" },
   { label: "Facebook Share", status: "not_started" },
 ];
 
 export const MOCK_VERIFICATION_STEPS_COMPLETE = [
-  { label: "WWCC Check", status: "verified" },
+  { label: "Enhanced DBS", status: "verified" },
   { label: "Passport", status: "verified" },
   { label: "Facebook Share", status: "verified" },
 ];
