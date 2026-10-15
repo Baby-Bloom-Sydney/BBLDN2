@@ -21,7 +21,10 @@ export type SubscriptionStatus =
   | "active_upfront"
   | "past_due"
   | "cancelled"
-  | "lapsed";
+  | "lapsed"
+  // London done-for-you (4c, amendment 12): paid, no access (ADR-097) / access on at placement (ADR-093).
+  | "deposit_paid"
+  | "placed";
 
 export type ActiveSubscriptionStatus = Extract<
   SubscriptionStatus,
