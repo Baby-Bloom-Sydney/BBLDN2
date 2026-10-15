@@ -8,6 +8,7 @@ import { SubscriptionTimeline } from "./SubscriptionTimeline";
 import { buildTimelineEntries } from "./build-timeline";
 import type { TimelineEntry } from "./build-timeline";
 import { payoutsEnabled } from "@/lib/payments/flags";
+import { wagesPenceFromSnapshot } from "@/lib/payments/dfy-access";
 
 /**
  * `/admin/users/[userId]/subscription` — full subscription dossier.
@@ -43,7 +44,9 @@ export default async function AdminUserSubscriptionPage({
     admin
       .from("parent_subscriptions")
       .select(
-        "id, status, trial_started_at, trial_ends_at, paid_period_starts_at, paid_period_ends_at, has_used_trial, stripe_customer_id, stripe_subscription_id, stripe_payment_intent_id, cancelled_at, cancellation_reason, past_due_grace_ends_at, subscription_cycle, created_at, updated_at",
+        "id, status, trial_started_at, trial_ends_at, paid_period_starts_at, paid_period_ends_at, has_used_trial, stripe_customer_id, stripe_subscription_id, stripe_payment_intent_id, cancelled_at, cancellation_reason, past_due_grace_ends_at, subscription_cycle, created_at, updated_at, " +
+          // 4c (amendment 12) — the done-for-you state and the admin toggle.
+          "family_type, deposit_pence, deposit_paid_at, deposit_refunded_at, placement_id, placed_at, payment_due_at, satisfaction_window_ends_at, payment_due_raised_at, first_week_wages_pence, balance_pence, bill_paid_at, access_toggled_on, access_toggled_at, access_toggle_reason",
       )
       .eq("parent_user_id", params.userId)
       .maybeSingle<ParentSubscriptionRow>(),
@@ -134,6 +137,12 @@ export default async function AdminUserSubscriptionPage({
     .maybeSingle<{ is_test_user: boolean | null }>();
   const parentIsTestUser = testFlagRow?.is_test_user ?? false;
 
+  // 4c — first week's wages snapshot from the placement (weekly_hours × hourly_rate), the default
+  // for the balance-link preview. The admin can type the real figure instead.
+  const placementWagesPence = sub?.placement_id
+    ? await readPlacementWagesPence(admin, sub.placement_id)
+    : null;
+
   // Pull nanny-side activity logs too — commission events log against
   // the parent user (already covered) but a subset (e.g. payout_paid)
   // logs against the nanny. We merge a narrow set in for completeness.
@@ -214,6 +223,7 @@ export default async function AdminUserSubscriptionPage({
         parentIsTestUser={parentIsTestUser}
         nannyUserData={nannyUserData}
         sub={sub}
+        placementWagesPence={placementWagesPence}
       />
 
       <SubscriptionStatsGrid
@@ -247,7 +257,9 @@ export interface ParentSubscriptionRow {
     | "active_upfront"
     | "past_due"
     | "cancelled"
-    | "lapsed";
+    | "lapsed"
+    | "deposit_paid"
+    | "placed";
   trial_started_at: string | null;
   trial_ends_at: string | null;
   paid_period_starts_at: string | null;
@@ -262,6 +274,22 @@ export interface ParentSubscriptionRow {
   subscription_cycle: number;
   created_at: string;
   updated_at: string;
+  // 4c (amendment 12)
+  family_type: "self_serve" | "dfy";
+  deposit_pence: number | null;
+  deposit_paid_at: string | null;
+  deposit_refunded_at: string | null;
+  placement_id: string | null;
+  placed_at: string | null;
+  payment_due_at: string | null;
+  satisfaction_window_ends_at: string | null;
+  payment_due_raised_at: string | null;
+  first_week_wages_pence: number | null;
+  balance_pence: number | null;
+  bill_paid_at: string | null;
+  access_toggled_on: boolean | null;
+  access_toggled_at: string | null;
+  access_toggle_reason: string | null;
 }
 
 export interface ChildClientEvents {
@@ -363,4 +391,20 @@ function computeCumulativeSpend(args: {
   return activityLogs.some((l) => l.action_type === "subscription_started")
     ? 1000
     : 0;
+}
+
+/** 4c — `weekly_hours × hourly_rate` (rate in pounds) as pence, or null when either is missing. */
+async function readPlacementWagesPence(
+  admin: ReturnType<typeof createAdminClient>,
+  placementId: string,
+): Promise<number | null> {
+  const { data } = await admin
+    .from("nanny_placements")
+    .select("weekly_hours, hourly_rate")
+    .eq("id", placementId)
+    .maybeSingle<{
+      weekly_hours: number | string | null;
+      hourly_rate: number | string | null;
+    }>();
+  return wagesPenceFromSnapshot(data?.weekly_hours, data?.hourly_rate);
 }

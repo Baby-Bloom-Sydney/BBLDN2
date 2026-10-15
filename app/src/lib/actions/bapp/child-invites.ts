@@ -34,6 +34,7 @@ import type {
 } from "@/types/bapp";
 import { invitesDisabled } from "@/lib/invite/flags";
 import { SITE_URL } from "@/lib/constants";
+import { isDfyFamily } from "@/lib/payments/dfy-access";
 
 // ── Internal helpers ────────────────────────────────────────────────────
 
@@ -644,7 +645,11 @@ export async function connectChildInvite(token: string): Promise<{
         .select("parent_user_id")
         .eq("id", row.child_id)
         .maybeSingle<{ parent_user_id: string | null }>();
-      if (linkedChild?.parent_user_id) {
+      // ADR-093 (4c): a done-for-you family gets no trial — skip silently, no error to the parent.
+      if (
+        linkedChild?.parent_user_id &&
+        !(await isDfyFamily(admin, linkedChild.parent_user_id))
+      ) {
         const { error: trialErr } = await admin.rpc(
           "start_family_trial_if_first",
           { p_parent_user_id: linkedChild.parent_user_id },

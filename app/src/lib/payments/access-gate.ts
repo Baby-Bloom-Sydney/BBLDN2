@@ -21,12 +21,13 @@
  *
  * London order (4c, amendment 12 — mirrors `family_has_access()`): test user →
  * admin toggle (`access_toggled_on` not null wins, ADR-093) → `placed` = access
- * (ADR-093) → Sydney's clauses unchanged. `deposit_paid` is paid with NO access
+ * (ADR-093) → the original clauses unchanged. `deposit_paid` is paid with NO access
  * (ADR-097) → `awaiting_placement`.
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SubscriptionStatus } from "@/types/payments";
+import type { SubscribeModalLapseReason } from "@/components/payments/SubscribeModal";
 
 export type AccessGateReason =
   | "ok"
@@ -213,4 +214,19 @@ export async function requireChildFamilyAccess(
     return OK;
   }
   return requireFamilyAccess(child.parent_user_id);
+}
+
+/**
+ * The paywall copy key for a refusal (the two development layouts). The two London reasons map to
+ * the existing key explicitly — their own wording is 4g's (4c brief step 2); no new copy here.
+ */
+export function paywallCopyKey(reason: AccessGateReason): SubscribeModalLapseReason {
+  switch (reason) {
+    case "trial_expired":
+      return "trial_ended";
+    case "awaiting_placement": // 4g: DFY deposit paid, waiting for the nanny's start
+    case "access_off_by_admin": // 4g: access switched off by the team
+    default:
+      return "subscription_lapsed";
+  }
 }

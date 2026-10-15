@@ -2,7 +2,7 @@
  * The family access gate — the full state table (4c, brief step 2; B6, ADR-093/097).
  *
  * Every subscription status × admin toggle (null / true / false) × test user, against the order
- * test user → toggle (not null wins) → `placed` → Sydney's clauses. Mirrors `family_has_access()`
+ * test user → toggle (not null wins) → `placed` → the original clauses. Mirrors `family_has_access()`
  * after amendment 12. BB-LDN-4c-151026.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -55,7 +55,7 @@ const STATUSES = [
   "placed",
 ] as const;
 
-/** Sydney's verdict for a status whose clock is live (FUTURE) — the toggle-null, non-test-user column. */
+/** The original verdict for a status whose clock is live (FUTURE) — the toggle-null, non-test-user column. */
 const LIVE: Record<(typeof STATUSES)[number], AccessGateReason> = {
   trial: "ok",
   active_monthly: "ok",
@@ -160,5 +160,22 @@ describe("requireChildFamilyAccess", () => {
   it("a nanny-only child stays ungated", async () => {
     db.child = { parent_user_id: null };
     expect(await requireChildFamilyAccess("c1")).toEqual({ hasAccess: true, reason: "ok" });
+  });
+});
+
+describe("paywallCopyKey (the two layouts)", () => {
+  it("trial_expired keeps its key; every other refusal, including the two London ones, uses the lapsed key", async () => {
+    const { paywallCopyKey } = await import("./access-gate");
+    expect(paywallCopyKey("trial_expired")).toBe("trial_ended");
+    for (const r of [
+      "awaiting_placement",
+      "access_off_by_admin",
+      "subscription_lapsed",
+      "no_subscription",
+      "past_due_grace_expired",
+      "subscription_cancelled_window_ended",
+    ] as const) {
+      expect(paywallCopyKey(r)).toBe("subscription_lapsed");
+    }
   });
 });

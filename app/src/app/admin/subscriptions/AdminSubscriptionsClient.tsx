@@ -14,14 +14,21 @@ type Filter =
   | "needs_attention"
   | "active"
   | "trial"
-  | "cancelled_lapsed";
+  | "cancelled_lapsed"
+  | "payment_due";
 
 interface Props {
   rows: AdminSubscriptionRow[];
   needsAttentionCount: number;
+  /** 4c — placed families whose balance is due and unpaid. */
+  paymentDueCount: number;
 }
 
-export function AdminSubscriptionsClient({ rows, needsAttentionCount }: Props) {
+export function AdminSubscriptionsClient({
+  rows,
+  needsAttentionCount,
+  paymentDueCount,
+}: Props) {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
 
@@ -44,6 +51,7 @@ export function AdminSubscriptionsClient({ rows, needsAttentionCount }: Props) {
         if (filter === "cancelled_lapsed") {
           return r.status === "cancelled" || r.status === "lapsed";
         }
+        if (filter === "payment_due") return r.paymentDue;
         return true;
       })
       .sort(sortByPriorityDesc);
@@ -86,6 +94,13 @@ export function AdminSubscriptionsClient({ rows, needsAttentionCount }: Props) {
           }
           active={filter === "cancelled_lapsed"}
           onClick={() => setFilter("cancelled_lapsed")}
+        />
+        <FilterTab
+          label="Payment due"
+          count={paymentDueCount}
+          active={filter === "payment_due"}
+          onClick={() => setFilter("payment_due")}
+          tone="warn"
         />
         <div className="ml-auto flex w-full max-w-xs items-center gap-2 rounded-md border border-slate-200 bg-white px-3">
           <Search className="h-4 w-4 text-slate-400" aria-hidden="true" />
@@ -194,6 +209,8 @@ function Row({ row }: { row: AdminSubscriptionRow }) {
               tone="warn"
             />
           )}
+          {row.familyType === "dfy" && <Chip label="Done for you" tone="muted" />}
+          {row.paymentDue && <Chip label="Payment due" tone="warn" />}
           {!row.hasNanny && <Chip label="No nanny" tone="muted" />}
           {row.cancellationReason && (
             <Chip
@@ -239,6 +256,11 @@ function StatusPill({ status }: { status: AdminSubscriptionRow["status"] }) {
       className: "bg-slate-100 text-slate-700",
     },
     lapsed: { label: "Lapsed", className: "bg-slate-100 text-slate-500" },
+    deposit_paid: {
+      label: "Deposit paid",
+      className: "bg-sky-100 text-sky-800",
+    },
+    placed: { label: "Placed", className: "bg-emerald-100 text-emerald-800" },
   };
   const { label, className } = map[status];
   return (
@@ -314,6 +336,7 @@ function Chip({
 
 function isNeedsAttention(row: AdminSubscriptionRow): boolean {
   if (row.status === "past_due") return true;
+  if (row.paymentDue) return true;
   if (row.failedPayments > 0 && row.status !== "active_monthly") return true;
   if (
     row.status === "trial" &&
@@ -331,7 +354,7 @@ function sortByPriorityDesc(
   b: AdminSubscriptionRow,
 ): number {
   const priority = (r: AdminSubscriptionRow): number => {
-    if (r.status === "past_due") return 0;
+    if (r.status === "past_due" || r.paymentDue) return 0;
     if (
       r.status === "trial" &&
       r.nextEventIso &&

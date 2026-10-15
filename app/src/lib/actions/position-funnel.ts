@@ -25,6 +25,7 @@ import {
 import type { EndReason } from "@/lib/position/constants";
 import { funnelLog, funnelError } from "@/lib/position/logger";
 import { emailHeader } from "@/lib/email/brand";
+import { openDfyAccess } from "@/lib/payments/dfy-access";
 
 // ── Email helpers ──
 
@@ -1231,6 +1232,13 @@ async function _createPlacement(
   }
 
   funnelLog("_createPlacement", requestId, `placement created`, {
+    placementId: placement.id,
+  });
+
+  // 6b. Done-for-you access (4c, N7; ADR-093): `placed` → app on, bill due at start + 7 days.
+  // Never throws — a failure is logged inside and never rolls back the placement.
+  const dfyAccess = await openDfyAccess(adminClient, placement.id);
+  funnelLog("_createPlacement", requestId, `dfy access: ${dfyAccess}`, {
     placementId: placement.id,
   });
 

@@ -44,6 +44,12 @@ const state = vi.hoisted(() => ({
   nannyRow: null as { id: string } | null,
   parentRow: null as { id: string } | null,
   activityLogs: [] as Array<Record<string, unknown>>,
+  // 4c trial guard (ADR-093): what isDfyFamily answers.
+  isDfy: false,
+}));
+
+vi.mock("@/lib/payments/dfy-access", () => ({
+  isDfyFamily: async () => state.isDfy,
 }));
 
 beforeEach(() => {
@@ -65,6 +71,7 @@ beforeEach(() => {
   state.activityLogs = [];
   state.userProfilesById = new Map();
   state.parentConnectedDispatches = [];
+  state.isDfy = false;
   delete process.env.INVITE_LINKS_ENABLED;
 });
 
@@ -404,6 +411,30 @@ describe("connectChildInvite", () => {
     expect(result.success).toBe(true);
     expect(result.error).toBeNull();
     expect(state.parentConnectedDispatches).toHaveLength(0);
+  });
+});
+
+describe("connectChildInvite — trial guard (4c, ADR-093)", () => {
+  const linked = () => {
+    state.rpcResponse = { data: [{ child_id: "child-claimed-1" }], error: null };
+    state.childById = { first_name: "Oliver", parent_user_id: "parent-99", nanny_user_id: "nanny-99" };
+  };
+
+  it("a self-serve family gets the trial RPC", async () => {
+    linked();
+    const { connectChildInvite } = await import("./child-invites");
+    expect((await connectChildInvite("ABCD-2345")).success).toBe(true);
+    expect(state.rpcCalls.map((c) => c.name)).toContain("start_family_trial_if_first");
+  });
+
+  it("a done-for-you family gets no trial and no error", async () => {
+    linked();
+    state.isDfy = true;
+    const { connectChildInvite } = await import("./child-invites");
+    const result = await connectChildInvite("ABCD-2345");
+    expect(result.success).toBe(true);
+    expect(result.error).toBeNull();
+    expect(state.rpcCalls.map((c) => c.name)).not.toContain("start_family_trial_if_first");
   });
 });
 
