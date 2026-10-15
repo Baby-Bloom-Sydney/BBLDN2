@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { NannyHubClient, type NannyProfileAccordionData } from "@/app/nanny/NannyHubClient";
 import { ParentHubClient } from "@/app/parent/ParentHubClient";
 import { CONNECTION_STAGE, POSITION_STAGE } from "@/lib/position/constants";
+import { isShareUnlocked } from "@/lib/features/flags";
 
 interface PositionSummary {
   scheduleType: string | null;
@@ -192,7 +193,8 @@ async function renderNannyHub(admin: any, targetUserId: string) {
   const banned = !!(banData?.bsr_banned_until && new Date(banData.bsr_banned_until) > new Date());
   const banUntil = banned ? banData!.bsr_banned_until : null;
 
-  const shareUnlocked = nannyRes.data?.visible_in_bsr === true;
+  // 5b (P-23): while the share loop is off, everything it gated is open from day 1 (`isShareUnlocked`).
+  const shareUnlocked = isShareUnlocked(nannyRes.data?.visible_in_bsr);
 
   // Assemble accordion profile data
   const n = nannyRes.data;

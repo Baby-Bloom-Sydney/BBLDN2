@@ -33,6 +33,7 @@ import {
 import Link from "next/link";
 import { recordInformedAction } from "@/lib/legal/record-consent";
 import { formatClockTime as formatTime } from "@/lib/timezone";
+import { isShareUnlocked } from "@/lib/features/flags";
 
 // ── Helpers ──
 
@@ -70,7 +71,7 @@ interface NannyBabysittingClientProps {
   shareUnlocked?: boolean;
 }
 
-export function NannyBabysittingClient({ jobs, banned, banUntil, hideHeader, shareUnlocked = false }: NannyBabysittingClientProps) {
+export function NannyBabysittingClient({ jobs, banned, banUntil, hideHeader, shareUnlocked = isShareUnlocked(undefined) }: NannyBabysittingClientProps) {
   const router = useRouter();
   const [selectedJob, setSelectedJob] = useState<NannyBabysittingJob | null>(null);
   const [showPast, setShowPast] = useState(false);

@@ -1,10 +1,15 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SHARE_CASE_TYPE } from "@/lib/viral-loop/constants";
 import { NannyShareClient } from "@/app/nanny/share/NannyShareClient";
+import { notFound } from "next/navigation";
+import { shareLoopEnabled } from "@/lib/features/flags";
 
 const TEST_EMAIL = "baileywright.eu@gmail.com";
 
 export default async function TestShareProfilePage() {
+  // 5b (P-23): the share loop is hidden unless SHARE_LOOP_ENABLED is "true" — 404 before any read.
+  if (!shareLoopEnabled()) notFound();
+
   const admin = createAdminClient();
 
   // Look up user by email

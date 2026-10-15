@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { payoutsEnabled } from "@/lib/payments/flags";
+import { shareLoopEnabled } from "@/lib/features/flags";
 
 type UserRole = "nanny" | "parent" | "admin" | "super_admin" | "guest";
 
@@ -111,8 +112,11 @@ export function Sidebar({ role: propRole, collapsed, onToggle }: SidebarProps) {
   const role: UserRole = user && authRole ? (authRole as UserRole) : propRole;
   const isGuest = role === "guest";
   // 4a-i (P-23): the admin Payouts entry is hidden unless PAYOUTS_ENABLED.
+  // 5b (P-23): the nanny Share Profile entry is hidden unless SHARE_LOOP_ENABLED.
   const navItems = (navItemsByRole[role] || publicNavItems).filter(
-    (item) => payoutsEnabled() || item.href !== "/admin/payouts",
+    (item) =>
+      (payoutsEnabled() || item.href !== "/admin/payouts") &&
+      (shareLoopEnabled() || item.href !== "/nanny/share"),
   );
 
   const fullName = displayFullName(profile, user);
