@@ -25,6 +25,11 @@
 
 import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DfyAccessLine,
+  isDfyLapseReason,
+  type SubscribeModalLapseReason,
+} from "./SubscribeModal";
 
 export interface LapsedBannerProps {
   /** Audience — drives copy + CTA label. */
@@ -49,14 +54,52 @@ export interface LapsedBannerProps {
    * self-nav risk).
    */
   onPrimaryCta?: () => void;
+  /**
+   * The paywall copy key (4g). For the two done-for-you keys the parent variant shows one line and no Subscribe
+   * button (ADR-091/093). Optional: absent = today's self-serve copy.
+   */
+  lapseReason?: SubscribeModalLapseReason;
+  /** Nanny variant (4g, ADR-091): the family is done-for-you — one line, no share-to-subscribe CTA. */
+  familyIsDfy?: boolean;
 }
+
+export const NANNY_DFY_LINE =
+  "This family's app access is arranged by Baby Bloom.";
 
 export function LapsedBanner({
   role,
   childFirstName,
   parentFirstName,
   onPrimaryCta,
+  lapseReason,
+  familyIsDfy = false,
 }: LapsedBannerProps) {
+  if (role === "nanny" && familyIsDfy) {
+    return (
+      <div
+        role="status"
+        className="flex w-full items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 sm:px-6"
+      >
+        <Lock className="h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
+        <p className="flex-1 text-sm text-amber-900">{NANNY_DFY_LINE}</p>
+      </div>
+    );
+  }
+
+  if (role === "parent" && lapseReason && isDfyLapseReason(lapseReason)) {
+    return (
+      <div
+        role="status"
+        className="flex w-full items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 sm:px-6"
+      >
+        <Lock className="h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
+        <p className="flex-1 text-sm text-amber-900">
+          <DfyAccessLine reason={lapseReason} />
+        </p>
+      </div>
+    );
+  }
+
   if (role === "parent") {
     return (
       <div

@@ -7,8 +7,9 @@
  * - Default header (no nanny-invite) — generic copy
  * - Personalised header (nanny-invite) — surfaces nanny + child names
  * - Card order: Upfront FIRST (anchoring), Monthly second
- * - Reciprocity footer "£100 of every payment supports your nanny's work"
- * - Trial banner renders when trialAvailable === true
+ * - No "supports your nanny" line, no VAT line, no "free" (4g: cards 9a/9b, M-1 1d, 2c)
+ * - Trial banner renders when trialAvailable === true, length from TRIAL_DAYS
+ * - Upfront runs to the ACCESS_AGE_YEARS birthday (ADR-083)
  * - Banned terminology ("track") absent
  */
 
@@ -29,6 +30,7 @@ vi.mock("@/lib/actions/payments/checkout", () => ({
 }));
 
 import { SubscribeClient } from "./SubscribeClient";
+import { ACCESS_AGE_YEARS, TRIAL_DAYS } from "@/config/prices";
 
 function renderClient(
   overrides: {
@@ -94,23 +96,57 @@ describe("SubscribeClient — card order (anchoring psychology)", () => {
   });
 });
 
-describe("SubscribeClient — reciprocity footer", () => {
-  it("renders the locked-in '£100 supports your nanny' line", () => {
+// 4g (cards 9a/9b, M-1 1d, 2c): the £100 line is gone with nothing in its place; VAT is shown only where card
+// details are entered (Stripe's page); the page never says "free".
+describe("SubscribeClient — footer", () => {
+  it("has no '£100 supports your nanny' line", () => {
+    renderClient({ trialAvailable: true });
+    const text = document.body.textContent ?? "";
+    expect(text).not.toMatch(/supports your nanny/i);
+    expect(text).not.toMatch(/£100/);
+  });
+
+  it("has no VAT wording", () => {
+    renderClient({ trialAvailable: true });
+    expect(document.body.textContent ?? "").not.toMatch(/\bVAT\b/i);
+  });
+
+  it("keeps the terms sentence", () => {
     renderClient();
-    expect(
-      screen.getByText(/£100 of every payment supports your nanny/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/by subscribing you agree to our terms of service/i)).toBeInTheDocument();
+  });
+
+  it("never says 'free', with or without the trial", () => {
+    for (const trialAvailable of [true, false]) {
+      const { unmount } = renderClient({ trialAvailable });
+      expect((document.body.textContent ?? "").toLowerCase()).not.toMatch(/\bfree\b/);
+      unmount();
+    }
+  });
+});
+
+describe("SubscribeClient — access horizon (ADR-083)", () => {
+  it("upfront runs to the config birthday, not the 5th", () => {
+    renderClient();
+    const upfront = screen.getByTestId("plan-card-upfront").textContent ?? "";
+    expect(ACCESS_AGE_YEARS).toBe(3);
+    expect(upfront).toMatch(/3rd birthday/);
+    expect(upfront).not.toMatch(/5th birthday|under 4/);
+    // Planner ruling (P-25): no best-value age line — nothing replaces "under 4".
+    expect(upfront).not.toMatch(/best value if/i);
   });
 });
 
 describe("SubscribeClient — trial banner", () => {
-  it("renders when trialAvailable=true", () => {
+  it("renders when trialAvailable=true, length from TRIAL_DAYS", () => {
     renderClient({ trialAvailable: true });
-    expect(screen.getByText(/30-day free trial/i)).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`${TRIAL_DAYS}-day trial`, "i"))).toBeInTheDocument();
+    expect(screen.getAllByText(new RegExp(`charged after ${TRIAL_DAYS} days`, "i"))).toHaveLength(2);
   });
 
   it("hidden when trialAvailable=false", () => {
     renderClient({ trialAvailable: false });
-    expect(screen.queryByText(/30-day free trial/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/-day trial/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/charged after/i)).not.toBeInTheDocument();
   });
 });

@@ -5,6 +5,7 @@ import { BAppLayout } from "@/components/bapp/BAppLayout";
 import { InviteBanner } from "@/components/bapp/InviteBanner";
 import { getInviteForChild } from "@/lib/actions/bapp/child-invites";
 import {
+  isDfyFamily,
   paywallCopyKey,
   requireChildFamilyAccess,
 } from "@/lib/payments/access-gate";
@@ -64,13 +65,23 @@ export default async function DevelopmentLayout({
   let nannyShareUrl: string | undefined;
   let nannyShareText: string | undefined;
   let parentFirstName: string | undefined;
+  // 4g (ADR-091): a done-for-you family is never sent the self-serve share link, including via the nanny.
+  let familyIsDfy = false;
+  if (!access.hasAccess && c.parent_user_id !== null) {
+    const { data: familySub } = await admin
+      .from("parent_subscriptions")
+      .select("family_type, status")
+      .eq("parent_user_id", c.parent_user_id)
+      .maybeSingle<{ family_type: string | null; status: string | null }>();
+    familyIsDfy = isDfyFamily(familySub);
+  }
   if (
     !access.hasAccess &&
     c.parent_user_id !== null &&
     c.nanny_user_id === user.id
   ) {
-    const inviteRes = await createSubscribeInvite(c.id);
-    if (inviteRes.success) {
+    const inviteRes = familyIsDfy ? null : await createSubscribeInvite(c.id);
+    if (inviteRes?.success) {
       nannyShareUrl = inviteRes.data.url;
       nannyShareText = inviteRes.data.shareText;
     }
@@ -88,6 +99,7 @@ export default async function DevelopmentLayout({
       role="nanny"
       familyHasAccess={access.hasAccess}
       parentFirstName={parentFirstName}
+      familyIsDfy={familyIsDfy}
       nannyShareUrl={nannyShareUrl}
       nannyShareText={nannyShareText}
       lapseReason={paywallCopyKey(access.reason)}

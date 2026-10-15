@@ -164,12 +164,10 @@ describe("requireChildFamilyAccess", () => {
 });
 
 describe("paywallCopyKey (the two layouts)", () => {
-  it("trial_expired keeps its key; every other refusal, including the two London ones, uses the lapsed key", async () => {
+  it("trial_expired keeps its key; the self-serve refusals use the lapsed key", async () => {
     const { paywallCopyKey } = await import("./access-gate");
     expect(paywallCopyKey("trial_expired")).toBe("trial_ended");
     for (const r of [
-      "awaiting_placement",
-      "access_off_by_admin",
       "subscription_lapsed",
       "no_subscription",
       "past_due_grace_expired",
@@ -178,4 +176,30 @@ describe("paywallCopyKey (the two layouts)", () => {
       expect(paywallCopyKey(r)).toBe("subscription_lapsed");
     }
   });
+
+  // 4g (ADR-093): the two done-for-you refusals get their own copy keys — no self-serve CTA.
+  it("awaiting_placement and access_off_by_admin map to their own done-for-you keys", async () => {
+    const { paywallCopyKey } = await import("./access-gate");
+    expect(paywallCopyKey("awaiting_placement")).toBe("awaiting_placement");
+    expect(paywallCopyKey("access_off_by_admin")).toBe("access_paused");
+  });
 });
+
+describe("isDfyFamily (nanny-side paywall, 4g)", () => {
+  it("dfy by family_type, or by a done-for-you status", async () => {
+    const { isDfyFamily } = await import("./access-gate");
+    expect(isDfyFamily({ family_type: "dfy", status: "lapsed" })).toBe(true);
+    expect(isDfyFamily({ family_type: "self_serve", status: "deposit_paid" })).toBe(true);
+    expect(isDfyFamily({ family_type: null, status: "placed" })).toBe(true);
+  });
+
+  it("self-serve rows and no row are not dfy", async () => {
+    const { isDfyFamily } = await import("./access-gate");
+    for (const status of ["trial", "lapsed", "cancelled", "past_due", "active_monthly", "active_upfront"]) {
+      expect(isDfyFamily({ family_type: "self_serve", status })).toBe(false);
+    }
+    expect(isDfyFamily(null)).toBe(false);
+    expect(isDfyFamily(undefined)).toBe(false);
+  });
+});
+

@@ -15,6 +15,8 @@
  * - Body branches by lapseReason (trial vs subscription).
  * - Primary CTA → /parent/subscribe?childId=…
  * - Secondary CTA: "Maybe later" (close).
+ * - Done-for-you keys (4g, ADR-091/093): one line, no subscribe CTA — the family's access comes with the placement
+ *   (`awaiting_placement`) or was switched off by the team (`access_paused`, with the Contact link).
  *
  * Banned terminology (memory: feedback_never_use_tracking_terminology):
  * - "track", "tracking", "tracked" — never appear in user copy.
@@ -25,6 +27,7 @@
  */
 
 import { useRef } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Lock } from "lucide-react";
 import {
@@ -37,7 +40,45 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
-export type SubscribeModalLapseReason = "trial_ended" | "subscription_lapsed";
+export type SubscribeModalLapseReason =
+  | "trial_ended"
+  | "subscription_lapsed"
+  | "awaiting_placement"
+  | "access_paused";
+
+/** The two done-for-you keys: no self-serve CTA is ever shown for them (4g, ADR-091/093). */
+export type DfyLapseReason = Extract<
+  SubscribeModalLapseReason,
+  "awaiting_placement" | "access_paused"
+>;
+
+export function isDfyLapseReason(
+  reason: SubscribeModalLapseReason,
+): reason is DfyLapseReason {
+  return reason === "awaiting_placement" || reason === "access_paused";
+}
+
+export const DFY_AWAITING_PLACEMENT_LINE =
+  "Your app access switches on when your nanny is placed.";
+export const CONTACT_HREF = "/contact";
+
+/** The one line for a done-for-you key; the paused line links "get in touch" to Contact. */
+export function DfyAccessLine({ reason }: { reason: DfyLapseReason }) {
+  if (reason === "awaiting_placement")
+    return <>{DFY_AWAITING_PLACEMENT_LINE}</>;
+  return (
+    <>
+      Your access is paused —{" "}
+      <Link
+        href={CONTACT_HREF}
+        className="font-medium underline underline-offset-2"
+      >
+        get in touch
+      </Link>{" "}
+      and we&apos;ll sort it.
+    </>
+  );
+}
 
 export interface SubscribeModalProps {
   /** Whether the modal is currently visible / open. */
@@ -64,7 +105,7 @@ export interface SubscribeModalProps {
  * is a compile-time error (typescript-reviewer H2).
  */
 function getBodyCopy(
-  reason: SubscribeModalLapseReason,
+  reason: Exclude<SubscribeModalLapseReason, DfyLapseReason>,
   childFirstName: string,
 ): string {
   switch (reason) {
@@ -94,7 +135,7 @@ export function SubscribeModal({
     ? `with ${nannyFirstName}`
     : "with your nanny";
 
-  const bodyCopy = getBodyCopy(lapseReason, childFirstName);
+  const isDfy = isDfyLapseReason(lapseReason);
 
   const handleSubscribeClick = (): void => {
     router.push(`/parent/subscribe?childId=${encodeURIComponent(childId)}`);
@@ -112,6 +153,9 @@ export function SubscribeModal({
           // Send initial focus to the primary CTA rather than the X
           // close button (Radix default). Better UX for a soft-paywall
           // modal — the first thing announced is the call-to-action.
+          // A done-for-you key has no CTA: Radix's default (first tabbable — the Contact link when paused, else the
+          // close button) stands.
+          if (isDfy) return;
           e.preventDefault();
           primaryCtaRef.current?.focus();
         }}
@@ -121,32 +165,44 @@ export function SubscribeModal({
             <Lock className="h-6 w-6 text-violet-600" aria-hidden="true" />
           </div>
           <DialogTitle className="text-left text-2xl font-bold text-slate-900">
-            Continue following {childFirstName}&apos;s development{" "}
-            {headingSuffix}
+            {isDfy ? (
+              "Your app access"
+            ) : (
+              <>
+                Continue following {childFirstName}&apos;s development{" "}
+                {headingSuffix}
+              </>
+            )}
           </DialogTitle>
           <DialogDescription className="text-left text-base text-slate-600">
-            {bodyCopy}
+            {isDfyLapseReason(lapseReason) ? (
+              <DfyAccessLine reason={lapseReason} />
+            ) : (
+              getBodyCopy(lapseReason, childFirstName)
+            )}
           </DialogDescription>
         </DialogHeader>
 
-        <DialogFooter className="flex flex-col gap-2 p-6 pt-2 sm:flex-col sm:gap-2 sm:space-x-0">
-          <Button
-            ref={primaryCtaRef}
-            size="lg"
-            className="w-full bg-violet-600 hover:bg-violet-700"
-            onClick={handleSubscribeClick}
-          >
-            See subscription options
-          </Button>
-          <Button
-            size="lg"
-            variant="ghost"
-            className="w-full text-slate-600 hover:text-slate-900"
-            onClick={onClose}
-          >
-            Maybe later
-          </Button>
-        </DialogFooter>
+        {!isDfy && (
+          <DialogFooter className="flex flex-col gap-2 p-6 pt-2 sm:flex-col sm:gap-2 sm:space-x-0">
+            <Button
+              ref={primaryCtaRef}
+              size="lg"
+              className="w-full bg-violet-600 hover:bg-violet-700"
+              onClick={handleSubscribeClick}
+            >
+              See subscription options
+            </Button>
+            <Button
+              size="lg"
+              variant="ghost"
+              className="w-full text-slate-600 hover:text-slate-900"
+              onClick={onClose}
+            >
+              Maybe later
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );

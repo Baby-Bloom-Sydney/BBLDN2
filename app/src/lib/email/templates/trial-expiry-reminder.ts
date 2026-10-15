@@ -10,8 +10,8 @@
  *
  * Locked-in copy levers:
  * - Specificity ("you've been with us 25 days") — availability heuristic
- * - Reciprocity ("£100 of every payment supports your nanny")
- * - No "track" / "tracking" terminology
+ * - No "track" / "tracking" terminology; never "free" (card 2c)
+ * - 4g (cards 9a/9b): the "supports your nanny" reciprocity line is gone; nothing replaces it. No amount is shown.
  */
 
 import type { EmailTemplate } from "./types";
@@ -57,7 +57,7 @@ export function buildTrialExpiryReminderEmail(
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #0f172a; max-width: 560px; margin: 0 auto; padding: 24px;">
   <h1 style="font-size: 22px; font-weight: 700; margin: 0 0 16px;">
-    ${escapeHtml(firstName)}, your free trial ends in 5 days
+    ${escapeHtml(firstName)}, your trial ends in 5 days
   </h1>
   <p style="font-size: 16px; line-height: 1.5; color: #475569; margin: 0 0 16px;">
     Your Baby Bloom trial ends on <strong>${escapeHtml(formattedDate)}</strong>.
@@ -65,9 +65,6 @@ export function buildTrialExpiryReminderEmail(
   </p>
   <p style="margin: 24px 0;">
     <a href="${escapeHtml(subscribeUrl)}" style="${btnStyle}">Subscribe now</a>
-  </p>
-  <p style="font-size: 14px; color: #475569; margin: 16px 0;">
-    £100 of every payment supports your nanny's work.
   </p>
   <p style="font-size: 12px; color: #94a3b8; margin: 32px 0 0;">
     ${SITE_NAME}

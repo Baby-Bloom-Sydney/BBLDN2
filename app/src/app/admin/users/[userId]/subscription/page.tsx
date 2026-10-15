@@ -9,6 +9,7 @@ import { buildTimelineEntries } from "./build-timeline";
 import type { TimelineEntry } from "./build-timeline";
 import { payoutsEnabled } from "@/lib/payments/flags";
 import { wagesPenceFromSnapshot } from "@/lib/payments/dfy-access";
+import { cumulativeSpendPence } from "@/app/admin/subscriptions/types";
 
 /**
  * `/admin/users/[userId]/subscription` — full subscription dossier.
@@ -167,7 +168,7 @@ export default async function AdminUserSubscriptionPage({
       : [];
 
   // Derived metrics — everything an admin glances at on the stats grid.
-  const cumulativeSpendAud = computeCumulativeSpend({ sub, activityLogs });
+  const cumulativeSpendPence = computeCumulativeSpend({ sub, activityLogs });
   const failedPaymentCount = activityLogs.filter(
     (l) => l.action_type === "subscription_past_due",
   ).length;
@@ -231,7 +232,7 @@ export default async function AdminUserSubscriptionPage({
         plan={plan}
         subscriberSinceIso={subscriberSinceIso}
         tenureDays={tenureDays}
-        cumulativeSpendAud={cumulativeSpendAud}
+        cumulativeSpendPence={cumulativeSpendPence}
         refundedTotalAud={refundedTotalAud}
         failedPaymentCount={failedPaymentCount}
         recoveryCount={recoveryCount}
@@ -368,9 +369,9 @@ function derivePlanLabel(
 }
 
 /**
- * Cumulative AUD this parent has paid us. Monthly = £200 per renewal
- * cycle; upfront = £1,000 one-off. Derived from activity_logs because
- * the source of truth is the audit trail, not a column we maintain.
+ * What this parent has paid us, in pence, from config (4g, D3): monthly = one monthly price per paid cycle;
+ * upfront = the upfront price once, on `subscription_started`; done-for-you = the row's deposit + balance once
+ * paid. Self-serve cycles are derived from activity_logs because the audit trail is the source of truth.
  */
 function computeCumulativeSpend(args: {
   sub: ParentSubscriptionRow | null;
@@ -379,19 +380,17 @@ function computeCumulativeSpend(args: {
   const { sub, activityLogs } = args;
   if (!sub) return 0;
   const isMonthly = sub.stripe_subscription_id !== null;
-  if (isMonthly) {
-    // Each subscription_started + subscription_renewed = one £200 paid cycle.
-    const paidCycles = activityLogs.filter(
-      (l) =>
-        l.action_type === "subscription_started" ||
-        l.action_type === "subscription_renewed",
-    ).length;
-    return paidCycles * 200;
-  }
-  // Upfront = one-off £1,000 on subscription_started.
-  return activityLogs.some((l) => l.action_type === "subscription_started")
-    ? 1000
-    : 0;
+  const startedOrRenewed = activityLogs.filter(
+    (l) =>
+      l.action_type === "subscription_started" ||
+      l.action_type === "subscription_renewed",
+  ).length;
+  return cumulativeSpendPence(sub, {
+    monthlyCycles: isMonthly ? startedOrRenewed : 0,
+    upfrontPaid:
+      !isMonthly &&
+      activityLogs.some((l) => l.action_type === "subscription_started"),
+  });
 }
 
 /** 4c — `weekly_hours × hourly_rate` (rate in pounds) as pence, or null when either is missing. */

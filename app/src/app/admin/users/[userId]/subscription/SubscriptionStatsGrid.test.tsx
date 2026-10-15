@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 import { G2 } from "@/config/offer";
+import { PRICES } from "@/config/prices";
 import { SubscriptionStatsGrid } from "./SubscriptionStatsGrid";
 import type { ParentSubscriptionRow } from "./page";
 
@@ -37,14 +38,14 @@ function sub(windowEndsAt: string | null | undefined): ParentSubscriptionRow {
     : ({ ...base, satisfaction_window_ends_at: windowEndsAt } as ParentSubscriptionRow);
 }
 
-function renderGrid(s: ParentSubscriptionRow | null) {
+function renderGrid(s: ParentSubscriptionRow | null, spendPence = 0) {
   render(
     <SubscriptionStatsGrid
       sub={s}
       plan="Upfront"
       subscriberSinceIso={null}
       tenureDays={null}
-      cumulativeSpendAud={0}
+      cumulativeSpendPence={spendPence}
       refundedTotalAud={0}
       failedPaymentCount={0}
       recoveryCount={0}
@@ -86,3 +87,12 @@ describe("SubscriptionStatsGrid — G2 window card", () => {
     expect(renderGrid(null).textContent).not.toMatch(/open|closed/);
   });
 });
+
+// 4g (D3): the spend card shows pence through the currency formatter.
+describe("SubscriptionStatsGrid — cumulative spend", () => {
+  it("formats pence as pounds", () => {
+    renderGrid(sub(null), PRICES.selfServe.upfrontToAge3Pence);
+    expect(screen.getByText("Cumulative spend").parentElement?.textContent).toContain("£2,000.00");
+  });
+});
+

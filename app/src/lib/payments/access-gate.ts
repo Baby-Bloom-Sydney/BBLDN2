@@ -217,15 +217,28 @@ export async function requireChildFamilyAccess(
 }
 
 /**
- * The paywall copy key for a refusal (the two development layouts). The two London reasons map to
- * the existing key explicitly — their own wording is 4g's (4c brief step 2); no new copy here.
+ * A done-for-you family, for the nanny-side paywall (4g, ADR-091): `family_type = 'dfy'`, or a status only a
+ * done-for-you family reaches. The self-serve offer (the share-to-subscribe link) is never put in front of one.
+ */
+export function isDfyFamily(
+  sub: { family_type?: string | null; status?: string | null } | null | undefined,
+): boolean {
+  if (!sub) return false;
+  return sub.family_type === "dfy" || sub.status === "deposit_paid" || sub.status === "placed";
+}
+
+/**
+ * The paywall copy key for a refusal (the two development layouts). The two done-for-you reasons get their own keys
+ * so the paywall shows one line and no self-serve CTA (4g, ADR-091/093).
  */
 export function paywallCopyKey(reason: AccessGateReason): SubscribeModalLapseReason {
   switch (reason) {
     case "trial_expired":
       return "trial_ended";
-    case "awaiting_placement": // 4g: DFY deposit paid, waiting for the nanny's start
-    case "access_off_by_admin": // 4g: access switched off by the team
+    case "awaiting_placement": // DFY deposit paid, waiting for the placement
+      return "awaiting_placement";
+    case "access_off_by_admin": // access switched off by the team
+      return "access_paused";
     default:
       return "subscription_lapsed";
   }

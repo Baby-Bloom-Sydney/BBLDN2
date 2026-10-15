@@ -4,9 +4,10 @@ import { requireAdmin } from "@/lib/admin/require-admin";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatAuDate } from "@/lib/format/date";
 import { AdminSubscriptionsClient } from "./AdminSubscriptionsClient";
-import { isPaymentDue } from "./types";
+import { cumulativeSpendPence, isPaymentDue } from "./types";
 import type { AdminSubscriptionRow, AdminSubscriptionCounters } from "./types";
-import { APP_LOCALE } from "@/lib/constants";
+import { formatPence } from "@/app/admin/guarantees/format";
+import { PRICES } from "@/config/prices";
 
 /**
  * `/admin/subscriptions` — operational overview of every parent
@@ -37,7 +38,7 @@ export default async function AdminSubscriptionsPage() {
     admin
       .from("parent_subscriptions")
       .select(
-        "parent_user_id, status, trial_started_at, trial_ends_at, paid_period_starts_at, paid_period_ends_at, past_due_grace_ends_at, stripe_subscription_id, stripe_payment_intent_id, subscription_cycle, cancelled_at, cancellation_reason, updated_at, created_at, family_type, payment_due_at, bill_paid_at",
+        "parent_user_id, status, trial_started_at, trial_ends_at, paid_period_starts_at, paid_period_ends_at, past_due_grace_ends_at, stripe_subscription_id, stripe_payment_intent_id, subscription_cycle, cancelled_at, cancellation_reason, updated_at, created_at, family_type, payment_due_at, bill_paid_at, deposit_pence, deposit_paid_at, balance_pence",
       )
       .order("updated_at", { ascending: false })
       .limit(500)
@@ -113,11 +114,11 @@ export default async function AdminSubscriptionsPage() {
             : "none";
 
     const paidCycles = paidCyclesByUserId.get(s.parent_user_id) ?? 0;
-    const cumulativeSpendAud = isMonthly
-      ? paidCycles * 200
-      : plan === "upfront"
-        ? 1000
-        : 0;
+    // 4g (D3): from config, in pence; done-for-you rows count their own deposit + balance.
+    const spendPence = cumulativeSpendPence(s, {
+      monthlyCycles: isMonthly ? paidCycles : 0,
+      upfrontPaid: !isMonthly && plan === "upfront",
+    });
     const failedPayments = failedByUserId.get(s.parent_user_id) ?? 0;
     const subscriberSinceIso =
       s.paid_period_starts_at ?? s.trial_started_at ?? s.created_at ?? null;
@@ -154,7 +155,7 @@ export default async function AdminSubscriptionsPage() {
       plan,
       tenureDays,
       subscriberSinceIso,
-      cumulativeSpendAud,
+      cumulativeSpendPence: spendPence,
       cycle: s.subscription_cycle,
       nextEventIso,
       nextEventLabel: nextEventLabelForStatus(s.status),
@@ -177,9 +178,9 @@ export default async function AdminSubscriptionsPage() {
     placed: enriched.filter((r) => r.status === "placed").length,
     paymentDue: enriched.filter((r) => r.paymentDue).length,
   };
-  const mrrAud = counters.activeMonthly * 200;
-  const cumulativeRevenueAud = enriched.reduce(
-    (acc, r) => acc + r.cumulativeSpendAud,
+  const mrrPence = counters.activeMonthly * PRICES.selfServe.monthlyPence;
+  const cumulativeRevenuePence = enriched.reduce(
+    (acc, r) => acc + r.cumulativeSpendPence,
     0,
   );
   const needsAttentionCount = enriched.filter(isNeedsAttention).length;
@@ -203,10 +204,10 @@ export default async function AdminSubscriptionsPage() {
               MRR
             </p>
             <p className="text-xl font-bold text-slate-900">
-              £{mrrAud.toLocaleString(APP_LOCALE)}
+              {formatPence(mrrPence)}
             </p>
             <p className="text-xs text-slate-500">
-              Lifetime £{cumulativeRevenueAud.toLocaleString(APP_LOCALE)}
+              Lifetime {formatPence(cumulativeRevenuePence)}
             </p>
           </CardContent>
         </Card>
@@ -271,6 +272,9 @@ interface RawSubRow {
   family_type: string | null;
   payment_due_at: string | null;
   bill_paid_at: string | null;
+  deposit_pence: number | null;
+  deposit_paid_at: string | null;
+  balance_pence: number | null;
 }
 
 interface RawProfileRow {

@@ -127,3 +127,78 @@ describe("LapsedBanner — universal", () => {
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
 });
+
+// 4g (ADR-091/093): the parent banner for a done-for-you family carries no Subscribe button.
+describe("LapsedBanner — done-for-you states (parent)", () => {
+  it("awaiting_placement: the placement line, no button", () => {
+    render(
+      <LapsedBanner
+        {...makeProps({ role: "parent", lapseReason: "awaiting_placement" })}
+      />,
+    );
+    expect(
+      screen.getByText(
+        "Your app access switches on when your nanny is placed.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getByRole("status").textContent ?? "").not.toMatch(
+      /subscri/i,
+    );
+  });
+
+  it("access_paused: the paused line with the Contact link, no button", () => {
+    render(
+      <LapsedBanner
+        {...makeProps({ role: "parent", lapseReason: "access_paused" })}
+      />,
+    );
+    expect(screen.getByRole("status").textContent).toMatch(
+      /Your access is paused — get in touch and we.ll sort it\./,
+    );
+    expect(screen.getByRole("link", { name: /get in touch/i })).toHaveAttribute(
+      "href",
+      "/contact",
+    );
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("self-serve keys keep 'Subscription required.' and the Subscribe button", () => {
+    for (const lapseReason of ["trial_ended", "subscription_lapsed"] as const) {
+      const { unmount } = render(
+        <LapsedBanner {...makeProps({ role: "parent", lapseReason })} />,
+      );
+      expect(screen.getByText(/subscription required/i)).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /subscribe/i }),
+      ).toBeInTheDocument();
+      unmount();
+    }
+  });
+});
+
+// 4g (ADR-091): the nanny is never handed the self-serve share link for a done-for-you family.
+describe("LapsedBanner — nanny variant, done-for-you family", () => {
+  it("dfy: one line, no share button, no link", () => {
+    render(
+      <LapsedBanner {...makeProps({ role: "nanny", familyIsDfy: true })} />,
+    );
+    expect(screen.getByRole("status").textContent).toBe(
+      "This family's app access is arranged by Baby Bloom.",
+    );
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("self-serve: keeps the share button", () => {
+    render(
+      <LapsedBanner {...makeProps({ role: "nanny", familyIsDfy: false })} />,
+    );
+    expect(
+      screen.getByRole("button", { name: /share with sarah/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/arranged by Baby Bloom/),
+    ).not.toBeInTheDocument();
+  });
+});

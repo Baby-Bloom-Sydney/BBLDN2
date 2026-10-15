@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Search, AlertCircle, Heart } from "lucide-react";
 import { formatAuDate } from "@/lib/format/date";
 import type { AdminSubscriptionRow } from "./types";
-import { APP_LOCALE } from "@/lib/constants";
+import { formatPence } from "@/app/admin/guarantees/format";
 
 type Filter =
   | "all"
@@ -182,7 +182,7 @@ function Row({ row }: { row: AdminSubscriptionRow }) {
       </td>
       <td className="px-4 py-3 text-right">
         <p className="font-medium text-slate-900">
-          £{row.cumulativeSpendAud.toLocaleString(APP_LOCALE)}
+          {formatPence(row.cumulativeSpendPence)}
         </p>
         {row.cycle > 1 && (
           <p className="text-xs text-slate-500">cycle {row.cycle}</p>
