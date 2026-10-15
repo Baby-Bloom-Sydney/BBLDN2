@@ -34,6 +34,7 @@ const h = vi.hoisted(() => ({
     insertError: null as null | { code?: string; message: string },
     insertData: { id: "row1" } as unknown,
     existingRetry: 0,
+    updateError: null as null | { message: string },
     writes: [] as Array<{ op: string; payload: unknown; filters: Array<[string, unknown]> }>,
   },
 }));
@@ -92,7 +93,7 @@ vi.mock("@/lib/supabase/admin", () => ({
         }
         if (op === "update") {
           h.db.writes.push({ op, payload, filters });
-          return { data: null, error: null };
+          return { data: null, error: h.db.updateError };
         }
         return { data: { retry_count: h.db.existingRetry }, error: null };
       };
@@ -112,6 +113,7 @@ beforeEach(() => {
   h.db.insertError = null;
   h.db.insertData = { id: "row1" };
   h.db.existingRetry = 0;
+  h.db.updateError = null;
   h.db.writes = [];
   vi.stubEnv("STRIPE_WEBHOOK_SECRET", "test-webhook-secret");
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -173,6 +175,18 @@ describe("stripe webhook route — outcome matrix", () => {
     const res = await post({ id: "evt_4", type: "charge.refunded", data: { object: {} } });
     expect(res.status).toBe(500);
     expect(h.handleChargeRefunded).not.toHaveBeenCalled();
+  });
+
+  it("a failed outcome write is logged; the handler's work stands and the answer is 200", async () => {
+    h.db.updateError = { message: "write failed" };
+    h.handleChargeRefunded.mockResolvedValue("applied");
+    const res = await post({ id: "evt_12", type: "charge.refunded", data: { object: {} } });
+    expect(res.status).toBe(200);
+    expect(console.error).toHaveBeenCalledWith(
+      "[stripe-webhook] outcome write failed",
+      "evt_12",
+      "write failed",
+    );
   });
 
   it("an event type the route does not act on is 'ignored'", async () => {

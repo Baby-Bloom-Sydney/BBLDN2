@@ -502,11 +502,17 @@ export async function handleInvoiceSucceeded(
     updates.paid_period_ends_at = new Date(periodEndUnix * 1000).toISOString();
   }
 
-  const { data: existing } = await admin
+  const { data: existing, error: existingErr } = await admin
     .from("parent_subscriptions")
     .select("status, parent_user_id")
     .eq("stripe_subscription_id", subId)
     .maybeSingle();
+  // A failed read must not be mistaken for "no row" (→ ignored, never retried).
+  if (existingErr) {
+    throw new Error(
+      `parent_subscriptions read (invoice.succeeded) failed: ${existingErr.message}`,
+    );
+  }
   // No row for this subscription → nothing to extend (the update below would
   // match zero rows); the outcome says so.
   if (!existing) return "ignored";
@@ -1075,13 +1081,48 @@ export async function handleChargeRefunded(
   event: Stripe.ChargeRefundedEvent,
 ): Promise<HandlerOutcome> {
   const charge = event.data.object;
-  const refund = await newestRefund(charge);
-  if (!refund) {
+  const refunds = await refundsOfCharge(charge);
+  if (refunds.length === 0) {
     console.warn("[stripe-webhook] charge.refunded with no refund", charge.id);
     return "ignored";
   }
-  const refundId = refund.id;
+  // Every refund on the charge, not only the newest: two partial refunds
+  // processed out of order must each be recorded once. Already-processed
+  // refunds are skipped, so a later event re-seeing them is a no-op.
   const nowIso = new Date().toISOString();
+  let applied = false;
+  for (const refund of refunds) {
+    const outcome = await recordRefund(admin, charge, refund, nowIso);
+    if (outcome === "applied") applied = true;
+  }
+  return applied ? "applied" : "ignored";
+}
+
+async function recordRefund(
+  admin: AdminClient,
+  charge: Stripe.Charge,
+  refund: Stripe.Refund,
+  nowIso: string,
+): Promise<HandlerOutcome> {
+  const { data: existing, error: readErr } = await admin
+    .from("refund_requests")
+    .select("id, refund_processed_at")
+    .eq("stripe_refund_id", refund.id)
+    .maybeSingle<{ id: string; refund_processed_at: string | null }>();
+  if (readErr) {
+    throw new Error(`refund_requests read (charge.refunded) failed: ${readErr.message}`);
+  }
+  if (existing?.refund_processed_at) return "ignored";
+  if (!existing) return recordDashboardRefund(admin, charge, refund, nowIso);
+  return stampRequestedRefund(admin, refund.id, nowIso);
+}
+
+/** The pre-existing path: a `refund_requests` row already names this refund. */
+async function stampRequestedRefund(
+  admin: AdminClient,
+  refundId: string,
+  nowIso: string,
+): Promise<HandlerOutcome> {
   const { data: row, error } = await admin
     .from("refund_requests")
     .update({ refund_processed_at: nowIso, status: "approved" })
@@ -1093,9 +1134,7 @@ export async function handleChargeRefunded(
       `refund_requests update (charge.refunded) failed: ${error.message}`,
     );
   }
-  if (!row) {
-    return recordDashboardRefund(admin, charge, refund, nowIso);
-  }
+  if (!row) return "ignored";
   if (row.parent_user_id) {
     await logActivity(admin, {
       action_type: "refund_processed",
@@ -1158,18 +1197,26 @@ export async function handleChargeRefunded(
   return "applied";
 }
 
+const REFUNDS_PER_CHARGE_LIMIT = 10;
+const DEAD_REFUND_STATUSES = new Set(["failed", "canceled"]);
+
 /**
- * The refund this `charge.refunded` is about: the newest one. On API
- * `2024-09-30.acacia` a Charge in an event payload no longer carries
- * `refunds` by default, so when it is absent the charge's newest refund is
- * listed (newest first is Stripe's list order).
+ * The charge's refunds. Since API `2022-11-15` a Charge in an event payload
+ * no longer carries `refunds`, so when it is absent they are listed from
+ * Stripe. Failed / cancelled refunds moved no money and are skipped.
  */
-async function newestRefund(charge: Stripe.Charge): Promise<Stripe.Refund | null> {
-  const fromPayload = charge.refunds?.data?.[0];
-  if (fromPayload) return fromPayload;
-  const stripe = getStripeClient();
-  const listed = await stripe.refunds.list({ charge: charge.id, limit: 1 });
-  return listed.data[0] ?? null;
+async function refundsOfCharge(charge: Stripe.Charge): Promise<Stripe.Refund[]> {
+  const fromPayload = charge.refunds?.data;
+  const all =
+    fromPayload && fromPayload.length > 0
+      ? fromPayload
+      : (
+          await getStripeClient().refunds.list({
+            charge: charge.id,
+            limit: REFUNDS_PER_CHARGE_LIMIT,
+          })
+        ).data;
+  return all.filter((r) => !DEAD_REFUND_STATUSES.has(r.status ?? ""));
 }
 
 /**
@@ -1264,7 +1311,10 @@ async function stampDepositRefund(
     .update({ deposit_refunded_at: nowIso })
     .eq("id", subscriptionId);
   if (stampErr) {
-    throw new Error(`deposit_refunded_at stamp failed: ${stampErr.message}`);
+    // Non-fatal: the refund row is already written, and a throw here would
+    // leave the event `unresolved` with Stripe's retry answered as a
+    // duplicate — the stamp would never land. Logged for the admin.
+    console.error("[stripe-webhook] deposit_refunded_at stamp failed", stampErr.message);
   }
 }
 

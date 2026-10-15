@@ -113,10 +113,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   try {
     const outcome = await dispatchEvent(admin, event);
-    await admin
+    const { error: ledgerErr } = await admin
       .from("stripe_webhook_events")
       .update({ outcome, processed_at: new Date().toISOString() })
       .eq("stripe_event_id", event.id);
+    if (ledgerErr) {
+      // The handler's work is done; the row stays outcome NULL (in flight) and
+      // is visible in the unprocessed set (ADR-156). Logged, not retried.
+      console.error("[stripe-webhook] outcome write failed", event.id, ledgerErr.message);
+    }
     return new NextResponse("OK", { status: 200 });
   } catch (err) {
     const message = getErrorMessage(err);

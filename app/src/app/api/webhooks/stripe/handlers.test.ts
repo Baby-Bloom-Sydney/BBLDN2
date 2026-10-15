@@ -229,6 +229,15 @@ describe("handleInvoiceSucceeded — outcome", () => {
     expect(calls.some((c) => c.op === "update")).toBe(false);
   });
 
+  it("throws (→ unresolved) when the subscription read fails — never mistaken for 'no row'", async () => {
+    stripeState.retrieveSub.mockResolvedValue({ current_period_end: 1 });
+    const { admin, calls } = fakeAdmin({ "parent_subscriptions.select": [{ error: { message: "down" } }] });
+    await expect(
+      handleInvoiceSucceeded(admin, invoice({ subscription: "sub_1", amount_paid: 1 })),
+    ).rejects.toThrow(/invoice.succeeded/);
+    expect(calls.some((c) => c.op === "update")).toBe(false);
+  });
+
   it("applied when the paid period is extended", async () => {
     stripeState.retrieveSub.mockResolvedValue({ current_period_end: 1 });
     const { admin } = fakeAdmin({
@@ -295,6 +304,7 @@ describe("handleChargeRefunded — existing stamp and London Dashboard refund", 
 
   it("applied, existing path: a matching refund_requests row is stamped and nothing is inserted", async () => {
     const { admin, calls } = fakeAdmin({
+      "refund_requests.select": [{ data: { id: "rr1", refund_processed_at: null } }],
       "refund_requests.update": [{ data: { id: "rr1", parent_user_id: "u1" } }],
     });
     expect(await handleChargeRefunded(admin, charge())).toBe("applied");
@@ -303,7 +313,7 @@ describe("handleChargeRefunded — existing stamp and London Dashboard refund", 
 
   it("applied, London: no matching row → a Dashboard refund row is inserted from the charge", async () => {
     const { admin, calls } = fakeAdmin({
-      "refund_requests.update": [{ data: null }],
+      "refund_requests.select": [{ data: null }],
       "parent_subscriptions.select": [{ data: { id: "ps1", parent_user_id: "u1" } }],
     });
     expect(await handleChargeRefunded(admin, charge())).toBe("applied");
@@ -330,7 +340,7 @@ describe("handleChargeRefunded — existing stamp and London Dashboard refund", 
 
   it("a refund never touches access: no parent_subscriptions status or period is written", async () => {
     const { admin, calls } = fakeAdmin({
-      "refund_requests.update": [{ data: null }],
+      "refund_requests.select": [{ data: null }],
       "parent_subscriptions.select": [
         { data: { id: "ps1", parent_user_id: "u1" } },
         { data: { deposit_stripe_payment_intent_id: "pi_other" } },
@@ -345,7 +355,7 @@ describe("handleChargeRefunded — existing stamp and London Dashboard refund", 
 
   it("stamps deposit_refunded_at when the refunded payment is the deposit (4c's column)", async () => {
     const { admin, calls } = fakeAdmin({
-      "refund_requests.update": [{ data: null }],
+      "refund_requests.select": [{ data: null }],
       "parent_subscriptions.select": [
         { data: { id: "ps1", parent_user_id: "u1" } },
         { data: { deposit_stripe_payment_intent_id: "pi_1" } },
@@ -359,7 +369,7 @@ describe("handleChargeRefunded — existing stamp and London Dashboard refund", 
 
   it("reads the deposit column defensively: a missing column (before 4c's amendment) is skipped", async () => {
     const { admin, calls } = fakeAdmin({
-      "refund_requests.update": [{ data: null }],
+      "refund_requests.select": [{ data: null }],
       "parent_subscriptions.select": [
         { data: { id: "ps1", parent_user_id: "u1" } },
         { error: { message: "column does not exist", code: "42703" } },
@@ -371,7 +381,7 @@ describe("handleChargeRefunded — existing stamp and London Dashboard refund", 
 
   it("ignored when no parent resolves from the charge's customer", async () => {
     const { admin, calls } = fakeAdmin({
-      "refund_requests.update": [{ data: null }],
+      "refund_requests.select": [{ data: null }],
       "parent_subscriptions.select": [{ data: null }],
     });
     expect(await handleChargeRefunded(admin, charge())).toBe("ignored");
@@ -386,12 +396,60 @@ describe("handleChargeRefunded — existing stamp and London Dashboard refund", 
   it("lists the charge's newest refund when the payload omits `refunds` (API 2024-09-30)", async () => {
     stripeState.listRefunds.mockResolvedValue({ data: [refund] });
     const { admin, calls } = fakeAdmin({
+      "refund_requests.select": [{ data: { id: "rr1", refund_processed_at: null } }],
       "refund_requests.update": [{ data: { id: "rr1", parent_user_id: "u1" } }],
     });
     expect(await handleChargeRefunded(admin, charge({ refunds: undefined }))).toBe("applied");
-    expect(stripeState.listRefunds).toHaveBeenCalledWith({ charge: "ch_1", limit: 1 });
+    expect(stripeState.listRefunds).toHaveBeenCalledWith({ charge: "ch_1", limit: 10 });
     const stamp = calls.find((c) => c.table === "refund_requests" && c.op === "update");
     expect(stamp?.filters).toContainEqual(["eq", "stripe_refund_id", "re_1"]);
+  });
+
+  it("ignored when the refund is already recorded and processed (a later event re-seeing it)", async () => {
+    const { admin, calls } = fakeAdmin({
+      "refund_requests.select": [{ data: { id: "rr1", refund_processed_at: "2026-10-15T00:00:00Z" } }],
+    });
+    expect(await handleChargeRefunded(admin, charge())).toBe("ignored");
+    expect(calls.some((c) => c.table === "refund_requests" && c.op !== "select")).toBe(false);
+  });
+
+  it("records every unrecorded refund on the charge, not only the newest", async () => {
+    const second = { id: "re_2", amount: 50, currency: "gbp", status: "succeeded" };
+    const { admin, calls } = fakeAdmin({
+      "refund_requests.select": [{ data: null }, { data: { id: "rr1", refund_processed_at: "x" } }],
+      "parent_subscriptions.select": [{ data: { id: "ps1", parent_user_id: "u1" } }],
+    });
+    expect(await handleChargeRefunded(admin, charge({ refunds: { data: [second, refund] } }))).toBe(
+      "applied",
+    );
+    const inserts = calls.filter((c) => c.table === "refund_requests" && c.op === "insert");
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0].payload).toMatchObject({ stripe_refund_id: "re_2", approved_amount_aud_cents: 50 });
+  });
+
+  it("skips failed / cancelled refunds (no money moved)", async () => {
+    const failed = { ...refund, status: "failed" };
+    const { admin, calls } = fakeAdmin();
+    expect(await handleChargeRefunded(admin, charge({ refunds: { data: [failed] } }))).toBe("ignored");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("a failed deposit stamp is logged, not thrown (the refund row is already written)", async () => {
+    const { admin } = fakeAdmin({
+      "refund_requests.select": [{ data: null }],
+      "parent_subscriptions.select": [
+        { data: { id: "ps1", parent_user_id: "u1" } },
+        { data: { deposit_stripe_payment_intent_id: "pi_1" } },
+      ],
+      "parent_subscriptions.update": [{ error: { message: "boom" } }],
+    });
+    expect(await handleChargeRefunded(admin, charge())).toBe("applied");
+    expect(console.error).toHaveBeenCalled();
+  });
+
+  it("throws (→ unresolved) when the refund_requests read fails", async () => {
+    const { admin } = fakeAdmin({ "refund_requests.select": [{ error: { message: "down" } }] });
+    await expect(handleChargeRefunded(admin, charge())).rejects.toThrow(/refund_requests read/);
   });
 
   it("ignored when no refund can be found at all", async () => {
@@ -402,7 +460,7 @@ describe("handleChargeRefunded — existing stamp and London Dashboard refund", 
 
   it("throws (→ unresolved) when the refund_requests insert fails", async () => {
     const { admin } = fakeAdmin({
-      "refund_requests.update": [{ data: null }],
+      "refund_requests.select": [{ data: null }],
       "parent_subscriptions.select": [{ data: { id: "ps1", parent_user_id: "u1" } }],
       "refund_requests.insert": [{ error: { message: "boom" } }],
     });
