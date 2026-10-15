@@ -17,10 +17,10 @@ const ADMIN_ONLY_DEMO_ROOTS = [
   "/bb/test",
 ] as const;
 
-const ADMIN_ROLES: UserRole[] = ["admin", "super_admin"];
+const ADMIN_ROLES: readonly UserRole[] = ["admin", "super_admin"];
 
 /** Hub prefixes; matched with `startsWith` (unchanged behaviour). */
-const PROTECTED_ROUTES: Record<string, UserRole[]> = {
+const PROTECTED_ROUTES: Record<string, readonly UserRole[]> = {
   "/nanny": ["nanny"],
   "/parent": ["parent"],
   "/admin": ADMIN_ROLES,
@@ -44,7 +44,7 @@ function isUnderRoot(pathname: string, root: string): boolean {
   return pathname === root || pathname.startsWith(`${root}/`);
 }
 
-function getRequiredRolesForPath(pathname: string): UserRole[] | null {
+function getRequiredRolesForPath(pathname: string): readonly UserRole[] | null {
   if (ADMIN_ONLY_DEMO_ROOTS.some((root) => isUnderRoot(pathname, root))) {
     return ADMIN_ROLES;
   }
