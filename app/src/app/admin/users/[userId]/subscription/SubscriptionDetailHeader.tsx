@@ -429,7 +429,7 @@ function DfyPanel({
   );
 }
 
-function Fact({ label, iso }: { label: string; iso: string | null }) {
+function Fact({ label, iso }: { label: string; iso?: string | null }) {
   return (
     <div>
       <dt className="text-xs text-slate-500">{label}</dt>

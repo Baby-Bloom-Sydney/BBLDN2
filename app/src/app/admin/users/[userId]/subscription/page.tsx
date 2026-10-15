@@ -274,22 +274,22 @@ export interface ParentSubscriptionRow {
   subscription_cycle: number;
   created_at: string;
   updated_at: string;
-  // 4c (amendment 12)
-  family_type: "self_serve" | "dfy";
-  deposit_pence: number | null;
-  deposit_paid_at: string | null;
-  deposit_refunded_at: string | null;
-  placement_id: string | null;
-  placed_at: string | null;
-  payment_due_at: string | null;
-  satisfaction_window_ends_at: string | null;
-  payment_due_raised_at: string | null;
-  first_week_wages_pence: number | null;
-  balance_pence: number | null;
-  bill_paid_at: string | null;
-  access_toggled_on: boolean | null;
-  access_toggled_at: string | null;
-  access_toggle_reason: string | null;
+  // 4c (amendment 12) — optional so fixtures built before 4c (e.g. 4d's StatsGrid spec) still type; the page always selects them.
+  family_type?: "self_serve" | "dfy";
+  deposit_pence?: number | null;
+  deposit_paid_at?: string | null;
+  deposit_refunded_at?: string | null;
+  placement_id?: string | null;
+  placed_at?: string | null;
+  payment_due_at?: string | null;
+  satisfaction_window_ends_at?: string | null;
+  payment_due_raised_at?: string | null;
+  first_week_wages_pence?: number | null;
+  balance_pence?: number | null;
+  bill_paid_at?: string | null;
+  access_toggled_on?: boolean | null;
+  access_toggled_at?: string | null;
+  access_toggle_reason?: string | null;
 }
 
 export interface ChildClientEvents {
