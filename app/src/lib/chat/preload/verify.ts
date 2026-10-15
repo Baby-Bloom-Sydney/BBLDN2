@@ -362,11 +362,12 @@ async function verifyPlacement(
  * Confirms the user is one of the parties on the connection (parent
  * or nanny side). Returns true on match.
  *
- * Tries `interview_requests` first (the canonical connections table
- * in this codebase). Note: this query reads bypassing RLS via the
- * service-role client; ownership is enforced in app code by
- * comparing the row's `parent_user_id` / `nanny_user_id` to the
- * authenticated `userId`.
+ * Reads `connection_requests` (5e, R-4 — the legacy `interview_requests`
+ * name does not exist in the London schema). The row carries profile ids
+ * (`nanny_id` → nannies.id, `parent_id` → parents.id), so the auth user
+ * ids come through the `nannies` / `parents` embeds. This query bypasses
+ * RLS via the service-role client; ownership is enforced in app code by
+ * comparing either embedded `user_id` to the authenticated `userId`.
  */
 async function verifyConnectionOwnership(
   supabase: SupabaseClient,
@@ -374,17 +375,22 @@ async function verifyConnectionOwnership(
   connectionId: string,
 ): Promise<boolean> {
   try {
-    const { data } = await supabase
-      .from("interview_requests")
-      .select("id, parent_user_id, nanny_user_id")
+    const { data, error } = await supabase
+      .from("connection_requests")
+      .select(
+        "id, nannies:nannies!inner(user_id), parents:parents!inner(user_id)",
+      )
       .eq("id", connectionId)
       .maybeSingle<{
         id: string;
-        parent_user_id: string | null;
-        nanny_user_id: string | null;
+        nannies: { user_id: string | null } | null;
+        parents: { user_id: string | null } | null;
       }>();
+    if (error) throw error;
     if (!data) return false;
-    return data.parent_user_id === userId || data.nanny_user_id === userId;
+    return (
+      data.nannies?.user_id === userId || data.parents?.user_id === userId
+    );
   } catch (err) {
     console.warn(
       "[verifyConnectionOwnership] DB error (slot will be dropped):",

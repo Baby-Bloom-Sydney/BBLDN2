@@ -2,6 +2,10 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { payoutsEnabled } from "@/lib/payments/flags";
+import {
+  CONNECTION_STAGE_LABELS,
+  type ConnectionStage,
+} from "@/lib/position/constants";
 import type { LeadContact, LeadNote, NannyContactState } from "./types";
 
 export interface LeadDetail {
@@ -483,15 +487,55 @@ async function nannyOnlyInterviews(
     .eq("user_id", nannyUserId)
     .maybeSingle<{ id: string }>();
   if (!n) return [];
+  // 5e (R-4): the legacy `interview_requests` table does not exist in the
+  // London schema; its rows live in `connection_requests`. Mapped into the
+  // unchanged `interview_requests` shape: stage label → outcome, meet time
+  // → interview_date, and the parent's auth user id → parent_id (the key
+  // `parent_directory` and the drawer's parent link use).
   const { data } = await supa
-    .from("interview_requests")
+    .from("connection_requests")
     .select(
-      "id, parent_id, position_id, status, responded_at, interview_date, outcome, created_at",
+      "id, position_id, status, responded_at, connection_stage, confirmed_time, created_at, parents:parents!inner(user_id)",
     )
     .eq("nanny_id", n.id)
     .order("created_at", { ascending: false })
     .limit(30);
-  return data ?? [];
+  return ((data ?? []) as unknown as ConnectionRequestRow[]).map(
+    toInterviewRow,
+  );
+}
+
+interface ConnectionRequestRow {
+  id: string;
+  position_id: string | null;
+  status: string;
+  responded_at: string | null;
+  connection_stage: number | null;
+  confirmed_time: string | null;
+  created_at: string;
+  // A many-to-one embed arrives as an object; the untyped client infers an
+  // array, so both are accepted (same handling as lib/chat/bot.ts:319–323).
+  parents: { user_id: string } | Array<{ user_id: string }> | null;
+}
+
+function toInterviewRow(
+  r: ConnectionRequestRow,
+): LeadDetail["interview_requests"][number] {
+  return {
+    id: r.id,
+    parent_id:
+      (Array.isArray(r.parents) ? r.parents[0] : r.parents)?.user_id ?? "",
+    position_id: r.position_id,
+    status: r.status,
+    responded_at: r.responded_at,
+    interview_date: r.confirmed_time,
+    outcome:
+      r.connection_stage === null
+        ? null
+        : (CONNECTION_STAGE_LABELS[r.connection_stage as ConnectionStage] ??
+          null),
+    created_at: r.created_at,
+  };
 }
 
 async function nannyOnlyBabysitting(

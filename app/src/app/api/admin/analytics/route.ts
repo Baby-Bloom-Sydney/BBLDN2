@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ADMIN_PENDING_CODES } from "@/lib/verification";
+import { CONNECTION_STAGE } from "@/lib/position/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -101,10 +102,14 @@ export async function GET() {
       .from("nanny_placements")
       .select("*", { count: "exact", head: true })
       .eq("status", "ended"),
+    // 5e (R-4): connections that reached INTRO_SCHEDULED this month —
+    // `confirmed_at` is set by the only INTRO_SCHEDULED writer
+    // (lib/actions/connection.ts). `interview_requests` does not exist here.
     supabase
-      .from("interview_requests")
+      .from("connection_requests")
       .select("*", { count: "exact", head: true })
-      .gte("created_at", thisMonthStart.toISOString()),
+      .gte("connection_stage", CONNECTION_STAGE.INTRO_SCHEDULED)
+      .gte("confirmed_at", thisMonthStart.toISOString()),
     supabase
       .from("nanny_positions")
       .select("*", { count: "exact", head: true })
