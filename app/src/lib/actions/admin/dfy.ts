@@ -106,6 +106,7 @@ async function customerFor(
       .update({ stripe_customer_id: customer.id })
       .eq("id", sub.id)
       .is("stripe_customer_id", null);
+    // A concurrent mint that stored first matches zero rows here; the idempotency key gave it this same customer.
     if (error) throw new Error(`customer store failed: ${error.message}`);
   }
   return customer.id;
