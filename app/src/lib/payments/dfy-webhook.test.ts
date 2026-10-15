@@ -68,6 +68,36 @@ describe("handleDfyLinkCompleted — deposit", () => {
     expect(up.payload).not.toHaveProperty("status");
   });
 
+  // 4-w5fix (W5-M3): the deposit stores the session's Stripe customer when the family has none,
+  // so a later refund of the deposit can be traced to the family.
+  it("no row → the insert carries the session's customer as stripe_customer_id", async () => {
+    const f = fakeAdmin({ parent_subscriptions: null });
+    await handleDfyLinkCompleted(f.client, recordedSession({ customer: "cus_test_dep" }));
+    expect(writesTo(f, "parent_subscriptions")[0].payload).toMatchObject({ stripe_customer_id: "cus_test_dep" });
+  });
+
+  it("a row with no customer → the update stores the session's customer", async () => {
+    const f = fakeAdmin({
+      parent_subscriptions: { id: "s1", status: "lapsed", stripe_customer_id: null, deposit_stripe_payment_intent_id: null },
+    });
+    await handleDfyLinkCompleted(f.client, recordedSession({ customer: "cus_test_dep" }));
+    expect(writesTo(f, "parent_subscriptions")[0].payload).toMatchObject({ stripe_customer_id: "cus_test_dep" });
+  });
+
+  it("a row that already has a customer → it is never overwritten", async () => {
+    const f = fakeAdmin({
+      parent_subscriptions: { id: "s1", status: "lapsed", stripe_customer_id: "cus_old", deposit_stripe_payment_intent_id: null },
+    });
+    await handleDfyLinkCompleted(f.client, recordedSession({ customer: "cus_test_dep" }));
+    expect(writesTo(f, "parent_subscriptions")[0].payload).not.toHaveProperty("stripe_customer_id");
+  });
+
+  it("a session with no customer → no stripe_customer_id is written", async () => {
+    const f = fakeAdmin({ parent_subscriptions: null });
+    await handleDfyLinkCompleted(f.client, recordedSession({ customer: null }));
+    expect(writesTo(f, "parent_subscriptions")[0].payload).not.toHaveProperty("stripe_customer_id");
+  });
+
   it("already placed → keeps placed, still records the deposit", async () => {
     const f = fakeAdmin({ parent_subscriptions: { id: "s1", status: "placed", deposit_stripe_payment_intent_id: null } });
     expect(await handleDfyLinkCompleted(f.client, recordedSession())).toBe("applied");

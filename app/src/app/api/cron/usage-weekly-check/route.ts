@@ -103,6 +103,9 @@ async function postsPerChild(admin: Admin, childIds: string[], sinceIso: string)
           .select("id", { count: "exact", head: true })
           .eq("child_client_id", id)
           .eq("is_active", true)
+          // 4-w5fix (W5-M4): system-authored tiles are not use — the automatic "X has been added" tile
+          // (child-onboarding-dispatch.ts) and Katie's tiles are written as `type: "custom"`.
+          .neq("type", "custom")
           .gte("created_at", sinceIso);
         if (error) throw new Error(error.message);
         return [id, count ?? 0] as const;

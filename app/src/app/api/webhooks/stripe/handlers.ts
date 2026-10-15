@@ -26,6 +26,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripeClient } from "@/lib/stripe/client";
 import { scheduleCommissionFor } from "@/lib/payments/commission-scheduler";
 import { cancelInFlightCommission } from "@/lib/payments/commission-cancel";
+import { payoutsEnabled } from "@/lib/payments/flags";
 import { ACCESS_AGE_YEARS, GRACE_DAYS } from "@/config/prices";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -178,7 +179,8 @@ export async function handleCheckoutCompleted(
     .select("id")
     .eq("parent_user_id", userId)
     .maybeSingle<{ id: string }>();
-  if (subRow) {
+  // 4-w5fix (W5-M1, P-23): commission is hidden unless PAYOUTS_ENABLED — no row is scheduled.
+  if (subRow && payoutsEnabled()) {
     // T-018: schedule cycle 1 commission only when the Stripe sub is NOT
     // in trial. Trial signups produce no commission row — Lock 1 of the
     // four money-safety invariants (DB row exists ⇔ real money landed).
@@ -438,7 +440,9 @@ export async function handleSubscriptionDeleted(
       user_id: row.parent_user_id,
       action_details: { stripe_subscription_id: sub.id },
     });
-
+  }
+  // 4-w5fix (W5-M1, P-23): the commission freeze runs only when PAYOUTS_ENABLED.
+  if (row.parent_user_id && payoutsEnabled()) {
     // Phase 10.5 — freeze in-flight commission rows. Past `paid` rows
     // are NEVER touched (those are the nanny's). Reclaimable on
     // resubscription via unfreezeEarningsOnResubscribe.
@@ -579,7 +583,8 @@ export async function handleInvoiceSucceeded(
       .select("id")
       .eq("stripe_subscription_id", subId)
       .maybeSingle<{ id: string }>();
-    if (subRow) {
+    // 4-w5fix (W5-M1, P-23): commission is hidden unless PAYOUTS_ENABLED.
+    if (subRow && payoutsEnabled()) {
       // Monthly always cycle 1 (each renewal is a fresh cycle from
       // commission's POV). Upfront cycles 2 + 3 fire from a separate
       // end-of-cycle cron — see C2 in 2026-05-13 review batch.
@@ -633,7 +638,9 @@ export async function handleInvoiceFailed(
       user_id: row.parent_user_id,
       action_details: { stripe_subscription_id: subId },
     });
-
+  }
+  // 4-w5fix (W5-M1, P-23): payout rows are touched only when PAYOUTS_ENABLED.
+  if (row.parent_user_id && payoutsEnabled()) {
     // T-018: defer any in-flight pending/held nanny_payouts rows by
     // 14 days from today. Rationale: if the parent recovers (pays
     // the late invoice), the new release date gives BB the same
@@ -1233,7 +1240,11 @@ async function recordDashboardRefund(
   nowIso: string,
 ): Promise<HandlerOutcome> {
   const customerId = stringOrNull(charge.customer);
-  const parent = customerId ? await subscriptionForCustomer(admin, customerId) : null;
+  const intentId = stringOrNull(charge.payment_intent);
+  // 4-w5fix (W5-M3): a DFY link payment may carry no customer — fall back to the refunded intent.
+  const parent =
+    (customerId ? await subscriptionForCustomer(admin, customerId) : null) ??
+    (intentId ? await subscriptionForDfyIntent(admin, intentId) : null);
   if (!parent) {
     console.warn("[stripe-webhook] charge.refunded: no parent for the charge", charge.id);
     return "ignored";
@@ -1248,7 +1259,7 @@ async function recordDashboardRefund(
     calculation_breakdown: {
       source: "stripe_dashboard",
       charge_id: charge.id,
-      payment_intent_id: stringOrNull(charge.payment_intent),
+      payment_intent_id: intentId,
       refund_id: refund.id,
       currency: refund.currency,
     },
@@ -1264,7 +1275,7 @@ async function recordDashboardRefund(
     user_id: parent.parent_user_id,
     action_details: { refund_id: refund.id, source: "stripe_dashboard" },
   });
-  await stampDepositRefund(admin, parent.id, stringOrNull(charge.payment_intent), nowIso);
+  await stampDepositRefund(admin, parent.id, intentId, nowIso);
   return "applied";
 }
 
@@ -1283,6 +1294,29 @@ async function subscriptionForCustomer(
     throw new Error(`refund: parent_subscriptions lookup failed: ${error.message}`);
   }
   return data ?? null;
+}
+
+/**
+ * The family whose DFY deposit or bill was paid with this PaymentIntent (4c's columns, amendment 12).
+ * Two exact-match reads (deposit first) — no filter string is built from the event.
+ */
+async function subscriptionForDfyIntent(
+  admin: AdminClient,
+  paymentIntentId: string,
+): Promise<{ id: string; parent_user_id: string } | null> {
+  for (const column of ["deposit_stripe_payment_intent_id", "bill_stripe_payment_intent_id"] as const) {
+    const { data, error } = await admin
+      .from("parent_subscriptions")
+      .select("id, parent_user_id")
+      .eq(column, paymentIntentId)
+      .limit(1)
+      .maybeSingle<{ id: string; parent_user_id: string }>();
+    if (error) {
+      throw new Error(`refund: parent_subscriptions lookup failed: ${error.message}`);
+    }
+    if (data) return data;
+  }
+  return null;
 }
 
 /**

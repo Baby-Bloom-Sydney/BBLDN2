@@ -1,6 +1,7 @@
 // T-032 — Drawer detail fetcher. Pulls the full nanny-360 for one user.
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { payoutsEnabled } from "@/lib/payments/flags";
 import type { LeadContact, LeadNote, NannyContactState } from "./types";
 
 export interface LeadDetail {
@@ -390,7 +391,8 @@ export async function fetchLeadDetail(
           typeof rawNanny.verification_level === "number"
             ? rawNanny.verification_level
             : null,
-        abn: typeof rawNanny.abn === "string" ? rawNanny.abn : null,
+        // 4-w5fix (W5-M2, P-23): the tax ID is not sent unless PAYOUTS_ENABLED.
+        abn: payoutsEnabled() && typeof rawNanny.abn === "string" ? rawNanny.abn : null,
         abn_updated_at:
           typeof rawNanny.abn_updated_at === "string"
             ? rawNanny.abn_updated_at

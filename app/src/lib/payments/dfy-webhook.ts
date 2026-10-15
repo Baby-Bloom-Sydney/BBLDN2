@@ -110,11 +110,14 @@ export async function handleDfyLinkCompleted(
 
   if (kind === "deposit") {
     if (row?.deposit_stripe_payment_intent_id === pi) return "ignored";
+    // 4-w5fix (W5-M3): keep the session's customer when the family has none, so a refund traces back.
+    const sessionCustomer = customerId(session);
     const deposit = {
       family_type: "dfy",
       deposit_pence: pence,
       deposit_paid_at: nowIso,
       deposit_stripe_payment_intent_id: pi,
+      ...(sessionCustomer && !row?.stripe_customer_id ? { stripe_customer_id: sessionCustomer } : {}),
     };
     if (!row) {
       await must(

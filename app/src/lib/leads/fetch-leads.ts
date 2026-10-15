@@ -10,6 +10,7 @@
 // one page (default 50). If perf demands later, swap for a Postgres RPC.
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { payoutsEnabled } from "@/lib/payments/flags";
 import type {
   LeadQueryState,
   LeadRow,
@@ -556,8 +557,11 @@ export async function fetchLeads(state: LeadQueryState): Promise<LeadsPage> {
     q = q.not("bonus_program_completed_at", "is", null);
   if (f.contributions === "incomplete")
     q = q.is("bonus_program_completed_at", null);
-  if (f.abn === "has") q = q.not("abn", "is", null);
-  if (f.abn === "missing") q = q.is("abn", null);
+  // 4-w5fix (W5-M2, P-23): the ABN filter is hidden unless PAYOUTS_ENABLED — `?abn=` is ignored.
+  if (payoutsEnabled()) {
+    if (f.abn === "has") q = q.not("abn", "is", null);
+    if (f.abn === "missing") q = q.is("abn", null);
+  }
 
   // Sort. Foreign-table sorts (last_contact / next_action) can't apply at
   // the nannies query — fall back to created_at and re-sort the page in
