@@ -119,15 +119,16 @@ export function buildTimelineEntries(args: BuildArgs): TimelineEntry[] {
       timestampIso: r.created_at,
       category: "refund",
       title: "Refund requested",
-      detail: r.reason ?? undefined,
+      detail: r.reason_text ?? undefined,
     });
     if (r.refund_processed_at) {
-      const amount = r.refund_amount_aud_cents ?? 0;
+      // Pence (London) in the approved amount column — rename is cleanup's (4d).
+      const pence = r.approved_amount_aud_cents ?? 0;
       entries.push({
         id: `refund:${r.id}:processed`,
         timestampIso: r.refund_processed_at,
         category: "refund",
-        title: `Refund processed — £${(amount / 100).toFixed(0)}`,
+        title: `Refunded £${(pence / 100).toFixed(2)}`,
         detail: r.stripe_refund_id ?? undefined,
       });
     }

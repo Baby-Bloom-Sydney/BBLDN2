@@ -3120,5 +3120,40 @@
     "match": "ocg",
     "owner": "cleanup",
     "note": "D-4 kept column names (wwcc_* / ocg_* columns of the DBS section) in unit 3i’s daily re-check — renaming is cleanup’s. Not user-visible text. [3i, BB-LDN-3i-141026]"
+  },
+  {
+    "rule": "currency",
+    "file": "app/src/app/api/webhooks/stripe/handlers.ts",
+    "match": "_aud_cents",
+    "owner": "money",
+    "note": "Database column name (`*_aud_cents`, holding pence in London). Renaming a column is schema, not place-layer — cleanup (03-triage.md §6). [4d] Dashboard refund insert, 2 hit(s)."
+  },
+  {
+    "rule": "currency",
+    "file": "app/src/app/api/webhooks/stripe/handlers.test.ts",
+    "match": "_aud_cents",
+    "owner": "money",
+    "note": "Database column name (`*_aud_cents`, holding pence in London). Renaming a column is schema, not place-layer — cleanup (03-triage.md §6). [4d] The test pins the insert payload, 2 hit(s)."
+  },
+  {
+    "rule": "currency",
+    "file": "app/src/app/admin/users/[userId]/subscription/build-timeline.test.ts",
+    "match": "amount_aud_cents",
+    "owner": "money",
+    "note": "Database column name (`*_aud_cents`, holding pence in London). Renaming a column is schema, not place-layer — cleanup (03-triage.md §6). [4d] RefundRow fixture, 2 hit(s)."
+  },
+  {
+    "rule": "currency",
+    "file": "app/src/app/admin/users/[userId]/subscription/SubscriptionStatsGrid.test.tsx",
+    "match": "cumulativeSpendAud",
+    "owner": "money",
+    "note": "Existing prop name of SubscriptionStatsGrid (contract); the test must pass it. Money stage. [4d]"
+  },
+  {
+    "rule": "currency",
+    "file": "app/src/app/admin/users/[userId]/subscription/SubscriptionStatsGrid.test.tsx",
+    "match": "refundedTotalAud",
+    "owner": "money",
+    "note": "Existing prop name of SubscriptionStatsGrid (contract); the test must pass it. Money stage. [4d]"
   }
 ]

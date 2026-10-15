@@ -22,6 +22,15 @@
  *   days. The catch path also bumps retry_count + records the error
  *   message.
  *
+ * Outcome ledger (LDN2 unit 4d; ADR-146, ADR-156, amendment 13):
+ *   every dispatched event ends with `outcome` set — `applied` (state
+ *   changed) or `ignored` (no effect: unresolved family, early-return
+ *   branch, or a type this route does not act on), both with
+ *   processed_at; `unresolved` when the handler threw (processed_at stays
+ *   NULL, processing_error kept). NULL = in flight.
+ *   A checkout session carrying `metadata.link_kind` is a DFY payment
+ *   link (deposit / balance) and goes to 4c's `handleDfyLinkCompleted`.
+ *
  * Hardening:
  *   - Raw body is read via `req.text()` BEFORE any JSON parsing — Stripe
  *     signature is computed against the byte stream, not the parsed
@@ -36,9 +45,11 @@ import type Stripe from "stripe";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyWebhookSignature } from "@/lib/stripe/webhooks";
+import { handleDfyLinkCompleted } from "@/lib/payments/dfy-webhook";
 
 import {
   type AdminClient,
+  type HandlerOutcome,
   handleAccountDeauthorized,
   handleAccountUpdated,
   handleCapabilityUpdated,
@@ -101,11 +112,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    await dispatchEvent(admin, event);
-    await admin
+    const outcome = await dispatchEvent(admin, event);
+    const { error: ledgerErr } = await admin
       .from("stripe_webhook_events")
-      .update({ processed_at: new Date().toISOString() })
+      .update({ outcome, processed_at: new Date().toISOString() })
       .eq("stripe_event_id", event.id);
+    if (ledgerErr) {
+      // The handler's work is done; the row stays outcome NULL (in flight) and
+      // is visible in the unprocessed set (ADR-156). Logged, not retried.
+      console.error("[stripe-webhook] outcome write failed", event.id, ledgerErr.message);
+    }
     return new NextResponse("OK", { status: 200 });
   } catch (err) {
     const message = getErrorMessage(err);
@@ -120,6 +136,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     await admin
       .from("stripe_webhook_events")
       .update({
+        outcome: "unresolved",
         processing_error: message,
         retry_count: (existing?.retry_count ?? 0) + 1,
       })
@@ -167,78 +184,76 @@ async function recordEvent(
 async function dispatchEvent(
   admin: AdminClient,
   event: Stripe.Event,
-): Promise<void> {
+): Promise<HandlerOutcome> {
   switch (event.type) {
-    case "checkout.session.completed":
-      await handleCheckoutCompleted(
-        admin,
-        event as Stripe.CheckoutSessionCompletedEvent,
-      );
-      return;
+    case "checkout.session.completed": {
+      const checkout = event as Stripe.CheckoutSessionCompletedEvent;
+      // 4c: a DFY payment link (deposit / balance-after-week-1 / custom).
+      if (checkout.data.object.metadata?.link_kind) {
+        return handleDfyLinkCompleted(admin, checkout.data.object);
+      }
+      return handleCheckoutCompleted(admin, checkout);
+    }
     case "customer.subscription.updated":
-      await handleSubscriptionUpdated(
+      return handleSubscriptionUpdated(
         admin,
         event as Stripe.CustomerSubscriptionUpdatedEvent,
       );
-      return;
     case "customer.subscription.deleted":
-      await handleSubscriptionDeleted(
+      return handleSubscriptionDeleted(
         admin,
         event as Stripe.CustomerSubscriptionDeletedEvent,
       );
-      return;
     case "invoice.payment_succeeded":
-      await handleInvoiceSucceeded(
+      return handleInvoiceSucceeded(
         admin,
         event as Stripe.InvoicePaymentSucceededEvent,
       );
-      return;
     case "invoice.payment_failed":
-      await handleInvoiceFailed(
+      return handleInvoiceFailed(
         admin,
         event as Stripe.InvoicePaymentFailedEvent,
       );
-      return;
     case "payment_intent.payment_failed":
-      await handlePaymentIntentFailed(
+      return handlePaymentIntentFailed(
         admin,
         event as Stripe.PaymentIntentPaymentFailedEvent,
       );
-      return;
     case "charge.refunded":
-      await handleChargeRefunded(admin, event as Stripe.ChargeRefundedEvent);
-      return;
+      return handleChargeRefunded(admin, event as Stripe.ChargeRefundedEvent);
+    // The six Connect/payout cases below are as 4a-i left them (P-23 hide):
+    // London's endpoint subscribes to none of them, so none arrives.
     case "account.updated":
       await handleAccountUpdated(admin, event as Stripe.AccountUpdatedEvent);
-      return;
+      return "applied";
     case "account.application.deauthorized":
       await handleAccountDeauthorized(
         admin,
         event as Stripe.AccountApplicationDeauthorizedEvent,
       );
-      return;
+      return "applied";
     case "capability.updated":
       await handleCapabilityUpdated(
         admin,
         event as Stripe.CapabilityUpdatedEvent,
       );
-      return;
+      return "applied";
     case "payout.created":
       await handlePayoutCreated(admin, event as Stripe.PayoutCreatedEvent);
-      return;
+      return "applied";
     case "payout.paid":
       await handlePayoutPaid(admin, event as Stripe.PayoutPaidEvent);
-      return;
+      return "applied";
     case "payout.failed":
       await handlePayoutFailed(admin, event as Stripe.PayoutFailedEvent);
-      return;
+      return "applied";
     default:
       // Unknown event — log and acknowledge so Stripe doesn't retry.
       // `warn` rather than `log` so log-aggregation rules surface it
       // and we get a signal when Stripe adds a new event type we
-      // should be handling.
+      // should be handling. No effect → `ignored` (ADR-146).
       console.warn("[stripe-webhook] unhandled event type", event.type);
-      return;
+      return "ignored";
   }
 }
 
