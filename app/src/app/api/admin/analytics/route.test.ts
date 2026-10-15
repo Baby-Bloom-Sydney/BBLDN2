@@ -37,14 +37,19 @@ function builder(table: string): unknown {
   return proxy;
 }
 
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({ from: (table: string) => builder(table) }),
-}));
+const createAdminClient = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient }));
+
+const gate = vi.hoisted(() => ({ result: { userId: "admin-1", error: null as string | null } }));
+vi.mock("@/lib/admin/require-admin", () => ({ requireAdmin: vi.fn(async () => gate.result) }));
 
 import { GET } from "./route";
 
 beforeEach(() => {
   calls.length = 0;
+  createAdminClient.mockReset();
+  createAdminClient.mockImplementation(() => ({ from: (table: string) => builder(table) }));
+  gate.result = { userId: "admin-1", error: null };
   vi.useFakeTimers();
   vi.setSystemTime(new Date(2026, 9, 15, 12, 0, 0)); // 15 Oct 2026, local time
 });
@@ -69,5 +74,27 @@ describe("GET /api/admin/analytics — interviews this month (5e, R-4)", () => {
     const res = await GET();
     const body = (await res.json()) as { interviewsThisMonth: number };
     expect(body.interviewsThisMonth).toBe(CONNECTION_COUNT);
+  });
+});
+
+describe("GET /api/admin/analytics — requireAdmin first (5e, coordinator ruling)", () => {
+  it("anonymous → 401, no service-role client created", async () => {
+    gate.result = { userId: "", error: "Not authenticated" };
+    const res = await GET();
+    expect(res.status).toBe(401);
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("signed-in non-admin → 403, no service-role client created", async () => {
+    gate.result = { userId: "", error: "Not authorized — admin role required" };
+    const res = await GET();
+    expect(res.status).toBe(403);
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("admin → proceeds", async () => {
+    const res = await GET();
+    expect(res.status).toBe(200);
+    expect(createAdminClient).toHaveBeenCalledTimes(1);
   });
 });
