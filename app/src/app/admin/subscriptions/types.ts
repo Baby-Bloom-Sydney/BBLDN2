@@ -60,7 +60,8 @@ export function isPaymentDue(
  * 4g (D3) — what this family has paid us, in pence, from config. Both admin pages call it so they agree.
  * Self-serve: paid monthly cycles × the monthly price, plus the upfront price once if paid upfront (each page keeps
  * its own test of "paid upfront"). Done-for-you: the row's own `deposit_pence` once `deposit_paid_at` is set, plus
- * its `balance_pence` once `bill_paid_at` is set — the amounts actually charged, which vary by cohort.
+ * its `balance_pence` once `bill_paid_at` is set — the amounts actually charged, which vary by cohort. Refunds are
+ * not subtracted here; the family page shows them on their own (as before 4g).
  */
 export function cumulativeSpendPence(
   row: {

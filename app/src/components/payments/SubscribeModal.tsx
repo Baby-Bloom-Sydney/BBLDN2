@@ -153,7 +153,8 @@ export function SubscribeModal({
           // Send initial focus to the primary CTA rather than the X
           // close button (Radix default). Better UX for a soft-paywall
           // modal — the first thing announced is the call-to-action.
-          // A done-for-you key has no CTA: Radix's default (the close button) stands.
+          // A done-for-you key has no CTA: Radix's default (first tabbable — the Contact link when paused, else the
+          // close button) stands.
           if (isDfy) return;
           e.preventDefault();
           primaryCtaRef.current?.focus();
@@ -164,8 +165,14 @@ export function SubscribeModal({
             <Lock className="h-6 w-6 text-violet-600" aria-hidden="true" />
           </div>
           <DialogTitle className="text-left text-2xl font-bold text-slate-900">
-            Continue following {childFirstName}&apos;s development{" "}
-            {headingSuffix}
+            {isDfy ? (
+              "Your app access"
+            ) : (
+              <>
+                Continue following {childFirstName}&apos;s development{" "}
+                {headingSuffix}
+              </>
+            )}
           </DialogTitle>
           <DialogDescription className="text-left text-base text-slate-600">
             {isDfyLapseReason(lapseReason) ? (

@@ -12,8 +12,9 @@
  * (P-23), the demo pages Stage 5 gates, dead `Paywall.tsx`, and figures that
  * are not Baby Bloom prices (nanny wages, the DBS Update Service fee). The spec
  * fails on any hit no entry silences **and** on any entry that silences
- * nothing (ratchet, like the sweep: the list may only shrink). `match` is a
- * plain substring of the whole trimmed line, never a regex.
+ * nothing (ratchet, like the sweep: the list may only shrink). `match` is the
+ * **whole trimmed line**, compared for equality — stricter than the sweep's
+ * substring, so an entry can never silence a new literal written beside it.
  *
  * Lives in `scripts/ci/` beside the sweep, which skips this directory, so the
  * spellings below are not themselves gate hits (`LEDGER/2-0.md` §8 lesson 3).
@@ -78,7 +79,7 @@ export function evaluate(found, allow) {
   const unallowed = found.filter((hit) => {
     let silenced = false;
     allow.forEach((entry, index) => {
-      if (entry.file === hit.file && hit.text.includes(entry.match)) {
+      if (entry.file === hit.file && hit.text === entry.match) {
         used.add(index);
         silenced = true;
       }
@@ -117,9 +118,11 @@ describe("money literal", () => {
   it("the ratchet works both ways on a synthetic tree", () => {
     const found = [{ file: "app/src/a.tsx", line: 1, text: "<p>£5</p>", rule: "a pound amount" }];
     expect(evaluate(found, []).unallowed).toHaveLength(1);
-    const entry = { file: "app/src/a.tsx", match: "£5", owner: "money", note: "x" };
+    const entry = { file: "app/src/a.tsx", match: "<p>£5</p>", owner: "money", note: "x" };
     expect(evaluate(found, [entry])).toEqual({ unallowed: [], stale: [] });
     expect(evaluate([], [entry]).stale).toEqual([entry]);
+    // A substring of the line silences nothing — the whole line must match.
+    expect(evaluate(found, [{ ...entry, match: "£5" }]).unallowed).toHaveLength(1);
     // Another file's entry silences nothing here.
     expect(evaluate(found, [{ ...entry, file: "app/src/b.tsx" }]).unallowed).toHaveLength(1);
   });

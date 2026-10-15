@@ -1,49 +1,49 @@
 [
   {
     "file": "app/src/app/nanny/payouts/terms/page.tsx",
-    "match": "£100</span> for every",
+    "match": "<span className=\"font-medium text-slate-900\">£100</span> for every",
     "owner": "removals",
     "note": "Payout surface, hidden while PAYOUTS_ENABLED is off (P-23, 4a-i). Sydney commission copy; London has no nanny commission (cards 9a/9b). Goes with the deep payout removal."
   },
   {
     "file": "app/src/app/nanny/payouts/terms/page.tsx",
-    "match": "your £100 lands on",
+    "match": "A family paying on the 1st of the month means your £100 lands on",
     "owner": "removals",
     "note": "Payout surface, hidden while PAYOUTS_ENABLED is off (P-23, 4a-i). Sydney commission copy; London has no nanny commission (cards 9a/9b). Goes with the deep payout removal."
   },
   {
     "file": "app/src/app/nanny/payouts/terms/page.tsx",
-    "match": "£1,000</span> for",
+    "match": "<span className=\"font-medium text-slate-900\">£1,000</span> for",
     "owner": "removals",
     "note": "Payout surface, hidden while PAYOUTS_ENABLED is off (P-23, 4a-i). Sydney commission copy; London has no nanny commission (cards 9a/9b). Goes with the deep payout removal."
   },
   {
     "file": "app/src/app/nanny/payouts/terms/page.tsx",
-    "match": "£500</span>",
+    "match": "<span className=\"font-medium text-slate-900\">£500</span> — 30 days",
     "owner": "removals",
     "note": "Payout surface, hidden while PAYOUTS_ENABLED is off (P-23, 4a-i). Sydney commission copy; London has no nanny commission (cards 9a/9b). Goes with the deep payout removal."
   },
   {
     "file": "app/src/app/nanny/payouts/terms/page.tsx",
-    "match": "£300</span>",
+    "match": "<span className=\"font-medium text-slate-900\">£300</span> — 60 days",
     "owner": "removals",
     "note": "Payout surface, hidden while PAYOUTS_ENABLED is off (P-23, 4a-i). Sydney commission copy; London has no nanny commission (cards 9a/9b). Goes with the deep payout removal."
   },
   {
     "file": "app/src/app/nanny/payouts/terms/page.tsx",
-    "match": "£200</span>",
+    "match": "<span className=\"font-medium text-slate-900\">£200</span> — 90 days",
     "owner": "removals",
     "note": "Payout surface, hidden while PAYOUTS_ENABLED is off (P-23, 4a-i). Sydney commission copy; London has no nanny commission (cards 9a/9b). Goes with the deep payout removal."
   },
   {
     "file": "app/src/app/nanny/payouts/terms/page.tsx",
-    "match": "the full £1,000 contribution",
+    "match": "but the full £1,000 contribution has already been delivered.",
     "owner": "removals",
     "note": "Payout surface, hidden while PAYOUTS_ENABLED is off (P-23, 4a-i). Sydney commission copy; London has no nanny commission (cards 9a/9b). Goes with the deep payout removal."
   },
   {
     "file": "app/src/app/nanny/onboarding/add-child/AddChildOnboardingClient.tsx",
-    "match": "£1000</span> to",
+    "match": "<span className=\"font-semibold text-slate-900\">£1000</span> to",
     "owner": "removals",
     "note": "Contribution copy hidden behind PAYOUTS_ENABLED (4g, P-23) — not deleted. Sydney commission figures; London has no nanny commission (cards 9a/9b)."
   },
@@ -61,37 +61,37 @@
   },
   {
     "file": "app/src/components/payments/EarningsExplainer.tsx",
-    "match": "£100</span> for",
+    "match": "<span className=\"font-semibold text-slate-900\">£100</span> for",
     "owner": "removals",
     "note": "Payout surface, hidden while PAYOUTS_ENABLED is off (P-23, 4a-i). Sydney commission copy; London has no nanny commission (cards 9a/9b). Goes with the deep payout removal."
   },
   {
     "file": "app/src/components/payments/EarningsExplainer.tsx",
-    "match": "£1,000</span>",
+    "match": "<span className=\"font-semibold text-slate-900\">£1,000</span>{\" \"}",
     "owner": "removals",
     "note": "Payout surface, hidden while PAYOUTS_ENABLED is off (P-23, 4a-i). Sydney commission copy; London has no nanny commission (cards 9a/9b). Goes with the deep payout removal."
   },
   {
     "file": "app/src/components/payments/UpcomingPayoutsView.tsx",
-    "match": "each £100 is its own payment",
+    "match": "*  - Aggregated next-payout sum (per Bailey: each £100 is its own payment on its own date).",
     "owner": "removals",
     "note": "Payout surface, hidden while PAYOUTS_ENABLED is off (P-23, 4a-i). Sydney commission copy; London has no nanny commission (cards 9a/9b). Goes with the deep payout removal. Docblock."
   },
   {
     "file": "app/src/components/layout/NannyEarningsBadge.tsx",
-    "match": "Showing £0",
+    "match": "// Hide until data lands AND there's something earned. Showing £0",
     "owner": "removals",
     "note": "Payout surface, hidden while PAYOUTS_ENABLED is off (P-23, 4a-i). Sydney commission copy; London has no nanny commission (cards 9a/9b). Goes with the deep payout removal. Comment."
   },
   {
     "file": "app/src/app/api/nanny/earnings-badge/route.ts",
-    "match": "£100 per connected family",
+    "match": "*  - `trialTeaserAudCents`: £100 per connected family currently in trial",
     "owner": "removals",
     "note": "Payout surface, hidden while PAYOUTS_ENABLED is off (P-23, 4a-i). Sydney commission copy; London has no nanny commission (cards 9a/9b). Goes with the deep payout removal. Docblock."
   },
   {
     "file": "app/src/app/api/cron/schedule-upfront-cycles/route.ts",
-    "match": "capped at £1,000",
+    "match": "* (upfront commission is capped at £1,000 per spec 06 §1.5).",
     "owner": "removals",
     "note": "Payout surface, hidden while PAYOUTS_ENABLED is off (P-23, 4a-i). Sydney commission copy; London has no nanny commission (cards 9a/9b). Goes with the deep payout removal. Docblock of the payout cron."
   },
@@ -109,43 +109,43 @@
   },
   {
     "file": "app/src/app/ui/UIShowcaseClient.tsx",
-    "match": "value=\"£28\"",
+    "match": "<StatsCard icon={DollarSign} value=\"£28\" label=\"Avg Rate\" iconColor=\"text-violet-500\" iconBgColor=\"bg-violet-100\" />",
     "owner": "removals",
     "note": "Demo page; Stage 5 gates it behind admin (P-23). Showcase data, not a price."
   },
   {
     "file": "app/src/app/brandkit1/BrandKitClient.tsx",
-    "match": "£28/hr",
+    "match": "Verified · Clapham · 3 km away · £28/hr",
     "owner": "removals",
     "note": "Demo page; Stage 5 gates it behind admin (P-23). Showcase data, not a price."
   },
   {
     "file": "app/src/lib/chat/modules/job-search.ts",
-    "match": "£26/hr",
+    "match": "* positions matched, closest is Clapham, 30h/week, £26/hr\".",
     "owner": "money",
     "note": "wage figure, not a price — a nanny's hourly rate in a docblock example."
   },
   {
     "file": "app/src/lib/chat/prompts/seed-data.ts",
-    "match": "£28/hr",
+    "match": "**When to use:** anything the user says that is NOT about the child AND is NOT a real platform entity you can read — default to \\`write_memory\\` with \\`scope='account'\\`. That includes: \"I'm thinking about applying to a job in Islington\", \"remind me to update my DBS certificate next quarter\", \"my rate is going up to £28/hr from next month\". None of those belong in a child's feed.",
     "owner": "money",
     "note": "wage figure, not a price — a nanny's hourly rate in Katie's prompt example."
   },
   {
     "file": "app/src/types/nanny-leads.ts",
-    "match": "\"£40.00\"",
+    "match": "hourly_rate_min: string | null; // \"£40.00\" — the symbol should not be in the string; see LEDGER/2d.md §1 Group C",
     "owner": "money",
     "note": "wage figure, not a price — the shape of a nanny's hourly-rate string in a comment."
   },
   {
     "file": "app/src/lib/constants.ts",
-    "match": "(Q-1: £15–£30)",
+    "match": "* Nanny hourly rate bounds in pounds. BAI 2026-09-25 (Q-1: £15–£30);",
     "owner": "money",
     "note": "wage figure, not a price — HOURLY_RATE_BOUNDS docblock, nanny hourly rates."
   },
   {
     "file": "app/src/lib/verification.ts",
-    "match": "(£16 a year)",
+    "match": "\"Check you've joined the Update Service and your subscription is active (£16 a year).\",",
     "owner": "money",
     "note": "Not a price — the DBS Update Service's own yearly fee, told to the nanny (brief 4g groups it with the wage figures)."
   }

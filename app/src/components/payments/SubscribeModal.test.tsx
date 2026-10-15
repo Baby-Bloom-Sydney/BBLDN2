@@ -194,3 +194,12 @@ describe("SubscribeModal — done-for-you states", () => {
     }
   });
 });
+
+describe("SubscribeModal — done-for-you states stay closable", () => {
+  it("Escape still calls onClose", async () => {
+    const props = makeProps({ lapseReason: "access_paused" });
+    render(<SubscribeModal {...props} />);
+    await userEvent.keyboard("{Escape}");
+    expect(props.onClose).toHaveBeenCalled();
+  });
+});
