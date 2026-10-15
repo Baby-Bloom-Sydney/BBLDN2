@@ -59,6 +59,10 @@
     {
       "path": "/api/cron/payment-due-sweep",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/usage-weekly-check",
+      "schedule": "0 6 * * 1"
     }
   ]
 }

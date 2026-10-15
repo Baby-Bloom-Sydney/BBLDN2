@@ -36,3 +36,12 @@ export const PAYMENT_LINK_PRESETS = Object.freeze([
 ] as const);
 
 export type PaymentLinkPreset = (typeof PAYMENT_LINK_PRESETS)[number];
+
+/**
+ * Weekly usage check (offer §7.4, ADR-092, runbook SOP 16 / M11): a linked child with fewer active posts than
+ * this in the window marks the family low for the week. 06-runbook O-18 `[unverified]` — test value, BAI sets.
+ */
+export const USAGE_LOW_THRESHOLD_PER_CHILD_PER_WEEK = 1; // 06-runbook O-18 [unverified] — test value, BAI sets
+
+/** The usage check looks back this many days (offer §7.4 "weekly"). */
+export const USAGE_CHECK_WINDOW_DAYS = 7;
