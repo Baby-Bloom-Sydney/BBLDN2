@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin/require-admin';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { openai } from '@/lib/ai/client';
 import { generateOnboardingAIContent } from '@/lib/actions/nanny-onboarding-ai';
@@ -7,6 +8,13 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
+  const gate = await requireAdmin();
+  if (gate.error) {
+    return NextResponse.json(
+      { error: gate.error },
+      { status: gate.error === 'Not authenticated' ? 401 : 403 },
+    );
+  }
   const action = request.nextUrl.searchParams.get('action');
   const admin = createAdminClient();
 

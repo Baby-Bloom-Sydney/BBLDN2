@@ -3,6 +3,7 @@
  * integer column with the string 'pending' and was always 0) — the same number as the Verification tab (S1).
  */
 import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/admin/require-admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ADMIN_PENDING_CODES } from "@/lib/verification";
 import { CONNECTION_STAGE } from "@/lib/position/constants";
@@ -10,6 +11,13 @@ import { CONNECTION_STAGE } from "@/lib/position/constants";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const gate = await requireAdmin();
+  if (gate.error) {
+    return NextResponse.json(
+      { error: gate.error },
+      { status: gate.error === "Not authenticated" ? 401 : 403 },
+    );
+  }
   const supabase = createAdminClient();
 
   const now = new Date();
