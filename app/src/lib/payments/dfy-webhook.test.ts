@@ -140,6 +140,37 @@ describe("handleDfyLinkCompleted — refusals", () => {
     expect(f.ops).toHaveLength(0);
   });
 
+  it("no amount_total → ignored; metadata.pence is never used as the amount (4d security review)", async () => {
+    const f = fakeAdmin({ parent_subscriptions: null });
+    expect(await handleDfyLinkCompleted(f.client, recordedSession({ amount_total: null }))).toBe("ignored");
+    expect(f.ops).toHaveLength(0);
+  });
+
+  it("the stored amount is Stripe's amount_total even when metadata.pence differs", async () => {
+    const f = fakeAdmin({ parent_subscriptions: null });
+    const s = recordedSession({ metadata: { user_id: PARENT, link_kind: "deposit", pence: "1" } });
+    await handleDfyLinkCompleted(f.client, s);
+    expect(writesTo(f, "parent_subscriptions")[0].payload).toMatchObject({ deposit_pence: PRICES.dfy.depositPence });
+  });
+
+  it("bill on a family with a Stripe customer: another customer → ignored, same customer → applied", async () => {
+    const row = { id: "s1", status: "placed", stripe_customer_id: "cus_test_fam", bill_stripe_payment_intent_id: null };
+    const billFor = (customer: string | null) =>
+      recordedSession({
+        customer,
+        amount_total: 105_000,
+        payment_intent: "pi_test_bill02",
+        metadata: { user_id: PARENT, link_kind: "custom", pence: "105000" },
+      });
+    const other = fakeAdmin({ parent_subscriptions: row });
+    expect(await handleDfyLinkCompleted(other.client, billFor("cus_test_other"))).toBe("ignored");
+    expect(writesTo(other, "parent_subscriptions")).toHaveLength(0);
+    const none = fakeAdmin({ parent_subscriptions: row });
+    expect(await handleDfyLinkCompleted(none.client, billFor(null))).toBe("ignored");
+    const same = fakeAdmin({ parent_subscriptions: row });
+    expect(await handleDfyLinkCompleted(same.client, billFor("cus_test_fam"))).toBe("applied");
+  });
+
   it("not yet paid (async method) → ignored", async () => {
     const f = fakeAdmin();
     expect(await handleDfyLinkCompleted(f.client, recordedSession({ payment_status: "unpaid" }))).toBe("ignored");
