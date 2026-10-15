@@ -1,7 +1,7 @@
 /**
  * Refunds in the admin timeline (LDN2 unit 4d; offer §3 "Refund", D1).
  * A processed `refund_requests` row reads "Refunded £x.xx" from
- * `approved_amount_aud_cents` (pence in London — the column rename is cleanup's).
+ * the approved amount column (pence in London — the column rename is cleanup's).
  */
 
 import { describe, expect, it } from "vitest";

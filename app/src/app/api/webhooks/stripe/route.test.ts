@@ -1,7 +1,7 @@
 /**
  * Stripe webhook route — the outcome ledger (LDN2 unit 4d; ADR-146, ADR-156, P-18).
  *
- * The route inserts the event row before dispatch (Sydney's, kept), answers a
+ * The route inserts the event row before dispatch (existing, kept), answers a
  * duplicate with 200, and after dispatch writes the outcome:
  *   applied    → outcome + processed_at
  *   ignored    → outcome + processed_at
@@ -159,7 +159,7 @@ describe("stripe webhook route — outcome matrix", () => {
     expect(updates().some((u) => (u.payload as Record<string, unknown>).processed_at)).toBe(false);
   });
 
-  it("duplicate: a replayed event id is answered 200 with Sydney's body and nothing is dispatched", async () => {
+  it("duplicate: a replayed event id is answered 200 with the existing body and nothing is dispatched", async () => {
     h.db.insertError = { code: "23505", message: "duplicate key" };
     const res = await post({ id: "evt_1", type: "charge.refunded", data: { object: {} } });
     expect(res.status).toBe(200);
@@ -205,7 +205,7 @@ describe("stripe webhook route — outcome matrix", () => {
 });
 
 describe("stripe webhook route — checkout.session.completed", () => {
-  it("a session with metadata.link_kind goes to 4c's DFY handler, not Sydney's", async () => {
+  it("a session with metadata.link_kind goes to 4c's DFY handler, not the self-serve one", async () => {
     h.handleDfyLinkCompleted.mockResolvedValue("applied");
     const session = { id: "cs_1", metadata: { link_kind: "deposit" } };
     const res = await post({ id: "evt_7", type: "checkout.session.completed", data: { object: session } });
@@ -215,7 +215,7 @@ describe("stripe webhook route — checkout.session.completed", () => {
     expect(lastUpdate()).toMatchObject({ outcome: "applied" });
   });
 
-  it("a session without link_kind goes to Sydney's self-serve handler", async () => {
+  it("a session without link_kind goes to the self-serve handler", async () => {
     h.handleCheckoutCompleted.mockResolvedValue("ignored");
     await post({
       id: "evt_8",

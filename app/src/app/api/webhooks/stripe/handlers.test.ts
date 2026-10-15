@@ -3,7 +3,7 @@
  *
  * Every one of the seven kept handlers returns `"applied"` when it changed state and
  * `"ignored"` on its early-return branches (ADR-146/156). `charge.refunded` keeps
- * Sydney's stamping when a `refund_requests` row matches, and in London (refund made
+ * the existing stamping when a `refund_requests` row matches, and in London (refund made
  * by hand in the Stripe Dashboard, offer §3) inserts the row itself. A refund never
  * touches access (offer §4 G2).
  */
@@ -281,7 +281,7 @@ describe("handlePaymentIntentFailed — outcome", () => {
 // charge.refunded
 // ---------------------------------------------------------------------------
 
-describe("handleChargeRefunded — Sydney stamp and London Dashboard refund", () => {
+describe("handleChargeRefunded — existing stamp and London Dashboard refund", () => {
   const refund = { id: "re_1", amount: 100, currency: "gbp" };
   const charge = (fields: Record<string, unknown> = {}) =>
     evt<Stripe.ChargeRefundedEvent>({
@@ -293,7 +293,7 @@ describe("handleChargeRefunded — Sydney stamp and London Dashboard refund", ()
       ...fields,
     });
 
-  it("applied, Sydney's path: a matching refund_requests row is stamped and nothing is inserted", async () => {
+  it("applied, existing path: a matching refund_requests row is stamped and nothing is inserted", async () => {
     const { admin, calls } = fakeAdmin({
       "refund_requests.update": [{ data: { id: "rr1", parent_user_id: "u1" } }],
     });
