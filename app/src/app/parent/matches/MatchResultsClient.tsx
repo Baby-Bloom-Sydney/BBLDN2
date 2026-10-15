@@ -6,6 +6,7 @@ import type { MatchResult } from "@/lib/matching/types";
 import { Users, MapPin, Briefcase, Sparkles, CheckCircle, Clock, PartyPopper } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { legacyTierCheckoutEnabled } from "@/lib/features/flags";
 
 type SortKey = "score" | "distance" | "experience";
 
@@ -105,12 +106,15 @@ export function MatchResultsClient({
               We&apos;ll contact your top matches and let interested nannies come to you.
             </p>
           </div>
-          <Link href="/parent/matches/checkout">
-            <Button className="bg-violet-600 hover:bg-violet-700 shrink-0">
-              <Sparkles className="w-4 h-4 mr-1.5" />
-              Find me a nanny
-            </Button>
-          </Link>
+          {/* 5g (P-23): the tier checkout is hidden unless LEGACY_TIER_CHECKOUT_ENABLED. */}
+          {legacyTierCheckoutEnabled() && (
+            <Link href="/parent/matches/checkout">
+              <Button className="bg-violet-600 hover:bg-violet-700 shrink-0">
+                <Sparkles className="w-4 h-4 mr-1.5" />
+                Find me a nanny
+              </Button>
+            </Link>
+          )}
         </div>
       ) : isActive ? (
         /* State 2: Active — celebration banner */
@@ -180,12 +184,14 @@ export function MatchResultsClient({
                 : <>All matched nannies have been notified. Boost again to reach more nannies.</>}
             </p>
           </div>
-          <Link href="/parent/matches/checkout">
-            <Button className="bg-violet-600 hover:bg-violet-700 shrink-0">
-              <Sparkles className="w-4 h-4 mr-1.5" />
-              Boost again
-            </Button>
-          </Link>
+          {legacyTierCheckoutEnabled() && (
+            <Link href="/parent/matches/checkout">
+              <Button className="bg-violet-600 hover:bg-violet-700 shrink-0">
+                <Sparkles className="w-4 h-4 mr-1.5" />
+                Boost again
+              </Button>
+            </Link>
+          )}
         </div>
       )}
 

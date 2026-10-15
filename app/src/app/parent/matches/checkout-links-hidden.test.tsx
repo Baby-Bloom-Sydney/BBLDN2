@@ -121,6 +121,7 @@ const basePosition = (dfyActivatedAt: string | null) =>
     dfy_activated_at: dfyActivatedAt,
   }) as unknown as PositionProp;
 
+// The nanny verification flag is left unset (falsy) — this test only needs one card on screen.
 const DFY_CONNECTION = {
   connectionId: "c1",
   notificationId: "n1",
@@ -142,7 +143,6 @@ const DFY_CONNECTION = {
     experienceYears: null,
     aiHeadline: null,
     dateOfBirth: null,
-    wwccVerified: false,
     schedule: null,
   },
 };
