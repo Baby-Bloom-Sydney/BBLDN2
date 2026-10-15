@@ -49,6 +49,7 @@ interface SubRow {
   family_type: string | null;
   deposit_paid_at: string | null;
   payment_due_at: string | null;
+  bill_paid_at: string | null;
   stripe_customer_id: string | null;
   placement_id: string | null;
   access_toggled_on: boolean | null;
@@ -59,7 +60,9 @@ type Admin = ReturnType<typeof createAdminClient>;
 async function readSub(admin: Admin, parentUserId: string): Promise<SubRow | null> {
   const { data, error } = await admin
     .from("parent_subscriptions")
-    .select("id, status, family_type, deposit_paid_at, payment_due_at, stripe_customer_id, placement_id, access_toggled_on")
+    .select(
+      "id, status, family_type, deposit_paid_at, payment_due_at, bill_paid_at, stripe_customer_id, placement_id, access_toggled_on",
+    )
     .eq("parent_user_id", parentUserId)
     .maybeSingle<SubRow>();
   if (error) throw new Error(`subscription read failed: ${error.message}`);
@@ -86,11 +89,15 @@ async function amountFor(
   sub: SubRow | null,
   opts: { firstWeekWagesPence?: number; customPence?: number },
 ): Promise<{ pence: number; wages?: number } | { error: string }> {
-  if (preset === "deposit") return { pence: PRICES.dfy.depositPence };
+  if (preset === "deposit") {
+    // No double charge (code review MEDIUM): a paid deposit is never minted again; `custom` covers exceptions.
+    return sub?.deposit_paid_at ? { error: "deposit_already_paid" } : { pence: PRICES.dfy.depositPence };
+  }
   if (!sub) return { error: "no_subscription_row" };
   if (preset === "custom") {
     return isWholePence(opts.customPence) ? { pence: opts.customPence } : { error: "invalid_amount" };
   }
+  if (sub.bill_paid_at) return { error: "bill_already_paid" };
   if (!sub.payment_due_at || Date.parse(sub.payment_due_at) > Date.now()) return { error: "payment_not_due" };
   const wages = opts.firstWeekWagesPence ?? (await snapshotWagesPence(admin, sub.placement_id));
   if (wages === null || wages === undefined) return { error: "wages_required" };
@@ -181,9 +188,10 @@ export async function setFamilyAccess(
     return { success: false, error: "A short reason is required for the audit log." };
   }
 
-  const admin = createAdminClient();
+  let admin: Admin;
   let sub: SubRow | null;
   try {
+    admin = createAdminClient();
     sub = await readSub(admin, parentUserId);
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "read failed" };

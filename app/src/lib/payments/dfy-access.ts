@@ -43,7 +43,10 @@ interface SubRow {
 const isFuture = (iso: string | null | undefined, now: number) => !!iso && Date.parse(iso) > now;
 
 /** The original live self-serve states (the gate's clauses): a family already using the app on its own terms. */
-function isLiveSelfServe(sub: SubRow, now: number): boolean {
+export function isLiveSelfServe(
+  sub: Pick<SubRow, "status" | "family_type" | "trial_ends_at" | "paid_period_ends_at" | "past_due_grace_ends_at">,
+  now: number = Date.now(),
+): boolean {
   if ((sub.family_type ?? "self_serve") !== "self_serve") return false;
   switch (sub.status) {
     case "trial":
@@ -134,13 +137,18 @@ export async function openDfyAccess(admin: SupabaseClient, placementId: string):
   }
 }
 
-/** A DFY family gets no trial (ADR-093): `family_type='dfy'` or a DFY-only status. */
+/**
+ * A DFY family gets no trial (ADR-093): `family_type='dfy'` or a DFY-only status. On a read error it answers
+ * false and logs: the trial RPC itself no-ops for any family that already has a row, so the guard failing
+ * open cannot mint a DFY trial.
+ */
 export async function isDfyFamily(admin: SupabaseClient, parentUserId: string): Promise<boolean> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from("parent_subscriptions")
     .select("family_type, status")
     .eq("parent_user_id", parentUserId)
     .maybeSingle<{ family_type: string | null; status: string }>();
+  if (error) console.error("[dfy-access] isDfyFamily read failed:", error.message);
   if (!data) return false;
   return data.family_type === "dfy" || data.status === "deposit_paid" || data.status === "placed";
 }

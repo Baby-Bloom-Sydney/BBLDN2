@@ -48,13 +48,24 @@ describe("handleDfyLinkCompleted — deposit", () => {
     expect(log.payload).toMatchObject({ user_id: PARENT, action_type: "dfy.deposit_paid" });
   });
 
-  it("existing self-serve trial row → becomes dfy deposit_paid (no trial access, ADR-093/097)", async () => {
-    const f = fakeAdmin({ parent_subscriptions: { id: "s1", status: "trial", deposit_stripe_payment_intent_id: null } });
+  it("lapsed self-serve row → becomes dfy deposit_paid (no access, ADR-097)", async () => {
+    const f = fakeAdmin({ parent_subscriptions: { id: "s1", status: "lapsed", deposit_stripe_payment_intent_id: null } });
     expect(await handleDfyLinkCompleted(f.client, recordedSession())).toBe("applied");
     const [up] = writesTo(f, "parent_subscriptions");
     expect(up.kind).toBe("update");
     expect(up.payload).toMatchObject({ status: "deposit_paid", family_type: "dfy" });
     expect(up.filters).toContainEqual(["eq", "id", "s1"]);
+  });
+
+  it.each([
+    ["trial", { trial_ends_at: new Date(Date.now() + 86_400_000).toISOString() }],
+    ["active_monthly", { paid_period_ends_at: new Date(Date.now() + 86_400_000).toISOString() }],
+  ])("live self-serve %s → deposit recorded, family dfy, status (and its access) kept (review HIGH)", async (status, clocks) => {
+    const f = fakeAdmin({ parent_subscriptions: { id: "s1", status, deposit_stripe_payment_intent_id: null, ...clocks } });
+    expect(await handleDfyLinkCompleted(f.client, recordedSession())).toBe("applied");
+    const [up] = writesTo(f, "parent_subscriptions");
+    expect(up.payload).toMatchObject({ family_type: "dfy", deposit_pence: PRICES.dfy.depositPence });
+    expect(up.payload).not.toHaveProperty("status");
   });
 
   it("already placed → keeps placed, still records the deposit", async () => {
@@ -120,6 +131,13 @@ describe("handleDfyLinkCompleted — refusals", () => {
   it("no user_id → ignored", async () => {
     const f = fakeAdmin();
     expect(await handleDfyLinkCompleted(f.client, recordedSession({ metadata: { link_kind: "deposit" } }))).toBe("ignored");
+  });
+
+  it("not a payment-mode session, or client_reference_id ≠ user_id → ignored", async () => {
+    const f = fakeAdmin();
+    expect(await handleDfyLinkCompleted(f.client, recordedSession({ mode: "subscription" }))).toBe("ignored");
+    expect(await handleDfyLinkCompleted(f.client, recordedSession({ client_reference_id: "someone-else" }))).toBe("ignored");
+    expect(f.ops).toHaveLength(0);
   });
 
   it("not yet paid (async method) → ignored", async () => {

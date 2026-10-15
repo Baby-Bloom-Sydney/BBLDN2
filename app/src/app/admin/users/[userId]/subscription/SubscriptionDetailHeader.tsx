@@ -203,6 +203,8 @@ const PRESET_LABEL: Record<PaymentLinkPreset, string> = {
 };
 
 const ERROR_COPY: Record<string, string> = {
+  deposit_already_paid: "The deposit is already paid — use Custom for anything else.",
+  bill_already_paid: "The bill is already paid — use Custom for anything else.",
   payment_not_due: "Not due yet — the balance can be sent from the payment-due date.",
   wages_required: "Enter the first week's wages.",
   invalid_amount: "Enter an amount in pounds and pence.",
@@ -335,7 +337,9 @@ function DfyPanel({
                 pending ||
                 pence === null ||
                 pence <= 0 ||
-                (preset === "balance-after-week-1" && !isDue) ||
+                (preset === "balance-after-week-1" &&
+                  (!isDue || !!sub?.bill_paid_at)) ||
+                (preset === "deposit" && !!sub?.deposit_paid_at) ||
                 (preset !== "deposit" && !sub);
               return (
                 <button

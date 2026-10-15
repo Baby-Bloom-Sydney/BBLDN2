@@ -212,7 +212,7 @@ export default async function AdminSubscriptionsPage() {
         </Card>
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-5 lg:grid-cols-9">
         <Counter
           label="Active monthly"
           value={counters.activeMonthly}

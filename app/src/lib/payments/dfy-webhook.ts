@@ -6,7 +6,8 @@
  * Contract
  * - Input: the service-role client and a completed Checkout Session minted by `createDfyPaymentLink`
  *   (metadata `{ user_id, link_kind, pence }`, plus `first_week_wages_pence` on a balance link).
- * - `deposit` → `family_type='dfy'`, deposit columns, `status='deposit_paid'` unless already `placed`.
+ * - `deposit` → `family_type='dfy'`, deposit columns, `status='deposit_paid'` unless already `placed` or a
+ *   live self-serve trial/paid state (that access is kept; review HIGH).
  *   Opens **no** access (ADR-097) — no toggle or access column is written. Logs `dfy.deposit_paid`.
  * - `balance-after-week-1` / `custom` → `bill_paid_at`, `bill_stripe_payment_intent_id`, `balance_pence`
  *   (+ `first_week_wages_pence` when the link carried it). Status untouched. Logs `dfy.bill_paid`.
@@ -20,12 +21,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
 import { PAYMENT_LINK_PRESETS, type PaymentLinkPreset } from "@/config/offer";
+import { isLiveSelfServe } from "./dfy-access";
 
 export type DfyLinkOutcome = "applied" | "ignored";
 
 interface SubRow {
   id: string;
   status: string;
+  family_type: string | null;
+  trial_ends_at: string | null;
+  paid_period_ends_at: string | null;
+  past_due_grace_ends_at: string | null;
   deposit_stripe_payment_intent_id: string | null;
   bill_stripe_payment_intent_id: string | null;
 }
@@ -42,9 +48,8 @@ function intentId(session: Stripe.Checkout.Session): string | null {
 
 /** Whole non-negative pence from Stripe's total, else the metadata the link was minted with. */
 function chargedPence(session: Stripe.Checkout.Session): number | null {
-  if (Number.isInteger(session.amount_total) && (session.amount_total ?? -1) >= 0) {
-    return session.amount_total as number;
-  }
+  const total = session.amount_total;
+  if (typeof total === "number" && Number.isInteger(total) && total >= 0) return total;
   const meta = Number(session.metadata?.pence);
   return Number.isInteger(meta) && meta >= 0 ? meta : null;
 }
@@ -73,7 +78,9 @@ export async function handleDfyLinkCompleted(
   const kind = session.metadata?.link_kind;
   const userId = session.metadata?.user_id;
   if (!isPreset(kind) || !userId) return "ignored";
-  if (session.payment_status !== "paid") return "ignored";
+  if (session.payment_status !== "paid" || session.mode !== "payment") return "ignored";
+  // Minted by createDfyPaymentLink: client_reference_id is the same parent (security review MEDIUM).
+  if (session.client_reference_id !== userId) return "ignored";
 
   const pi = intentId(session);
   const pence = chargedPence(session);
@@ -81,7 +88,9 @@ export async function handleDfyLinkCompleted(
 
   const { data: row, error: readErr } = await admin
     .from("parent_subscriptions")
-    .select("id, status, deposit_stripe_payment_intent_id, bill_stripe_payment_intent_id")
+    .select(
+      "id, status, family_type, trial_ends_at, paid_period_ends_at, past_due_grace_ends_at, deposit_stripe_payment_intent_id, bill_stripe_payment_intent_id",
+    )
     .eq("parent_user_id", userId)
     .maybeSingle<SubRow>();
   if (readErr) throw new Error(`[dfy-webhook] read failed: ${readErr.message}`);
@@ -103,7 +112,11 @@ export async function handleDfyLinkCompleted(
         "deposit insert",
       );
     } else {
-      const status = row.status === "placed" ? {} : { status: "deposit_paid" };
+      // `placed` stays placed; a live self-serve family keeps the access it already pays for or is
+      // trialling (code review HIGH) — the deposit itself still opens nothing (ADR-097), and
+      // openDfyAccess moves the row to `placed` at placement because family_type is now dfy.
+      const keepStatus = row.status === "placed" || isLiveSelfServe(row);
+      const status = keepStatus ? {} : { status: "deposit_paid" };
       await must(admin.from("parent_subscriptions").update({ ...deposit, ...status }).eq("id", row.id), "deposit update");
     }
     await log(admin, userId, "dfy.deposit_paid", details);

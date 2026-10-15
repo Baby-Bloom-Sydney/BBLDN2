@@ -36,6 +36,7 @@ function sub(over: Record<string, unknown> = {}) {
     family_type: "dfy",
     deposit_paid_at: PAST,
     payment_due_at: PAST,
+    bill_paid_at: null,
     stripe_customer_id: null,
     placement_id: "pl1",
     access_toggled_on: null,
@@ -145,13 +146,23 @@ describe("createDfyPaymentLink", () => {
   });
 
   it("uses the family's Stripe customer when it has one", async () => {
-    h.fake.reads.parent_subscriptions = sub({ stripe_customer_id: "cus_test_1" });
+    h.fake.reads.parent_subscriptions = sub({ stripe_customer_id: "cus_test_1", deposit_paid_at: null });
     await createDfyPaymentLink(PARENT, "deposit");
     expect(h.create.mock.calls[0][0]).toMatchObject({ customer: "cus_test_1" });
     expect(h.create.mock.calls[0][0]).not.toHaveProperty("customer_email");
   });
 
+  it("refuses a second deposit or a second bill (review MEDIUM — no double charge)", async () => {
+    expect(errOf(await createDfyPaymentLink(PARENT, "deposit"))).toBe("deposit_already_paid");
+    h.fake.reads.parent_subscriptions = sub({ bill_paid_at: PAST });
+    expect(errOf(await createDfyPaymentLink(PARENT, "balance-after-week-1", { firstWeekWagesPence: 0 }))).toBe(
+      "bill_already_paid",
+    );
+    expect(h.create).not.toHaveBeenCalled();
+  });
+
   it("a Stripe failure is returned, not thrown", async () => {
+    h.fake.reads.parent_subscriptions = null;
     h.create.mockRejectedValue(new Error("stripe down"));
     expect(await createDfyPaymentLink(PARENT, "deposit")).toEqual({ success: false, error: "stripe_error" });
   });
