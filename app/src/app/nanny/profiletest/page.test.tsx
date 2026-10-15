@@ -16,10 +16,13 @@ vi.mock("@/lib/admin/require-admin", () => ({
   requireAdmin: async () => gate.result,
 }));
 vi.mock("./ProfileTestClient", () => ({
-  ProfileTestClient: () => null,
+  ProfileTestClient: function ProfileTestClient() {
+    return null;
+  },
 }));
 
 import ProfileTestPage from "./page";
+import { ProfileTestClient } from "./ProfileTestClient";
 
 describe("/nanny/profiletest — admin only (5a, R-1)", () => {
   beforeEach(() => {
@@ -43,6 +46,8 @@ describe("/nanny/profiletest — admin only (5a, R-1)", () => {
 
     const el = await ProfileTestPage();
 
-    expect(el).toBeTruthy();
+    expect(el.type).toBe("div");
+    const children = [el.props.children].flat();
+    expect(children.some((c: { type?: unknown }) => c?.type === ProfileTestClient)).toBe(true);
   });
 });

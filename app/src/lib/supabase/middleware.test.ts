@@ -247,6 +247,16 @@ describe("updateSession — demo/test roots gated behind admin (5a, R-1)", () =>
     expect(res.headers.get("location")).toBeNull();
   });
 
+  it("signed-in user with no role row on /test is redirected to /login", async () => {
+    state.user = { id: "user-no-role" };
+    state.roleData = null;
+
+    const res = await callMiddleware("/test");
+
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("http://localhost/login");
+  });
+
   it("super_admin on /nanny/profiletest passes through", async () => {
     state.user = { id: "user-super" };
     state.roleData = { role: "super_admin" };
