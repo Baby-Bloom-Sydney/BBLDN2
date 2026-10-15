@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { GRACE_DAYS, PRICES, TRIAL_DAYS, VAT } from "./prices";
+import { ACCESS_AGE_YEARS, GRACE_DAYS, PRICES, TRIAL_DAYS, VAT } from "./prices";
 
 const isPositiveInteger = (n: unknown): boolean =>
   typeof n === "number" && Number.isInteger(n) && n > 0;
@@ -69,5 +69,11 @@ describe("frozen — no runtime mutation", () => {
     expect(() => {
       (VAT as { inclusive: boolean }).inclusive = false;
     }).toThrow(TypeError);
+  });
+});
+
+describe("ACCESS_AGE_YEARS — ADR-083 (4b)", () => {
+  it("is 3: self-serve access runs to the youngest child's 3rd birthday", () => {
+    expect(ACCESS_AGE_YEARS).toBe(3);
   });
 });

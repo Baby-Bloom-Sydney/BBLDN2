@@ -116,3 +116,45 @@ describe("formatAuWeekdayDate — full date with weekday", () => {
     );
   });
 });
+
+// 4b (card 3b — a bug, not a decision): `formatAuDate` renders the London day of an instant on any
+// process clock. The suite runs under Europe/London (vitest.setup.ts), which hid the bug, so these
+// cases move the process clock to UTC+10 (Pacific/Guam, no DST) — where the old local-accessor code
+// printed the UTC+10 day. Instants are written in Z so the offset needs no literal.
+describe("formatAuDate — the London day, whatever the process clock (card 3b)", () => {
+  const londonClock = process.env.TZ;
+  const PLUS_TEN = "Pacific/Guam";
+  const onClock = (tz: string, run: () => void) => {
+    process.env.TZ = tz;
+    try {
+      run();
+    } finally {
+      process.env.TZ = londonClock;
+    }
+  };
+
+  it("midnight 15 Jun at UTC+10 (14:00Z on 14 Jun) is 14 Jun in London", () => {
+    onClock(PLUS_TEN, () => {
+      expect(formatAuDate("2026-06-14T14:00:00Z")).toBe("14 Jun 2026");
+      expect(formatAuDate("2026-05-24T14:00:00Z", "long")).toBe("24 May 2026");
+    });
+  });
+
+  it("a London instant keeps its London day under a UTC+10 clock", () => {
+    onClock(PLUS_TEN, () => {
+      expect(formatAuDate("2026-06-15T23:30:00+01:00")).toBe("15 Jun 2026");
+    });
+  });
+
+  it("a date-only value (DATE column) keeps its calendar day under a clock behind UTC", () => {
+    onClock("America/New_York", () => {
+      expect(formatAuDate("2026-01-01")).toBe("1 Jan 2026");
+    });
+  });
+
+  it("GMT in winter: 23:30Z on 31 Dec is still 31 Dec in London", () => {
+    onClock(PLUS_TEN, () => {
+      expect(formatAuDate("2026-12-31T23:30:00Z")).toBe("31 Dec 2026");
+    });
+  });
+});

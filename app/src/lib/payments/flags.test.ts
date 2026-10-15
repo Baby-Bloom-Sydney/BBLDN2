@@ -3,7 +3,7 @@
  * surface (P-23, card 4b). Absent means hidden; only the literal "true" opens it.
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { payoutsEnabled, getPaymentsFlags } from "./flags";
+import { payoutsEnabled, getPaymentsFlags, newTrialsEnabled } from "./flags";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -36,5 +36,25 @@ describe("payoutsEnabled", () => {
     expect(getPaymentsFlags().PAYOUTS_ENABLED).toBe(false);
     vi.stubEnv("PAYOUTS_ENABLED", "true");
     expect(getPaymentsFlags().PAYOUTS_ENABLED).toBe(true);
+  });
+});
+
+// 4b (card 8a, M-9): the new-trials switch is wired. Default on; only "false"/"0" stops new trials.
+describe("newTrialsEnabled", () => {
+  it("is on when the env var is absent (the default — set in no environment)", () => {
+    delete process.env.NEW_TRIALS_ENABLED;
+    expect(newTrialsEnabled()).toBe(true);
+  });
+
+  it.each(["false", "FALSE", " false\n", "0"])("is off for %j", (value) => {
+    vi.stubEnv("NEW_TRIALS_ENABLED", value);
+    expect(newTrialsEnabled()).toBe(false);
+  });
+
+  it("is read at call time, so flipping the env flips it", () => {
+    vi.stubEnv("NEW_TRIALS_ENABLED", "false");
+    expect(newTrialsEnabled()).toBe(false);
+    vi.stubEnv("NEW_TRIALS_ENABLED", "true");
+    expect(newTrialsEnabled()).toBe(true);
   });
 });

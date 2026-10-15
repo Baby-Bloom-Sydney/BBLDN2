@@ -34,6 +34,8 @@ import type {
 } from "@/types/bapp";
 import { invitesDisabled } from "@/lib/invite/flags";
 import { SITE_URL } from "@/lib/constants";
+import { newTrialsEnabled } from "@/lib/payments/flags";
+import { recomputeUpfrontHorizon } from "@/app/api/webhooks/stripe/handlers";
 import { isDfyFamily } from "@/lib/payments/dfy-access";
 
 // ── Internal helpers ────────────────────────────────────────────────────
@@ -646,8 +648,10 @@ export async function connectChildInvite(token: string): Promise<{
         .eq("id", row.child_id)
         .maybeSingle<{ parent_user_id: string | null }>();
       // ADR-093 (4c): a done-for-you family gets no trial — skip silently, no error to the parent.
+      // Card 8a (4b): NEW_TRIALS_ENABLED=false stops new trials here too.
       if (
         linkedChild?.parent_user_id &&
+        newTrialsEnabled() &&
         !(await isDfyFamily(admin, linkedChild.parent_user_id))
       ) {
         const { error: trialErr } = await admin.rpc(
@@ -663,6 +667,21 @@ export async function connectChildInvite(token: string): Promise<{
       }
     } catch (e) {
       console.error("[connectChildInvite] trial-start unexpected:", e);
+    }
+
+    // ADR-084 (4b): an upfront family's access runs to the youngest child's 3rd
+    // birthday — recompute now this child is linked. Best-effort: the link stands.
+    try {
+      const { data: linkedParent } = await admin
+        .from("child_client")
+        .select("parent_user_id")
+        .eq("id", row.child_id)
+        .maybeSingle<{ parent_user_id: string | null }>();
+      if (linkedParent?.parent_user_id) {
+        await recomputeUpfrontHorizon(admin, linkedParent.parent_user_id);
+      }
+    } catch (e) {
+      console.error("[connectChildInvite] horizon recompute failed:", e);
     }
 
     // T-015 — record bundled consent at invite-accept moment. The

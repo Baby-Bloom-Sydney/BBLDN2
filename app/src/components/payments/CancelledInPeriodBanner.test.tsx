@@ -44,16 +44,16 @@ function makeProps(
 ): CancelledInPeriodBannerProps {
   return {
     childId: "00000000-0000-0000-0000-000000000abc",
-    paidPeriodEndsAt: "2026-06-15T00:00:00+10:00",
+    paidPeriodEndsAt: "2026-06-15T00:00:00+01:00",
     onPrimaryCta: vi.fn(),
     ...overrides,
   };
 }
 
 describe("CancelledInPeriodBanner", () => {
-  // owner: money — grace-period date shifts a day under Europe/London; raise, do not re-baseline (2b)
-  it.fails("renders the loss-aversion copy with formatted date (AC-S3.5.1)", () => {
-    const props = makeProps({ paidPeriodEndsAt: "2026-06-15T00:00:00+10:00" });
+  // 4b (card 3b): fixture is a London instant (+01:00) and `formatAuDate` formats in London time — unpinned.
+  it("renders the loss-aversion copy with formatted date (AC-S3.5.1)", () => {
+    const props = makeProps({ paidPeriodEndsAt: "2026-06-15T00:00:00+01:00" });
     render(<CancelledInPeriodBanner {...props} />);
     const text = document.body.textContent ?? "";
     expect(text).toMatch(/your subscription has ended/i);

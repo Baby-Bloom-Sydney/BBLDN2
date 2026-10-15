@@ -6,6 +6,18 @@ import { Sparkles, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { createCheckoutSession } from "@/lib/actions/payments/checkout";
+import { PRICES } from "@/config/prices";
+import { APP_LOCALE } from "@/lib/constants";
+
+// 4b (ADR-091): both prices come from `config/prices.ts`. Whole pounds render without pence.
+const PENCE_PER_POUND = 100;
+function formatPence(pence: number): string {
+  return new Intl.NumberFormat(APP_LOCALE, {
+    style: "currency",
+    currency: PRICES.currency.toUpperCase(),
+    minimumFractionDigits: pence % PENCE_PER_POUND === 0 ? 0 : 2,
+  }).format(pence / PENCE_PER_POUND);
+}
 
 interface NannyContext {
   nannyFirstName: string;
@@ -97,8 +109,8 @@ export function SubscribeClient({
       )}
 
       {/* Upfront card shown FIRST as the high anchor. Per spec §S7
-          psychology — £2,000 sets the anchor; £200/month appearing
-          second reads as "reasonable" by comparison. Reversing the
+          psychology — the upfront price sets the anchor; the monthly price
+          appearing second reads as "reasonable" by comparison. Reversing the
           order makes the monthly look expensive on its own.
           Locked-in copy: "Pay once. Done until {child} is 5." moves
           the cost from "subscription" mental bucket to "investment". */}
@@ -115,7 +127,9 @@ export function SubscribeClient({
               <p className="text-sm font-medium uppercase tracking-wide text-slate-500">
                 Upfront
               </p>
-              <p className="mt-2 text-3xl font-bold text-slate-900">£2,000</p>
+              <p className="mt-2 text-3xl font-bold text-slate-900">
+                {formatPence(PRICES.selfServe.upfrontToAge3Pence)}
+              </p>
             </div>
             <p className="text-sm text-slate-600">
               Pay once. Done until your child&apos;s 5th birthday. Best value if
@@ -149,7 +163,7 @@ export function SubscribeClient({
                 Monthly
               </p>
               <p className="mt-2 text-3xl font-bold text-slate-900">
-                £200
+                {formatPence(PRICES.selfServe.monthlyPence)}
                 <span className="text-base font-normal text-slate-500">
                   /month
                 </span>
