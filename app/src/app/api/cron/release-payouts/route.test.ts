@@ -13,7 +13,7 @@
  *   - Returns 500 on executable failure with the error message.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 
 const state = vi.hoisted(() => ({
@@ -23,7 +23,11 @@ const state = vi.hoisted(() => ({
 beforeEach(() => {
   state.releaseImpl.mockReset();
   vi.resetModules();
+  // 4a-i: the route is hidden unless PAYOUTS_ENABLED is "true"; these cases test the open route.
+  vi.stubEnv("PAYOUTS_ENABLED", "true");
 });
+
+afterEach(() => vi.unstubAllEnvs());
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({ tag: "fake-admin" }),
@@ -114,5 +118,15 @@ describe("cron/release-payouts route — auth", () => {
     const body = await res.json();
     expect(body.error).toBe("release_payouts_failed");
     expect(body.details).toBe("db_read_failed");
+  });
+});
+
+describe("cron/release-payouts route — hidden (4a-i, P-23)", () => {
+  it("404 when PAYOUTS_ENABLED is off, even with the right bearer, before any work", async () => {
+    vi.stubEnv("PAYOUTS_ENABLED", "");
+    process.env.CRON_SECRET = "test-secret";
+    const res = await callRoute({ authorization: "Bearer test-secret" });
+    expect(res.status).toBe(404);
+    expect(state.releaseImpl).not.toHaveBeenCalled();
   });
 });

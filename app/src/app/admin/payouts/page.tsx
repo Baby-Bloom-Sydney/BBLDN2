@@ -1,7 +1,9 @@
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/admin/require-admin";
 import { Card, CardContent } from "@/components/ui/card";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 /**
  * `/admin/payouts` — nanny payouts overview (S19).
@@ -13,6 +15,8 @@ import { Card, CardContent } from "@/components/ui/card";
  * releases.
  */
 export default async function AdminNannyPayoutsPage() {
+  // 4a-i (P-23): hidden unless PAYOUTS_ENABLED — 404 before any auth or data read.
+  if (!payoutsEnabled()) notFound();
   await requireAdmin();
   const admin = createAdminClient();
 

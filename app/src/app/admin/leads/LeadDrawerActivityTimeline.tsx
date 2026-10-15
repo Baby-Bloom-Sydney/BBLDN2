@@ -39,12 +39,18 @@ const CATEGORY_ICON: Record<
 };
 
 import { formatLeadDateTime } from "@/lib/leads/format";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 const fmt = formatLeadDateTime;
 
 export function LeadDrawerActivityTimeline({
-  events,
+  events: allEvents,
 }: LeadDrawerActivityTimelineProps) {
+  // 4a-i (P-23): `lib/leads/timeline.ts` still reads `nanny_payouts` (kept commission call sites write rows);
+  // the payout events are hidden here unless PAYOUTS_ENABLED.
+  const events = payoutsEnabled()
+    ? allEvents
+    : allEvents.filter((e) => e.category !== "payout");
   return (
     <section>
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">

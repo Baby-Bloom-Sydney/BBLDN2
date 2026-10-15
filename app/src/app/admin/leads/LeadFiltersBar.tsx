@@ -18,6 +18,7 @@ import type {
 import { LEAD_STATUSES } from "@/lib/leads/types";
 import { LEAD_SORTS } from "@/lib/leads/types";
 import { LeadStatusPill } from "./LeadStatusPill";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 interface LeadFiltersBarProps {
   state: LeadQueryState;
@@ -171,12 +172,15 @@ export function LeadFiltersBar({
           onCycle={() => update({ photo: nextTriState(state.filters.photo) })}
           disabled={disabled}
         />
-        <TriChip
-          label="ABN"
-          value={state.filters.abn}
-          onCycle={() => update({ abn: nextTriState(state.filters.abn) })}
-          disabled={disabled}
-        />
+        {/* 4a-i (P-23): hidden unless PAYOUTS_ENABLED. */}
+        {payoutsEnabled() && (
+          <TriChip
+            label="ABN"
+            value={state.filters.abn}
+            onCycle={() => update({ abn: nextTriState(state.filters.abn) })}
+            disabled={disabled}
+          />
+        )}
         <span className="ml-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
           U3 outside BB:
         </span>

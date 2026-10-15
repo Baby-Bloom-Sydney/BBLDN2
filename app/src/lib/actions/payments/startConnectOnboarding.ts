@@ -20,7 +20,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createExpressAccount, createAccountLink } from "@/lib/stripe/connect";
-import { PAYMENTS_ENABLED } from "@/lib/payments/flags";
+import { PAYMENTS_ENABLED, payoutsEnabled } from "@/lib/payments/flags";
 import { SITE_URL } from "@/lib/constants";
 
 export type StartConnectOnboardingResult =
@@ -29,6 +29,10 @@ export type StartConnectOnboardingResult =
 
 export async function startConnectOnboarding(): Promise<StartConnectOnboardingResult> {
   try {
+    // 4a-i (P-23): Connect is hidden unless PAYOUTS_ENABLED — refuse before auth or any Stripe call.
+    if (!payoutsEnabled()) {
+      return { success: false, error: "payouts_disabled" };
+    }
     if (!PAYMENTS_ENABLED) {
       return { success: false, error: "payments_disabled" };
     }

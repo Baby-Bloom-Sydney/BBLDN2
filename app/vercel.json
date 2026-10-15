@@ -45,16 +45,8 @@
       "schedule": "15 13 * * *"
     },
     {
-      "path": "/api/cron/schedule-upfront-cycles",
-      "schedule": "0 14 * * *"
-    },
-    {
       "path": "/api/cron/trial-reminders",
       "schedule": "0 12 * * *"
-    },
-    {
-      "path": "/api/cron/release-payouts",
-      "schedule": "0 7 * * *"
     },
     {
       "path": "/api/cron/audit-consent-expiry",

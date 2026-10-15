@@ -10,6 +10,7 @@ interface LeadDrawerVerificationBreakdownProps {
 }
 
 import { formatLeadDate } from "@/lib/leads/format";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 const fmtDate = formatLeadDate;
 
@@ -114,15 +115,18 @@ export function LeadDrawerVerificationBreakdown({
           status={photoStatus}
           detail={profile?.profile_picture_url ? "uploaded" : "no photo"}
         />
-        <Row
-          label="ABN"
-          status={abnStatus}
-          detail={
-            n?.abn
-              ? `${n.abn}${n.abn_push_flagged_at ? " · flagged" : ""}`
-              : "missing"
-          }
-        />
+        {/* 4a-i (P-23): hidden unless PAYOUTS_ENABLED. */}
+        {payoutsEnabled() && (
+          <Row
+            label="ABN"
+            status={abnStatus}
+            detail={
+              n?.abn
+                ? `${n.abn}${n.abn_push_flagged_at ? " · flagged" : ""}`
+                : "missing"
+            }
+          />
+        )}
         <Row
           label="Level"
           status={

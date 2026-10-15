@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { trackEvent } from "@/lib/analytics/trackEvent";
 import { NannyEarningsBadge } from "./NannyEarningsBadge";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 interface DashboardNavProps {
   role: "nanny" | "parent";
@@ -77,7 +78,8 @@ export function DashboardNav({ role }: DashboardNavProps) {
             Renders inline with the avatar; hides until data lands AND
             the nanny has at least one connected child. Click routes to
             /nanny/payouts where the breakdown lives. */}
-        {role === "nanny" && <NannyEarningsBadge />}
+        {/* 4a-i (P-23): hidden unless PAYOUTS_ENABLED. */}
+        {role === "nanny" && payoutsEnabled() && <NannyEarningsBadge />}
 
         {/* User dropdown */}
         <DropdownMenu>

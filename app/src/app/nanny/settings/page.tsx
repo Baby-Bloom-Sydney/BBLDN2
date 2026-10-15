@@ -13,6 +13,7 @@ import type { ChildClient } from "@/types/bapp";
 import { fetchPayoutsDashboardData } from "@/lib/payments/queryPayoutsDashboard";
 import { fetchPayoutHistory } from "@/lib/payments/queryPayoutHistory";
 import { fetchPayoutOnboardingViewData } from "@/lib/payments/queryNannyPayoutOnboarding";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 export default async function NannySettingsPage() {
   const supabase = createClient();
@@ -23,6 +24,7 @@ export default async function NannySettingsPage() {
   if (authError || !user) redirect("/login");
 
   const admin = createAdminClient();
+  const showPayouts = payoutsEnabled();
 
   const [
     profileRes,
@@ -57,9 +59,10 @@ export default async function NannySettingsPage() {
       .select("*")
       .eq("nanny_user_id", user.id)
       .order("created_at", { ascending: true }),
-    fetchPayoutsDashboardData(user.id),
-    fetchPayoutHistory(user.id),
-    fetchPayoutOnboardingViewData(user.id),
+    // 4a-i (P-23): no payout read while the surface is hidden.
+    showPayouts ? fetchPayoutsDashboardData(user.id) : null,
+    showPayouts ? fetchPayoutHistory(user.id) : null,
+    showPayouts ? fetchPayoutOnboardingViewData(user.id) : null,
   ]);
 
   return (
@@ -88,9 +91,9 @@ export default async function NannySettingsPage() {
       payoutsDashboard={payoutsData}
       payoutHistory={historyRows}
       payoutOnboarding={{
-        status: payoutOnboarding.status,
+        status: payoutOnboarding?.status ?? "not_applied",
         email: user.email ?? null,
-        bankSummary: payoutOnboarding.bankSummary,
+        bankSummary: payoutOnboarding?.bankSummary ?? null,
       }}
     />
   );

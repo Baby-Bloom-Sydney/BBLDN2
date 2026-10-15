@@ -1,13 +1,15 @@
 /**
- * Schedule regression test — locks down the daily 7am-London cron
- * registration in `vercel.json`. Bailey 2026-05-14: payouts must
- * actually fire once a day. Without this test, someone re-ordering
- * vercel.json could silently drop the entry. Re-anchored from
- * the old zone's 7am to `0 7` (7am London) — 12.02, unit 2b.
+ * Schedule regression test for the payout crons in `vercel.json`.
+ *
+ * History: this file locked down the daily `release-payouts` registration (Bailey 2026-05-14: payouts must fire
+ * once a day; re-anchored to `0 7` London by 2b, 12.02). London has no automated payouts (N-2): Stage 5 ruling 3
+ * and P-23 hide the payout surface, and 4a-i removes the **two cron lines** while the route files stay (each
+ * answers 404 unless `PAYOUTS_ENABLED` is "true"). Retargeted by 4a-i (BB-LDN-4a-i-151026) to pin the ruling:
+ * neither payout cron is registered, and both routes still exist (hidden, not deleted).
  */
 
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 
 interface VercelCron {
@@ -21,30 +23,14 @@ function readVercelCrons(): VercelCron[] {
   return json.crons as VercelCron[];
 }
 
-describe("vercel.json — release-payouts cron registration", () => {
-  it("registers the release-payouts cron path", () => {
-    const crons = readVercelCrons();
-    const target = crons.find((c) => c.path === "/api/cron/release-payouts");
-    expect(target).toBeDefined();
+const PAYOUT_CRONS = ["/api/cron/release-payouts", "/api/cron/schedule-upfront-cycles"];
+
+describe("vercel.json — payout crons are not registered (4a-i, Stage 5 ruling 3)", () => {
+  it.each(PAYOUT_CRONS)("%s has no cron line", (cronPath) => {
+    expect(readVercelCrons().find((c) => c.path === cronPath)).toBeUndefined();
   });
 
-  it("runs once daily — not hourly or more often", () => {
-    const crons = readVercelCrons();
-    const target = crons.find((c) => c.path === "/api/cron/release-payouts");
-    if (!target) throw new Error("cron entry missing");
-    // Vercel cron syntax: `minute hour day-of-month month day-of-week`.
-    // A daily-once schedule must have specific minute + specific hour.
-    const [minute, hour] = target.schedule.split(" ");
-    expect(minute).not.toContain("*");
-    expect(minute).not.toContain("/");
-    expect(hour).not.toContain("*");
-    expect(hour).not.toContain("/");
-  });
-
-  it("fires at 07:00 UTC = 07:00 London (08:00 under BST)", () => {
-    const crons = readVercelCrons();
-    const target = crons.find((c) => c.path === "/api/cron/release-payouts");
-    if (!target) throw new Error("cron entry missing");
-    expect(target.schedule).toBe("0 7 * * *");
+  it.each(PAYOUT_CRONS)("%s route file still exists (hidden, not deleted — P-23)", (cronPath) => {
+    expect(existsSync(join(process.cwd(), "src/app", cronPath, "route.ts"))).toBe(true);
   });
 });
