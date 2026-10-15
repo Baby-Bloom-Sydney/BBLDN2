@@ -1394,6 +1394,15 @@ export async function accessHorizonIso(
   parentUserId: string,
   now: Date = new Date(),
 ): Promise<string> {
+  const youngestDob = await youngestChildDob(admin, parentUserId);
+  return addYearsIso(youngestDob ?? now.toISOString(), ACCESS_AGE_YEARS, now);
+}
+
+/** The latest `date_of_birth` among the parent's linked children, or null when none has one. */
+async function youngestChildDob(
+  admin: AdminClient,
+  parentUserId: string,
+): Promise<string | null> {
   const { data: rows, error } = await admin
     .from("child_client")
     .select("date_of_birth")
@@ -1404,11 +1413,10 @@ export async function accessHorizonIso(
       `child_client lookup (youngest child's horizon) failed: ${error.message}`,
     );
   }
-  const youngestDob = ((rows ?? []) as Array<{ date_of_birth: unknown }>)
+  return ((rows ?? []) as Array<{ date_of_birth: unknown }>)
     .map((r) => r.date_of_birth)
     .filter((dob): dob is string => typeof dob === "string" && dob.length > 0)
     .reduce<string | null>((latest, dob) => (latest === null || dob > latest ? dob : latest), null);
-  return addYearsIso(youngestDob ?? now.toISOString(), ACCESS_AGE_YEARS, now);
 }
 
 export type HorizonRecompute = "updated" | "unchanged" | "not_upfront";
@@ -1434,14 +1442,22 @@ export async function recomputeUpfrontHorizon(
   }
   if (!row || row.status !== "active_upfront") return "not_upfront";
 
-  const horizonIso = await accessHorizonIso(admin, parentUserId);
+  // No child with a DOB → no horizon to recompute (the now + N fallback is checkout-only).
+  const youngestDob = await youngestChildDob(admin, parentUserId);
+  if (youngestDob === null) return "unchanged";
+  const horizonIso = addYearsIso(youngestDob, ACCESS_AGE_YEARS, new Date());
   const current = row.paid_period_ends_at ? Date.parse(row.paid_period_ends_at) : Number.NaN;
   if (!Number.isNaN(current) && Date.parse(horizonIso) <= current) return "unchanged";
 
-  const { error: updateError } = await admin
+  // Forward-only even under two concurrent links: the write applies only while the
+  // stored date is still earlier than the new one.
+  const update = admin
     .from("parent_subscriptions")
     .update({ paid_period_ends_at: horizonIso })
     .eq("id", row.id);
+  const { error: updateError } = await (row.paid_period_ends_at
+    ? update.lt("paid_period_ends_at", horizonIso)
+    : update);
   if (updateError) {
     throw new Error(`parent_subscriptions update (horizon) failed: ${updateError.message}`);
   }
@@ -1451,7 +1467,8 @@ export async function recomputeUpfrontHorizon(
 function addYearsIso(dateIso: string, years: number, now: Date): string {
   // dateIso may be 'YYYY-MM-DD' (DATE, read as UTC midnight) or a full
   // timestamp. Bump the UTC year so the calendar day never shifts with the
-  // server's clock.
+  // server's clock. A 29 Feb birthday rolls to 1 Mar in a non-leap year
+  // (the generous reading; pinned in handlers.test.ts).
   const d = new Date(dateIso);
   const base = Number.isNaN(d.getTime()) ? new Date(now.getTime()) : d;
   base.setUTCFullYear(base.getUTCFullYear() + years);

@@ -78,9 +78,6 @@ export function newTrialsEnabled(): boolean {
   return parseBool(process.env.NEW_TRIALS_ENABLED, true);
 }
 
-/** Module-load snapshot of {@link newTrialsEnabled}, kept for `getPaymentsFlags`. */
-export const NEW_TRIALS_ENABLED = newTrialsEnabled();
-
 export interface PaymentsFlags {
   PAYMENTS_ENABLED: boolean;
   PAYOUTS_ENABLED: boolean;

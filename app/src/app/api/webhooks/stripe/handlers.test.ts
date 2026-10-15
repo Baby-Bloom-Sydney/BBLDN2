@@ -75,7 +75,7 @@ function fakeAdmin(script: Record<string, Result[]> = {}) {
       call.filters.push([name, String(args[0]), args[1]]);
       return b;
     };
-    for (const m of ["eq", "in", "is", "not", "order", "limit", "returns"]) b[m] = chain(m);
+    for (const m of ["eq", "in", "is", "not", "lt", "order", "limit", "returns"]) b[m] = chain(m);
     b.select = (cols?: string) => {
       call.select = cols;
       return b;
@@ -495,7 +495,7 @@ describe("accessHorizonIso — youngest child's 3rd birthday", () => {
     const expected = plusYears(YOUNGER_DOB, ACCESS_AGE_YEARS);
     expect(await accessHorizonIso(admin, "u1")).toBe(expected);
     expect(await accessHorizonIso(admin, "u1")).toBe(expected);
-    expect(expected.startsWith("2028-08-20")).toBe(true);
+    expect(expected).toBe("2028-08-20T00:00:00.000Z");
     expect(calls[0].filters).toContainEqual(["eq", "parent_user_id", "u1"]);
   });
 
@@ -543,8 +543,10 @@ describe("recomputeUpfrontHorizon — on child link", () => {
     });
     expect(await recomputeUpfrontHorizon(admin, "u1")).toBe("updated");
     const update = calls.find((c) => c.table === "parent_subscriptions" && c.op === "update");
-    expect(update?.payload).toEqual({ paid_period_ends_at: plusYears(YOUNGER_DOB, ACCESS_AGE_YEARS) });
+    expect(update?.payload).toEqual({ paid_period_ends_at: "2028-08-20T00:00:00.000Z" });
     expect(update?.filters).toContainEqual(["eq", "id", "ps1"]);
+    // forward-only under a race: the write is conditional on the stored date being earlier
+    expect(update?.filters).toContainEqual(["lt", "paid_period_ends_at", "2028-08-20T00:00:00.000Z"]);
   });
 
   it("linking an older child leaves the date where it is", async () => {
@@ -577,6 +579,20 @@ describe("recomputeUpfrontHorizon — on child link", () => {
       expect(calls.map((c) => c.table)).toEqual(["parent_subscriptions"]);
     },
   );
+
+  it("a 29 Feb birthday's horizon is 1 Mar in a non-leap year", async () => {
+    const { admin } = fakeAdmin({ "child_client.select": [{ data: [{ date_of_birth: "2024-02-29" }] }] });
+    expect(await accessHorizonIso(admin, "u1")).toBe("2027-03-01T00:00:00.000Z");
+  });
+
+  it("no child with a DOB: nothing moves (the now + N fallback is checkout-only)", async () => {
+    const { admin, calls } = fakeAdmin({
+      "parent_subscriptions.select": [upfrontRow("2027-01-01T00:00:00.000Z")],
+      "child_client.select": [{ data: [] }],
+    });
+    expect(await recomputeUpfrontHorizon(admin, "u1")).toBe("unchanged");
+    expect(calls.some((c) => c.op === "update")).toBe(false);
+  });
 
   it("does nothing when the parent has no row", async () => {
     const { admin } = fakeAdmin({ "parent_subscriptions.select": [{ data: null }] });
