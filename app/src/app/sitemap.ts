@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { SITE_URL } from '@/lib/constants';
+import { babysittingEnabled } from '@/lib/features/flags';
 
 const BASE_URL = SITE_URL;
 
@@ -13,10 +14,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .from('nannies')
       .select('id, updated_at')
       .eq('profile_visible', true),
-    supabase
-      .from('babysitting_requests')
-      .select('id, updated_at')
-      .eq('status', 'active'),
+    // 5c (P-23): no babysitting query (and no /babysitting/ URL) while BABYSITTING_ENABLED is off.
+    babysittingEnabled()
+      ? supabase
+          .from('babysitting_requests')
+          .select('id, updated_at')
+          .eq('status', 'active')
+      : Promise.resolve({ data: [] as Array<{ id: string; updated_at: string | null }> }),
     supabase
       .from('nanny_positions')
       .select('id, updated_at')
