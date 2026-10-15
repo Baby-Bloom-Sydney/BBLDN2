@@ -164,12 +164,10 @@ describe("requireChildFamilyAccess", () => {
 });
 
 describe("paywallCopyKey (the two layouts)", () => {
-  it("trial_expired keeps its key; every other refusal, including the two London ones, uses the lapsed key", async () => {
+  it("trial_expired keeps its key; the self-serve refusals use the lapsed key", async () => {
     const { paywallCopyKey } = await import("./access-gate");
     expect(paywallCopyKey("trial_expired")).toBe("trial_ended");
     for (const r of [
-      "awaiting_placement",
-      "access_off_by_admin",
       "subscription_lapsed",
       "no_subscription",
       "past_due_grace_expired",
@@ -177,5 +175,12 @@ describe("paywallCopyKey (the two layouts)", () => {
     ] as const) {
       expect(paywallCopyKey(r)).toBe("subscription_lapsed");
     }
+  });
+
+  // 4g (ADR-093): the two done-for-you refusals get their own copy keys — no self-serve CTA.
+  it("awaiting_placement and access_off_by_admin map to their own done-for-you keys", async () => {
+    const { paywallCopyKey } = await import("./access-gate");
+    expect(paywallCopyKey("awaiting_placement")).toBe("awaiting_placement");
+    expect(paywallCopyKey("access_off_by_admin")).toBe("access_paused");
   });
 });

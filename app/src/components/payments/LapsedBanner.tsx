@@ -25,6 +25,11 @@
 
 import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DfyAccessLine,
+  isDfyLapseReason,
+  type SubscribeModalLapseReason,
+} from "./SubscribeModal";
 
 export interface LapsedBannerProps {
   /** Audience — drives copy + CTA label. */
@@ -49,6 +54,11 @@ export interface LapsedBannerProps {
    * self-nav risk).
    */
   onPrimaryCta?: () => void;
+  /**
+   * The paywall copy key (4g). For the two done-for-you keys the parent variant shows one line and no Subscribe
+   * button (ADR-091/093). Optional: absent = today's self-serve copy.
+   */
+  lapseReason?: SubscribeModalLapseReason;
 }
 
 export function LapsedBanner({
@@ -56,7 +66,22 @@ export function LapsedBanner({
   childFirstName,
   parentFirstName,
   onPrimaryCta,
+  lapseReason,
 }: LapsedBannerProps) {
+  if (role === "parent" && lapseReason && isDfyLapseReason(lapseReason)) {
+    return (
+      <div
+        role="status"
+        className="flex w-full items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 sm:px-6"
+      >
+        <Lock className="h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
+        <p className="flex-1 text-sm text-amber-900">
+          <DfyAccessLine reason={lapseReason} />
+        </p>
+      </div>
+    );
+  }
+
   if (role === "parent") {
     return (
       <div

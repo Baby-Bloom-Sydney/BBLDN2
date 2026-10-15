@@ -144,3 +144,53 @@ describe("SubscribeModal (parent variant)", () => {
     expect(text.toLowerCase()).not.toMatch(/\btrack(ing|ed|s)?\b/);
   });
 });
+
+// 4g (ADR-091/093): a done-for-you family is never shown the self-serve CTAs.
+describe("SubscribeModal — done-for-you states", () => {
+  it("awaiting_placement: one line, no buttons to subscribe", () => {
+    render(
+      <SubscribeModal {...makeProps({ lapseReason: "awaiting_placement" })} />,
+    );
+    expect(
+      screen.getByText(
+        "Your app access switches on when your nanny is placed.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: /subscription options|maybe later/i,
+      }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(document.body.textContent ?? "").not.toMatch(/subscribe|£/i);
+  });
+
+  it("access_paused: one line and the Contact link, no subscribe buttons", () => {
+    render(<SubscribeModal {...makeProps({ lapseReason: "access_paused" })} />);
+    expect(screen.getByRole("dialog").textContent).toMatch(
+      /Your access is paused — get in touch and we.ll sort it\./,
+    );
+    expect(screen.getByRole("link", { name: /get in touch/i })).toHaveAttribute(
+      "href",
+      "/contact",
+    );
+    expect(
+      screen.queryByRole("button", {
+        name: /subscription options|maybe later/i,
+      }),
+    ).not.toBeInTheDocument();
+    expect(document.body.textContent ?? "").not.toMatch(/subscribe|£/i);
+  });
+
+  it("the self-serve keys keep their buttons", () => {
+    for (const lapseReason of ["trial_ended", "subscription_lapsed"] as const) {
+      const { unmount } = render(
+        <SubscribeModal {...makeProps({ lapseReason })} />,
+      );
+      expect(
+        screen.getByRole("button", { name: /see subscription options/i }),
+      ).toBeInTheDocument();
+      unmount();
+    }
+  });
+});

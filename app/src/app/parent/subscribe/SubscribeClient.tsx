@@ -6,7 +6,7 @@ import { Sparkles, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { createCheckoutSession } from "@/lib/actions/payments/checkout";
-import { PRICES } from "@/config/prices";
+import { ACCESS_AGE_YEARS, PRICES, TRIAL_DAYS } from "@/config/prices";
 import { APP_LOCALE } from "@/lib/constants";
 
 // 4b (ADR-091): both prices come from `config/prices.ts`. Whole pounds render without pence.
@@ -18,6 +18,19 @@ function formatPence(pence: number): string {
     minimumFractionDigits: pence % PENCE_PER_POUND === 0 ? 0 : 2,
   }).format(pence / PENCE_PER_POUND);
 }
+
+// 4g (ADR-083): upfront runs to this birthday; "3rd" while ACCESS_AGE_YEARS is 3.
+const ORDINAL_SUFFIX: Record<number, string> = { 1: "st", 2: "nd", 3: "rd" };
+const ACCESS_BIRTHDAY = `${ACCESS_AGE_YEARS}${ORDINAL_SUFFIX[ACCESS_AGE_YEARS] ?? "th"} birthday`;
+
+// 4g: upfront is cheaper than monthly for a child younger than this many months — the months to the access
+// birthday less the months of monthly payments the upfront price buys. Derived from config, never written down.
+const MONTHS_PER_YEAR = 12;
+const BEST_VALUE_UNDER_MONTHS =
+  ACCESS_AGE_YEARS * MONTHS_PER_YEAR -
+  Math.ceil(
+    PRICES.selfServe.upfrontToAge3Pence / PRICES.selfServe.monthlyPence,
+  );
 
 interface NannyContext {
   nannyFirstName: string;
@@ -92,8 +105,8 @@ export function SubscribeClient({
         <div className="mt-6 flex items-start gap-3 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3">
           <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-violet-600" />
           <p className="text-sm text-violet-900">
-            <strong>Start with a 30-day free trial.</strong> No charge today.
-            Choose how you&apos;d like to pay when the trial ends.
+            <strong>Start with a {TRIAL_DAYS}-day trial.</strong> No charge
+            today. Choose how you&apos;d like to pay when the trial ends.
           </p>
         </div>
       )}
@@ -112,8 +125,8 @@ export function SubscribeClient({
           psychology — the upfront price sets the anchor; the monthly price
           appearing second reads as "reasonable" by comparison. Reversing the
           order makes the monthly look expensive on its own.
-          Locked-in copy: "Pay once. Done until {child} is 5." moves
-          the cost from "subscription" mental bucket to "investment". */}
+          "Pay once. Done until your child's 3rd birthday." moves the cost
+          from the "subscription" bucket to "investment" (ADR-083). */}
       <div className="mt-8 grid gap-4 md:grid-cols-2">
         <Card
           data-testid="plan-card-upfront"
@@ -132,8 +145,8 @@ export function SubscribeClient({
               </p>
             </div>
             <p className="text-sm text-slate-600">
-              Pay once. Done until your child&apos;s 5th birthday. Best value if
-              your child is under 4.
+              Pay once. Done until your child&apos;s {ACCESS_BIRTHDAY}. Best
+              value if your child is under {BEST_VALUE_UNDER_MONTHS} months.
             </p>
             <div className="flex-1" />
             <Button
@@ -150,7 +163,7 @@ export function SubscribeClient({
             </Button>
             {trialAvailable && (
               <p className="text-xs text-slate-500">
-                Trial first — charged after 30 days.
+                Trial first — charged after {TRIAL_DAYS} days.
               </p>
             )}
           </CardContent>
@@ -188,23 +201,17 @@ export function SubscribeClient({
             </Button>
             {trialAvailable && (
               <p className="text-xs text-slate-500">
-                Trial first — charged after 30 days.
+                Trial first — charged after {TRIAL_DAYS} days.
               </p>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Reciprocity footer — locked-in copy. Reframes the parent's
-          payment from "SaaS subscription" to "supporting a person."
-          This line MUST appear; it's one of the most important
-          psychological levers in the whole spec (§S7 + COPY-AND-
-          FRAMING §5 first-bill receipt). */}
-      <p className="mt-8 text-sm font-medium text-slate-700">
-        £100 of every payment supports your nanny&apos;s work.
-      </p>
-      <p className="mt-2 text-xs text-slate-500">
-        VAT included. By subscribing you agree to our terms of service.
+      {/* 4g: the "supports your nanny" line is gone (cards 9a/9b — nothing replaces it); VAT shows only where
+          card details are entered, on Stripe's page (M-1 1d). */}
+      <p className="mt-8 text-xs text-slate-500">
+        By subscribing you agree to our terms of service.
       </p>
     </div>
   );

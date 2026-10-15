@@ -1,3 +1,5 @@
+import { PRICES } from "@/config/prices";
+
 export interface AdminSubscriptionRow {
   parentUserId: string;
   fullName: string;
@@ -18,7 +20,8 @@ export interface AdminSubscriptionRow {
   plan: "monthly" | "upfront" | "trial" | "none";
   tenureDays: number | null;
   subscriberSinceIso: string | null;
-  cumulativeSpendAud: number;
+  /** 4g (D3): lifetime spend in pence, from `config/prices.ts` (`cumulativeSpendPence`). */
+  cumulativeSpendPence: number;
   cycle: number;
   nextEventIso: string | null;
   nextEventLabel: string;
@@ -51,4 +54,30 @@ export function isPaymentDue(
     row.payment_due_at !== null &&
     Date.parse(row.payment_due_at) <= nowMs
   );
+}
+
+/**
+ * 4g (D3) — what this family has paid us, in pence, from config. Both admin pages call it so they agree.
+ * Self-serve: paid monthly cycles × the monthly price, plus the upfront price once if paid upfront (each page keeps
+ * its own test of "paid upfront"). Done-for-you: the row's own `deposit_pence` once `deposit_paid_at` is set, plus
+ * its `balance_pence` once `bill_paid_at` is set — the amounts actually charged, which vary by cohort.
+ */
+export function cumulativeSpendPence(
+  row: {
+    family_type?: string | null;
+    deposit_pence?: number | null;
+    deposit_paid_at?: string | null;
+    balance_pence?: number | null;
+    bill_paid_at?: string | null;
+  },
+  selfServe: { monthlyCycles: number; upfrontPaid: boolean },
+): number {
+  if (row.family_type === "dfy") {
+    const deposit = row.deposit_paid_at ? (row.deposit_pence ?? 0) : 0;
+    const balance = row.bill_paid_at ? (row.balance_pence ?? 0) : 0;
+    return deposit + balance;
+  }
+  const monthly = selfServe.monthlyCycles * PRICES.selfServe.monthlyPence;
+  const upfront = selfServe.upfrontPaid ? PRICES.selfServe.upfrontToAge3Pence : 0;
+  return monthly + upfront;
 }

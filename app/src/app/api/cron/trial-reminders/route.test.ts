@@ -21,12 +21,14 @@ const state = vi.hoisted(() => ({
   }>,
   readErr: null as null | { message: string },
   sendCalls: [] as unknown[],
+  eqCalls: [] as Array<[string, unknown]>,
 }));
 
 beforeEach(() => {
   state.candidates = [];
   state.readErr = null;
   state.sendCalls = [];
+  state.eqCalls = [];
   vi.resetModules();
 });
 
@@ -35,18 +37,21 @@ vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     from: (_table: string) => ({
       select: () => ({
-        eq: () => ({
-          is: () => ({
-            gte: () => ({
-              lte: () => ({
-                returns: () => ({
-                  data: state.candidates,
-                  error: state.readErr,
+        eq: (column: string, value: unknown) => (
+          state.eqCalls.push([column, value]),
+          {
+            is: () => ({
+              gte: () => ({
+                lte: () => ({
+                  returns: () => ({
+                    data: state.candidates,
+                    error: state.readErr,
+                  }),
                 }),
               }),
             }),
-          }),
-        }),
+          }
+        ),
       }),
       update: () => ({ eq: async () => ({ data: null, error: null }) }),
       insert: async () => ({ data: null, error: null }),
@@ -130,6 +135,23 @@ describe("cron/trial-reminders GET — auth guard", () => {
       expect(body.errors).toBe(0);
       // Sanity — no email send happened with empty candidates.
       expect(state.sendCalls).toHaveLength(0);
+    } finally {
+      if (original === undefined) delete process.env.CRON_SECRET;
+      else process.env.CRON_SECRET = original;
+    }
+  });
+});
+
+// 4g: the email goes to self-serve families only — the candidate query reads `status = 'trial'`, and a done-for-you
+// row is never `trial` (no DFY trial: ADR-093, amendment 14, 4c). No send is added.
+describe("cron/trial-reminders GET — recipients", () => {
+  it("selects only rows in trial", async () => {
+    const original = process.env.CRON_SECRET;
+    process.env.CRON_SECRET = "test-secret";
+    try {
+      const r = await callRoute({ authorization: "Bearer test-secret" });
+      expect(r.status).toBe(200);
+      expect(state.eqCalls).toEqual([["status", "trial"]]);
     } finally {
       if (original === undefined) delete process.env.CRON_SECRET;
       else process.env.CRON_SECRET = original;

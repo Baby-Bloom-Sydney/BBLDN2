@@ -288,6 +288,7 @@ export function BAppLayout({
             childFirstName={childFirstName}
             parentFirstName={parentFirstName}
             onPrimaryCta={() => setSubscribeModalOpen(true)}
+            lapseReason={lapseReason}
           />
         )}
         {children}

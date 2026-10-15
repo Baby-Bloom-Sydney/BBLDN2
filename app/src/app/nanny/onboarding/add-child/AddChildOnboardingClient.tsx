@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Clock, HeartHandshake, Plus, ShieldCheck, Users } from "lucide-react";
 import { AddChildSheet } from "@/components/bapp/AddChildSheet";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 // T-022 — Pixel-for-pixel React port of the locked mockup at
 // `system/forms/nanny-profile/Updates/Onboarding Flow/mockup/index.html`.
@@ -29,6 +30,9 @@ export function AddChildOnboardingClient({
 }: AddChildOnboardingClientProps) {
   const router = useRouter();
   const [sheetOpen, setSheetOpen] = useState(false);
+  // 4g (P-23): the contribution copy describes the old commission payouts — hidden, not deleted, while
+  // PAYOUTS_ENABLED is off (London has no nanny commission: cards 9a/9b).
+  const showContributions = payoutsEnabled();
 
   return (
     <div
@@ -82,14 +86,18 @@ export function AddChildOnboardingClient({
 
           <div className="reveal reveal-2 flex flex-col gap-3">
             <h1 className="max-w-lg text-3xl sm:text-[2.4rem] font-bold leading-tight tracking-tight text-slate-900">
-              Setup your account so we can contribute!
+              {showContributions
+                ? "Setup your account so we can contribute!"
+                : "Set up your account"}
             </h1>
-            <p className="mx-auto max-w-md text-base leading-relaxed text-slate-600">
-              We contribute up to{" "}
-              <span className="font-semibold text-slate-900">£1000</span> to
-              you for every child under 3 you look after — to support your work
-              developing young minds.
-            </p>
+            {showContributions && (
+              <p className="mx-auto max-w-md text-base leading-relaxed text-slate-600">
+                We contribute up to{" "}
+                <span className="font-semibold text-slate-900">£1000</span> to
+                you for every child under 3 you look after — to support your
+                work developing young minds.
+              </p>
+            )}
           </div>
         </section>
 
@@ -146,8 +154,10 @@ export function AddChildOnboardingClient({
               </div>
 
               <p className="mb-2.5 text-sm leading-snug text-slate-800">
-                Full access to the suite of tools to assist your work — and our
-                contribution towards it.
+                Full access to the suite of tools to assist your work
+                {showContributions
+                  ? " — and our contribution towards it."
+                  : "."}
               </p>
 
               <ul className="space-y-1.5">
@@ -160,29 +170,36 @@ export function AddChildOnboardingClient({
                     Use of every Baby Bloom tool to support you at work
                   </span>
                 </li>
-                <li className="flex items-start gap-2 text-[13px] leading-snug text-slate-700">
-                  <span
-                    aria-hidden="true"
-                    className="mt-[7px] inline-block h-1 w-1 shrink-0 rounded-full bg-emerald-500"
-                  />
-                  <span>
-                    <span className="font-semibold text-slate-900">£100</span>{" "}
-                    for every month of continued developmental support with
-                    every family you work with
-                  </span>
-                </li>
-                <li className="flex items-start gap-2 text-[13px] leading-snug text-slate-700">
-                  <span
-                    aria-hidden="true"
-                    className="mt-[7px] inline-block h-1 w-1 shrink-0 rounded-full bg-emerald-500"
-                  />
-                  <span>
-                    <span className="font-semibold text-slate-900">
-                      £1,000
-                    </span>{" "}
-                    for every family that pre-plans for long-term development
-                  </span>
-                </li>
+                {showContributions && (
+                  <>
+                    <li className="flex items-start gap-2 text-[13px] leading-snug text-slate-700">
+                      <span
+                        aria-hidden="true"
+                        className="mt-[7px] inline-block h-1 w-1 shrink-0 rounded-full bg-emerald-500"
+                      />
+                      <span>
+                        <span className="font-semibold text-slate-900">
+                          £100
+                        </span>{" "}
+                        for every month of continued developmental support with
+                        every family you work with
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2 text-[13px] leading-snug text-slate-700">
+                      <span
+                        aria-hidden="true"
+                        className="mt-[7px] inline-block h-1 w-1 shrink-0 rounded-full bg-emerald-500"
+                      />
+                      <span>
+                        <span className="font-semibold text-slate-900">
+                          £1,000
+                        </span>{" "}
+                        for every family that pre-plans for long-term
+                        development
+                      </span>
+                    </li>
+                  </>
+                )}
               </ul>
             </article>
 
@@ -289,7 +306,9 @@ export function AddChildOnboardingClient({
             id="contributions-stepper-heading"
             className="mb-5 text-center text-lg font-semibold text-slate-800"
           >
-            How to get your contributions
+            {showContributions
+              ? "How to get your contributions"
+              : "How to get started"}
           </h2>
 
           <ol
@@ -334,7 +353,9 @@ export function AddChildOnboardingClient({
             <li className="flex items-stretch gap-4">
               <div aria-hidden="true" className="flex flex-col items-center">
                 <div className="h-8 w-8 shrink-0 rounded-full border-2 border-slate-200 bg-white" />
-                <div className="w-0.5 min-h-[28px] flex-1 bg-slate-200" />
+                {showContributions && (
+                  <div className="w-0.5 min-h-[28px] flex-1 bg-slate-200" />
+                )}
               </div>
               <div className="pb-5 text-left">
                 <p className="text-sm font-semibold leading-tight text-slate-800">
@@ -346,20 +367,22 @@ export function AddChildOnboardingClient({
               </div>
             </li>
 
-            {/* Step 4 — upcoming (no connector) */}
-            <li className="flex items-stretch gap-4">
-              <div aria-hidden="true" className="flex flex-col items-center">
-                <div className="h-8 w-8 shrink-0 rounded-full border-2 border-slate-200 bg-white" />
-              </div>
-              <div className="pb-0 text-left">
-                <p className="text-sm font-semibold leading-tight text-slate-800">
-                  Get Contributions
-                </p>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  Receive ongoing payouts for doing great work!
-                </p>
-              </div>
-            </li>
+            {/* Step 4 — upcoming (no connector); payouts only (4g, P-23) */}
+            {showContributions && (
+              <li className="flex items-stretch gap-4">
+                <div aria-hidden="true" className="flex flex-col items-center">
+                  <div className="h-8 w-8 shrink-0 rounded-full border-2 border-slate-200 bg-white" />
+                </div>
+                <div className="pb-0 text-left">
+                  <p className="text-sm font-semibold leading-tight text-slate-800">
+                    Get Contributions
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Receive ongoing payouts for doing great work!
+                  </p>
+                </div>
+              </li>
+            )}
           </ol>
         </section>
 

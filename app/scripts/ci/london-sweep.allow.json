@@ -484,41 +484,6 @@
   },
   {
     "rule": "currency",
-    "file": "app/src/app/admin/subscriptions/AdminSubscriptionsClient.tsx",
-    "match": "cumulativeSpendAud",
-    "owner": "money",
-    "note": "`cumulativeSpendAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 170]"
-  },
-  {
-    "rule": "currency",
-    "file": "app/src/app/admin/subscriptions/page.tsx",
-    "match": "cumulativeSpendAud",
-    "owner": "money",
-    "note": "`cumulativeSpendAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 115, 148, 170]"
-  },
-  {
-    "rule": "currency",
-    "file": "app/src/app/admin/subscriptions/page.tsx",
-    "match": "mrrAud",
-    "owner": "money",
-    "note": "`mrrAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 168, 194]"
-  },
-  {
-    "rule": "currency",
-    "file": "app/src/app/admin/subscriptions/page.tsx",
-    "match": "cumulativeRevenueAud",
-    "owner": "money",
-    "note": "`cumulativeRevenueAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 169, 197]"
-  },
-  {
-    "rule": "currency",
-    "file": "app/src/app/admin/subscriptions/types.ts",
-    "match": "cumulativeSpendAud",
-    "owner": "money",
-    "note": "`cumulativeSpendAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 15]"
-  },
-  {
-    "rule": "currency",
     "file": "app/src/app/admin/users/[userId]/subscription/build-timeline.ts",
     "match": "amount_aud_cents",
     "owner": "money",
@@ -534,30 +499,9 @@
   {
     "rule": "currency",
     "file": "app/src/app/admin/users/[userId]/subscription/page.tsx",
-    "match": "cumulativeSpendAud",
-    "owner": "money",
-    "note": "`cumulativeSpendAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 154, 217]"
-  },
-  {
-    "rule": "currency",
-    "file": "app/src/app/admin/users/[userId]/subscription/page.tsx",
     "match": "refundedTotalAud",
     "owner": "money",
     "note": "`refundedTotalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 167, 218]"
-  },
-  {
-    "rule": "currency",
-    "file": "app/src/app/admin/users/[userId]/subscription/page.tsx",
-    "match": "AUD",
-    "owner": "money",
-    "note": "AUD named in a doc comment about the stored/charged currency. Money stage.  [2d, 1 hit(s): line 335]"
-  },
-  {
-    "rule": "currency",
-    "file": "app/src/app/admin/users/[userId]/subscription/SubscriptionStatsGrid.tsx",
-    "match": "cumulativeSpendAud",
-    "owner": "money",
-    "note": "`cumulativeSpendAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 11, 36, 94]"
   },
   {
     "rule": "currency",
@@ -3106,13 +3050,6 @@
     "match": "amount_aud_cents",
     "owner": "money",
     "note": "Database column name (`*_aud_cents`, holding pence in London). Renaming a column is schema, not place-layer — cleanup (03-triage.md §6). [4d] RefundRow fixture, 2 hit(s)."
-  },
-  {
-    "rule": "currency",
-    "file": "app/src/app/admin/users/[userId]/subscription/SubscriptionStatsGrid.test.tsx",
-    "match": "cumulativeSpendAud",
-    "owner": "money",
-    "note": "Existing prop name of SubscriptionStatsGrid (contract); the test must pass it. Money stage. [4d]"
   },
   {
     "rule": "currency",

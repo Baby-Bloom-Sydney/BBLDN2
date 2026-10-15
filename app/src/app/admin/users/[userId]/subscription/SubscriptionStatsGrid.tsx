@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { formatAuDate } from "@/lib/format/date";
 import type { ChildWithEvents, ParentSubscriptionRow } from "./page";
-import { APP_LOCALE } from "@/lib/constants";
+import { formatPence } from "@/app/admin/guarantees/format";
 import { G2 } from "@/config/offer";
 
 /**
@@ -18,7 +18,8 @@ interface Props {
   plan: "Monthly" | "Upfront" | "Trial" | "—";
   subscriberSinceIso: string | null;
   tenureDays: number | null;
-  cumulativeSpendAud: number;
+  /** 4g (D3): pence, from config. */
+  cumulativeSpendPence: number;
   refundedTotalAud: number;
   failedPaymentCount: number;
   recoveryCount: number;
@@ -43,7 +44,7 @@ export function SubscriptionStatsGrid({
   plan,
   subscriberSinceIso,
   tenureDays,
-  cumulativeSpendAud,
+  cumulativeSpendPence,
   refundedTotalAud,
   failedPaymentCount,
   recoveryCount,
@@ -101,7 +102,7 @@ export function SubscriptionStatsGrid({
         />
         <StatCard
           label="Cumulative spend"
-          value={`£${cumulativeSpendAud.toLocaleString(APP_LOCALE)}`}
+          value={formatPence(cumulativeSpendPence)}
           sub={
             refundedTotalAud > 0
               ? `£${refundedTotalAud.toFixed(0)} refunded`
