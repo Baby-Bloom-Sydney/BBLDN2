@@ -217,6 +217,17 @@ export async function requireChildFamilyAccess(
 }
 
 /**
+ * A done-for-you family, for the nanny-side paywall (4g, ADR-091): `family_type = 'dfy'`, or a status only a
+ * done-for-you family reaches. The self-serve offer (the share-to-subscribe link) is never put in front of one.
+ */
+export function isDfyFamily(
+  sub: { family_type?: string | null; status?: string | null } | null | undefined,
+): boolean {
+  if (!sub) return false;
+  return sub.family_type === "dfy" || sub.status === "deposit_paid" || sub.status === "placed";
+}
+
+/**
  * The paywall copy key for a refusal (the two development layouts). The two done-for-you reasons get their own keys
  * so the paywall shows one line and no self-serve CTA (4g, ADR-091/093).
  */

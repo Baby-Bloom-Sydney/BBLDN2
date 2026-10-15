@@ -23,15 +23,6 @@ function formatPence(pence: number): string {
 const ORDINAL_SUFFIX: Record<number, string> = { 1: "st", 2: "nd", 3: "rd" };
 const ACCESS_BIRTHDAY = `${ACCESS_AGE_YEARS}${ORDINAL_SUFFIX[ACCESS_AGE_YEARS] ?? "th"} birthday`;
 
-// 4g: upfront is cheaper than monthly for a child younger than this many months — the months to the access
-// birthday less the months of monthly payments the upfront price buys. Derived from config, never written down.
-const MONTHS_PER_YEAR = 12;
-const BEST_VALUE_UNDER_MONTHS =
-  ACCESS_AGE_YEARS * MONTHS_PER_YEAR -
-  Math.ceil(
-    PRICES.selfServe.upfrontToAge3Pence / PRICES.selfServe.monthlyPence,
-  );
-
 interface NannyContext {
   nannyFirstName: string;
   childFirstName: string;
@@ -145,8 +136,7 @@ export function SubscribeClient({
               </p>
             </div>
             <p className="text-sm text-slate-600">
-              Pay once. Done until your child&apos;s {ACCESS_BIRTHDAY}. Best
-              value if your child is under {BEST_VALUE_UNDER_MONTHS} months.
+              Pay once. Done until your child&apos;s {ACCESS_BIRTHDAY}.
             </p>
             <div className="flex-1" />
             <Button

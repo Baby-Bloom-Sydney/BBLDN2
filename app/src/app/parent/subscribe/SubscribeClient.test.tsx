@@ -30,7 +30,7 @@ vi.mock("@/lib/actions/payments/checkout", () => ({
 }));
 
 import { SubscribeClient } from "./SubscribeClient";
-import { ACCESS_AGE_YEARS, PRICES, TRIAL_DAYS } from "@/config/prices";
+import { ACCESS_AGE_YEARS, TRIAL_DAYS } from "@/config/prices";
 
 function renderClient(
   overrides: {
@@ -132,16 +132,8 @@ describe("SubscribeClient — access horizon (ADR-083)", () => {
     expect(ACCESS_AGE_YEARS).toBe(3);
     expect(upfront).toMatch(/3rd birthday/);
     expect(upfront).not.toMatch(/5th birthday|under 4/);
-  });
-
-  it("states the best-value age derived from the two config prices", () => {
-    renderClient();
-    const months =
-      ACCESS_AGE_YEARS * 12 -
-      Math.ceil(PRICES.selfServe.upfrontToAge3Pence / PRICES.selfServe.monthlyPence);
-    expect(screen.getByTestId("plan-card-upfront").textContent).toContain(
-      `Best value if your child is under ${months} months.`,
-    );
+    // Planner ruling (P-25): no best-value age line — nothing replaces "under 4".
+    expect(upfront).not.toMatch(/best value if/i);
   });
 });
 

@@ -59,7 +59,12 @@ export interface LapsedBannerProps {
    * button (ADR-091/093). Optional: absent = today's self-serve copy.
    */
   lapseReason?: SubscribeModalLapseReason;
+  /** Nanny variant (4g, ADR-091): the family is done-for-you — one line, no share-to-subscribe CTA. */
+  familyIsDfy?: boolean;
 }
+
+export const NANNY_DFY_LINE =
+  "This family's app access is arranged by Baby Bloom.";
 
 export function LapsedBanner({
   role,
@@ -67,7 +72,20 @@ export function LapsedBanner({
   parentFirstName,
   onPrimaryCta,
   lapseReason,
+  familyIsDfy = false,
 }: LapsedBannerProps) {
+  if (role === "nanny" && familyIsDfy) {
+    return (
+      <div
+        role="status"
+        className="flex w-full items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 sm:px-6"
+      >
+        <Lock className="h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
+        <p className="flex-1 text-sm text-amber-900">{NANNY_DFY_LINE}</p>
+      </div>
+    );
+  }
+
   if (role === "parent" && lapseReason && isDfyLapseReason(lapseReason)) {
     return (
       <div

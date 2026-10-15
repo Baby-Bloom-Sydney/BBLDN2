@@ -184,3 +184,22 @@ describe("paywallCopyKey (the two layouts)", () => {
     expect(paywallCopyKey("access_off_by_admin")).toBe("access_paused");
   });
 });
+
+describe("isDfyFamily (nanny-side paywall, 4g)", () => {
+  it("dfy by family_type, or by a done-for-you status", async () => {
+    const { isDfyFamily } = await import("./access-gate");
+    expect(isDfyFamily({ family_type: "dfy", status: "lapsed" })).toBe(true);
+    expect(isDfyFamily({ family_type: "self_serve", status: "deposit_paid" })).toBe(true);
+    expect(isDfyFamily({ family_type: null, status: "placed" })).toBe(true);
+  });
+
+  it("self-serve rows and no row are not dfy", async () => {
+    const { isDfyFamily } = await import("./access-gate");
+    for (const status of ["trial", "lapsed", "cancelled", "past_due", "active_monthly", "active_upfront"]) {
+      expect(isDfyFamily({ family_type: "self_serve", status })).toBe(false);
+    }
+    expect(isDfyFamily(null)).toBe(false);
+    expect(isDfyFamily(undefined)).toBe(false);
+  });
+});
+

@@ -176,3 +176,29 @@ describe("LapsedBanner — done-for-you states (parent)", () => {
     }
   });
 });
+
+// 4g (ADR-091): the nanny is never handed the self-serve share link for a done-for-you family.
+describe("LapsedBanner — nanny variant, done-for-you family", () => {
+  it("dfy: one line, no share button, no link", () => {
+    render(
+      <LapsedBanner {...makeProps({ role: "nanny", familyIsDfy: true })} />,
+    );
+    expect(screen.getByRole("status").textContent).toBe(
+      "This family's app access is arranged by Baby Bloom.",
+    );
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("self-serve: keeps the share button", () => {
+    render(
+      <LapsedBanner {...makeProps({ role: "nanny", familyIsDfy: false })} />,
+    );
+    expect(
+      screen.getByRole("button", { name: /share with sarah/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/arranged by Baby Bloom/),
+    ).not.toBeInTheDocument();
+  });
+});

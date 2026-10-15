@@ -54,6 +54,8 @@ interface BAppLayoutProps {
    * minting / fetching this before rendering BAppLayout.
    */
   nannyShareUrl?: string;
+  /** 4g (ADR-091): nanny side — the family is done-for-you, so no share-to-subscribe CTA. */
+  familyIsDfy?: boolean;
   /** Pre-built share-text body matching the URL. */
   nannyShareText?: string;
 }
@@ -121,6 +123,7 @@ export function BAppLayout({
   nannyFirstName,
   nannyShareUrl,
   nannyShareText,
+  familyIsDfy = false,
 }: BAppLayoutProps) {
   const pathname = usePathname();
   const [fabOpen, setFabOpen] = useState(false);
@@ -289,6 +292,7 @@ export function BAppLayout({
             parentFirstName={parentFirstName}
             onPrimaryCta={() => setSubscribeModalOpen(true)}
             lapseReason={lapseReason}
+            familyIsDfy={familyIsDfy}
           />
         )}
         {children}
