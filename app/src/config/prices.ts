@@ -26,6 +26,9 @@ export const PRICES = Object.freeze({
 /** Days of access kept after a failed payment — the existing 7, kept (QUESTIONS 3a, P-25). */
 export const GRACE_DAYS = 7;
 
+/** Self-serve app access runs to the youngest linked child's 3rd birthday (ADR-083; all future children, ADR-084). */
+export const ACCESS_AGE_YEARS = 3; // ADR-083
+
 /** Self-serve app trial length; done-for-you families get no trial (ADR-093). */
 export const TRIAL_DAYS = 30;
 

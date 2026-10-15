@@ -26,8 +26,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripeClient } from "@/lib/stripe/client";
 import { scheduleCommissionFor } from "@/lib/payments/commission-scheduler";
 import { cancelInFlightCommission } from "@/lib/payments/commission-cancel";
+import { ACCESS_AGE_YEARS, GRACE_DAYS } from "@/config/prices";
 
-const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -308,7 +309,7 @@ async function upsertUpfrontSubscription(
   args: UpsertUpfrontArgs,
 ): Promise<void> {
   const { admin, userId, paymentIntentId, customerId, anchorNow } = args;
-  const fifthBirthdayIso = await earliestChildFifthBirthdayIso(admin, userId);
+  const horizonIso = await accessHorizonIso(admin, userId);
   const nowIso = anchorNow.toISOString();
   const { error } = await admin.from("parent_subscriptions").upsert(
     {
@@ -317,7 +318,7 @@ async function upsertUpfrontSubscription(
       stripe_customer_id: customerId,
       stripe_payment_intent_id: paymentIntentId,
       paid_period_starts_at: nowIso,
-      paid_period_ends_at: fifthBirthdayIso,
+      paid_period_ends_at: horizonIso,
       has_used_trial: true,
     },
     { onConflict: "parent_user_id" },
@@ -610,7 +611,7 @@ export async function handleInvoiceFailed(
   if (!subId) {
     return "ignored";
   }
-  const graceEndsAtIso = new Date(Date.now() + ONE_WEEK_MS).toISOString();
+  const graceEndsAtIso = new Date(Date.now() + GRACE_DAYS * DAY_MS).toISOString(); // card 3a
   const { data: row, error } = await admin
     .from("parent_subscriptions")
     .update({
@@ -1376,55 +1377,102 @@ function getInvoiceSubscription(
 }
 
 /**
- * Returns the ISO timestamp for the earliest linked child's 5th birthday.
- * Used as `paid_period_ends_at` for the upfront plan.
+ * The self-serve access horizon (LDN2 4b; ADR-083/084, inventory B1): the
+ * **youngest** linked child's date of birth + `ACCESS_AGE_YEARS`. Used as
+ * `paid_period_ends_at` for the upfront plan, and recomputed on every child
+ * link by {@link recomputeUpfrontHorizon}.
  *
- * Throws on DB error — this runs in the upfront checkout completion
- * handler, where a misset `paid_period_ends_at` directly determines
- * how long the parent retains paid access for a real-money
- * subscription. Better to let Stripe retry the webhook than to silently
- * fall back to "now + 5 years" and lock in the wrong period.
+ * Throws on DB error — at checkout a misset `paid_period_ends_at` decides how
+ * long a family keeps paid access, so Stripe should retry rather than lock in
+ * "now + N years".
  *
- * Falls back to "now + 5 years" only when the parent has NO linked
- * children — defensive; the upfront flow shouldn't be reachable
- * without at least one child connected.
+ * Falls back to "now + ACCESS_AGE_YEARS" only when no linked child has a DOB —
+ * defensive, as before; the upfront flow needs a child.
  */
-async function earliestChildFifthBirthdayIso(
+export async function accessHorizonIso(
   admin: AdminClient,
   parentUserId: string,
+  now: Date = new Date(),
 ): Promise<string> {
+  const youngestDob = await youngestChildDob(admin, parentUserId);
+  return addYearsIso(youngestDob ?? now.toISOString(), ACCESS_AGE_YEARS, now);
+}
+
+/** The latest `date_of_birth` among the parent's linked children, or null when none has one. */
+async function youngestChildDob(
+  admin: AdminClient,
+  parentUserId: string,
+): Promise<string | null> {
   const { data: rows, error } = await admin
     .from("child_client")
     .select("date_of_birth")
     .eq("parent_user_id", parentUserId)
-    .not("date_of_birth", "is", null)
-    .order("date_of_birth", { ascending: true })
-    .limit(1);
+    .not("date_of_birth", "is", null);
   if (error) {
     throw new Error(
-      `child_client lookup (earliest fifth birthday) failed: ${error.message}`,
+      `child_client lookup (youngest child's horizon) failed: ${error.message}`,
     );
   }
-  const dob = rows?.[0]?.date_of_birth;
-  if (typeof dob === "string" && dob.length > 0) {
-    return addYearsIso(dob, 5);
-  }
-  const now = new Date();
-  now.setFullYear(now.getFullYear() + 5);
-  return now.toISOString();
+  return ((rows ?? []) as Array<{ date_of_birth: unknown }>)
+    .map((r) => r.date_of_birth)
+    .filter((dob): dob is string => typeof dob === "string" && dob.length > 0)
+    .reduce<string | null>((latest, dob) => (latest === null || dob > latest ? dob : latest), null);
 }
 
-function addYearsIso(dateIso: string, years: number): string {
-  // dateIso may be 'YYYY-MM-DD' (DATE) or full timestamp. Normalise to
-  // a Date and bump the year while keeping the same month/day.
-  const d = new Date(dateIso);
-  if (Number.isNaN(d.getTime())) {
-    const fallback = new Date();
-    fallback.setFullYear(fallback.getFullYear() + years);
-    return fallback.toISOString();
+export type HorizonRecompute = "updated" | "unchanged" | "not_upfront";
+
+/**
+ * Recompute an upfront family's horizon after a child is linked (LDN2 4b,
+ * ADR-084 "all future children"). Called by the two child-linking actions —
+ * action-level, no trigger (ledger 4b §2). Only an `active_upfront` row moves,
+ * and only **forward**: linking a child never shortens a paid horizon.
+ * Throws on DB error; the callers log it and keep the link.
+ */
+export async function recomputeUpfrontHorizon(
+  admin: AdminClient,
+  parentUserId: string,
+): Promise<HorizonRecompute> {
+  const { data: row, error } = await admin
+    .from("parent_subscriptions")
+    .select("id, status, paid_period_ends_at")
+    .eq("parent_user_id", parentUserId)
+    .maybeSingle<{ id: string; status: string; paid_period_ends_at: string | null }>();
+  if (error) {
+    throw new Error(`parent_subscriptions lookup (horizon) failed: ${error.message}`);
   }
-  d.setFullYear(d.getFullYear() + years);
-  return d.toISOString();
+  if (!row || row.status !== "active_upfront") return "not_upfront";
+
+  // No child with a DOB → no horizon to recompute (the now + N fallback is checkout-only).
+  const youngestDob = await youngestChildDob(admin, parentUserId);
+  if (youngestDob === null) return "unchanged";
+  const horizonIso = addYearsIso(youngestDob, ACCESS_AGE_YEARS, new Date());
+  const current = row.paid_period_ends_at ? Date.parse(row.paid_period_ends_at) : Number.NaN;
+  if (!Number.isNaN(current) && Date.parse(horizonIso) <= current) return "unchanged";
+
+  // Forward-only even under two concurrent links: the write applies only while the
+  // stored date is still earlier than the new one.
+  const update = admin
+    .from("parent_subscriptions")
+    .update({ paid_period_ends_at: horizonIso })
+    .eq("id", row.id);
+  const { error: updateError } = await (row.paid_period_ends_at
+    ? update.lt("paid_period_ends_at", horizonIso)
+    : update);
+  if (updateError) {
+    throw new Error(`parent_subscriptions update (horizon) failed: ${updateError.message}`);
+  }
+  return "updated";
+}
+
+function addYearsIso(dateIso: string, years: number, now: Date): string {
+  // dateIso may be 'YYYY-MM-DD' (DATE, read as UTC midnight) or a full
+  // timestamp. Bump the UTC year so the calendar day never shifts with the
+  // server's clock. A 29 Feb birthday rolls to 1 Mar in a non-leap year
+  // (the generous reading; pinned in handlers.test.ts).
+  const d = new Date(dateIso);
+  const base = Number.isNaN(d.getTime()) ? new Date(now.getTime()) : d;
+  base.setUTCFullYear(base.getUTCFullYear() + years);
+  return base.toISOString();
 }
 
 interface ActivityLogInput {

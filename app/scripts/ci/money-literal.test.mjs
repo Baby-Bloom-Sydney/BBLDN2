@@ -26,8 +26,8 @@ import { fileURLToPath } from "node:url";
 
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../src");
 
-/** Line count measured on `main` @ bca79e7 (ledger 4-0 §4). May only fall. */
-const CEILING_AT_4_0 = 35;
+/** Line count measured on `main` @ bca79e7 (ledger 4-0 §4): 35. 4b re-valued the subscribe page: 32. May only fall. */
+const CEILING_AT_4_0 = 32;
 
 export const PATTERNS = [
   { name: "a pound amount", re: /£\d/ },

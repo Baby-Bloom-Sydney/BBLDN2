@@ -73,7 +73,7 @@ export type StripeRefundReason =
  */
 export interface CreateRefundInput {
   paymentIntentId: string;
-  /** Optional partial-refund amount in cents (AUD). Omit for full refund. */
+  /** Optional partial-refund amount in the smallest unit (pence, GBP). Omit for full refund. */
   amountCents?: number;
   /** Stripe-native reason. */
   reason?: StripeRefundReason;

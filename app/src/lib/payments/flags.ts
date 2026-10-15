@@ -65,20 +65,18 @@ export function payoutsEnabled(): boolean {
 }
 
 /**
- * Gate for kicking off NEW family trials.
+ * Gate for kicking off NEW family trials (LDN2 4b, card 8a / M-9: wired).
  *
- * When false, `start_family_trial_if_first()` PG function still no-ops
- * its insert path (this flag is read at the action layer that *calls*
- * it). Existing trials continue to expire normally; new connects don't
- * mint new trials. Used to safely freeze acquisition without freezing
- * billing.
+ * Read at call time by the two child-linking actions (`createChildAsParent`,
+ * `connectChildInvite`): when false they skip `start_family_trial_if_first()`
+ * entirely. Existing trials continue to expire normally; new links don't mint
+ * new trials. Used to safely freeze acquisition without freezing billing.
  *
- * Default: true.
+ * Default: true. Set in no environment; `"false"` / `"0"` turns it off.
  */
-export const NEW_TRIALS_ENABLED = parseBool(
-  process.env.NEW_TRIALS_ENABLED,
-  true,
-);
+export function newTrialsEnabled(): boolean {
+  return parseBool(process.env.NEW_TRIALS_ENABLED, true);
+}
 
 export interface PaymentsFlags {
   PAYMENTS_ENABLED: boolean;
@@ -94,6 +92,6 @@ export function getPaymentsFlags(): PaymentsFlags {
   return {
     PAYMENTS_ENABLED,
     PAYOUTS_ENABLED: payoutsEnabled(),
-    NEW_TRIALS_ENABLED,
+    NEW_TRIALS_ENABLED: newTrialsEnabled(),
   };
 }
