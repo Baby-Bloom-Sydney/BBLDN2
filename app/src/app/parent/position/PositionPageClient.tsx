@@ -47,6 +47,7 @@ import {
   Plus,
 } from "lucide-react";
 import Link from "next/link";
+import { legacyTierCheckoutEnabled } from "@/lib/features/flags";
 import {
   CONNECTION_STAGE,
   CONNECTION_STAGE_LABELS,
@@ -1008,15 +1009,18 @@ export function PositionPageClient({
                   nonDfyIntros.length === 0 && (
                     <div className="text-center py-6 space-y-4">
                       <div className="flex items-center justify-center gap-4">
-                        <Button
-                          asChild
-                          className="bg-violet-600 hover:bg-violet-700"
-                        >
-                          <Link href="/parent/matches/checkout">
-                            <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                            Find my nanny for me
-                          </Link>
-                        </Button>
+                        {/* 5g (P-23): the tier checkout is hidden unless LEGACY_TIER_CHECKOUT_ENABLED. */}
+                        {legacyTierCheckoutEnabled() && (
+                          <Button
+                            asChild
+                            className="bg-violet-600 hover:bg-violet-700"
+                          >
+                            <Link href="/parent/matches/checkout">
+                              <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                              Find my nanny for me
+                            </Link>
+                          </Button>
+                        )}
                         <Link
                           href="/nannies"
                           className="inline-flex items-center gap-1 text-sm text-slate-400 hover:text-slate-600 transition-colors"
@@ -1051,7 +1055,9 @@ export function PositionPageClient({
                             matchmaking for the next {matchmakingTimeRemaining}!
                           </p>
                         </div>
-                      ) : !isMatchmakingActive && hasMatchedNannies ? (
+                      ) : !isMatchmakingActive &&
+                        hasMatchedNannies &&
+                        legacyTierCheckoutEnabled() ? (
                         <Link
                           href="/parent/matches/checkout"
                           className="inline-flex items-center gap-1 text-xs font-semibold text-violet-600 hover:text-violet-800 transition-colors"
