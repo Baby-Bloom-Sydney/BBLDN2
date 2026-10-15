@@ -66,50 +66,50 @@
     "rule": "phone",
     "file": "app/src/lib/stripe/connect.ts",
     "match": "Normalise an AU phone number to E.164",
-    "owner": "money",
-    "note": "2e: the whole file is the money stage's (03-triage.md §5). Its +61 E.164 normaliser feeds Stripe Connect onboarding, not the app's own contact surfaces."
+    "owner": "removals",
+    "note": "2e: the whole file is the money stage's (03-triage.md §5). Its +61 E.164 normaliser feeds Stripe Connect onboarding, not the app's own contact surfaces. — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "phone",
     "file": "app/src/lib/stripe/connect.ts",
     "match": "local format like `0401510535`",
-    "owner": "money",
-    "note": "2e: same block as above."
+    "owner": "removals",
+    "note": "2e: same block as above. — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "phone",
     "file": "app/src/lib/stripe/connect.ts",
     "match": "if (digits.startsWith(\"+61\")) return digits;",
-    "owner": "money",
-    "note": "2e: same block as above."
+    "owner": "removals",
+    "note": "2e: same block as above. — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "phone",
     "file": "app/src/lib/stripe/connect.ts",
     "match": "Local-format with leading 0: 04XX, 02XX, 03XX, 07XX, 08XX.",
-    "owner": "money",
-    "note": "2e: same block as above."
+    "owner": "removals",
+    "note": "2e: same block as above. — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "phone",
     "file": "app/src/lib/stripe/connect.ts",
     "match": "+61 is prepended.",
-    "owner": "money",
-    "note": "2e: same block as above."
+    "owner": "removals",
+    "note": "2e: same block as above. — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "phone",
     "file": "app/src/lib/stripe/connect.ts",
     "match": "if (/^[234578]/.test(trunk)) return `+61${trunk}`;",
-    "owner": "money",
-    "note": "2e: same block as above."
+    "owner": "removals",
+    "note": "2e: same block as above. — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "phone",
     "file": "app/src/lib/stripe/connect.ts",
     "match": "if (digits.length === 9 && /^[234578]/.test(digits)) return `+61${digits}`;",
-    "owner": "money",
-    "note": "2e: same block as above."
+    "owner": "removals",
+    "note": "2e: same block as above. — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "brand",
@@ -451,113 +451,113 @@
     "rule": "currency",
     "file": "app/scripts/check-held-rows.mjs",
     "match": "amount_aud_cents",
-    "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 12, 15]"
+    "owner": "removals",
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 12, 15] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: manual ops script for the hidden payout engine, not part of the app — P-23 (4a-i §5 left it)."
   },
   {
     "rule": "currency",
     "file": "app/scripts/t018-preflight-audit.mjs",
     "match": "amount_aud_cents",
-    "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 16, 21, 39]"
+    "owner": "removals",
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 16, 21, 39] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: manual ops script for the hidden payout engine, not part of the app — P-23 (4a-i §5 left it)."
   },
   {
     "rule": "currency",
     "file": "app/scripts/test-release-cron-e2e.mjs",
     "match": "amount_aud_cents",
-    "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 4 hit(s): lines 60, 75, 99, 186]"
+    "owner": "removals",
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 4 hit(s): lines 60, 75, 99, 186] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: manual ops script for the hidden payout engine, not part of the app — P-23 (4a-i §5 left it)."
   },
   {
     "rule": "currency",
     "file": "app/scripts/test-release-cron-e2e.mjs",
     "match": "currency: \"aud\"",
-    "owner": "money",
-    "note": "Stripe's own currency argument — behaviour, not display. Money stage (04-sequence.md §2 2d 'Not this unit').  [2d, 1 hit(s): line 187]"
+    "owner": "removals",
+    "note": "Stripe's own currency argument — behaviour, not display. Money stage (04-sequence.md §2 2d 'Not this unit').  [2d, 1 hit(s): line 187] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: manual ops script for the hidden payout engine, not part of the app — P-23 (4a-i §5 left it)."
   },
   {
     "rule": "currency",
     "file": "app/src/app/admin/payouts/page.tsx",
     "match": "amount_aud_cents",
-    "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 7 hit(s): lines 30, 43, 50, 59, 83, 87, 170]"
+    "owner": "removals",
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 7 hit(s): lines 30, 43, 50, 59, 83, 87, 170] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: file hidden behind PAYOUTS_ENABLED (off) by 4a-i — P-23 hide, not delete."
   },
   {
     "rule": "currency",
     "file": "app/src/app/admin/users/[userId]/subscription/build-timeline.ts",
     "match": "amount_aud_cents",
-    "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 4 hit(s): lines 100, 109, 125, 246, 247 — 125 is refund_amount_aud_cents, the same substring]"
+    "owner": "cleanup",
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 4 hit(s): lines 100, 109, 125, 246, 247 — 125 is refund_amount_aud_cents, the same substring] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: column / prop / field name only, awaiting the *_aud_cents → *_pence rename (triage §6)."
   },
   {
     "rule": "currency",
     "file": "app/src/app/admin/users/[userId]/subscription/page.tsx",
     "match": "amount_aud_cents",
-    "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 60, 68, 170, 292, 305 — the refund_ prefixed ones carry the same substring]"
+    "owner": "cleanup",
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 60, 68, 170, 292, 305 — the refund_ prefixed ones carry the same substring] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: column / prop / field name only, awaiting the *_aud_cents → *_pence rename (triage §6)."
   },
   {
     "rule": "currency",
     "file": "app/src/app/admin/users/[userId]/subscription/page.tsx",
     "match": "refundedTotalAud",
-    "owner": "money",
-    "note": "`refundedTotalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 167, 218]"
+    "owner": "cleanup",
+    "note": "`refundedTotalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 167, 218] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: column / prop / field name only, awaiting the *_aud_cents → *_pence rename (triage §6)."
   },
   {
     "rule": "currency",
     "file": "app/src/app/admin/users/[userId]/subscription/SubscriptionStatsGrid.tsx",
     "match": "refundedTotalAud",
-    "owner": "money",
-    "note": "`refundedTotalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 5 hit(s): lines 12, 37, 96, 97, 100]"
+    "owner": "cleanup",
+    "note": "`refundedTotalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 5 hit(s): lines 12, 37, 96, 97, 100] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: column / prop / field name only, awaiting the *_aud_cents → *_pence rename (triage §6)."
   },
   {
     "rule": "currency",
     "file": "app/src/app/api/nanny/earnings-badge/route.ts",
     "match": "trialTeaserAudCents",
-    "owner": "money",
-    "note": "`trialTeaserAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 12, 41]"
+    "owner": "removals",
+    "note": "`trialTeaserAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 12, 41] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: file hidden behind PAYOUTS_ENABLED (off) by 4a-i — P-23 hide, not delete."
   },
   {
     "rule": "currency",
     "file": "app/src/app/api/nanny/earnings-badge/route.ts",
     "match": "totalAud",
-    "owner": "money",
-    "note": "`totalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 16, 39, 42]"
+    "owner": "removals",
+    "note": "`totalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 16, 39, 42] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: file hidden behind PAYOUTS_ENABLED (off) by 4a-i — P-23 hide, not delete."
   },
   {
     "rule": "currency",
     "file": "app/src/app/nanny/payouts/[familyId]/page.tsx",
     "match": "amount_aud_cents",
-    "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 47, 55, 96]"
+    "owner": "removals",
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 47, 55, 96] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: file hidden behind PAYOUTS_ENABLED (off) by 4a-i — P-23 hide, not delete."
   },
   {
     "rule": "currency",
     "file": "app/src/components/layout/NannyEarningsBadge.tsx",
     "match": "totalAud",
-    "owner": "money",
-    "note": "`totalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 4 hit(s): lines 28, 59, 71, 74]"
+    "owner": "removals",
+    "note": "`totalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 4 hit(s): lines 28, 59, 71, 74] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "currency",
     "file": "app/src/components/payments/AccountTotalTile.tsx",
     "match": "totalAud",
-    "owner": "money",
-    "note": "`totalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 15, 20, 29]"
+    "owner": "removals",
+    "note": "`totalAud` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 15, 20, 29] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: payout/refund engine with no caller (dead) — P-23 keeps it, nothing reaches it."
   },
   {
     "rule": "currency",
     "file": "app/src/components/payments/PayoutHistoryView.tsx",
     "match": "amountAudCents",
-    "owner": "money",
-    "note": "`amountAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 62]"
+    "owner": "removals",
+    "note": "`amountAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 62] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "currency",
     "file": "app/src/components/payments/UpcomingPayoutsView.tsx",
     "match": "formatAudFromCents",
-    "owner": "money",
-    "note": "`formatAudFromCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 1 hit(s): lines 44, 153, 237 — the row amounts read through this helper]"
+    "owner": "removals",
+    "note": "`formatAudFromCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 1 hit(s): lines 44, 153, 237 — the row amounts read through this helper] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "currency",
@@ -570,8 +570,8 @@
     "rule": "currency",
     "file": "app/src/lib/leads/timeline.ts",
     "match": "amount_aud_cents",
-    "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 119, 177]"
+    "owner": "cleanup",
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 119, 177] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: column / prop / field name only, awaiting the *_aud_cents → *_pence rename (triage §6)."
   },
   {
     "rule": "currency",
@@ -598,134 +598,134 @@
     "rule": "currency",
     "file": "app/src/lib/payments/payouts-state.ts",
     "match": "A$",
-    "owner": "money",
-    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 20]"
+    "owner": "removals",
+    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 20] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: payout/refund engine with no caller (dead) — P-23 keeps it, nothing reaches it."
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/payouts-state.ts",
     "match": "COMMISSION_PER_CYCLE_AUD",
-    "owner": "money",
-    "note": "Price constant with AUD in its identifier. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 25]"
+    "owner": "removals",
+    "note": "Price constant with AUD in its identifier. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 25] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: payout/refund engine with no caller (dead) — P-23 keeps it, nothing reaches it."
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/queryPayoutHistory.ts",
     "match": "amountAudCents",
-    "owner": "money",
-    "note": "`amountAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 14]"
+    "owner": "removals",
+    "note": "`amountAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 14] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/queryPayoutHistory.ts",
     "match": "amount_aud_cents",
-    "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 29, 38, 66]"
+    "owner": "removals",
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 29, 38, 66] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/queryPayoutsDashboard.test.ts",
     "match": "amount_aud_cents",
-    "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 46, 53]"
+    "owner": "removals",
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 2 hit(s): lines 46, 53] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/queryPayoutsDashboard.test.ts",
     "match": "amountAudCents",
-    "owner": "money",
-    "note": "`amountAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 78, 158, 316]"
+    "owner": "removals",
+    "note": "`amountAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 3 hit(s): lines 78, 158, 316] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/queryPayoutsDashboard.ts",
     "match": "amountAudCents",
-    "owner": "money",
-    "note": "`amountAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 4 hit(s): lines 39, 183, 467, 497]"
+    "owner": "removals",
+    "note": "`amountAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 4 hit(s): lines 39, 183, 467, 497] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/queryPayoutsDashboard.ts",
     "match": "trialTeaserAudCents",
-    "owner": "money",
-    "note": "`trialTeaserAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 4 hit(s): lines 56, 181, 189, 531]"
+    "owner": "removals",
+    "note": "`trialTeaserAudCents` is a derived field name carrying AUD. It crosses the wire / the component boundary, so renaming it is a contract change. Money stage (03-triage.md §4).  [2d, 4 hit(s): lines 56, 181, 189, 531] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/queryPayoutsDashboard.ts",
     "match": "amount_aud_cents",
-    "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 5 hit(s): lines 94, 271, 307, 373, 442]"
+    "owner": "removals",
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 5 hit(s): lines 94, 271, 307, 373, 442] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/queryPayoutsDashboard.ts",
     "match": "A$",
-    "owner": "money",
-    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 111]"
+    "owner": "removals",
+    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 111] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/refund-engine.test.ts",
     "match": "A$",
-    "owner": "money",
-    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md §4).  [2d, 42 hit(s): lines 11, 21, 24, 38, 41, 42, 48, 50, 52, 53, 54, 57, 62, 65, 73, 80, 85, 88, 90, 91, 110, 116, 123, 139, 146, 147, 153, 156, 161, 166, 168, 169, 170, 174, 181, 182, 185, 200, 218, 222, 229, 230]"
+    "owner": "removals",
+    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md §4).  [2d, 42 hit(s): lines 11, 21, 24, 38, 41, 42, 48, 50, 52, 53, 54, 57, 62, 65, 73, 80, 85, 88, 90, 91, 110, 116, 123, 139, 146, 147, 153, 156, 161, 166, 168, 169, 170, 174, 181, 182, 185, 200, 218, 222, 229, 230] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: payout/refund engine with no caller (dead) — P-23 keeps it, nothing reaches it."
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/release-payouts.test.ts",
     "match": "amount_aud_cents",
-    "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 4 hit(s): lines 37, 252, 359, 360]"
+    "owner": "removals",
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 4 hit(s): lines 37, 252, 359, 360] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/release-payouts.test.ts",
     "match": "currency: \"aud\"",
-    "owner": "money",
-    "note": "Stripe's own currency argument — behaviour, not display. Money stage (04-sequence.md §2 2d 'Not this unit').  [2d, 1 hit(s): line 298]"
+    "owner": "removals",
+    "note": "Stripe's own currency argument — behaviour, not display. Money stage (04-sequence.md §2 2d 'Not this unit').  [2d, 1 hit(s): line 298] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "currency",
     "file": "app/src/lib/payments/release-payouts.ts",
     "match": "amount_aud_cents",
-    "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 5 hit(s): lines 44, 88, 189, 219, 251]"
+    "owner": "removals",
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 5 hit(s): lines 44, 88, 189, 219, 251] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "currency",
     "file": "app/supabase/migrations/cancel-inflight-trigger-v2.sql",
     "match": "A$",
-    "owner": "money",
-    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 9]"
+    "owner": "cleanup",
+    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 9] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: Sydney migration history, never applied to bb-ldn (LDN2/schema/ is London's); column names and comments only."
   },
   {
     "rule": "currency",
     "file": "app/supabase/migrations/payments-foundation.sql",
     "match": "amount_aud_cents",
-    "owner": "money",
-    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 1 hit(s): lines 164, 286 — approved_amount_aud_cents carries the same substring]"
+    "owner": "cleanup",
+    "note": "`amount_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 1 hit(s): lines 164, 286 — approved_amount_aud_cents carries the same substring] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: Sydney migration history, never applied to bb-ldn (LDN2/schema/ is London's); column names and comments only."
   },
   {
     "rule": "currency",
     "file": "app/supabase/migrations/payments-foundation.sql",
     "match": "earnings_value_aud_cents",
-    "owner": "money",
-    "note": "`earnings_value_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 238]"
+    "owner": "cleanup",
+    "note": "`earnings_value_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 238] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: Sydney migration history, never applied to bb-ldn (LDN2/schema/ is London's); column names and comments only."
   },
   {
     "rule": "currency",
     "file": "app/supabase/migrations/payments-foundation.sql",
     "match": "calculated_refund_aud_cents",
-    "owner": "money",
-    "note": "`calculated_refund_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 272]"
+    "owner": "cleanup",
+    "note": "`calculated_refund_aud_cents` is a database column name (or the camelCase field mapped from it). Renaming a column is schema, not place-layer. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 272] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: Sydney migration history, never applied to bb-ldn (LDN2/schema/ is London's); column names and comments only."
   },
   {
     "rule": "currency",
     "file": "app/supabase/migrations/payments-foundation.sql",
     "match": "A$",
-    "owner": "money",
-    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 338]"
+    "owner": "cleanup",
+    "note": "Amounts and worked examples from the AUD commission/refund spec. The symbol moves with the numbers, and the numbers are the offer. Money stage (03-triage.md §4).  [2d, 1 hit(s): line 338] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: Sydney migration history, never applied to bb-ldn (LDN2/schema/ is London's); column names and comments only."
   },
   {
     "rule": "currency",
@@ -962,8 +962,8 @@
     "rule": "identity",
     "file": "app/public/katie-manifest.json",
     "match": "abn",
-    "owner": "money",
-    "note": "ABN migration file names (abn-collection*.sql) listed by the regenerated manifest — the money stage owns ABN. Re-owned from identity by 3g (BB-LDN-3g-141026)."
+    "owner": "cleanup",
+    "note": "ABN migration file names (abn-collection*.sql) listed by the regenerated manifest — the money stage owns ABN. Re-owned from identity by 3g (BB-LDN-3g-141026). — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: the regenerated manifest lists the Sydney abn-collection migration file names; goes with those files."
   },
   {
     "rule": "identity",
@@ -1375,22 +1375,22 @@
     "rule": "identity",
     "file": "app/src/app/admin/leads/LeadDrawerPreCallContext.tsx",
     "match": "abn",
-    "owner": "money",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 23] Re-owned to money by 3w6fix (BB-LDN-3w6fix-141026, W6-D2): the Stage 4 planner owns ABN (message relayed by DBS021022, 2026-10-14); Stage 4's 4a-i removes these surfaces."
+    "owner": "removals",
+    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 23] Re-owned to money by 3w6fix (BB-LDN-3w6fix-141026, W6-D2): the Stage 4 planner owns ABN (message relayed by DBS021022, 2026-10-14); Stage 4's 4a-i removes these surfaces. — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: file hidden behind PAYOUTS_ENABLED (off) by 4a-i — P-23 hide, not delete."
   },
   {
     "rule": "identity",
     "file": "app/src/app/admin/leads/LeadDrawerSubscriptionPayout.tsx",
     "match": "abn",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 2 hit(s): lines 80, 81]"
+    "owner": "removals",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 2 hit(s): lines 80, 81] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: file hidden behind PAYOUTS_ENABLED (off) by 4a-i — P-23 hide, not delete."
   },
   {
     "rule": "identity",
     "file": "app/src/app/admin/leads/LeadDrawerSubscriptionPayout.tsx",
     "match": "ABN",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 78]"
+    "owner": "removals",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 78] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: file hidden behind PAYOUTS_ENABLED (off) by 4a-i — P-23 hide, not delete."
   },
   {
     "rule": "identity",
@@ -1403,8 +1403,8 @@
     "rule": "identity",
     "file": "app/src/app/admin/leads/LeadDrawerVerificationBreakdown.tsx",
     "match": "abn",
-    "owner": "money",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 5 hit(s): lines 70, 71, 116, 118, 119] Re-owned to money by 3w6fix (BB-LDN-3w6fix-141026, W6-D2): the Stage 4 planner owns ABN (message relayed by DBS021022, 2026-10-14); Stage 4's 4a-i removes these surfaces."
+    "owner": "removals",
+    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 5 hit(s): lines 70, 71, 116, 118, 119] Re-owned to money by 3w6fix (BB-LDN-3w6fix-141026, W6-D2): the Stage 4 planner owns ABN (message relayed by DBS021022, 2026-10-14); Stage 4's 4a-i removes these surfaces. — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: file hidden behind PAYOUTS_ENABLED (off) by 4a-i — P-23 hide, not delete."
   },
   {
     "rule": "identity",
@@ -1417,8 +1417,8 @@
     "rule": "identity",
     "file": "app/src/app/admin/leads/LeadDrawerVerificationBreakdown.tsx",
     "match": "ABN",
-    "owner": "money",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 115] Re-owned to money by 3w6fix (BB-LDN-3w6fix-141026, W6-D2): the Stage 4 planner owns ABN (message relayed by DBS021022, 2026-10-14); Stage 4's 4a-i removes these surfaces."
+    "owner": "removals",
+    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 115] Re-owned to money by 3w6fix (BB-LDN-3w6fix-141026, W6-D2): the Stage 4 planner owns ABN (message relayed by DBS021022, 2026-10-14); Stage 4's 4a-i removes these surfaces. — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: file hidden behind PAYOUTS_ENABLED (off) by 4a-i — P-23 hide, not delete."
   },
   {
     "rule": "identity",
@@ -1431,15 +1431,15 @@
     "rule": "identity",
     "file": "app/src/app/admin/leads/LeadFiltersBar.tsx",
     "match": "abn",
-    "owner": "money",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 4 hit(s): lines 110, 138, 176, 177] Re-owned to money by 3w6fix (BB-LDN-3w6fix-141026, W6-D2): the Stage 4 planner owns ABN (message relayed by DBS021022, 2026-10-14); Stage 4's 4a-i removes these surfaces."
+    "owner": "removals",
+    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 4 hit(s): lines 110, 138, 176, 177] Re-owned to money by 3w6fix (BB-LDN-3w6fix-141026, W6-D2): the Stage 4 planner owns ABN (message relayed by DBS021022, 2026-10-14); Stage 4's 4a-i removes these surfaces. — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: file hidden behind PAYOUTS_ENABLED (off) by 4a-i — P-23 hide, not delete."
   },
   {
     "rule": "identity",
     "file": "app/src/app/admin/leads/LeadFiltersBar.tsx",
     "match": "ABN",
-    "owner": "money",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 175] Re-owned to money by 3w6fix (BB-LDN-3w6fix-141026, W6-D2): the Stage 4 planner owns ABN (message relayed by DBS021022, 2026-10-14); Stage 4's 4a-i removes these surfaces."
+    "owner": "removals",
+    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 175] Re-owned to money by 3w6fix (BB-LDN-3w6fix-141026, W6-D2): the Stage 4 planner owns ABN (message relayed by DBS021022, 2026-10-14); Stage 4's 4a-i removes these surfaces. — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: file hidden behind PAYOUTS_ENABLED (off) by 4a-i — P-23 hide, not delete."
   },
   {
     "rule": "identity",
@@ -1452,8 +1452,8 @@
     "rule": "identity",
     "file": "app/src/app/admin/leads/VerificationMiniChip.tsx",
     "match": "ABN",
-    "owner": "money",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 59] Re-owned to money by 3w6fix (BB-LDN-3w6fix-141026, W6-D2): the Stage 4 planner owns ABN (message relayed by DBS021022, 2026-10-14); Stage 4's 4a-i removes these surfaces."
+    "owner": "removals",
+    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 59] Re-owned to money by 3w6fix (BB-LDN-3w6fix-141026, W6-D2): the Stage 4 planner owns ABN (message relayed by DBS021022, 2026-10-14); Stage 4's 4a-i removes these surfaces. — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: file hidden behind PAYOUTS_ENABLED (off) by 4a-i — P-23 hide, not delete."
   },
   {
     "rule": "identity",
@@ -1466,15 +1466,15 @@
     "rule": "identity",
     "file": "app/src/app/admin/leads/payouts-abn-hidden.test.tsx",
     "match": "ABN",
-    "owner": "money",
-    "note": "4a-i (BB-LDN-4a-i-151026): the hide spec names the kept tax-ID column and the label it hides (P-23; card 4b: hide only, the column stays) and asserts its absence with PAYOUTS_ENABLED off and presence with it on. Goes when the money/removals stage deletes the column."
+    "owner": "removals",
+    "note": "4a-i (BB-LDN-4a-i-151026): the hide spec names the kept tax-ID column and the label it hides (P-23; card 4b: hide only, the column stays) and asserts its absence with PAYOUTS_ENABLED off and presence with it on. Goes when the money/removals stage deletes the column. — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: 4a-i's spec asserting the ABN surface is hidden — goes with that surface (P-23)."
   },
   {
     "rule": "identity",
     "file": "app/src/app/admin/leads/payouts-abn-hidden.test.tsx",
     "match": "abn",
-    "owner": "money",
-    "note": "4a-i (BB-LDN-4a-i-151026): the hide spec names the kept tax-ID column and the label it hides (P-23; card 4b: hide only, the column stays) and asserts its absence with PAYOUTS_ENABLED off and presence with it on. Goes when the money/removals stage deletes the column."
+    "owner": "removals",
+    "note": "4a-i (BB-LDN-4a-i-151026): the hide spec names the kept tax-ID column and the label it hides (P-23; card 4b: hide only, the column stays) and asserts its absence with PAYOUTS_ENABLED off and presence with it on. Goes when the money/removals stage deletes the column. — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: 4a-i's spec asserting the ABN surface is hidden — goes with that surface (P-23)."
   },
   {
     "rule": "identity",
@@ -1683,15 +1683,15 @@
     "rule": "identity",
     "file": "app/src/app/nanny/payouts/onboarding/PayoutOnboardingPageClient.tsx",
     "match": "abn",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 17 hit(s): lines 21, 102, 104, 230, 266, 268, 318, 409, 420, 422, 423, 439, +5 more]"
+    "owner": "removals",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 17 hit(s): lines 21, 102, 104, 230, 266, 268, 318, 409, 420, 422, 423, 439, +5 more] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: file hidden behind PAYOUTS_ENABLED (off) by 4a-i — P-23 hide, not delete."
   },
   {
     "rule": "identity",
     "file": "app/src/app/nanny/payouts/onboarding/PayoutOnboardingPageClient.tsx",
     "match": "ABN",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 12 hit(s): lines 95, 96, 267, 308, 314, 370, 400, 434, 443, 444, 457, 492]"
+    "owner": "removals",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 12 hit(s): lines 95, 96, 267, 308, 314, 370, 400, 434, 443, 444, 457, 492] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: file hidden behind PAYOUTS_ENABLED (off) by 4a-i — P-23 hide, not delete."
   },
   {
     "rule": "identity",
@@ -1837,15 +1837,15 @@
     "rule": "identity",
     "file": "app/src/components/payments/PayoutOnboardingEmbedded.tsx",
     "match": "abn",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 5 hit(s): lines 45, 49, 69, 114, 118]"
+    "owner": "removals",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 5 hit(s): lines 45, 49, 69, 114, 118] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: file hidden behind PAYOUTS_ENABLED (off) by 4a-i — P-23 hide, not delete."
   },
   {
     "rule": "identity",
     "file": "app/src/components/payments/PayoutOnboardingEmbedded.tsx",
     "match": "ABN",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 41]"
+    "owner": "removals",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 41] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: file hidden behind PAYOUTS_ENABLED (off) by 4a-i — P-23 hide, not delete."
   },
   {
     "rule": "identity",
@@ -1914,15 +1914,15 @@
     "rule": "identity",
     "file": "app/src/lib/actions/payments/createConnectAccountSession.ts",
     "match": "ABN",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 3 hit(s): lines 32, 131, 133]"
+    "owner": "removals",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 3 hit(s): lines 32, 131, 133] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: file hidden behind PAYOUTS_ENABLED (off) by 4a-i — P-23 hide, not delete."
   },
   {
     "rule": "identity",
     "file": "app/src/lib/actions/payments/createConnectAccountSession.ts",
     "match": "abn",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 2 hit(s): lines 36, 134]"
+    "owner": "removals",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 2 hit(s): lines 36, 134] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: file hidden behind PAYOUTS_ENABLED (off) by 4a-i — P-23 hide, not delete."
   },
   {
     "rule": "identity",
@@ -2194,15 +2194,15 @@
     "rule": "identity",
     "file": "app/src/lib/payments/abn.test.ts",
     "match": "ABN",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 2 hit(s): lines 2, 15]"
+    "owner": "removals",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 2 hit(s): lines 2, 15] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "identity",
     "file": "app/src/lib/payments/abn.ts",
     "match": "ABN",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 12 hit(s): lines 7, 13, 14, 15, 36, 40, 41, 43, 45, 52, 53, 54]"
+    "owner": "removals",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 12 hit(s): lines 7, 13, 14, 15, 36, 40, 41, 43, 45, 52, 53, 54] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "identity",
@@ -2243,29 +2243,29 @@
     "rule": "identity",
     "file": "app/src/lib/stripe/connect.ts",
     "match": "ABN",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 8 hit(s): lines 17, 100, 102, 104, 108, 113, 119, 174]"
+    "owner": "removals",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 8 hit(s): lines 17, 100, 102, 104, 108, 113, 119, 174] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "identity",
     "file": "app/src/lib/stripe/connect.ts",
     "match": "abn",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 3 hit(s): lines 105, 153, 162]"
+    "owner": "removals",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 3 hit(s): lines 105, 153, 162] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "identity",
     "file": "app/src/lib/stripe/types.ts",
     "match": "ABN",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 2 hit(s): lines 122, 124]"
+    "owner": "removals",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 2 hit(s): lines 122, 124] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "identity",
     "file": "app/src/lib/stripe/types.ts",
     "match": "abn",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 126]"
+    "owner": "removals",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 126] — 4-W5 (BB-LDN-W5money-151026) re-owned money → removals: reached only from surfaces 4a-i hid behind PAYOUTS_ENABLED (off) — P-23 hide, not delete."
   },
   {
     "rule": "identity",
@@ -2383,99 +2383,99 @@
     "rule": "identity",
     "file": "app/supabase/migrations/abn-collection-rollback.sql",
     "match": "abn",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 15 hit(s): lines 2, 5, 11, 48, 54, 55, 58, 59, 60, 61, 62, 63, +3 more]"
+    "owner": "cleanup",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 15 hit(s): lines 2, 5, 11, 48, 54, 55, 58, 59, 60, 61, 62, 63, +3 more] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: Sydney migration history, never applied to bb-ldn (LDN2/schema/ is London's); column names and comments only."
   },
   {
     "rule": "identity",
     "file": "app/supabase/migrations/abn-collection-rollback.sql",
     "match": "ABN",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 2 hit(s): lines 7, 66]"
+    "owner": "cleanup",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 2 hit(s): lines 7, 66] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: Sydney migration history, never applied to bb-ldn (LDN2/schema/ is London's); column names and comments only."
   },
   {
     "rule": "identity",
     "file": "app/supabase/migrations/abn-collection-rollback.sql",
     "match": "wwcc",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 22]"
+    "owner": "cleanup",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 22] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: Sydney migration history, never applied to bb-ldn (LDN2/schema/ is London's); column names and comments only."
   },
   {
     "rule": "identity",
     "file": "app/supabase/migrations/abn-collection.sql",
     "match": "abn",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 38 hit(s): lines 5, 9, 17, 20, 28, 29, 30, 31, 34, 37, 38, 43, +26 more]"
+    "owner": "cleanup",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 38 hit(s): lines 5, 9, 17, 20, 28, 29, 30, 31, 34, 37, 38, 43, +26 more] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: Sydney migration history, never applied to bb-ldn (LDN2/schema/ is London's); column names and comments only."
   },
   {
     "rule": "identity",
     "file": "app/supabase/migrations/abn-collection.sql",
     "match": "ABN",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 3 hit(s): lines 2, 26, 41]"
+    "owner": "cleanup",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 3 hit(s): lines 2, 26, 41] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: Sydney migration history, never applied to bb-ldn (LDN2/schema/ is London's); column names and comments only."
   },
   {
     "rule": "identity",
     "file": "app/supabase/migrations/abn-collection.sql",
     "match": "wwcc",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 122]"
+    "owner": "cleanup",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 122] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: Sydney migration history, never applied to bb-ldn (LDN2/schema/ is London's); column names and comments only."
   },
   {
     "rule": "identity",
     "file": "app/supabase/migrations/payments-foundation-rollback.sql",
     "match": "abn",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 56]"
+    "owner": "cleanup",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 56] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: Sydney migration history, never applied to bb-ldn (LDN2/schema/ is London's); column names and comments only."
   },
   {
     "rule": "identity",
     "file": "app/supabase/migrations/payments-foundation-rollback.sql",
     "match": "wwcc",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 77]"
+    "owner": "cleanup",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 77] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: Sydney migration history, never applied to bb-ldn (LDN2/schema/ is London's); column names and comments only."
   },
   {
     "rule": "identity",
     "file": "app/supabase/migrations/payments-foundation.sql",
     "match": "abn",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 3 hit(s): lines 80, 312, 337]"
+    "owner": "cleanup",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 3 hit(s): lines 80, 312, 337] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: Sydney migration history, never applied to bb-ldn (LDN2/schema/ is London's); column names and comments only."
   },
   {
     "rule": "identity",
     "file": "app/supabase/migrations/payments-foundation.sql",
     "match": "wwcc",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 24]"
+    "owner": "cleanup",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 24] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: Sydney migration history, never applied to bb-ldn (LDN2/schema/ is London's); column names and comments only."
   },
   {
     "rule": "identity",
     "file": "app/supabase/migrations/payments-frontend-rollback.sql",
     "match": "wwcc",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 48]"
+    "owner": "cleanup",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 48] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: Sydney migration history, never applied to bb-ldn (LDN2/schema/ is London's); column names and comments only."
   },
   {
     "rule": "identity",
     "file": "app/supabase/migrations/payments-frontend-rollback.sql",
     "match": "abn",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 100]"
+    "owner": "cleanup",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 100] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: Sydney migration history, never applied to bb-ldn (LDN2/schema/ is London's); column names and comments only."
   },
   {
     "rule": "identity",
     "file": "app/supabase/migrations/payments-frontend.sql",
     "match": "wwcc",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 27]"
+    "owner": "cleanup",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 27] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: Sydney migration history, never applied to bb-ldn (LDN2/schema/ is London's); column names and comments only."
   },
   {
     "rule": "identity",
     "file": "app/supabase/migrations/payments-frontend.sql",
     "match": "abn",
-    "owner": "money",
-    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 81]"
+    "owner": "cleanup",
+    "note": "ABN / Stripe-Connect tax identity on the payout path. The money stage re-derives the UK tax identity with the Stripe account. 04-sequence.md §4 `money`, fate row 12.06.  [W6, 1 hit(s): line 81] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: Sydney migration history, never applied to bb-ldn (LDN2/schema/ is London's); column names and comments only."
   },
   {
     "rule": "identity",
@@ -3034,28 +3034,28 @@
     "rule": "currency",
     "file": "app/src/app/api/webhooks/stripe/handlers.ts",
     "match": "_aud_cents",
-    "owner": "money",
-    "note": "Database column name (`*_aud_cents`, holding pence in London). Renaming a column is schema, not place-layer — cleanup (03-triage.md §6). [4d] Dashboard refund insert, 2 hit(s)."
+    "owner": "cleanup",
+    "note": "Database column name (`*_aud_cents`, holding pence in London). Renaming a column is schema, not place-layer — cleanup (03-triage.md §6). [4d] Dashboard refund insert, 2 hit(s). — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: column / prop / field name only, awaiting the *_aud_cents → *_pence rename (triage §6)."
   },
   {
     "rule": "currency",
     "file": "app/src/app/api/webhooks/stripe/handlers.test.ts",
     "match": "_aud_cents",
-    "owner": "money",
-    "note": "Database column name (`*_aud_cents`, holding pence in London). Renaming a column is schema, not place-layer — cleanup (03-triage.md §6). [4d] The test pins the insert payload, 2 hit(s)."
+    "owner": "cleanup",
+    "note": "Database column name (`*_aud_cents`, holding pence in London). Renaming a column is schema, not place-layer — cleanup (03-triage.md §6). [4d] The test pins the insert payload, 2 hit(s). — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: column / prop / field name only, awaiting the *_aud_cents → *_pence rename (triage §6)."
   },
   {
     "rule": "currency",
     "file": "app/src/app/admin/users/[userId]/subscription/build-timeline.test.ts",
     "match": "amount_aud_cents",
-    "owner": "money",
-    "note": "Database column name (`*_aud_cents`, holding pence in London). Renaming a column is schema, not place-layer — cleanup (03-triage.md §6). [4d] RefundRow fixture, 2 hit(s)."
+    "owner": "cleanup",
+    "note": "Database column name (`*_aud_cents`, holding pence in London). Renaming a column is schema, not place-layer — cleanup (03-triage.md §6). [4d] RefundRow fixture, 2 hit(s). — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: column / prop / field name only, awaiting the *_aud_cents → *_pence rename (triage §6)."
   },
   {
     "rule": "currency",
     "file": "app/src/app/admin/users/[userId]/subscription/SubscriptionStatsGrid.test.tsx",
     "match": "refundedTotalAud",
-    "owner": "money",
-    "note": "Existing prop name of SubscriptionStatsGrid (contract); the test must pass it. Money stage. [4d]"
+    "owner": "cleanup",
+    "note": "Existing prop name of SubscriptionStatsGrid (contract); the test must pass it. Money stage. [4d] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: column / prop / field name only, awaiting the *_aud_cents → *_pence rename (triage §6)."
   }
 ]
