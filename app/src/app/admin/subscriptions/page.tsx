@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/admin/require-admin";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatAuDate } from "@/lib/format/date";
 import { AdminSubscriptionsClient } from "./AdminSubscriptionsClient";
+import { isPaymentDue } from "./types";
 import type { AdminSubscriptionRow, AdminSubscriptionCounters } from "./types";
 import { APP_LOCALE } from "@/lib/constants";
 
@@ -36,7 +37,7 @@ export default async function AdminSubscriptionsPage() {
     admin
       .from("parent_subscriptions")
       .select(
-        "parent_user_id, status, trial_started_at, trial_ends_at, paid_period_starts_at, paid_period_ends_at, past_due_grace_ends_at, stripe_subscription_id, stripe_payment_intent_id, subscription_cycle, cancelled_at, cancellation_reason, updated_at, created_at",
+        "parent_user_id, status, trial_started_at, trial_ends_at, paid_period_starts_at, paid_period_ends_at, past_due_grace_ends_at, stripe_subscription_id, stripe_payment_intent_id, subscription_cycle, cancelled_at, cancellation_reason, updated_at, created_at, family_type, payment_due_at, bill_paid_at",
       )
       .order("updated_at", { ascending: false })
       .limit(500)
@@ -135,13 +136,21 @@ export default async function AdminSubscriptionsPage() {
         ? s.trial_ends_at
         : s.status === "past_due"
           ? s.past_due_grace_ends_at
-          : s.paid_period_ends_at;
+          : s.status === "placed"
+            ? s.bill_paid_at
+              ? null
+              : s.payment_due_at
+            : s.status === "deposit_paid"
+              ? null
+              : s.paid_period_ends_at;
 
     return {
       parentUserId: s.parent_user_id,
       fullName,
       email: profile?.email ?? null,
       status: s.status,
+      familyType: s.family_type === "dfy" ? "dfy" : "self_serve",
+      paymentDue: isPaymentDue(s),
       plan,
       tenureDays,
       subscriberSinceIso,
@@ -164,6 +173,9 @@ export default async function AdminSubscriptionsPage() {
     pastDue: enriched.filter((r) => r.status === "past_due").length,
     cancelled: enriched.filter((r) => r.status === "cancelled").length,
     lapsed: enriched.filter((r) => r.status === "lapsed").length,
+    depositPaid: enriched.filter((r) => r.status === "deposit_paid").length,
+    placed: enriched.filter((r) => r.status === "placed").length,
+    paymentDue: enriched.filter((r) => r.paymentDue).length,
   };
   const mrrAud = counters.activeMonthly * 200;
   const cumulativeRevenueAud = enriched.reduce(
@@ -200,7 +212,7 @@ export default async function AdminSubscriptionsPage() {
         </Card>
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-6">
+      <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-5 lg:grid-cols-9">
         <Counter
           label="Active monthly"
           value={counters.activeMonthly}
@@ -215,11 +227,23 @@ export default async function AdminSubscriptionsPage() {
         <Counter label="Past due" value={counters.pastDue} tone="warn" />
         <Counter label="Cancelled" value={counters.cancelled} tone="muted" />
         <Counter label="Lapsed" value={counters.lapsed} tone="muted" />
+        <Counter
+          label="Deposit paid"
+          value={counters.depositPaid}
+          tone="info"
+        />
+        <Counter label="Placed" value={counters.placed} tone="active" />
+        <Counter
+          label="Payment due"
+          value={counters.paymentDue}
+          tone="warn"
+        />
       </div>
 
       <AdminSubscriptionsClient
         rows={enriched}
         needsAttentionCount={needsAttentionCount}
+        paymentDueCount={counters.paymentDue}
       />
     </div>
   );
@@ -244,6 +268,9 @@ interface RawSubRow {
   cancellation_reason: string | null;
   updated_at: string;
   created_at: string;
+  family_type: string | null;
+  payment_due_at: string | null;
+  bill_paid_at: string | null;
 }
 
 interface RawProfileRow {
@@ -270,11 +297,14 @@ function nextEventLabelForStatus(
   if (status === "past_due") return "Grace ends";
   if (status === "cancelled") return "Access until";
   if (status === "lapsed") return "—";
+  if (status === "placed") return "Payment due";
+  if (status === "deposit_paid") return "Awaiting placement";
   return "Next renewal";
 }
 
 function isNeedsAttention(row: AdminSubscriptionRow): boolean {
   if (row.status === "past_due") return true;
+  if (row.paymentDue) return true;
   if (
     row.status === "trial" &&
     row.nextEventIso &&

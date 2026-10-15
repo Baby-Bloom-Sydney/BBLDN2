@@ -13,6 +13,7 @@ import {
   dispatchChildCreated,
   isUserSubsequentChild,
 } from "./child-onboarding-dispatch";
+import { isDfyFamily } from "@/lib/payments/dfy-access";
 
 export async function getChildrenForUser(): Promise<{
   success: boolean;
@@ -552,11 +553,14 @@ export async function createChildAsParent(data: {
     // here must not block the child-creation result. (Bailey
     // product call 2026-05-13: trial begins at child-add time, not
     // at parent+nanny link time.)
-    const { error: trialErr } = await admin.rpc("start_family_trial_if_first", {
-      p_parent_user_id: user.id,
-    });
-    if (trialErr) {
-      console.warn("[createChildAsParent] trial-start rpc error:", trialErr);
+    // ADR-093 (4c): a done-for-you family gets no trial — skip silently, no error to the parent.
+    if (!(await isDfyFamily(admin, user.id))) {
+      const { error: trialErr } = await admin.rpc("start_family_trial_if_first", {
+        p_parent_user_id: user.id,
+      });
+      if (trialErr) {
+        console.warn("[createChildAsParent] trial-start rpc error:", trialErr);
+      }
     }
 
     let mintResult: { token: string; url: string };

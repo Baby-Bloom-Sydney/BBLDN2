@@ -18,9 +18,16 @@
  *
  * Test users (`user_profiles.is_test_user = TRUE`) ALWAYS pass — they
  * have unconditional access regardless of subscription state.
+ *
+ * London order (4c, amendment 12 — mirrors `family_has_access()`): test user →
+ * admin toggle (`access_toggled_on` not null wins, ADR-093) → `placed` = access
+ * (ADR-093) → the original clauses unchanged. `deposit_paid` is paid with NO access
+ * (ADR-097) → `awaiting_placement`.
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { SubscriptionStatus } from "@/types/payments";
+import type { SubscribeModalLapseReason } from "@/components/payments/SubscribeModal";
 
 export type AccessGateReason =
   | "ok"
@@ -28,7 +35,9 @@ export type AccessGateReason =
   | "trial_expired"
   | "subscription_lapsed"
   | "past_due_grace_expired"
-  | "subscription_cancelled_window_ended";
+  | "subscription_cancelled_window_ended"
+  | "access_off_by_admin"
+  | "awaiting_placement";
 
 export interface AccessGateResult {
   hasAccess: boolean;
@@ -80,29 +89,34 @@ export async function requireFamilyAccess(
   const { data: sub } = await admin
     .from("parent_subscriptions")
     .select(
-      "status, trial_ends_at, paid_period_ends_at, past_due_grace_ends_at",
+      "status, trial_ends_at, paid_period_ends_at, past_due_grace_ends_at, access_toggled_on",
     )
     .eq("parent_user_id", parentUserId)
     .maybeSingle<{
-      status:
-        | "trial"
-        | "active_monthly"
-        | "active_upfront"
-        | "past_due"
-        | "cancelled"
-        | "lapsed";
+      status: SubscriptionStatus;
       trial_ends_at: string | null;
       paid_period_ends_at: string | null;
       past_due_grace_ends_at: string | null;
+      access_toggled_on: boolean | null;
     }>();
 
   if (!sub) {
     return { hasAccess: false, reason: "no_subscription" };
   }
 
+  // Admin toggle overrides every state (ADR-093, card 7b). NULL = no override.
+  if (sub.access_toggled_on === true) return OK;
+  if (sub.access_toggled_on === false) {
+    return { hasAccess: false, reason: "access_off_by_admin" };
+  }
+
   const now = new Date();
 
   switch (sub.status) {
+    case "placed":
+      return OK;
+    case "deposit_paid":
+      return { hasAccess: false, reason: "awaiting_placement" };
     case "trial": {
       const ends = sub.trial_ends_at ? new Date(sub.trial_ends_at) : null;
       if (ends && ends > now) return OK;
@@ -200,4 +214,19 @@ export async function requireChildFamilyAccess(
     return OK;
   }
   return requireFamilyAccess(child.parent_user_id);
+}
+
+/**
+ * The paywall copy key for a refusal (the two development layouts). The two London reasons map to
+ * the existing key explicitly — their own wording is 4g's (4c brief step 2); no new copy here.
+ */
+export function paywallCopyKey(reason: AccessGateReason): SubscribeModalLapseReason {
+  switch (reason) {
+    case "trial_expired":
+      return "trial_ended";
+    case "awaiting_placement": // 4g: DFY deposit paid, waiting for the nanny's start
+    case "access_off_by_admin": // 4g: access switched off by the team
+    default:
+      return "subscription_lapsed";
+  }
 }

@@ -4,7 +4,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { BAppLayout } from "@/components/bapp/BAppLayout";
 import { InviteBanner } from "@/components/bapp/InviteBanner";
 import { getInviteForChild } from "@/lib/actions/bapp/child-invites";
-import { requireChildFamilyAccess } from "@/lib/payments/access-gate";
+import {
+  paywallCopyKey,
+  requireChildFamilyAccess,
+} from "@/lib/payments/access-gate";
 import { createSubscribeInvite } from "@/lib/actions/payments/createSubscribeInvite";
 import {
   hasChildConsent,
@@ -87,11 +90,7 @@ export default async function DevelopmentLayout({
       parentFirstName={parentFirstName}
       nannyShareUrl={nannyShareUrl}
       nannyShareText={nannyShareText}
-      lapseReason={
-        access.reason === "trial_expired"
-          ? "trial_ended"
-          : "subscription_lapsed"
-      }
+      lapseReason={paywallCopyKey(access.reason)}
     >
       {inviteResult?.success && inviteResult.data && (
         <InviteBanner
