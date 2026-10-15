@@ -14,6 +14,8 @@ import {
   isUserSubsequentChild,
 } from "./child-onboarding-dispatch";
 import { isDfyFamily } from "@/lib/payments/dfy-access";
+import { newTrialsEnabled } from "@/lib/payments/flags";
+import { recomputeUpfrontHorizon } from "@/app/api/webhooks/stripe/handlers";
 
 export async function getChildrenForUser(): Promise<{
   success: boolean;
@@ -554,13 +556,22 @@ export async function createChildAsParent(data: {
     // product call 2026-05-13: trial begins at child-add time, not
     // at parent+nanny link time.)
     // ADR-093 (4c): a done-for-you family gets no trial — skip silently, no error to the parent.
-    if (!(await isDfyFamily(admin, user.id))) {
+    // Card 8a (4b): NEW_TRIALS_ENABLED=false stops new trials here too.
+    if (newTrialsEnabled() && !(await isDfyFamily(admin, user.id))) {
       const { error: trialErr } = await admin.rpc("start_family_trial_if_first", {
         p_parent_user_id: user.id,
       });
       if (trialErr) {
         console.warn("[createChildAsParent] trial-start rpc error:", trialErr);
       }
+    }
+
+    // ADR-084 (4b): an upfront family's access runs to the youngest child's 3rd
+    // birthday — recompute now this child is linked. Best-effort: never fails the add.
+    try {
+      await recomputeUpfrontHorizon(admin, user.id);
+    } catch (horizonErr) {
+      console.error("[createChildAsParent] horizon recompute failed:", horizonErr);
     }
 
     let mintResult: { token: string; url: string };

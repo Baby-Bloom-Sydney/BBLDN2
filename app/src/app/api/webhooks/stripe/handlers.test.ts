@@ -31,8 +31,11 @@ vi.mock("@/lib/payments/commission-cancel", () => ({
   cancelInFlightCommission: vi.fn(async () => ({ cancelled: 0 })),
 }));
 
+import { ACCESS_AGE_YEARS, GRACE_DAYS } from "@/config/prices";
 import {
   type AdminClient,
+  accessHorizonIso,
+  recomputeUpfrontHorizon,
   handleChargeRefunded,
   handleCheckoutCompleted,
   handleInvoiceFailed,
@@ -465,5 +468,148 @@ describe("handleChargeRefunded — existing stamp and London Dashboard refund", 
       "refund_requests.insert": [{ error: { message: "boom" } }],
     });
     await expect(handleChargeRefunded(admin, charge())).rejects.toThrow(/refund_requests insert/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4b — access horizon (ADR-083/084, B1): youngest linked child's DOB + ACCESS_AGE_YEARS,
+// recomputed on child link; past-due grace from GRACE_DAYS (card 3a).
+// ---------------------------------------------------------------------------
+
+const OLDER_DOB = "2024-03-10";
+const YOUNGER_DOB = "2025-08-20";
+const plusYears = (dob: string, years: number) => {
+  const d = new Date(dob);
+  d.setUTCFullYear(d.getUTCFullYear() + years);
+  return d.toISOString();
+};
+
+describe("accessHorizonIso — youngest child's 3rd birthday", () => {
+  it("is the youngest child's DOB + ACCESS_AGE_YEARS, whatever order the rows come in", async () => {
+    const { admin, calls } = fakeAdmin({
+      "child_client.select": [
+        { data: [{ date_of_birth: YOUNGER_DOB }, { date_of_birth: OLDER_DOB }] },
+        { data: [{ date_of_birth: OLDER_DOB }, { date_of_birth: YOUNGER_DOB }] },
+      ],
+    });
+    const expected = plusYears(YOUNGER_DOB, ACCESS_AGE_YEARS);
+    expect(await accessHorizonIso(admin, "u1")).toBe(expected);
+    expect(await accessHorizonIso(admin, "u1")).toBe(expected);
+    expect(expected.startsWith("2028-08-20")).toBe(true);
+    expect(calls[0].filters).toContainEqual(["eq", "parent_user_id", "u1"]);
+  });
+
+  it("falls back to now + ACCESS_AGE_YEARS when no child has a DOB", async () => {
+    const now = new Date("2026-10-15T03:00:00Z");
+    const { admin } = fakeAdmin({ "child_client.select": [{ data: [] }] });
+    expect(await accessHorizonIso(admin, "u1", now)).toBe(plusYears(now.toISOString(), ACCESS_AGE_YEARS));
+  });
+
+  it("throws on a DB error so Stripe retries rather than locking in a wrong period", async () => {
+    const { admin } = fakeAdmin({ "child_client.select": [{ error: { message: "boom" } }] });
+    await expect(accessHorizonIso(admin, "u1")).rejects.toThrow(/child_client lookup/);
+  });
+
+  it("the upfront checkout writes the youngest child's horizon to paid_period_ends_at", async () => {
+    const { admin, calls } = fakeAdmin({
+      "parent_subscriptions.select": [{ data: null }, { data: { id: "ps1" } }],
+      "child_client.select": [{ data: [{ date_of_birth: OLDER_DOB }, { date_of_birth: YOUNGER_DOB }] }],
+    });
+    const e = evt<Stripe.CheckoutSessionCompletedEvent>({
+      id: "cs_1",
+      metadata: { user_id: "u1", plan: "upfront" },
+      customer: "cus_1",
+      subscription: null,
+      payment_intent: "pi_1",
+    });
+    expect(await handleCheckoutCompleted(admin, e)).toBe("applied");
+    const upsert = calls.find((c) => c.table === "parent_subscriptions" && c.op === "upsert");
+    expect((upsert?.payload as { paid_period_ends_at: string }).paid_period_ends_at).toBe(
+      plusYears(YOUNGER_DOB, ACCESS_AGE_YEARS),
+    );
+  });
+});
+
+describe("recomputeUpfrontHorizon — on child link", () => {
+  const upfrontRow = (paidEnds: string | null, status = "active_upfront") => ({
+    data: { id: "ps1", status, paid_period_ends_at: paidEnds },
+  });
+
+  it("linking a younger child moves the date forward", async () => {
+    const before = plusYears(OLDER_DOB, ACCESS_AGE_YEARS);
+    const { admin, calls } = fakeAdmin({
+      "parent_subscriptions.select": [upfrontRow(before)],
+      "child_client.select": [{ data: [{ date_of_birth: OLDER_DOB }, { date_of_birth: YOUNGER_DOB }] }],
+    });
+    expect(await recomputeUpfrontHorizon(admin, "u1")).toBe("updated");
+    const update = calls.find((c) => c.table === "parent_subscriptions" && c.op === "update");
+    expect(update?.payload).toEqual({ paid_period_ends_at: plusYears(YOUNGER_DOB, ACCESS_AGE_YEARS) });
+    expect(update?.filters).toContainEqual(["eq", "id", "ps1"]);
+  });
+
+  it("linking an older child leaves the date where it is", async () => {
+    const before = plusYears(YOUNGER_DOB, ACCESS_AGE_YEARS);
+    const { admin, calls } = fakeAdmin({
+      "parent_subscriptions.select": [upfrontRow(before)],
+      "child_client.select": [{ data: [{ date_of_birth: YOUNGER_DOB }, { date_of_birth: OLDER_DOB }] }],
+    });
+    expect(await recomputeUpfrontHorizon(admin, "u1")).toBe("unchanged");
+    expect(calls.some((c) => c.op === "update")).toBe(false);
+  });
+
+  it("never shortens a paid horizon", async () => {
+    const later = "2031-01-01T00:00:00.000Z";
+    const { admin, calls } = fakeAdmin({
+      "parent_subscriptions.select": [upfrontRow(later)],
+      "child_client.select": [{ data: [{ date_of_birth: YOUNGER_DOB }] }],
+    });
+    expect(await recomputeUpfrontHorizon(admin, "u1")).toBe("unchanged");
+    expect(calls.some((c) => c.op === "update")).toBe(false);
+  });
+
+  it.each(["trial", "active_monthly", "cancelled", "placed", "deposit_paid"])(
+    "does nothing for a %s row",
+    async (status) => {
+      const { admin, calls } = fakeAdmin({
+        "parent_subscriptions.select": [upfrontRow("2027-01-01T00:00:00.000Z", status)],
+      });
+      expect(await recomputeUpfrontHorizon(admin, "u1")).toBe("not_upfront");
+      expect(calls.map((c) => c.table)).toEqual(["parent_subscriptions"]);
+    },
+  );
+
+  it("does nothing when the parent has no row", async () => {
+    const { admin } = fakeAdmin({ "parent_subscriptions.select": [{ data: null }] });
+    expect(await recomputeUpfrontHorizon(admin, "u1")).toBe("not_upfront");
+  });
+
+  it("throws on a failed update (the caller logs it; the link stands)", async () => {
+    const { admin } = fakeAdmin({
+      "parent_subscriptions.select": [upfrontRow(plusYears(OLDER_DOB, ACCESS_AGE_YEARS))],
+      "child_client.select": [{ data: [{ date_of_birth: YOUNGER_DOB }] }],
+      "parent_subscriptions.update": [{ error: { message: "boom" } }],
+    });
+    await expect(recomputeUpfrontHorizon(admin, "u1")).rejects.toThrow(/horizon/);
+  });
+});
+
+describe("handleInvoiceFailed — grace window from GRACE_DAYS (card 3a)", () => {
+  it("sets past_due_grace_ends_at to now + GRACE_DAYS days", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-15T03:00:00Z"));
+    try {
+      const { admin, calls } = fakeAdmin({
+        "parent_subscriptions.update": [{ data: { id: "ps1", parent_user_id: "u1" } }],
+      });
+      const e = evt<Stripe.InvoicePaymentFailedEvent>({ id: "in_1", subscription: "sub_1" });
+      expect(await handleInvoiceFailed(admin, e)).toBe("applied");
+      const update = calls.find((c) => c.table === "parent_subscriptions" && c.op === "update");
+      const dayMs = 24 * 60 * 60 * 1000;
+      expect((update?.payload as { past_due_grace_ends_at: string }).past_due_grace_ends_at).toBe(
+        new Date(Date.parse("2026-10-15T03:00:00Z") + GRACE_DAYS * dayMs).toISOString(),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

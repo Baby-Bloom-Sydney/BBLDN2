@@ -750,27 +750,6 @@
   },
   {
     "rule": "currency",
-    "file": "app/src/lib/stripe/transfers.ts",
-    "match": "AUD",
-    "owner": "money",
-    "note": "AUD named in a doc comment about the stored/charged currency. Money stage.  [2d, 1 hit(s): line 14]"
-  },
-  {
-    "rule": "currency",
-    "file": "app/src/lib/stripe/transfers.ts",
-    "match": "currency: \"aud\"",
-    "owner": "money",
-    "note": "Stripe's own currency argument — behaviour, not display. Money stage (04-sequence.md §2 2d 'Not this unit').  [2d, 1 hit(s): line 62]"
-  },
-  {
-    "rule": "currency",
-    "file": "app/src/lib/stripe/types.ts",
-    "match": "AUD",
-    "owner": "money",
-    "note": "AUD named in a doc comment about the stored/charged currency. Money stage.  [2d, 1 hit(s): line 76]"
-  },
-  {
-    "rule": "currency",
     "file": "app/supabase/migrations/cancel-inflight-trigger-v2.sql",
     "match": "A$",
     "owner": "money",
@@ -894,20 +873,6 @@
     "match": "Babysitting / Nannies Hornsby And Surrounding Areas",
     "owner": "removals",
     "note": "Sydney Facebook group directory inside the share loop, which is out for London (N-3, 03-triage §1). Gated or removed by the removals stage; not translated."
-  },
-  {
-    "rule": "timezone",
-    "file": "app/src/components/payments/CancelledInPeriodBanner.test.tsx",
-    "match": "+10:00",
-    "owner": "money",
-    "note": "Fixture of one of the two `it.fails` specs 2b pinned rather than re-baselined: the subscription grace deadline moves by a day under the new zone, and whether it is still correct in London is the money stage's question, not a fixture chore (LEDGER/2b.md §8(1), 04 §4 money). Re-basing the offset here would turn an open question into a green test."
-  },
-  {
-    "rule": "timezone",
-    "file": "app/src/components/payments/PastDueBanner.test.tsx",
-    "match": "+10:00",
-    "owner": "money",
-    "note": "Fixture of one of the two `it.fails` specs 2b pinned rather than re-baselined: the subscription grace deadline moves by a day under the new zone, and whether it is still correct in London is the money stage's question, not a fixture chore (LEDGER/2b.md §8(1), 04 §4 money). Re-basing the offset here would turn an open question into a green test."
   },
   {
     "rule": "brand",

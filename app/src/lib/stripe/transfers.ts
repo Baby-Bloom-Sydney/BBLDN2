@@ -11,12 +11,13 @@
  * idempotency key and Stripe returns the original transfer rather than
  * double-paying.
  *
- * Currency is locked to AUD. Test-user safeguards live one layer up.
+ * Currency is London's (`PRICES.currency`, GBP — LDN2 4b). Test-user safeguards live one layer up.
  */
 
 import { getStripeClient } from "./client";
 import type { SendTransferInput, SendTransferOutput } from "./types";
 import type { StripeResult } from "@/types/payments";
+import { PRICES } from "@/config/prices";
 
 function getErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -59,7 +60,7 @@ export async function sendTransfer(
     const transfer = await stripe.transfers.create(
       {
         amount: amountCents,
-        currency: "aud",
+        currency: PRICES.currency,
         destination: destinationAccountId,
         transfer_group: transferId,
         metadata,

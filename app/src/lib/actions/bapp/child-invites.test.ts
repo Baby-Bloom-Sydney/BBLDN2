@@ -46,6 +46,17 @@ const state = vi.hoisted(() => ({
   activityLogs: [] as Array<Record<string, unknown>>,
   // 4c trial guard (ADR-093): what isDfyFamily answers.
   isDfy: false,
+  // 4b horizon recompute on link (ADR-084): calls + a forced failure.
+  horizonCalls: [] as string[],
+  horizonThrows: false,
+}));
+
+vi.mock("@/app/api/webhooks/stripe/handlers", () => ({
+  recomputeUpfrontHorizon: async (_admin: unknown, parentUserId: string) => {
+    state.horizonCalls.push(parentUserId);
+    if (state.horizonThrows) throw new Error("horizon boom");
+    return "updated";
+  },
 }));
 
 vi.mock("@/lib/payments/dfy-access", () => ({
@@ -72,7 +83,10 @@ beforeEach(() => {
   state.userProfilesById = new Map();
   state.parentConnectedDispatches = [];
   state.isDfy = false;
+  state.horizonCalls = [];
+  state.horizonThrows = false;
   delete process.env.INVITE_LINKS_ENABLED;
+  delete process.env.NEW_TRIALS_ENABLED;
 });
 
 // ── Module mocks ──────────────────────────────────────────────────────
@@ -435,6 +449,38 @@ describe("connectChildInvite — trial guard (4c, ADR-093)", () => {
     expect(result.success).toBe(true);
     expect(result.error).toBeNull();
     expect(state.rpcCalls.map((c) => c.name)).not.toContain("start_family_trial_if_first");
+  });
+});
+
+describe("connectChildInvite — NEW_TRIALS_ENABLED + horizon recompute (4b)", () => {
+  const linked = () => {
+    state.rpcResponse = { data: [{ child_id: "child-claimed-1" }], error: null };
+    state.childById = { first_name: "Oliver", parent_user_id: "parent-99", nanny_user_id: "nanny-99" };
+  };
+
+  it("NEW_TRIALS_ENABLED=false skips the trial RPC; the link still succeeds (card 8a)", async () => {
+    linked();
+    process.env.NEW_TRIALS_ENABLED = "false";
+    const { connectChildInvite } = await import("./child-invites");
+    const result = await connectChildInvite("ABCD-2345");
+    expect(result.success).toBe(true);
+    expect(state.rpcCalls.map((c) => c.name)).toEqual(["connect_child_invite"]);
+  });
+
+  it("recomputes the parent's upfront horizon after the link (ADR-084)", async () => {
+    linked();
+    const { connectChildInvite } = await import("./child-invites");
+    expect((await connectChildInvite("ABCD-2345")).success).toBe(true);
+    expect(state.horizonCalls).toEqual(["parent-99"]);
+  });
+
+  it("a failed recompute is logged and never fails the link", async () => {
+    linked();
+    state.horizonThrows = true;
+    const { connectChildInvite } = await import("./child-invites");
+    const result = await connectChildInvite("ABCD-2345");
+    expect(result.success).toBe(true);
+    expect(result.error).toBeNull();
   });
 });
 

@@ -19,15 +19,15 @@ function makeProps(
   overrides: Partial<PastDueBannerProps> = {},
 ): PastDueBannerProps {
   return {
-    graceEndsAt: "2026-05-25T00:00:00+10:00",
+    graceEndsAt: "2026-05-25T00:00:00+01:00",
     onUpdateCard: vi.fn(),
     ...overrides,
   };
 }
 
 describe("PastDueBanner", () => {
-  // owner: money — grace-period date shifts a day under Europe/London; raise, do not re-baseline (2b)
-  it.fails("renders payment-failed copy with grace date (AC-S11.1)", () => {
+  // 4b (card 3b): fixture is a London instant (+01:00) and `formatAuDate` formats in London time — unpinned.
+  it("renders payment-failed copy with grace date (AC-S11.1)", () => {
     const props = makeProps();
     render(createElement(PastDueBanner, props));
     expect(

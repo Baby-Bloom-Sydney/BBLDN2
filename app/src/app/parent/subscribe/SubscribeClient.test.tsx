@@ -83,10 +83,14 @@ describe("SubscribeClient — card order (anchoring psychology)", () => {
     expect(cards[1]).toHaveAttribute("data-testid", "plan-card-monthly");
   });
 
-  it("displays £2,000 upfront + £200/month", () => {
+  // 4b (ADR-091): both prices come from `config/prices.ts` — £2,000 to age 3, £75 per month.
+  it("displays the upfront and monthly prices from config", () => {
     renderClient();
-    expect(screen.getByText(/£2,000/)).toBeInTheDocument();
-    expect(screen.getByText(/£200/)).toBeInTheDocument();
+    expect(screen.getByTestId("plan-card-upfront").textContent).toMatch(/£2,000(?!\.)/);
+    const monthly = screen.getByTestId("plan-card-monthly").textContent ?? "";
+    expect(monthly).toMatch(/£75(?![\d.])/);
+    expect(monthly).toMatch(/\/month/);
+    expect(monthly).not.toMatch(/£200/);
   });
 });
 
