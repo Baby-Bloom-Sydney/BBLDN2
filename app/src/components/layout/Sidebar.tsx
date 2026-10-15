@@ -32,6 +32,7 @@ import {
   Wallet,
   LifeBuoy,
   Phone,
+  BadgeCheck,
 } from "lucide-react";
 import Link from "next/link";
 import { payoutsEnabled } from "@/lib/payments/flags";
@@ -76,6 +77,7 @@ const adminNavItems = [
   { href: "/admin/positions", icon: Briefcase, label: "Positions" },
   { href: "/admin/users", icon: Users, label: "User Management" },
   { href: "/admin/subscriptions", icon: CreditCard, label: "Subscriptions" },
+  { href: "/admin/guarantees", icon: BadgeCheck, label: "Guarantees" },
   { href: "/admin/payouts", icon: Wallet, label: "Payouts" },
   { href: "/admin/support", icon: LifeBuoy, label: "Support" },
   {
