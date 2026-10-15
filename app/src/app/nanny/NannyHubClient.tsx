@@ -48,6 +48,8 @@ import {
 import { NannyJobsView, type OpenPosition } from "./jobs/NannyJobsView";
 import { NannyBabysittingClient } from "./babysitting/NannyBabysittingClient";
 import type { NannyBabysittingJob } from "@/lib/actions/babysitting";
+import { babysittingEnabled } from "@/lib/features/flags";
+import { BabysittingComingSoon } from "@/components/babysitting/BabysittingComingSoon";
 import type { UpcomingIntro } from "@/lib/actions/position-funnel";
 import type { DfyNotification } from "@/lib/actions/matching";
 import { ChildCardGrid } from "@/components/bapp/ChildCardGrid";
@@ -989,7 +991,9 @@ export function NannyHubClient({
           {
             id: "babysitting" as MainTabId,
             label: "Babysitting",
-            locked: isTabsLocked,
+            // 5c (P-23): while BABYSITTING_ENABLED is off the tab is open to every level so its "Coming soon."
+            // body is visible (the lock modal would promise a babysitting dashboard).
+            locked: isTabsLocked && babysittingEnabled(),
           },
         ].map((tab) => {
           const isActive = activeTab === tab.id;
@@ -1080,7 +1084,10 @@ export function NannyHubClient({
           )}
         </div>
       )}
-      {activeTab === "babysitting" && (
+      {activeTab === "babysitting" && !babysittingEnabled() && (
+        <BabysittingComingSoon />
+      )}
+      {activeTab === "babysitting" && babysittingEnabled() && (
         <NannyBabysittingClient
           jobs={babysittingJobs}
           banned={bsrBanned}

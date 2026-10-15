@@ -4,9 +4,12 @@ const nextConfig = {
   // chrome (nav badge, admin menu, settings, admin leads) reads the same switch as the server (`payoutsEnabled()`).
   // 5b (P-23): the share loop is hidden unless SHARE_LOOP_ENABLED is "true" (`@/lib/features/flags`). Inlined the same way
   // so the client nav and the funnel CTA read the same switch as the server pages.
+  // 5c (P-23): babysitting is hidden ("Coming soon.") unless BABYSITTING_ENABLED is "true"; inlined so the client hubs
+  // and Katie's tile registry read the same switch as the server pages.
   env: {
     PAYOUTS_ENABLED: process.env.PAYOUTS_ENABLED ?? "",
     SHARE_LOOP_ENABLED: process.env.SHARE_LOOP_ENABLED ?? "",
+    BABYSITTING_ENABLED: process.env.BABYSITTING_ENABLED ?? "",
   },
   typescript: {
     // strict: build fails on TS errors

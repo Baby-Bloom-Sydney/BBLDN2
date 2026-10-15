@@ -20,6 +20,7 @@ import { KatieNoteTile } from "./KatieNoteTile";
 import { VerificationStatusTile } from "./VerificationStatusTile";
 import { ConnectionRequestTile } from "./ConnectionRequestTile";
 import { BsrJobTile } from "./BsrJobTile";
+import { babysittingEnabled } from "@/lib/features/flags";
 import { JobMatchTile } from "./JobMatchTile";
 import { PositionTile } from "./PositionTile";
 import { PlacementTile } from "./PlacementTile";
@@ -64,7 +65,8 @@ export function RenderTile({ tile }: { tile: ChatTile }) {
     case "bsr_job":
       // Babysitting request live view — role-aware (nanny invitation
       // vs parent's own request). Fetches /api/chat/bsr/[id].
-      return <BsrJobTile tile={tile} />;
+      // 5c (P-23): not offered while BABYSITTING_ENABLED is off — a persisted tile renders nothing, no fetch.
+      return babysittingEnabled() ? <BsrJobTile tile={tile} /> : null;
     case "job_match":
       // DFY match notification live view — nanny-only. Fetches
       // /api/chat/job-matches/[id].

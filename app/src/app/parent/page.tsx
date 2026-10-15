@@ -8,6 +8,7 @@ import {
 } from "@/lib/actions/position-funnel";
 import { getDfyStatus } from "@/lib/actions/matching";
 import { getParentBabysittingRequests } from "@/lib/actions/babysitting";
+import { babysittingEnabled } from "@/lib/features/flags";
 import { getPendingInvitesForUser } from "@/lib/actions/bapp/child-invites";
 import { POSITION_STAGE } from "@/lib/position/constants";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -53,7 +54,10 @@ export default async function ParentHubPage({
       : Promise.resolve({ data: [], error: null }),
     getParentUpcomingIntros(),
     getDfyStatus(),
-    getParentBabysittingRequests(),
+    // 5c (P-23): not called while BABYSITTING_ENABLED is off, so its lazy expiry/reminder sweeps never run.
+    babysittingEnabled()
+      ? getParentBabysittingRequests()
+      : Promise.resolve({ data: [], error: null }),
     user
       ? admin
           .from("child_client")

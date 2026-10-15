@@ -82,6 +82,8 @@ import type { DfyConnection } from "@/lib/actions/matching";
 import { getScoreBadgeStyle, calcAge } from "@/components/match/match-helpers";
 import { ScheduleTimeGrid } from "@/components/position/ScheduleTimeGrid";
 import { formatClockTime as bsrFormatTime } from "@/lib/timezone";
+import { babysittingEnabled } from "@/lib/features/flags";
+import { BabysittingComingSoon } from "@/components/babysitting/BabysittingComingSoon";
 import type { TypeformFormData } from "../parent/request/questions";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -1763,6 +1765,10 @@ export function ParentHubClient({
       <div
         style={{ display: activeTab === "babysitting" ? undefined : "none" }}
       >
+        {/* 5c (P-23): while BABYSITTING_ENABLED is off the tab stays and says "Coming soon." — no CTA, no buckets. */}
+        {!babysittingEnabled() ? (
+          <BabysittingComingSoon />
+        ) : (
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="flex items-center justify-end px-5 py-4">
             {bsrHasActive && (
@@ -1938,6 +1944,7 @@ export function ParentHubClient({
             )}
           </div>
         </div>
+        )}
       </div>
 
       {/* ═══════════════════════════════════════════════════

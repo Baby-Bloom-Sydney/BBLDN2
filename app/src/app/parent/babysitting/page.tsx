@@ -2,8 +2,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
 import { getParentBabysittingRequests, getLondonDistricts } from "@/lib/actions/babysitting";
 import { ParentBabysittingClient } from "./ParentBabysittingClient";
+import { babysittingEnabled } from "@/lib/features/flags";
+import { BabysittingComingSoon } from "@/components/babysitting/BabysittingComingSoon";
 
 export default async function ParentBabysittingPage() {
+  // 5c (P-23): babysitting is hidden while BABYSITTING_ENABLED is off — the page stays (nav links work) and says
+  // "Coming soon." before any read.
+  if (!babysittingEnabled()) return <BabysittingComingSoon withHeading />;
+
   const [{ data: requests, error }, districts] = await Promise.all([
     getParentBabysittingRequests(),
     getLondonDistricts(),

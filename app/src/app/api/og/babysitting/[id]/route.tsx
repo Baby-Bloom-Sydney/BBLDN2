@@ -1,11 +1,17 @@
 import { ImageResponse } from "next/og";
 import { getPublicBsrProfile } from "@/lib/actions/babysitting";
 import { BRAND } from "@/lib/constants";
+import { babysittingEnabled } from "@/lib/features/flags";
 
 export async function GET(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
+  // 5c (P-23): 404 while BABYSITTING_ENABLED is off, before any read or font fetch.
+  if (!babysittingEnabled()) {
+    return new Response("Not found", { status: 404 });
+  }
+
   const { data: bsr } = await getPublicBsrProfile(params.id);
 
   if (!bsr) {
