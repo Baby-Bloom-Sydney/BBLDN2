@@ -6,12 +6,15 @@
  * Contract
  * - Input: the service-role client and a completed Checkout Session minted by `createDfyPaymentLink`
  *   (metadata `{ user_id, link_kind, pence }`, plus `first_week_wages_pence` on a balance link).
- * - `deposit` → `family_type='dfy'`, deposit columns, `status='deposit_paid'` unless already `placed`.
+ * - `deposit` → `family_type='dfy'`, deposit columns, `status='deposit_paid'` unless already `placed` or a
+ *   live self-serve trial/paid state (that access is kept; review HIGH).
  *   Opens **no** access (ADR-097) — no toggle or access column is written. Logs `dfy.deposit_paid`.
  * - `balance-after-week-1` / `custom` → `bill_paid_at`, `bill_stripe_payment_intent_id`, `balance_pence`
  *   (+ `first_week_wages_pence` when the link carried it). Status untouched. Logs `dfy.bill_paid`.
- * - Returns `"ignored"` for: an unknown kind, no `user_id`, not yet paid, the same payment intent already
- *   recorded (Stripe retry), or a bill for a family with no subscription row. Otherwise `"applied"`.
+ * - Returns `"ignored"` for: an unknown kind, no `user_id`, not a paid payment-mode session, no `amount_total`
+ *   (metadata is never an amount source), `client_reference_id` ≠ `metadata.user_id`, the same payment intent
+ *   already recorded (Stripe retry), a bill for a family with no subscription row, or a bill whose session
+ *   customer is not the family's `stripe_customer_id`. Otherwise `"applied"`.
  * - Throws on a database write error so the route records the event unresolved and Stripe retries.
  * - Never: emails anyone, reads an amount from anywhere but the session, or changes access by itself.
  *
@@ -20,12 +23,18 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
 import { PAYMENT_LINK_PRESETS, type PaymentLinkPreset } from "@/config/offer";
+import { isLiveSelfServe } from "./dfy-access";
 
 export type DfyLinkOutcome = "applied" | "ignored";
 
 interface SubRow {
   id: string;
   status: string;
+  family_type: string | null;
+  trial_ends_at: string | null;
+  paid_period_ends_at: string | null;
+  past_due_grace_ends_at: string | null;
+  stripe_customer_id: string | null;
   deposit_stripe_payment_intent_id: string | null;
   bill_stripe_payment_intent_id: string | null;
 }
@@ -40,13 +49,16 @@ function intentId(session: Stripe.Checkout.Session): string | null {
   return typeof pi === "string" ? pi : pi.id;
 }
 
-/** Whole non-negative pence from Stripe's total, else the metadata the link was minted with. */
+/** What Stripe charged — `amount_total` only; metadata is never an amount source (4d security review). */
 function chargedPence(session: Stripe.Checkout.Session): number | null {
-  if (Number.isInteger(session.amount_total) && (session.amount_total ?? -1) >= 0) {
-    return session.amount_total as number;
-  }
-  const meta = Number(session.metadata?.pence);
-  return Number.isInteger(meta) && meta >= 0 ? meta : null;
+  const total = session.amount_total;
+  return typeof total === "number" && Number.isInteger(total) && total >= 0 ? total : null;
+}
+
+function customerId(session: Stripe.Checkout.Session): string | null {
+  const c = session.customer;
+  if (!c) return null;
+  return typeof c === "string" ? c : c.id;
 }
 
 function optionalPence(raw: string | undefined): number | undefined {
@@ -73,7 +85,12 @@ export async function handleDfyLinkCompleted(
   const kind = session.metadata?.link_kind;
   const userId = session.metadata?.user_id;
   if (!isPreset(kind) || !userId) return "ignored";
-  if (session.payment_status !== "paid") return "ignored";
+  if (session.payment_status !== "paid" || session.mode !== "payment") return "ignored";
+  // Minted by createDfyPaymentLink: client_reference_id is the same parent (security review MEDIUM).
+  if (session.client_reference_id !== userId) {
+    console.warn("[dfy-webhook] client_reference_id does not match metadata.user_id; ignored", session.id);
+    return "ignored";
+  }
 
   const pi = intentId(session);
   const pence = chargedPence(session);
@@ -81,7 +98,9 @@ export async function handleDfyLinkCompleted(
 
   const { data: row, error: readErr } = await admin
     .from("parent_subscriptions")
-    .select("id, status, deposit_stripe_payment_intent_id, bill_stripe_payment_intent_id")
+    .select(
+      "id, status, family_type, trial_ends_at, paid_period_ends_at, past_due_grace_ends_at, stripe_customer_id, deposit_stripe_payment_intent_id, bill_stripe_payment_intent_id",
+    )
     .eq("parent_user_id", userId)
     .maybeSingle<SubRow>();
   if (readErr) throw new Error(`[dfy-webhook] read failed: ${readErr.message}`);
@@ -103,7 +122,11 @@ export async function handleDfyLinkCompleted(
         "deposit insert",
       );
     } else {
-      const status = row.status === "placed" ? {} : { status: "deposit_paid" };
+      // `placed` stays placed; a live self-serve family keeps the access it already pays for or is
+      // trialling (code review HIGH) — the deposit itself still opens nothing (ADR-097), and
+      // openDfyAccess moves the row to `placed` at placement because family_type is now dfy.
+      const keepStatus = row.status === "placed" || isLiveSelfServe(row);
+      const status = keepStatus ? {} : { status: "deposit_paid" };
       await must(admin.from("parent_subscriptions").update({ ...deposit, ...status }).eq("id", row.id), "deposit update");
     }
     await log(admin, userId, "dfy.deposit_paid", details);
@@ -113,6 +136,11 @@ export async function handleDfyLinkCompleted(
   // balance-after-week-1 / custom — the bill. Minted only for a family with a row.
   if (!row) return "ignored";
   if (row.bill_stripe_payment_intent_id === pi) return "ignored";
+  // The bill link is minted on the family's Stripe customer when it has one: the session must carry it.
+  if (row.stripe_customer_id && customerId(session) !== row.stripe_customer_id) {
+    console.warn("[dfy-webhook] bill session customer does not match the family's; ignored", session.id);
+    return "ignored";
+  }
   const wages = kind === "balance-after-week-1" ? optionalPence(session.metadata?.first_week_wages_pence) : undefined;
   await must(
     admin
