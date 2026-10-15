@@ -5,7 +5,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { USAGE_CHECK_WINDOW_DAYS, USAGE_LOW_THRESHOLD_PER_CHILD_PER_WEEK as T } from "@/config/offer";
-import { fakeAdmin, writesTo, type FakeAdmin } from "@/lib/payments/fake-admin.test-util";
+import { fakeAdmin, writesTo, type Fake as FakeAdmin, type Op } from "./fake-admin.test-util";
+import { IN_CHUNK, PAGE_SIZE } from "./read";
 
 const h = vi.hoisted(() => ({ fake: null as unknown as FakeAdmin, alert: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => h.fake.client }));
@@ -19,11 +20,16 @@ const req = (auth?: string) =>
   });
 const AUTH = "Bearer test-secret";
 
+const LATER = "2999-01-01T00:00:00Z";
+const childOf = (op: Op) => op.filters.find((f) => f[0] === "eq" && f[1] === "child_client_id")?.[2] as string;
+/** Head counts of active posts per child for the window. */
+const counts = (byChild: Record<string, number>) => (op: Op) => ({ count: byChild[childOf(op)] ?? 0 });
+
 function seed(over: Record<string, unknown> = {}) {
   return fakeAdmin({
     parent_subscriptions: [
       { parent_user_id: "p1", status: "placed", access_toggled_on: null },
-      { parent_user_id: "p2", status: "trial", access_toggled_on: null },
+      { parent_user_id: "p2", status: "trial", access_toggled_on: null, trial_ends_at: LATER },
       { parent_user_id: "p3", status: "deposit_paid", access_toggled_on: null },
       { parent_user_id: "p4", status: "placed", access_toggled_on: null },
     ],
@@ -38,9 +44,9 @@ function seed(over: Record<string, unknown> = {}) {
       { id: "c2", parent_user_id: "p2", first_name: "Leo" },
       { id: "c4", parent_user_id: "p4", first_name: "Kit" },
     ],
-    bapp_logs: Array.from({ length: T }, () => ({ child_client_id: "c2" })),
+    bapp_logs: counts({ c2: T }),
     ...over,
-  });
+  } as Parameters<typeof fakeAdmin>[0]);
 }
 
 beforeEach(() => {
@@ -85,7 +91,7 @@ describe("usage-weekly-check", () => {
         user_id: "p1",
         action_type: "usage.low",
         action_details: expect.objectContaining({
-          children: [{ child_client_id: "c1", first_name: "Mila", posts: 0 }],
+          children: [{ child_client_id: "c1", posts: 0 }],
           window_days: USAGE_CHECK_WINDOW_DAYS,
           threshold_per_child: T,
         }),
@@ -99,14 +105,16 @@ describe("usage-weekly-check", () => {
     expect([...tables]).toEqual(["activity_logs"]);
   });
 
-  it("counts only active posts inside the window, for the families' linked, open children", async () => {
+  it("counts only active posts inside the window, one exact head count per linked, open child", async () => {
     await GET(req(AUTH));
-    const logs = selectOn("bapp_logs");
+    const heads = h.fake.ops.filter((o) => o.table === "bapp_logs");
+    expect(heads.map(childOf)).toEqual(["c1", "c2"]);
+    expect(heads.every((o) => o.head)).toBe(true);
+    const logs = heads[0];
     expect(logs.filters).toEqual(
       expect.arrayContaining([
         ["eq", "is_active", true],
         ["gte", "created_at", expect.any(String)],
-        ["in", "child_client_id", ["c1", "c2"]],
       ]),
     );
     const since = logs.filters.find((f) => f[0] === "gte")![2] as string;
@@ -128,7 +136,7 @@ describe("usage-weekly-check", () => {
   });
 
   it("no low family → no email, no row", async () => {
-    h.fake = seed({ bapp_logs: [...Array.from({ length: T }, () => ({ child_client_id: "c1" })), ...Array.from({ length: T }, () => ({ child_client_id: "c2" }))] });
+    h.fake = seed({ bapp_logs: counts({ c1: T, c2: T }) });
     const res = await GET(req(AUTH));
     expect(await res.json()).toEqual({ ok: true, checked: 2, low: 0, skipped: 0 });
     expect(h.alert).not.toHaveBeenCalled();
@@ -142,10 +150,47 @@ describe("usage-weekly-check", () => {
     expect(writesTo(h.fake, "activity_logs")).toHaveLength(0);
   });
 
+  it("an ended trial is not access, even before the status flips", async () => {
+    h.fake = seed({
+      parent_subscriptions: [{ parent_user_id: "p2", status: "trial", access_toggled_on: null, trial_ends_at: "2000-01-01T00:00:00Z" }],
+    });
+    expect(await (await GET(req(AUTH))).json()).toEqual({ ok: true, checked: 0, low: 0, skipped: 0 });
+  });
+
+  it("pages past the PostgREST row cap and chunks long id lists", async () => {
+    const many = Array.from({ length: PAGE_SIZE + 5 }, (_, i) => ({
+      parent_user_id: `f${i}`,
+      status: "placed",
+      access_toggled_on: null,
+    }));
+    h.fake = seed({ parent_subscriptions: many, user_profiles: [], child_client: [] });
+    const res = await GET(req(AUTH));
+    expect(await res.json()).toEqual({ ok: true, checked: PAGE_SIZE + 5, low: 0, skipped: 0 });
+    const subReads = h.fake.ops.filter((o) => o.table === "parent_subscriptions");
+    expect(subReads.map((o) => o.filters.find((f) => f[0] === "range"))).toEqual([
+      ["range", 0, PAGE_SIZE - 1],
+      ["range", PAGE_SIZE, 2 * PAGE_SIZE - 1],
+    ]);
+    const profileReads = h.fake.ops.filter((o) => o.table === "user_profiles");
+    expect(profileReads).toHaveLength(Math.ceil((PAGE_SIZE + 5) / IN_CHUNK));
+    for (const o of profileReads) {
+      const ids = o.filters.find((f) => f[0] === "in")![2] as string[];
+      expect(ids.length).toBeLessThanOrEqual(IN_CHUNK);
+    }
+  });
+
+  it("a read error answers 500 and sends nothing", async () => {
+    h.fake = seed({ bapp_logs: () => { throw new Error("db down"); } });
+    const res = await GET(req(AUTH));
+    expect(res.status).toBe(500);
+    expect(h.alert).not.toHaveBeenCalled();
+  });
+
   it("no family with access → ok, nothing read further", async () => {
     h.fake = seed({ parent_subscriptions: [{ parent_user_id: "p3", status: "lapsed", access_toggled_on: null }] });
     const res = await GET(req(AUTH));
     expect(await res.json()).toEqual({ ok: true, checked: 0, low: 0, skipped: 0 });
     expect(h.fake.ops.map((o) => o.table)).toEqual(["parent_subscriptions"]);
+    expect(h.alert).not.toHaveBeenCalled();
   });
 });

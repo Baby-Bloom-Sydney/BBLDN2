@@ -5,7 +5,17 @@ import { describe, expect, it } from "vitest";
 import { USAGE_LOW_THRESHOLD_PER_CHILD_PER_WEEK as T } from "@/config/offer";
 import { findLowFamilies, hasUsageAccess } from "./low-usage";
 
+const LATER = "2999-01-01T00:00:00Z";
+const EARLIER = "2000-01-01T00:00:00Z";
+
 describe("hasUsageAccess — the families the check looks at", () => {
+  it("a trial or paid period that has ended is not access, even before the status flips", () => {
+    expect(hasUsageAccess({ status: "trial", access_toggled_on: null, trial_ends_at: EARLIER })).toBe(false);
+    expect(hasUsageAccess({ status: "trial", access_toggled_on: null, trial_ends_at: null })).toBe(false);
+    expect(hasUsageAccess({ status: "active_monthly", access_toggled_on: null, paid_period_ends_at: EARLIER })).toBe(false);
+    expect(hasUsageAccess({ status: "active_upfront", access_toggled_on: null, paid_period_ends_at: null })).toBe(false);
+  });
+
   it.each([
     ["placed", null, true],
     ["trial", null, true],
@@ -19,7 +29,9 @@ describe("hasUsageAccess — the families the check looks at", () => {
     ["lapsed", true, true],
     ["placed", false, false],
   ] as const)("%s, toggle %s → %s", (status, toggle, want) => {
-    expect(hasUsageAccess({ status, access_toggled_on: toggle })).toBe(want);
+    expect(
+      hasUsageAccess({ status, access_toggled_on: toggle, trial_ends_at: LATER, paid_period_ends_at: LATER }),
+    ).toBe(want);
   });
 });
 

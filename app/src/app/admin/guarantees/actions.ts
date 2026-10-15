@@ -67,17 +67,21 @@ interface SubRow {
 
 type Admin = ReturnType<typeof createAdminClient>;
 
-async function isFamily(admin: Admin, parentUserId: string): Promise<boolean> {
-  const { data } = await admin.from("parents").select("id").eq("user_id", parentUserId).maybeSingle();
+/** true / false, or null when the read failed (callers fail, never guess). */
+async function isFamily(admin: Admin, parentUserId: string): Promise<boolean | null> {
+  const { data, error } = await admin.from("parents").select("id").eq("user_id", parentUserId).maybeSingle();
+  if (error) return null;
   return Boolean(data);
 }
 
-async function familySubscription(admin: Admin, parentUserId: string): Promise<SubRow | null> {
-  const { data } = await admin
+/** The family's subscription row (may be absent), or "error" when the read failed. */
+async function familySubscription(admin: Admin, parentUserId: string): Promise<SubRow | null | "error"> {
+  const { data, error } = await admin
     .from("parent_subscriptions")
     .select("placement_id, placed_at, satisfaction_window_ends_at")
     .eq("parent_user_id", parentUserId)
     .maybeSingle<SubRow>();
+  if (error) return "error";
   return data ?? null;
 }
 
@@ -98,9 +102,12 @@ export async function findGuaranteeFamily(rawEmail: string): Promise<FindFamilyR
   if (!profiles || profiles.length === 0) return { ok: false, error: "not_found" };
   if (profiles.length > 1) return { ok: false, error: "ambiguous" };
   const p = profiles[0];
-  if (!(await isFamily(admin, p.user_id))) return { ok: false, error: "not_a_family" };
+  const family = await isFamily(admin, p.user_id);
+  if (family === null) return { ok: false, error: "lookup_failed" };
+  if (!family) return { ok: false, error: "not_a_family" };
 
   const sub = await familySubscription(admin, p.user_id);
+  if (sub === "error") return { ok: false, error: "lookup_failed" };
   const { data: recordedRows } = await admin
     .from("guarantee_events")
     .select("promise")
@@ -130,14 +137,18 @@ export async function recordGuarantee(input: unknown): Promise<RecordResult> {
   const v = parsed.value;
 
   const admin = createAdminClient();
-  if (!(await isFamily(admin, v.parentUserId))) return { ok: false, error: "not_a_family" };
+  const family = await isFamily(admin, v.parentUserId);
+  if (family === null) return { ok: false, error: "save_failed" };
+  if (!family) return { ok: false, error: "not_a_family" };
 
   if (v.promise === "G4") {
-    const { count } = await admin.from("nanny_placements").select("id", { count: "exact", head: true });
+    const { count, error: countErr } = await admin.from("nanny_placements").select("id", { count: "exact", head: true });
+    if (countErr) return { ok: false, error: "save_failed" };
     if (!g4Enabled(count ?? 0)) return { ok: false, error: "g4_not_enabled" };
   }
 
   const sub = await familySubscription(admin, v.parentUserId);
+  if (sub === "error") return { ok: false, error: "save_failed" };
   const { data: row, error: insErr } = await admin
     .from("guarantee_events")
     .insert({

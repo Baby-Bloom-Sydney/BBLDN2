@@ -130,6 +130,15 @@ describe("recordGuarantee", () => {
     expect(await recordGuarantee({ ...INPUT, promise: "G4" })).toEqual({ ok: true, id: "ge-1" });
   });
 
+  it("a failed family or subscription read never writes a ledger row without its placement", async () => {
+    h.res["parents:select"] = { error: { message: "timeout" } };
+    expect(await recordGuarantee(INPUT)).toEqual({ ok: false, error: "save_failed" });
+    h.res["parents:select"] = { data: { id: "par-1" } };
+    h.res["parent_subscriptions:select"] = { error: { message: "timeout" } };
+    expect(await recordGuarantee(INPUT)).toEqual({ ok: false, error: "save_failed" });
+    expect(writes("guarantee_events")).toHaveLength(0);
+  });
+
   it("a failed audit row does not undo the recorded guarantee", async () => {
     h.res["activity_logs:insert"] = { error: { message: "check violation" } };
     expect(await recordGuarantee(INPUT)).toEqual({ ok: true, id: "ge-1" });
@@ -178,6 +187,11 @@ describe("findGuaranteeFamily", () => {
     h.res["user_profiles:select"] = { data: [{ user_id: PARENT, first_name: null, last_name: null, email: "x@example.com" }] };
     h.res["parents:select"] = { data: null };
     expect(await findGuaranteeFamily("x@example.com")).toEqual({ ok: false, error: "not_a_family" });
+  });
+
+  it("a failed read is lookup_failed, not a wrong answer", async () => {
+    h.res["parents:select"] = { error: { message: "timeout" } };
+    expect(await findGuaranteeFamily("ann@example.com")).toEqual({ ok: false, error: "lookup_failed" });
   });
 
   it("a family with no subscription row still resolves, window unknown", async () => {
