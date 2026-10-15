@@ -69,3 +69,30 @@ describe("viral-loop writers — reopen with SHARE_LOOP_ENABLED=true", () => {
     await expect(loop.createShareRecord(SHARE_CASE_TYPE.NANNY_PROFILE, "n1", "u1")).rejects.toThrow("DB:viral_shares");
   });
 });
+
+// Security review (5b): the readers are exported actions too; three of them take any id with no auth.
+const READERS: Array<[string, () => Promise<unknown>, unknown]> = [
+  ["getShareForUser", () => loop.getShareForUser(SHARE_CASE_TYPE.NANNY_PROFILE, "n1"), { share: null, error: "share_loop_disabled" }],
+  ["getSharesForUser", () => loop.getSharesForUser(), { shares: [], error: "share_loop_disabled" }],
+  ["isViralAccessGranted", () => loop.isViralAccessGranted(SHARE_CASE_TYPE.NANNY_PROFILE, "n1"), false],
+  ["getNannySharePageData", () => loop.getNannySharePageData(), { data: null, error: "share_loop_disabled" }],
+  ["getBsrSharePageData", () => loop.getBsrSharePageData("b1"), { data: null, error: "share_loop_disabled" }],
+  ["getPositionSharePageData", () => loop.getPositionSharePageData(), { data: null, error: "share_loop_disabled" }],
+  ["isNannyViralCompliant", () => loop.isNannyViralCompliant("n1"), false],
+  ["isPositionViralCompliant", () => loop.isPositionViralCompliant("p1"), false],
+  ["isBsrViralCompliant", () => loop.isBsrViralCompliant("b1"), false],
+];
+
+describe("viral-loop readers — refuse while SHARE_LOOP_ENABLED is off", () => {
+  it.each(READERS)("%s → empty / false, no auth, no DB", async (_name, call, expected) => {
+    vi.stubEnv("SHARE_LOOP_ENABLED", "");
+    expect(await call()).toEqual(expected);
+    expect(calls.getUser).not.toHaveBeenCalled();
+    expect(calls.adminFrom).not.toHaveBeenCalled();
+  });
+
+  it("isNannyViralCompliant reaches the database as before when on", async () => {
+    vi.stubEnv("SHARE_LOOP_ENABLED", "true");
+    await expect(loop.isNannyViralCompliant("n1")).rejects.toThrow("DB:viral_shares");
+  });
+});
