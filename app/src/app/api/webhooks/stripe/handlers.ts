@@ -10,6 +10,11 @@
  * typed Stripe event and either resolves (success → caller marks the
  * webhook processed) or throws (caller records the error + returns 500).
  *
+ * LDN2 unit 4d (ADR-146/156): the seven kept handlers resolve to their
+ * outcome — `"applied"` when they changed state, `"ignored"` on an
+ * early-return branch (no metadata, unknown plan/subscription/family) —
+ * which the route writes to `stripe_webhook_events.outcome`.
+ *
  * Handlers MUST stay free of route-specific concerns (no NextResponse,
  * no signature verification, no idempotency table writes — those belong
  * to the route entrypoint).
@@ -26,6 +31,9 @@ const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type AdminClient = ReturnType<typeof createAdminClient>;
 
+/** What a kept handler did with its event (ADR-146/156). A throw is `unresolved`. */
+export type HandlerOutcome = "applied" | "ignored";
+
 // ---------------------------------------------------------------------------
 // checkout.session.completed
 // ---------------------------------------------------------------------------
@@ -33,7 +41,7 @@ export type AdminClient = ReturnType<typeof createAdminClient>;
 export async function handleCheckoutCompleted(
   admin: AdminClient,
   event: Stripe.CheckoutSessionCompletedEvent,
-): Promise<void> {
+): Promise<HandlerOutcome> {
   const session = event.data.object;
   const userId = session.metadata?.user_id;
   const planMetadata = session.metadata?.plan;
@@ -43,7 +51,7 @@ export async function handleCheckoutCompleted(
       "[stripe-webhook] checkout.session.completed missing metadata.user_id",
       session.id,
     );
-    return;
+    return "ignored";
   }
 
   if (planMetadata !== "monthly" && planMetadata !== "upfront") {
@@ -51,7 +59,7 @@ export async function handleCheckoutCompleted(
       "[stripe-webhook] checkout.session.completed unknown plan",
       planMetadata,
     );
-    return;
+    return "ignored";
   }
 
   const plan = planMetadata;
@@ -124,7 +132,7 @@ export async function handleCheckoutCompleted(
       user_id: userId,
       action_details: { session_id: session.id, plan },
     });
-    return;
+    return "applied";
   }
 
   if (plan === "monthly") {
@@ -224,6 +232,7 @@ export async function handleCheckoutCompleted(
       }
     }
   }
+  return "applied";
 }
 
 interface UpsertMonthlyArgs {
@@ -327,7 +336,7 @@ async function upsertUpfrontSubscription(
 export async function handleSubscriptionUpdated(
   admin: AdminClient,
   event: Stripe.CustomerSubscriptionUpdatedEvent,
-): Promise<void> {
+): Promise<HandlerOutcome> {
   const sub = event.data.object;
   const periodEndUnix = readCurrentPeriodEnd(sub);
   const updates: Record<string, unknown> = {};
@@ -343,7 +352,7 @@ export async function handleSubscriptionUpdated(
       "[stripe-webhook] sub.updated had no current_period_end probe match",
       sub.id,
     );
-    return;
+    return "ignored";
   }
 
   // Read current status before writing. If the row is in a terminal
@@ -370,7 +379,7 @@ export async function handleSubscriptionUpdated(
     // No row yet → nothing to update. Checkout completion creates the
     // row; if a stray sub.updated arrives before that, it's not ours
     // to act on.
-    return;
+    return "ignored";
   }
   const terminalLocalStatuses = new Set<string>(["cancelled", "lapsed"]);
   // Typed against Stripe.Subscription.Status so a Stripe API update
@@ -385,7 +394,7 @@ export async function handleSubscriptionUpdated(
     terminalLocalStatuses.has(existing.status) ||
     inactiveStripeStatuses.has(sub.status)
   ) {
-    return;
+    return "ignored";
   }
 
   const { error } = await admin
@@ -397,6 +406,7 @@ export async function handleSubscriptionUpdated(
       `parent_subscriptions update (sub.updated) failed: ${error.message}`,
     );
   }
+  return "applied";
 }
 
 // ---------------------------------------------------------------------------
@@ -406,7 +416,7 @@ export async function handleSubscriptionUpdated(
 export async function handleSubscriptionDeleted(
   admin: AdminClient,
   event: Stripe.CustomerSubscriptionDeletedEvent,
-): Promise<void> {
+): Promise<HandlerOutcome> {
   const sub = event.data.object;
   const nowIso = new Date().toISOString();
   const { data: row, error } = await admin
@@ -420,7 +430,8 @@ export async function handleSubscriptionDeleted(
       `parent_subscriptions update (sub.deleted) failed: ${error.message}`,
     );
   }
-  if (row?.parent_user_id) {
+  if (!row) return "ignored";
+  if (row.parent_user_id) {
     await logActivity(admin, {
       action_type: "subscription_cancelled",
       user_id: row.parent_user_id,
@@ -453,6 +464,7 @@ export async function handleSubscriptionDeleted(
       );
     }
   }
+  return "applied";
 }
 
 // ---------------------------------------------------------------------------
@@ -462,12 +474,12 @@ export async function handleSubscriptionDeleted(
 export async function handleInvoiceSucceeded(
   admin: AdminClient,
   event: Stripe.InvoicePaymentSucceededEvent,
-): Promise<void> {
+): Promise<HandlerOutcome> {
   const invoice = event.data.object;
   const subId = stringOrNull(getInvoiceSubscription(invoice));
   if (!subId) {
     // Some invoices (e.g. one-off Stripe Tax) lack a subscription.
-    return;
+    return "ignored";
   }
 
   // T-018 Lock 1 enforcement: only proceed if a real, non-zero amount
@@ -475,7 +487,7 @@ export async function handleInvoiceSucceeded(
   // $0 trial-end-marker invoices; those must not produce commission rows.
   const amountPaid = invoice.amount_paid ?? 0;
   if (amountPaid <= 0) {
-    return;
+    return "ignored";
   }
 
   const stripe = getStripeClient();
@@ -490,11 +502,20 @@ export async function handleInvoiceSucceeded(
     updates.paid_period_ends_at = new Date(periodEndUnix * 1000).toISOString();
   }
 
-  const { data: existing } = await admin
+  const { data: existing, error: existingErr } = await admin
     .from("parent_subscriptions")
     .select("status, parent_user_id")
     .eq("stripe_subscription_id", subId)
     .maybeSingle();
+  // A failed read must not be mistaken for "no row" (→ ignored, never retried).
+  if (existingErr) {
+    throw new Error(
+      `parent_subscriptions read (invoice.succeeded) failed: ${existingErr.message}`,
+    );
+  }
+  // No row for this subscription → nothing to extend (the update below would
+  // match zero rows); the outcome says so.
+  if (!existing) return "ignored";
 
   const wasRecoveryFromPastDue = existing?.status === "past_due";
   if (wasRecoveryFromPastDue) {
@@ -573,6 +594,7 @@ export async function handleInvoiceSucceeded(
       }
     }
   }
+  return "applied";
 }
 
 // ---------------------------------------------------------------------------
@@ -582,11 +604,11 @@ export async function handleInvoiceSucceeded(
 export async function handleInvoiceFailed(
   admin: AdminClient,
   event: Stripe.InvoicePaymentFailedEvent,
-): Promise<void> {
+): Promise<HandlerOutcome> {
   const invoice = event.data.object;
   const subId = stringOrNull(getInvoiceSubscription(invoice));
   if (!subId) {
-    return;
+    return "ignored";
   }
   const graceEndsAtIso = new Date(Date.now() + ONE_WEEK_MS).toISOString();
   const { data: row, error } = await admin
@@ -603,7 +625,8 @@ export async function handleInvoiceFailed(
       `parent_subscriptions update (invoice.failed) failed: ${error.message}`,
     );
   }
-  if (row?.parent_user_id) {
+  if (!row) return "ignored";
+  if (row.parent_user_id) {
     await logActivity(admin, {
       action_type: "subscription_past_due",
       user_id: row.parent_user_id,
@@ -642,6 +665,7 @@ export async function handleInvoiceFailed(
       console.error("[stripe-webhook] past_due defer tag failed", tagErr);
     }
   }
+  return "applied";
 }
 
 // ---------------------------------------------------------------------------
@@ -651,10 +675,12 @@ export async function handleInvoiceFailed(
 export async function handlePaymentIntentFailed(
   admin: AdminClient,
   event: Stripe.PaymentIntentPaymentFailedEvent,
-): Promise<void> {
+): Promise<HandlerOutcome> {
   const intent = event.data.object;
   // Initial-charge failure on upfront plan. No DB write — the parent
   // never finished paying, so nothing was created. Log for forensics.
+  // Still logged (as before) with no family on the intent, but then the
+  // outcome is `ignored` — nothing was recorded against a family.
   const userId = intent.metadata?.user_id ?? null;
   await logActivity(admin, {
     action_type: "stripe_webhook_received",
@@ -665,6 +691,7 @@ export async function handlePaymentIntentFailed(
       last_error: intent.last_payment_error?.message ?? null,
     },
   });
+  return userId ? "applied" : "ignored";
 }
 
 // ---------------------------------------------------------------------------
@@ -1041,16 +1068,61 @@ export async function handlePayoutFailed(
 // charge.refunded
 // ---------------------------------------------------------------------------
 
+//
+// London (LDN2 unit 4d; offer §3 "Refund", §4 G2): refunds are issued by hand
+// in the Stripe Dashboard after a call — there is no refund engine and no
+// self-serve refund. When no `refund_requests` row matches the refund (the
+// London case) the handler records one from the charge. **A refund never
+// changes access** ("full refund — and you keep the app"); the admin toggles
+// access by hand.
+
 export async function handleChargeRefunded(
   admin: AdminClient,
   event: Stripe.ChargeRefundedEvent,
-): Promise<void> {
+): Promise<HandlerOutcome> {
   const charge = event.data.object;
-  const refundId = charge.refunds?.data?.[0]?.id ?? null;
-  if (!refundId) {
-    return;
+  const refunds = await refundsOfCharge(charge);
+  if (refunds.length === 0) {
+    console.warn("[stripe-webhook] charge.refunded with no refund", charge.id);
+    return "ignored";
   }
+  // Every refund on the charge, not only the newest: two partial refunds
+  // processed out of order must each be recorded once. Already-processed
+  // refunds are skipped, so a later event re-seeing them is a no-op.
   const nowIso = new Date().toISOString();
+  let applied = false;
+  for (const refund of refunds) {
+    const outcome = await recordRefund(admin, charge, refund, nowIso);
+    if (outcome === "applied") applied = true;
+  }
+  return applied ? "applied" : "ignored";
+}
+
+async function recordRefund(
+  admin: AdminClient,
+  charge: Stripe.Charge,
+  refund: Stripe.Refund,
+  nowIso: string,
+): Promise<HandlerOutcome> {
+  const { data: existing, error: readErr } = await admin
+    .from("refund_requests")
+    .select("id, refund_processed_at")
+    .eq("stripe_refund_id", refund.id)
+    .maybeSingle<{ id: string; refund_processed_at: string | null }>();
+  if (readErr) {
+    throw new Error(`refund_requests read (charge.refunded) failed: ${readErr.message}`);
+  }
+  if (existing?.refund_processed_at) return "ignored";
+  if (!existing) return recordDashboardRefund(admin, charge, refund, nowIso);
+  return stampRequestedRefund(admin, refund.id, nowIso);
+}
+
+/** The pre-existing path: a `refund_requests` row already names this refund. */
+async function stampRequestedRefund(
+  admin: AdminClient,
+  refundId: string,
+  nowIso: string,
+): Promise<HandlerOutcome> {
   const { data: row, error } = await admin
     .from("refund_requests")
     .update({ refund_processed_at: nowIso, status: "approved" })
@@ -1062,7 +1134,8 @@ export async function handleChargeRefunded(
       `refund_requests update (charge.refunded) failed: ${error.message}`,
     );
   }
-  if (row?.parent_user_id) {
+  if (!row) return "ignored";
+  if (row.parent_user_id) {
     await logActivity(admin, {
       action_type: "refund_processed",
       user_id: row.parent_user_id,
@@ -1120,6 +1193,128 @@ export async function handleChargeRefunded(
         });
       }
     }
+  }
+  return "applied";
+}
+
+const REFUNDS_PER_CHARGE_LIMIT = 10;
+const DEAD_REFUND_STATUSES = new Set(["failed", "canceled"]);
+
+/**
+ * The charge's refunds. Since API `2022-11-15` a Charge in an event payload
+ * no longer carries `refunds`, so when it is absent they are listed from
+ * Stripe. Failed / cancelled refunds moved no money and are skipped.
+ */
+async function refundsOfCharge(charge: Stripe.Charge): Promise<Stripe.Refund[]> {
+  const fromPayload = charge.refunds?.data;
+  const all =
+    fromPayload && fromPayload.length > 0
+      ? fromPayload
+      : (
+          await getStripeClient().refunds.list({
+            charge: charge.id,
+            limit: REFUNDS_PER_CHARGE_LIMIT,
+          })
+        ).data;
+  return all.filter((r) => !DEAD_REFUND_STATUSES.has(r.status ?? ""));
+}
+
+/**
+ * London: a refund made in the Stripe Dashboard has no `refund_requests` row.
+ * Record one from the charge — parent via `parent_subscriptions.stripe_customer_id`.
+ * Amounts are pence in the existing amount columns (the rename is cleanup's).
+ * Writes no access field. No resolvable parent → `ignored`, logged.
+ */
+async function recordDashboardRefund(
+  admin: AdminClient,
+  charge: Stripe.Charge,
+  refund: Stripe.Refund,
+  nowIso: string,
+): Promise<HandlerOutcome> {
+  const customerId = stringOrNull(charge.customer);
+  const parent = customerId ? await subscriptionForCustomer(admin, customerId) : null;
+  if (!parent) {
+    console.warn("[stripe-webhook] charge.refunded: no parent for the charge", charge.id);
+    return "ignored";
+  }
+  const { error } = await admin.from("refund_requests").insert({
+    parent_subscription_id: parent.id,
+    parent_user_id: parent.parent_user_id,
+    reason_category: "other",
+    reason_text: "Refund issued in the Stripe Dashboard",
+    calculated_refund_aud_cents: refund.amount,
+    approved_amount_aud_cents: refund.amount,
+    calculation_breakdown: {
+      source: "stripe_dashboard",
+      charge_id: charge.id,
+      payment_intent_id: stringOrNull(charge.payment_intent),
+      refund_id: refund.id,
+      currency: refund.currency,
+    },
+    status: "approved",
+    refund_processed_at: nowIso,
+    stripe_refund_id: refund.id,
+  });
+  if (error) {
+    throw new Error(`refund_requests insert (charge.refunded) failed: ${error.message}`);
+  }
+  await logActivity(admin, {
+    action_type: "refund_processed",
+    user_id: parent.parent_user_id,
+    action_details: { refund_id: refund.id, source: "stripe_dashboard" },
+  });
+  await stampDepositRefund(admin, parent.id, stringOrNull(charge.payment_intent), nowIso);
+  return "applied";
+}
+
+async function subscriptionForCustomer(
+  admin: AdminClient,
+  customerId: string,
+): Promise<{ id: string; parent_user_id: string } | null> {
+  const { data, error } = await admin
+    .from("parent_subscriptions")
+    .select("id, parent_user_id")
+    .eq("stripe_customer_id", customerId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ id: string; parent_user_id: string }>();
+  if (error) {
+    throw new Error(`refund: parent_subscriptions lookup failed: ${error.message}`);
+  }
+  return data ?? null;
+}
+
+/**
+ * When the refunded payment is the DFY deposit, stamp `deposit_refunded_at`
+ * (4c's columns, amendment 12). Read defensively: before 4c's amendment the
+ * column does not exist and the stamp is skipped, not failed.
+ */
+async function stampDepositRefund(
+  admin: AdminClient,
+  subscriptionId: string,
+  paymentIntentId: string | null,
+  nowIso: string,
+): Promise<void> {
+  if (!paymentIntentId) return;
+  const { data, error } = await admin
+    .from("parent_subscriptions")
+    .select("deposit_stripe_payment_intent_id")
+    .eq("id", subscriptionId)
+    .maybeSingle<{ deposit_stripe_payment_intent_id: string | null }>();
+  if (error) {
+    console.warn("[stripe-webhook] deposit column not readable — stamp skipped", error.code);
+    return;
+  }
+  if (data?.deposit_stripe_payment_intent_id !== paymentIntentId) return;
+  const { error: stampErr } = await admin
+    .from("parent_subscriptions")
+    .update({ deposit_refunded_at: nowIso })
+    .eq("id", subscriptionId);
+  if (stampErr) {
+    // Non-fatal: the refund row is already written, and a throw here would
+    // leave the event `unresolved` with Stripe's retry answered as a
+    // duplicate — the stamp would never land. Logged for the admin.
+    console.error("[stripe-webhook] deposit_refunded_at stamp failed", stampErr.message);
   }
 }
 

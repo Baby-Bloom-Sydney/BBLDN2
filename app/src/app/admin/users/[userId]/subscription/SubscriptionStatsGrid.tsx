@@ -2,9 +2,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { formatAuDate } from "@/lib/format/date";
 import type { ChildWithEvents, ParentSubscriptionRow } from "./page";
 import { APP_LOCALE } from "@/lib/constants";
+import { G2 } from "@/config/offer";
+
+/**
+ * 4c adds `satisfaction_window_ends_at` (amendment 12) to the row and the page's
+ * select. Read through this local, optional widening so the grid compiles and
+ * renders "—" before and after 4c lands (4d).
+ */
+type SubWithWindow = ParentSubscriptionRow & {
+  satisfaction_window_ends_at?: string | null;
+};
 
 interface Props {
-  sub: ParentSubscriptionRow | null;
+  sub: SubWithWindow | null;
   plan: "Monthly" | "Upfront" | "Trial" | "—";
   subscriberSinceIso: string | null;
   tenureDays: number | null;
@@ -153,8 +163,32 @@ export function SubscriptionStatsGrid({
           label="Cancelled at"
           value={sub?.cancelled_at ? formatAuDate(sub.cancelled_at) : "—"}
         />
+        <G2WindowCard endsAtIso={sub?.satisfaction_window_ends_at ?? null} />
       </div>
     </section>
+  );
+}
+
+/**
+ * G2 (offer §4): full refund within the window after the nanny's first day.
+ * Shown, not enforced — refunds are issued by hand after a call (no engine).
+ */
+function G2WindowCard({ endsAtIso }: { endsAtIso: string | null }) {
+  const endsAt = endsAtIso ? new Date(endsAtIso) : null;
+  const valid = endsAt !== null && !Number.isNaN(endsAt.getTime());
+  const isOpen = valid && endsAt.getTime() > Date.now();
+  return (
+    <div data-testid="g2-window">
+      <StatCard
+        label={`${G2.windowDays}-day window`}
+        value={
+          valid && endsAtIso
+            ? `ends ${formatAuDate(endsAtIso)} — ${isOpen ? "open" : "closed"}`
+            : "—"
+        }
+        tone={valid && !isOpen ? "muted" : undefined}
+      />
+    </div>
   );
 }
 

@@ -71,7 +71,7 @@ export default async function AdminUserSubscriptionPage({
     admin
       .from("refund_requests")
       .select(
-        "id, status, refund_amount_aud_cents, refund_processed_at, stripe_refund_id, reason, created_at",
+        "id, status, approved_amount_aud_cents, refund_processed_at, stripe_refund_id, reason_text, created_at",
       )
       .eq("parent_user_id", params.userId)
       .order("created_at", { ascending: true })
@@ -174,7 +174,7 @@ export default async function AdminUserSubscriptionPage({
   const refundedTotalAud =
     refunds
       .filter((r) => r.refund_processed_at !== null)
-      .reduce((acc, r) => acc + (r.refund_amount_aud_cents ?? 0), 0) / 100;
+      .reduce((acc, r) => acc + (r.approved_amount_aud_cents ?? 0), 0) / 100;
   const subscriberSinceIso =
     sub?.paid_period_starts_at ??
     sub?.trial_started_at ??
@@ -306,13 +306,14 @@ export interface PayoutRow {
   created_at: string;
 }
 
+// 4d (D1): the real columns — the old select named two that never existed.
 export interface RefundRow {
   id: string;
   status: string;
-  refund_amount_aud_cents: number | null;
+  approved_amount_aud_cents: number | null;
   refund_processed_at: string | null;
   stripe_refund_id: string | null;
-  reason: string | null;
+  reason_text: string | null;
   created_at: string;
 }
 
