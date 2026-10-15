@@ -3,7 +3,7 @@
  * env var is the literal "true" (trimmed); while off, everything the share loop gated counts as unlocked.
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { shareLoopEnabled, isShareUnlocked } from "./flags";
+import { shareLoopEnabled, isShareUnlocked, babysittingEnabled } from "./flags";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -48,5 +48,32 @@ describe("isShareUnlocked() — the shareUnlocked rule", () => {
     expect(isShareUnlocked(false)).toBe(false);
     expect(isShareUnlocked(null)).toBe(false);
     expect(isShareUnlocked(undefined)).toBe(false);
+  });
+});
+
+// Unit 5c (BB-LDN-5c-151026) — the babysitting line (Stage 5 ruling 1, N-1).
+describe("babysittingEnabled()", () => {
+  it.each([
+    ["unset", undefined],
+    ["empty", ""],
+    ["false", "false"],
+    ["TRUE (case matters)", "TRUE"],
+    ["1", "1"],
+  ])("off when %s", (_label, value) => {
+    vi.stubEnv("BABYSITTING_ENABLED", value as string);
+    expect(babysittingEnabled()).toBe(false);
+  });
+
+  it("on only for the literal \"true\" (trimmed), read at call time", () => {
+    vi.stubEnv("BABYSITTING_ENABLED", "");
+    expect(babysittingEnabled()).toBe(false);
+    vi.stubEnv("BABYSITTING_ENABLED", " true\n");
+    expect(babysittingEnabled()).toBe(true);
+  });
+
+  it("is independent of the share-loop switch", () => {
+    vi.stubEnv("SHARE_LOOP_ENABLED", "true");
+    vi.stubEnv("BABYSITTING_ENABLED", "");
+    expect(babysittingEnabled()).toBe(false);
   });
 });

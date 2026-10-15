@@ -14,7 +14,7 @@
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Metadata } from "next";
 import { OG_LOCALE } from "@/lib/constants";
 
@@ -105,6 +105,10 @@ describe("og:locale reaches every page that declares its own openGraph", () => {
   });
 
   describe("generateMetadata", () => {
+    // 5c: `(public)/babysitting/[id]` 404s while BABYSITTING_ENABLED is off, so its locale is checked with it on.
+    beforeEach(() => vi.stubEnv("BABYSITTING_ENABLED", "true"));
+    afterEach(() => vi.unstubAllEnvs());
+
     it.each(DYNAMIC_PAGES)("%s sets openGraph.locale", async (relPath) => {
       const mod = (await import(moduleSpecifier(relPath))) as {
         generateMetadata: (args: { params: { id: string } }) => Promise<Metadata>;

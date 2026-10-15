@@ -205,6 +205,8 @@ function renderConnections() {
 }
 
 function renderBabysitting(requests: Bsr[]) {
+  // 5c: these cases pin the live babysitting tab body, which only renders with BABYSITTING_ENABLED on.
+  vi.stubEnv("BABYSITTING_ENABLED", "true");
   return render(
     <ParentHubClient
       position={POSITION}
@@ -234,6 +236,7 @@ afterEach(() => {
     writable: true,
     value: originalLocation,
   });
+  vi.unstubAllEnvs();
 });
 
 describe("ParentHubClient — no parent verification lock (3h)", () => {
@@ -307,5 +310,35 @@ describe("ParentHubClient — no parent verification lock (3h)", () => {
       expect(screen.queryByText(/verify your account/i)).toBeNull();
       view.unmount();
     }
+  });
+});
+
+// Unit 5c (BB-LDN-5c-151026) — babysitting hidden behind BABYSITTING_ENABLED (off): the tab stays, says "Coming soon."
+describe("ParentHubClient — babysitting tab while BABYSITTING_ENABLED is off (5c)", () => {
+  function renderOff(requests: Bsr[] = []) {
+    vi.stubEnv("BABYSITTING_ENABLED", "");
+    return render(
+      <ParentHubClient position={POSITION} babysittingRequests={requests} initialTab="babysitting" />,
+    );
+  }
+
+  it('keeps the "Babysitting" tab and shows "Coming soon." in its body', () => {
+    renderOff();
+    expect(screen.getByRole("button", { name: "Babysitting" })).toBeInTheDocument();
+    expect(screen.getByText("Coming soon.")).toBeVisible();
+  });
+
+  it("shows no Find Babysitter CTA, no link to the babysitting pages and no BSR bucket even if rows are passed", () => {
+    const view = renderOff([CART, AWAITING, BOOKED, PAST]);
+    expect(screen.queryByText("Find Babysitter")).toBeNull();
+    expect(screen.queryByText("Checkout")).toBeNull();
+    expect(screen.queryByText(/Awaiting Response|Bookings \(|Cart \(/)).toBeNull();
+    expect(view.container.querySelector('a[href^="/parent/babysitting"]')).toBeNull();
+  });
+
+  it("shows the live tab body again with the flag on", () => {
+    renderBabysitting([]);
+    expect(screen.queryByText("Coming soon.")).toBeNull();
+    expect(screen.getByText("Find Babysitter")).toBeInTheDocument();
   });
 });
