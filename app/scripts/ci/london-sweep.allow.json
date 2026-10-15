@@ -456,13 +456,6 @@
   },
   {
     "rule": "currency",
-    "file": "app/scripts/setup-stripe-test-mode.ts",
-    "match": "currency: \"aud\"",
-    "owner": "money",
-    "note": "Stripe's own currency argument — behaviour, not display. Money stage (04-sequence.md §2 2d 'Not this unit').  [2d, 3 hit(s): lines 89, 98, 175]"
-  },
-  {
-    "rule": "currency",
     "file": "app/scripts/t018-preflight-audit.mjs",
     "match": "amount_aud_cents",
     "owner": "money",
@@ -999,13 +992,6 @@
     "match": "Eastern Sydney",
     "owner": "matching",
     "note": "P-12 / ADR-189: distance measurement is carried unchanged to the checkpoint and rebuilt afterwards with the Thames as the detour set. `normalize.ts` is `leave` in Stage 2 and its bridge constants belong to `matching`, not `cleanup`."
-  },
-  {
-    "rule": "brand",
-    "file": "app/scripts/setup-stripe-test-mode.ts",
-    "match": "babybloomsydney.com.au",
-    "owner": "money",
-    "note": "Stripe test-mode / tax configuration script. 03-triage §9 routes the Stripe scripts to the money stage, which owns currency, country, tax and Connect (04 §4 money); its URLs and the AU billing city move when that configuration does."
   },
   {
     "rule": "brand",
