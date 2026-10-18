@@ -61,6 +61,7 @@ import type { DfyNotification } from "@/lib/actions/matching";
 import { PositionAccordion } from "@/components/position/PositionAccordion";
 import { AvailabilityGrid } from "@/components/position/AvailabilityGrid";
 import Link from "next/link";
+import { isShareUnlocked } from "@/lib/features/flags";
 
 function formatStartWeekDisplay(dateStr: string): string {
   if (dateStr === "tbc") return "Start week to be confirmed";
@@ -154,7 +155,8 @@ export function NannyPositionsClient({
   placements,
   upcomingIntros = [],
   dfyNotificationsInitial = [],
-  shareUnlocked = false,
+  // 5b (P-23): pages that pass no prop get the loop-off default — unlocked while SHARE_LOOP_ENABLED is off.
+  shareUnlocked = isShareUnlocked(undefined),
   embedded = false,
 }: NannyPositionsClientProps) {
   const router = useRouter();

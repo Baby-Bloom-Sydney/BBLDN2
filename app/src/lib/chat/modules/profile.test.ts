@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { ModuleContext } from "./types";
 
 // Mock server actions so their side-effecting imports (Resend, etc.) never
@@ -678,4 +678,27 @@ describe("read_my_profile.isPrefulfilled", () => {
       ),
     ).toBe(false);
   });
+});
+
+// Unit 5b (BB-LDN-5b-151026, P-23) — with the share loop off, Katie's profile answer never mentions sharing,
+// whatever the nanny's level or visible_in_bsr. Pins the brief's "nannyVisibilityText() says nothing about sharing".
+describe("profile module — read_my_profile says nothing about sharing (share loop off)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("SHARE_LOOP_ENABLED", "");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it.each([0, 1, 2, 3, 4].flatMap((level) => [[level, false], [level, true]] as const))(
+    "level %s, visible_in_bsr %s → no share wording",
+    async (level, visibleInBsr) => {
+      vi.mocked(getNannyProfile).mockResolvedValue({
+        data: nannyFixture({ verification_level: level, visible_in_bsr: visibleInBsr }),
+        error: null,
+      });
+      const r = await profileModule.execute("read_my_profile", {}, makeCtx("nanny"));
+      expect(r.success).toBe(true);
+      expect(JSON.stringify(r.data)).not.toMatch(/shar(e|ing)|unlock|facebook/i);
+    },
+  );
 });
