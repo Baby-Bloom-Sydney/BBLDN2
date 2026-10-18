@@ -2,9 +2,13 @@ import { getPositionSharePageData, createShareRecord } from "@/lib/actions/viral
 import { generatePositionPost } from "@/lib/viral-loop/generate-position-post";
 import { SHARE_CASE_TYPE } from "@/lib/viral-loop/constants";
 import { PositionShareClient } from "./PositionShareClient";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { shareLoopEnabled } from "@/lib/features/flags";
 
 export default async function PositionSharePage() {
+  // 5b (P-23): the share loop is hidden unless SHARE_LOOP_ENABLED is "true" — 404 before any read.
+  if (!shareLoopEnabled()) notFound();
+
   const { data, error } = await getPositionSharePageData();
 
   if (error || !data) {

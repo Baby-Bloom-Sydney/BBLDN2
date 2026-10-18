@@ -382,42 +382,42 @@
     "file": "app/src/app/nanny/share/NannyShareClient.tsx",
     "match": "babybloomsydney.com.au",
     "owner": "removals",
-    "note": "The share loop is out for London (N-3). This is the fake Facebook preview card the share screen renders; removals owns the whole feature (03-triage.md section 7 and section 12). Silences 1 hit(s): line(s) 590."
+    "note": "The share loop is out for London (N-3). This is the fake Facebook preview card the share screen renders; removals owns the whole feature (03-triage.md section 7 and section 12). Silences 1 hit(s): line(s) 590. — 5b (BB-LDN-5b-151026): hidden — P-23 behind SHARE_LOOP_ENABLED (off); share-loop file kept, not deleted (its pages, API and server-action writers 404 / refuse while off)."
   },
   {
     "rule": "brand",
     "file": "app/src/app/nanny/share/NannyShareClient.tsx",
     "match": "Sydney",
     "owner": "removals",
-    "note": "The share loop is out for London (N-3). This is the fake Facebook preview card the share screen renders; removals owns the whole feature (03-triage.md section 7 and section 12). Silences 5 hit(s): line(s) 874, 875, 876, 877, 879."
+    "note": "The share loop is out for London (N-3). This is the fake Facebook preview card the share screen renders; removals owns the whole feature (03-triage.md section 7 and section 12). Silences 5 hit(s): line(s) 874, 875, 876, 877, 879. — 5b (BB-LDN-5b-151026): hidden — P-23 behind SHARE_LOOP_ENABLED (off); share-loop file kept, not deleted (its pages, API and server-action writers 404 / refuse while off)."
   },
   {
     "rule": "brand",
     "file": "app/src/app/parent/babysitting/[id]/share/BsrShareClient.tsx",
     "match": "babybloomsydney.com.au",
     "owner": "removals",
-    "note": "The share loop is out for London (N-3). This is the fake Facebook preview card the share screen renders; removals owns the whole feature (03-triage.md section 7 and section 12). Silences 1 hit(s): line(s) 588."
+    "note": "The share loop is out for London (N-3). This is the fake Facebook preview card the share screen renders; removals owns the whole feature (03-triage.md section 7 and section 12). Silences 1 hit(s): line(s) 588. — 5b (BB-LDN-5b-151026): hidden — P-23 behind SHARE_LOOP_ENABLED (off); share-loop file kept, not deleted (its pages, API and server-action writers 404 / refuse while off)."
   },
   {
     "rule": "brand",
     "file": "app/src/app/parent/babysitting/[id]/share/BsrShareClient.tsx",
     "match": "Sydney",
     "owner": "removals",
-    "note": "The share loop is out for London (N-3). This is the fake Facebook preview card the share screen renders; removals owns the whole feature (03-triage.md section 7 and section 12). Silences 5 hit(s): line(s) 873, 874, 875, 876, 878."
+    "note": "The share loop is out for London (N-3). This is the fake Facebook preview card the share screen renders; removals owns the whole feature (03-triage.md section 7 and section 12). Silences 5 hit(s): line(s) 873, 874, 875, 876, 878. — 5b (BB-LDN-5b-151026): hidden — P-23 behind SHARE_LOOP_ENABLED (off); share-loop file kept, not deleted (its pages, API and server-action writers 404 / refuse while off)."
   },
   {
     "rule": "brand",
     "file": "app/src/app/parent/matches/share/PositionShareClient.tsx",
     "match": "babybloomsydney.com.au",
     "owner": "removals",
-    "note": "The share loop is out for London (N-3). This is the fake Facebook preview card the share screen renders; removals owns the whole feature (03-triage.md section 7 and section 12). Silences 1 hit(s): line(s) 589."
+    "note": "The share loop is out for London (N-3). This is the fake Facebook preview card the share screen renders; removals owns the whole feature (03-triage.md section 7 and section 12). Silences 1 hit(s): line(s) 589. — 5b (BB-LDN-5b-151026): hidden — P-23 behind SHARE_LOOP_ENABLED (off); share-loop file kept, not deleted (its pages, API and server-action writers 404 / refuse while off)."
   },
   {
     "rule": "brand",
     "file": "app/src/app/parent/matches/share/PositionShareClient.tsx",
     "match": "Sydney",
     "owner": "removals",
-    "note": "The share loop is out for London (N-3). This is the fake Facebook preview card the share screen renders; removals owns the whole feature (03-triage.md section 7 and section 12). Silences 5 hit(s): line(s) 874, 875, 876, 877, 879."
+    "note": "The share loop is out for London (N-3). This is the fake Facebook preview card the share screen renders; removals owns the whole feature (03-triage.md section 7 and section 12). Silences 5 hit(s): line(s) 874, 875, 876, 877, 879. — 5b (BB-LDN-5b-151026): hidden — P-23 behind SHARE_LOOP_ENABLED (off); share-loop file kept, not deleted (its pages, API and server-action writers 404 / refuse while off)."
   },
   {
     "rule": "brand",
@@ -802,21 +802,21 @@
     "file": "app/src/app/nanny/share/NannyShareClient.tsx",
     "match": "Babysitting / Nannies Hornsby And Surrounding Areas",
     "owner": "removals",
-    "note": "Sydney Facebook group directory inside the share loop, which is out for London (N-3, 03-triage §1). Gated or removed by the removals stage; not translated."
+    "note": "Sydney Facebook group directory inside the share loop, which is out for London (N-3, 03-triage §1). Gated or removed by the removals stage; not translated. — 5b (BB-LDN-5b-151026): hidden — P-23 behind SHARE_LOOP_ENABLED (off); share-loop file kept, not deleted (its pages, API and server-action writers 404 / refuse while off)."
   },
   {
     "rule": "geography",
     "file": "app/src/app/parent/babysitting/[id]/share/BsrShareClient.tsx",
     "match": "Babysitting / Nannies Hornsby And Surrounding Areas",
     "owner": "removals",
-    "note": "Sydney Facebook group directory inside the share loop, which is out for London (N-3, 03-triage §1). Gated or removed by the removals stage; not translated."
+    "note": "Sydney Facebook group directory inside the share loop, which is out for London (N-3, 03-triage §1). Gated or removed by the removals stage; not translated. — 5b (BB-LDN-5b-151026): hidden — P-23 behind SHARE_LOOP_ENABLED (off); share-loop file kept, not deleted (its pages, API and server-action writers 404 / refuse while off)."
   },
   {
     "rule": "geography",
     "file": "app/src/app/parent/matches/share/PositionShareClient.tsx",
     "match": "Babysitting / Nannies Hornsby And Surrounding Areas",
     "owner": "removals",
-    "note": "Sydney Facebook group directory inside the share loop, which is out for London (N-3, 03-triage §1). Gated or removed by the removals stage; not translated."
+    "note": "Sydney Facebook group directory inside the share loop, which is out for London (N-3, 03-triage §1). Gated or removed by the removals stage; not translated. — 5b (BB-LDN-5b-151026): hidden — P-23 behind SHARE_LOOP_ENABLED (off); share-loop file kept, not deleted (its pages, API and server-action writers 404 / refuse while off)."
   },
   {
     "rule": "brand",
@@ -858,21 +858,21 @@
     "file": "app/src/lib/ai/check-share-screenshot.ts",
     "match": "Sydney",
     "owner": "removals",
-    "note": "The share loop and its Sydney Facebook-group prompts are out for London (N-3, 03-triage §1; 04 §4 removals). 12.11 explicitly routes `ai/check-share-screenshot.ts` to removals rather than translating a vision prompt for a feature that is being removed."
+    "note": "The share loop and its Sydney Facebook-group prompts are out for London (N-3, 03-triage §1; 04 §4 removals). 12.11 explicitly routes `ai/check-share-screenshot.ts` to removals rather than translating a vision prompt for a feature that is being removed. — 5b (BB-LDN-5b-151026): hidden — P-23 behind SHARE_LOOP_ENABLED (off); share-loop file kept, not deleted (its pages, API and server-action writers 404 / refuse while off)."
   },
   {
     "rule": "brand",
     "file": "app/src/lib/ai/check-share-screenshot.ts",
     "match": "babybloomsydney.com.au",
     "owner": "removals",
-    "note": "The share loop and its Sydney Facebook-group prompts are out for London (N-3, 03-triage §1; 04 §4 removals). 12.11 explicitly routes `ai/check-share-screenshot.ts` to removals rather than translating a vision prompt for a feature that is being removed."
+    "note": "The share loop and its Sydney Facebook-group prompts are out for London (N-3, 03-triage §1; 04 §4 removals). 12.11 explicitly routes `ai/check-share-screenshot.ts` to removals rather than translating a vision prompt for a feature that is being removed. — 5b (BB-LDN-5b-151026): hidden — P-23 behind SHARE_LOOP_ENABLED (off); share-loop file kept, not deleted (its pages, API and server-action writers 404 / refuse while off)."
   },
   {
     "rule": "brand",
     "file": "app/src/lib/actions/viral-loop.ts",
     "match": "Sydney childcare Facebook group",
     "owner": "removals",
-    "note": "The share loop and its Sydney Facebook-group prompts are out for London (N-3, 03-triage §1; 04 §4 removals). 12.11 explicitly routes `ai/check-share-screenshot.ts` to removals rather than translating a vision prompt for a feature that is being removed."
+    "note": "The share loop and its Sydney Facebook-group prompts are out for London (N-3, 03-triage §1; 04 §4 removals). 12.11 explicitly routes `ai/check-share-screenshot.ts` to removals rather than translating a vision prompt for a feature that is being removed. — 5b (BB-LDN-5b-151026): hidden — P-23 behind SHARE_LOOP_ENABLED (off); share-loop file kept, not deleted (its pages, API and server-action writers 404 / refuse while off)."
   },
   {
     "rule": "brand",
@@ -928,7 +928,7 @@
     "file": "app/src/lib/ai/check-share-screenshot.ts",
     "match": "if (isPosition) return \"We couldn't quite verify",
     "owner": "removals",
-    "note": "Same removals deferral as the rest of this file; the Sydney token on this line falls past the gate's 140-char snippet cut, so the match anchors on the start of the line instead."
+    "note": "Same removals deferral as the rest of this file; the Sydney token on this line falls past the gate's 140-char snippet cut, so the match anchors on the start of the line instead. — 5b (BB-LDN-5b-151026): hidden — P-23 behind SHARE_LOOP_ENABLED (off); share-loop file kept, not deleted (its pages, API and server-action writers 404 / refuse while off)."
   },
   {
     "rule": "identity",
@@ -1992,7 +1992,7 @@
     "file": "app/src/lib/ai/check-share-screenshot.ts",
     "match": "NSW",
     "owner": "removals",
-    "note": "Australian jurisdiction fact inside the share / viral-loop surface, which the removals stage gates or deletes whole. 04-sequence.md §4 `removals`, fate row 12.08.  [W6, 1 hit(s): line 120]"
+    "note": "Australian jurisdiction fact inside the share / viral-loop surface, which the removals stage gates or deletes whole. 04-sequence.md §4 `removals`, fate row 12.08.  [W6, 1 hit(s): line 120] — 5b (BB-LDN-5b-151026): hidden — P-23 behind SHARE_LOOP_ENABLED (off); share-loop file kept, not deleted (its pages, API and server-action writers 404 / refuse while off)."
   },
   {
     "rule": "identity",
@@ -2335,14 +2335,14 @@
     "file": "app/src/lib/viral-loop/generate-bsr-post.ts",
     "match": "WWCC",
     "owner": "removals",
-    "note": "Australian identity artefact inside the share / viral-loop surface, which the removals stage gates or deletes whole. 04-sequence.md §4 `removals`, fate row 12.06.  [W6, 1 hit(s): line 79]"
+    "note": "Australian identity artefact inside the share / viral-loop surface, which the removals stage gates or deletes whole. 04-sequence.md §4 `removals`, fate row 12.06.  [W6, 1 hit(s): line 79] — 5b (BB-LDN-5b-151026): hidden — P-23 behind SHARE_LOOP_ENABLED (off); share-loop file kept, not deleted (its pages, API and server-action writers 404 / refuse while off)."
   },
   {
     "rule": "identity",
     "file": "app/src/lib/viral-loop/generate-position-post.ts",
     "match": "WWCC",
     "owner": "removals",
-    "note": "Australian identity artefact inside the share / viral-loop surface, which the removals stage gates or deletes whole. 04-sequence.md §4 `removals`, fate row 12.06.  [W6, 1 hit(s): line 57]"
+    "note": "Australian identity artefact inside the share / viral-loop surface, which the removals stage gates or deletes whole. 04-sequence.md §4 `removals`, fate row 12.06.  [W6, 1 hit(s): line 57] — 5b (BB-LDN-5b-151026): hidden — P-23 behind SHARE_LOOP_ENABLED (off); share-loop file kept, not deleted (its pages, API and server-action writers 404 / refuse while off)."
   },
   {
     "rule": "identity",
