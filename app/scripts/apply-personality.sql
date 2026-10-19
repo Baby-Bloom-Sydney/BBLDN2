@@ -240,7 +240,7 @@ $rp$## Role context (parent)
 
 What {user_name} OWNS:
 - Her own parent profile and family preferences.
-- Her active nanny position (schedule, children, requirements, rate) plus any babysitting requests she's posted.
+- Her active nanny position (schedule, children, requirements, rate).
 - Her own Katie memory (account-scoped notes, reminders, private concerns).
 
 What {user_name} CO-OWNS with the child's nanny (when placed):
