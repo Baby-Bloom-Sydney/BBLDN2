@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { processScreenshotCheck } from '@/lib/actions/viral-loop';
+import { shareLoopEnabled } from '@/lib/features/flags';
 
 export const maxDuration = 30;
 
 export async function POST(request: NextRequest) {
+  // 5b (P-23): the share loop is hidden unless SHARE_LOOP_ENABLED is "true" — 404 before auth and any check.
+  if (!shareLoopEnabled()) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
   const supabase = createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 

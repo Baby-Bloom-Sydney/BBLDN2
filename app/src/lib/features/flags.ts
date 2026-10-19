@@ -56,3 +56,17 @@ export function isShareUnlocked(visibleInBsr: boolean | null | undefined): boole
 export function babysittingEnabled(): boolean {
   return isOn(process.env.BABYSITTING_ENABLED);
 }
+
+/**
+ * The old DFY Standard tier checkout (Stage 5 ruling 7; unit 5g).
+ *
+ * While off:
+ * - `/parent/matches/checkout` and `/parent/matches/matchmaker` (which only redirects into it) → `notFound()`.
+ * - Every link to `/parent/matches/checkout` is not rendered.
+ *
+ * `confirmMatchmaking` and `/parent/matchmaking` are kept on purpose (ledger 5g §1, P-25). That page is the only
+ * self-serve activation for a position autofire never activated.
+ */
+export function legacyTierCheckoutEnabled(): boolean {
+  return isOn(process.env.LEGACY_TIER_CHECKOUT_ENABLED);
+}

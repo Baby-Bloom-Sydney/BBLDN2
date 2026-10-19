@@ -18,6 +18,7 @@ import {
 import type { OpenPosition } from "./jobs/NannyJobsView";
 import { CONNECTION_STAGE } from "@/lib/position/constants";
 import type { ChildClient } from "@/types/bapp";
+import { isShareUnlocked } from "@/lib/features/flags";
 
 async function fetchOpenPositions(): Promise<OpenPosition[]> {
   const admin = createAdminClient();
@@ -289,7 +290,8 @@ export default async function NannyHubPage() {
     getPendingInvitesForUser(),
   ]);
 
-  const shareUnlocked = nannyRes.data?.visible_in_bsr === true;
+  // 5b (P-23): while the share loop is off, everything it gated is open from day 1 (`isShareUnlocked`).
+  const shareUnlocked = isShareUnlocked(nannyRes.data?.visible_in_bsr);
 
   // DSS §8 Q8 (Bailey 2026-05-12) — small green tick on each child
   // tile whose family is currently subscribed. Resolve in one batched

@@ -3,13 +3,17 @@ import { generateBsrPost } from "@/lib/viral-loop/generate-bsr-post";
 import { SHARE_CASE_TYPE } from "@/lib/viral-loop/constants";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BsrShareClient } from "./BsrShareClient";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { shareLoopEnabled } from "@/lib/features/flags";
 
 export default async function BsrSharePage({
   params,
 }: {
   params: { id: string };
 }) {
+  // 5b (P-23): the share loop is hidden unless SHARE_LOOP_ENABLED is "true" — 404 before any read.
+  if (!shareLoopEnabled()) notFound();
+
   const { data, error } = await getBsrSharePageData(params.id);
 
   if (error || !data) {

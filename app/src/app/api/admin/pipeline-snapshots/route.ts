@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin/require-admin';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function GET(request: NextRequest) {
+  const gate = await requireAdmin();
+  if (gate.error) {
+    return NextResponse.json(
+      { error: gate.error },
+      { status: gate.error === 'Not authenticated' ? 401 : 403 },
+    );
+  }
   const { searchParams } = request.nextUrl;
   const sections = searchParams.get('sections')?.split(',').filter(Boolean) || [];
   const from = searchParams.get('from');

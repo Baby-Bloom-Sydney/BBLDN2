@@ -187,3 +187,115 @@ describe("updateSession — existing behaviour preserved (regression guard)", ()
     );
   });
 });
+
+/**
+ * 5a — the six demo/test roots answer only to an admin (R-1, Stage 5).
+ * Each root is matched as itself or itself followed by "/"; `/nanny/profiletest`
+ * is decided before the `/nanny` prefix so an admin reaches it.
+ */
+describe("updateSession — demo/test roots gated behind admin (5a, R-1)", () => {
+  const DEMO_PATHS = [
+    "/ui",
+    "/ui/embed/button",
+    "/ui2",
+    "/brandkit1",
+    "/test",
+    "/test/shareprofile",
+    "/bb/test",
+    "/bb/test/position-apply",
+    "/nanny/profiletest",
+  ];
+
+  it.each(DEMO_PATHS)("anonymous visitor on %s is redirected to /login", async (path) => {
+    state.user = null;
+
+    const res = await callMiddleware(path);
+
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe(
+      `http://localhost/login?redirect=${encodeURIComponent(path)}`,
+    );
+  });
+
+  it.each(DEMO_PATHS)("nanny on %s is redirected to /nanny", async (path) => {
+    state.user = { id: "user-nanny" };
+    state.roleData = { role: "nanny" };
+
+    const res = await callMiddleware(path);
+
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("http://localhost/nanny");
+  });
+
+  it.each(DEMO_PATHS)("parent on %s is redirected to /parent", async (path) => {
+    state.user = { id: "user-parent" };
+    state.roleData = { role: "parent" };
+
+    const res = await callMiddleware(path);
+
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("http://localhost/parent");
+  });
+
+  it.each(DEMO_PATHS)("admin on %s passes through", async (path) => {
+    state.user = { id: "user-admin" };
+    state.roleData = { role: "admin" };
+
+    const res = await callMiddleware(path);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("signed-in user with no role row on /test is redirected to /login", async () => {
+    state.user = { id: "user-no-role" };
+    state.roleData = null;
+
+    const res = await callMiddleware("/test");
+
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("http://localhost/login");
+  });
+
+  it("super_admin on /nanny/profiletest passes through", async () => {
+    state.user = { id: "user-super" };
+    state.roleData = { role: "super_admin" };
+
+    const res = await callMiddleware("/nanny/profiletest");
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it.each(["/testimonials", "/uikit", "/brandkit10", "/bb/testing"])(
+    "anonymous visitor on %s is not caught by a demo root (boundary match)",
+    async (path) => {
+      state.user = null;
+
+      const res = await callMiddleware(path);
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("location")).toBeNull();
+    },
+  );
+
+  it("admin on /nanny (not a demo root) is still redirected to /admin/dashboard", async () => {
+    state.user = { id: "user-admin" };
+    state.roleData = { role: "admin" };
+
+    const res = await callMiddleware("/nanny");
+
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("http://localhost/admin/dashboard");
+  });
+
+  it("nanny on /nanny/profile (sibling of profiletest) still passes through", async () => {
+    state.user = { id: "user-nanny" };
+    state.roleData = { role: "nanny" };
+
+    const res = await callMiddleware("/nanny/profile");
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+  });
+});

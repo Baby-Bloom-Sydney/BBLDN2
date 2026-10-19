@@ -10,6 +10,8 @@ const nextConfig = {
     PAYOUTS_ENABLED: process.env.PAYOUTS_ENABLED ?? "",
     SHARE_LOOP_ENABLED: process.env.SHARE_LOOP_ENABLED ?? "",
     BABYSITTING_ENABLED: process.env.BABYSITTING_ENABLED ?? "",
+    // 5g (P-23): the old tier checkout is hidden unless LEGACY_TIER_CHECKOUT_ENABLED is "true"; client link sites read it.
+    LEGACY_TIER_CHECKOUT_ENABLED: process.env.LEGACY_TIER_CHECKOUT_ENABLED ?? "",
   },
   typescript: {
     // strict: build fails on TS errors
