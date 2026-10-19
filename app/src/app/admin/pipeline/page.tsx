@@ -11,6 +11,7 @@ import { DateRangePicker } from "@/components/analytics/DateRangePicker";
 import { FilterBar } from "@/components/analytics/FilterBar";
 import { Suspense } from "react";
 import { SITE_DOMAIN } from "@/lib/constants";
+import { babysittingEnabled, shareLoopEnabled } from "@/lib/features/flags";
 
 // Stages that represent a completed placement
 const PLACED_STAGES = new Set([34, 50, 51]);
@@ -1875,80 +1876,90 @@ export default async function AdminPipelinePage({
         </CardContent>
       </Card>
 
-      {/* Viral Shares — Nanny */}
-      <Card>
-        <CardContent className="pt-5">
-          <PipelineTable
-            title="Nanny Profile Shares"
-            subtitle="Nannies sharing their profile to Facebook groups"
-            metricType="cumulative"
-            stages={data.nannySharesMetrics}
-            liveStages={data.nannySharesLive}
-            timestamps={data.nannySharesTimestamps.length > 0 ? data.nannySharesTimestamps : undefined}
-            tableKey="vn"
-          />
-        </CardContent>
-      </Card>
+      {/* 5-w3fix (W3-M4, P-23): the share funnel cards render only while SHARE_LOOP_ENABLED is on. */}
+      {shareLoopEnabled() && (
+        <>
+          {/* Viral Shares — Nanny */}
+          <Card>
+            <CardContent className="pt-5">
+              <PipelineTable
+                title="Nanny Profile Shares"
+                subtitle="Nannies sharing their profile to Facebook groups"
+                metricType="cumulative"
+                stages={data.nannySharesMetrics}
+                liveStages={data.nannySharesLive}
+                timestamps={data.nannySharesTimestamps.length > 0 ? data.nannySharesTimestamps : undefined}
+                tableKey="vn"
+              />
+            </CardContent>
+          </Card>
 
-      {/* Viral Shares — Position */}
-      <Card>
-        <CardContent className="pt-5">
-          <PipelineTable
-            title="Position Shares"
-            subtitle="Parents sharing their nanny position to Facebook groups"
-            metricType="cumulative"
-            stages={data.positionSharesMetrics}
-            liveStages={data.positionSharesLive}
-            timestamps={data.positionSharesTimestamps.length > 0 ? data.positionSharesTimestamps : undefined}
-            tableKey="vp"
-          />
-        </CardContent>
-      </Card>
+          {/* Viral Shares — Position */}
+          <Card>
+            <CardContent className="pt-5">
+              <PipelineTable
+                title="Position Shares"
+                subtitle="Parents sharing their nanny position to Facebook groups"
+                metricType="cumulative"
+                stages={data.positionSharesMetrics}
+                liveStages={data.positionSharesLive}
+                timestamps={data.positionSharesTimestamps.length > 0 ? data.positionSharesTimestamps : undefined}
+                tableKey="vp"
+              />
+            </CardContent>
+          </Card>
+        </>
+      )}
 
-      {/* Viral Shares — BSR */}
-      <Card>
-        <CardContent className="pt-5">
-          <PipelineTable
-            title="BSR Shares"
-            subtitle="Parents sharing their babysitting request to Facebook groups"
-            metricType="cumulative"
-            stages={data.bsrSharesMetrics}
-            liveStages={data.bsrSharesLive}
-            timestamps={data.bsrSharesTimestamps.length > 0 ? data.bsrSharesTimestamps : undefined}
-            tableKey="vb"
-          />
-        </CardContent>
-      </Card>
+      {/* 5-w3fix (W3-M4, P-23): the babysitting funnel cards render only while BABYSITTING_ENABLED is on. */}
+      {babysittingEnabled() && (
+        <>
+          {/* Viral Shares — BSR */}
+          <Card>
+            <CardContent className="pt-5">
+              <PipelineTable
+                title="BSR Shares"
+                subtitle="Parents sharing their babysitting request to Facebook groups"
+                metricType="cumulative"
+                stages={data.bsrSharesMetrics}
+                liveStages={data.bsrSharesLive}
+                timestamps={data.bsrSharesTimestamps.length > 0 ? data.bsrSharesTimestamps : undefined}
+                tableKey="vb"
+              />
+            </CardContent>
+          </Card>
 
-      {/* Babysitting Requests */}
-      <Card>
-        <CardContent className="pt-5">
-          <PipelineTable
-            title="Babysitting Requests"
-            subtitle="One-time babysitting job request lifecycle"
-            metricType="cumulative"
-            stages={data.bsrMetrics}
-            liveStages={data.bsrLive}
-            timestamps={data.bsrTimestamps.length > 0 ? data.bsrTimestamps : undefined}
-            tableKey="bs"
-          />
-        </CardContent>
-      </Card>
+          {/* Babysitting Requests */}
+          <Card>
+            <CardContent className="pt-5">
+              <PipelineTable
+                title="Babysitting Requests"
+                subtitle="One-time babysitting job request lifecycle"
+                metricType="cumulative"
+                stages={data.bsrMetrics}
+                liveStages={data.bsrLive}
+                timestamps={data.bsrTimestamps.length > 0 ? data.bsrTimestamps : undefined}
+                tableKey="bs"
+              />
+            </CardContent>
+          </Card>
 
-      {/* BSR Notifications */}
-      <Card>
-        <CardContent className="pt-5">
-          <PipelineTable
-            title="BSR Notifications"
-            subtitle="Nanny response funnel for babysitting notifications"
-            metricType="cumulative"
-            stages={data.bsrNotifMetrics}
-            liveStages={data.bsrNotifLive}
-            timestamps={data.bsrNotifTimestamps.length > 0 ? data.bsrNotifTimestamps : undefined}
-            tableKey="bn"
-          />
-        </CardContent>
-      </Card>
+          {/* BSR Notifications */}
+          <Card>
+            <CardContent className="pt-5">
+              <PipelineTable
+                title="BSR Notifications"
+                subtitle="Nanny response funnel for babysitting notifications"
+                metricType="cumulative"
+                stages={data.bsrNotifMetrics}
+                liveStages={data.bsrNotifLive}
+                timestamps={data.bsrNotifTimestamps.length > 0 ? data.bsrNotifTimestamps : undefined}
+                tableKey="bn"
+              />
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       {/* Application Page Drop-off (bottom) */}
       <Card>

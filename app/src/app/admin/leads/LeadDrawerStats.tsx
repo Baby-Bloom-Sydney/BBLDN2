@@ -17,6 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { overrideResponded, updateContactsOffset } from "./actions";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 interface LeadDrawerStatsProps {
   detail: LeadDetail;
@@ -74,32 +75,35 @@ export function LeadDrawerStats({
           return `${total}${linked < total ? ` (${linked} linked)` : ""}`;
         })()}
       />
-      <Stat
-        label="Contributions"
-        value={(() => {
-          const tsSet =
-            detail.nanny?.bonus_program_completed_at !== null &&
-            detail.nanny?.bonus_program_completed_at !== undefined;
-          const bonusInviteCount = detail.children_linked.filter(
-            (c) => c.bonus_program,
-          ).length;
-          const complete = tsSet || bonusInviteCount > 0;
-          return (
-            <span
-              className={complete ? "text-green-700" : "text-slate-500"}
-              title={
-                tsSet
-                  ? `bonus_program_completed_at: ${detail.nanny?.bonus_program_completed_at}`
-                  : bonusInviteCount > 0
-                    ? `${bonusInviteCount} bonus invite(s) found (timestamp not set)`
-                    : "No bonus contributions detected"
-              }
-            >
-              {complete ? "Complete" : "Incomplete"}
-            </span>
-          );
-        })()}
-      />
+      {/* 5-w3fix (W3-M3, P-23): hidden unless PAYOUTS_ENABLED. */}
+      {payoutsEnabled() && (
+        <Stat
+          label="Contributions"
+          value={(() => {
+            const tsSet =
+              detail.nanny?.bonus_program_completed_at !== null &&
+              detail.nanny?.bonus_program_completed_at !== undefined;
+            const bonusInviteCount = detail.children_linked.filter(
+              (c) => c.bonus_program,
+            ).length;
+            const complete = tsSet || bonusInviteCount > 0;
+            return (
+              <span
+                className={complete ? "text-green-700" : "text-slate-500"}
+                title={
+                  tsSet
+                    ? `bonus_program_completed_at: ${detail.nanny?.bonus_program_completed_at}`
+                    : bonusInviteCount > 0
+                      ? `${bonusInviteCount} bonus invite(s) found (timestamp not set)`
+                      : "No bonus contributions detected"
+                }
+              >
+                {complete ? "Complete" : "Incomplete"}
+              </span>
+            );
+          })()}
+        />
+      )}
       <Stat
         label="Contacts"
         value={totalContactsDerived}

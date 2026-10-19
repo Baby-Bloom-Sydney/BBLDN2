@@ -61,10 +61,13 @@ function composeContext(detail: LeadDetail): string {
     );
   }
 
-  if (detail.nanny?.bonus_program_completed_at) {
-    parts.push("contributions complete");
-  } else {
-    parts.push("contributions incomplete");
+  // 5-w3fix (W3-M3, P-23): hidden unless PAYOUTS_ENABLED.
+  if (payoutsEnabled()) {
+    if (detail.nanny?.bonus_program_completed_at) {
+      parts.push("contributions complete");
+    } else {
+      parts.push("contributions incomplete");
+    }
   }
 
   return parts.join(" · ");
