@@ -47,7 +47,7 @@ import {
   Plus,
 } from "lucide-react";
 import Link from "next/link";
-import { legacyTierCheckoutEnabled } from "@/lib/features/flags";
+import { babysittingEnabled, legacyTierCheckoutEnabled } from "@/lib/features/flags";
 import {
   CONNECTION_STAGE,
   CONNECTION_STAGE_LABELS,
@@ -1348,8 +1348,8 @@ export function PositionPageClient({
           );
         })()}
 
-      {/* ── Babysitting Tile ── */}
-      {(() => {
+      {/* ── Babysitting Tile — 5-w3fix (W3-M2, P-23): rendered only while BABYSITTING_ENABLED is on ── */}
+      {babysittingEnabled() && (() => {
         const bsrHasActive =
           bsrPendingPayment.length > 0 ||
           bsrActive.length > 0 ||

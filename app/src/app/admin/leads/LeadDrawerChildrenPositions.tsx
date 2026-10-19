@@ -14,6 +14,7 @@ interface LeadDrawerChildrenPositionsProps {
 }
 
 import { formatLeadDate } from "@/lib/leads/format";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 const fmt = formatLeadDate;
 
@@ -152,7 +153,8 @@ export function LeadDrawerChildrenPositions({
         {totalChildren === 0 ? (
           <p className="rounded border border-dashed border-slate-200 px-2 py-2 text-xs text-slate-400">
             No children on this nanny&apos;s account.{" "}
-            {!detail.nanny?.bonus_program_completed_at && (
+            {/* 5-w3fix (W3-M3, P-23): hidden unless PAYOUTS_ENABLED. */}
+            {payoutsEnabled() && !detail.nanny?.bonus_program_completed_at && (
               <span className="text-violet-700">
                 Bonus contributions not set up yet — upsell opportunity.
               </span>

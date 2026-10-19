@@ -6,10 +6,18 @@
  * new copy (3g wording rules: parent-facing text carries no verification wording).
  * Input: the auth role string. Output: the comma-separated topic list shown after "I can help you across all of Baby
  * Bloom —". Never: offers verification to any role but "nanny".
+ *
+ * 5-w3fix (W3-M1, P-23): "babysitting" is listed only while `BABYSITTING_ENABLED` is on (read at call time).
  */
-const NANNY_TOPICS = "child development, jobs, babysitting, verification, your profile";
-const OTHER_TOPICS = "child development, jobs, babysitting, your profile";
+import { babysittingEnabled } from "@/lib/features/flags";
 
 export function katieGreetingTopics(role: string): string {
-  return role === "nanny" ? NANNY_TOPICS : OTHER_TOPICS;
+  const topics = [
+    "child development",
+    "jobs",
+    ...(babysittingEnabled() ? ["babysitting"] : []),
+    ...(role === "nanny" ? ["verification"] : []),
+    "your profile",
+  ];
+  return topics.join(", ");
 }
