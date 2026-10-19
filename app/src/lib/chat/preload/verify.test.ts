@@ -41,21 +41,29 @@ interface PlacementRow {
   status: string;
 }
 
+/** A `connection_requests` row as the ownership check embeds it (5e): the
+ *  table has `nanny_id`/`parent_id` (profile ids), so the auth user ids
+ *  arrive through the `nannies` / `parents` embeds. */
 interface ConnectionRow {
   id: string;
-  parent_user_id: string;
-  nanny_user_id: string;
+  nannies: { user_id: string };
+  parents: { user_id: string };
 }
 
 const state = {
   // What the supabase mock will return for placement / connection ownership checks.
   placementByUserId: new Map<string, PlacementRow>(),
   connectionsByUserId: new Map<string, ConnectionRow[]>(),
+  // What the connection ownership check asked for (5e: table + columns).
+  connectionSelects: [] as string[],
+  connectionError: null as Error | null,
 };
 
 beforeEach(() => {
   state.placementByUserId.clear();
   state.connectionsByUserId.clear();
+  state.connectionSelects.length = 0;
+  state.connectionError = null;
 });
 
 function makeSupabase(): SupabaseClient {
@@ -91,11 +99,16 @@ function makeSupabase(): SupabaseClient {
           }),
         };
       }
-      if (table === "interview_requests" || table === "connections") {
+      // 5e: only the real table answers — `interview_requests` does not
+      // exist in the London schema, so any other name throws "unmocked".
+      if (table === "connection_requests") {
         return {
-          select: () => ({
+          select: (columns: string) => {
+            state.connectionSelects.push(columns);
+            return {
             eq: (_col: string, value: string) => ({
               maybeSingle: async () => {
+                if (state.connectionError) throw state.connectionError;
                 // Walk every user's connections looking for a match by id.
                 for (const conns of state.connectionsByUserId.values()) {
                   const hit = conns.find((c) => c.id === value);
@@ -104,7 +117,8 @@ function makeSupabase(): SupabaseClient {
                 return { data: null, error: null };
               },
             }),
-          }),
+            };
+          },
         };
       }
       throw new Error(`unmocked table: ${table}`);
@@ -364,6 +378,85 @@ describe("verifyPreload", () => {
     });
     expect(out.accepted.connection_detail).toBeUndefined();
     expect(out.dropped[0].reason).toBe("connection_not_owned");
+  });
+
+  describe("connection_detail — ownership read from connection_requests (5e, R-4)", () => {
+    const NANNY_USER = "00000000-0000-4000-8000-0000000000a1";
+    const PARENT_USER = "00000000-0000-4000-8000-0000000000b2";
+    const OTHER_USER = "00000000-0000-4000-8000-0000000000c3";
+    const CONN = "11111111-1111-4111-8111-111111111111";
+    const slot = {
+      connection_id: CONN,
+      summary: { partner_name: "X", stage: "intro_scheduled", last_message_at: null },
+    };
+    beforeEach(() => {
+      state.connectionsByUserId.set(NANNY_USER, [
+        { id: CONN, nannies: { user_id: NANNY_USER }, parents: { user_id: PARENT_USER } },
+      ]);
+    });
+
+    it("the nanny on the connection keeps the slot", async () => {
+      const out = await verifyPreload({
+        preload: { as_of: now(), connection_detail: slot },
+        userId: NANNY_USER,
+        role: "nanny",
+        childrenScope: [],
+        supabase: makeSupabase(),
+      });
+      expect(out.accepted.connection_detail).toEqual(slot);
+      expect(out.dropped).toEqual([]);
+    });
+
+    it("the parent on the connection keeps the slot", async () => {
+      const out = await verifyPreload({
+        preload: { as_of: now(), connection_detail: slot },
+        userId: PARENT_USER,
+        role: "parent",
+        childrenScope: [],
+        supabase: makeSupabase(),
+      });
+      expect(out.accepted.connection_detail).toEqual(slot);
+    });
+
+    it("a user who is not a party is dropped even though the row exists", async () => {
+      const out = await verifyPreload({
+        preload: { as_of: now(), connection_detail: slot },
+        userId: OTHER_USER,
+        role: "nanny",
+        childrenScope: [],
+        supabase: makeSupabase(),
+      });
+      expect(out.accepted.connection_detail).toBeUndefined();
+      expect(out.dropped).toEqual([{ slot: "connection_detail", reason: "connection_not_owned" }]);
+    });
+
+    it("selects only columns that exist, with the user ids through the nannies/parents embeds", async () => {
+      await verifyPreload({
+        preload: { as_of: now(), connection_detail: slot },
+        userId: NANNY_USER,
+        role: "nanny",
+        childrenScope: [],
+        supabase: makeSupabase(),
+      });
+      expect(state.connectionSelects).toHaveLength(1);
+      const cols = state.connectionSelects[0];
+      expect(cols).not.toMatch(/parent_user_id|nanny_user_id/);
+      expect(cols).toMatch(/nannies!inner\(user_id\)/);
+      expect(cols).toMatch(/parents!inner\(user_id\)/);
+    });
+
+    it("a DB error fails closed (slot dropped, no throw)", async () => {
+      state.connectionError = new Error("boom");
+      const out = await verifyPreload({
+        preload: { as_of: now(), connection_detail: slot },
+        userId: NANNY_USER,
+        role: "nanny",
+        childrenScope: [],
+        supabase: makeSupabase(),
+      });
+      expect(out.accepted.connection_detail).toBeUndefined();
+      expect(out.dropped[0].reason).toBe("connection_not_owned");
+    });
   });
 
   it("recent_agent_memory — shared_child item with in-scope child is accepted", async () => {
