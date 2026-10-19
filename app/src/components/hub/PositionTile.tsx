@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ClipboardList, MapPin, Clock, Users, ArrowRight, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { trackEvent } from '@/lib/analytics/trackEvent';
+import { legacyTierCheckoutEnabled } from '@/lib/features/flags';
 
 export interface PositionSummary {
   suburb: string | null;
@@ -133,7 +134,8 @@ export function PositionTile({ hasPosition, positionSummary, hasDfy }: PositionT
               View Matches
             </Link>
           </Button>
-        ) : (
+        ) : legacyTierCheckoutEnabled() ? (
+          // 5g (P-23): the tier checkout is hidden unless LEGACY_TIER_CHECKOUT_ENABLED.
           <Button
             asChild
             className="flex-1 bg-violet-600 hover:bg-violet-700 text-white font-medium"
@@ -144,7 +146,7 @@ export function PositionTile({ hasPosition, positionSummary, hasDfy }: PositionT
               Find Me a Nanny
             </Link>
           </Button>
-        )}
+        ) : null}
       </div>
     </div>
   );

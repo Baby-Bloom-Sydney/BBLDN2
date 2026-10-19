@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { ProactiveTrigger } from "@/lib/chat/modules/types";
 
 // vi.hoisted keeps state in scope of the (hoisted) vi.mock factories.
@@ -90,11 +90,20 @@ function setBot(overrides: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
+  // Pin Date only (timers stay real) so the default 00:00–23:59 waking
+  // window never misses: at 23:59 wall-clock the strict `< end` check
+  // returned skipped_waking and failed CI (run 39178632640).
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-06-01T12:00:00Z"));
   state.bot = null;
   state.insertCalls = [];
   state.insertResult = { data: { id: "msg-1" } };
   state.findProactiveTrigger.mockReset();
   state.generateMock.mockReset();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("dispatchActionTriggered — gates", () => {

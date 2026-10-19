@@ -17,10 +17,17 @@ import {
 } from "@/lib/ai/check-share-screenshot";
 import { activateBsr } from "@/lib/actions/babysitting";
 import { BRAND } from "@/lib/constants";
+import { shareLoopEnabled } from "@/lib/features/flags";
 // AUTOFIRE T-040: disabled — share-gate is dead path; matchmaking now autofires on position creation
 // via `autofireMatchmaking(positionId)` (see `./autofire-matchmaking.ts`). If reintroducing the
 // share-gate, route through THAT wrapper rather than calling `activateDfyPosition` directly.
 // import { activateDfyPosition } from '@/lib/actions/matching';
+
+// 5b (P-23): while SHARE_LOOP_ENABLED is off every exported action below (writers and readers) refuses before
+// any auth, read or write.
+// Next 14 exposes every export of this client-imported "use server" module by action id, so hiding the
+// pages alone would leave these callable (recordCheckResult has no auth of its own).
+const SHARE_LOOP_DISABLED = "share_loop_disabled";
 
 // ── Auth helper ──
 
@@ -40,6 +47,7 @@ export async function getShareForUser(
   caseType: ShareCaseType,
   referenceId: string,
 ): Promise<{ share: ViralShareRow | null; error: string | null }> {
+  if (!shareLoopEnabled()) return { share: null, error: SHARE_LOOP_DISABLED };
   const user = await getAuthUser();
   if (!user) return { share: null, error: "Not authenticated" };
 
@@ -66,6 +74,7 @@ export async function getSharesForUser(): Promise<{
   shares: ViralShareRow[];
   error: string | null;
 }> {
+  if (!shareLoopEnabled()) return { shares: [], error: SHARE_LOOP_DISABLED };
   const user = await getAuthUser();
   if (!user) return { shares: [], error: "Not authenticated" };
 
@@ -90,6 +99,7 @@ export async function isViralAccessGranted(
   caseType: ShareCaseType,
   referenceId: string,
 ): Promise<boolean> {
+  if (!shareLoopEnabled()) return false;
   const { share } = await getShareForUser(caseType, referenceId);
   if (!share) return false;
   return isShareAccessGranted(share.share_status);
@@ -103,6 +113,7 @@ export async function createShareRecord(
   referenceId: string,
   userId?: string,
 ): Promise<{ share: ViralShareRow | null; error: string | null }> {
+  if (!shareLoopEnabled()) return { share: null, error: SHARE_LOOP_DISABLED };
   // If userId not provided, get from auth
   let targetUserId = userId;
   if (!targetUserId) {
@@ -160,6 +171,7 @@ export async function createShareRecord(
 export async function markShareCompleted(
   shareId: string,
 ): Promise<{ success: boolean; error: string | null }> {
+  if (!shareLoopEnabled()) return { success: false, error: SHARE_LOOP_DISABLED };
   const user = await getAuthUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
@@ -209,6 +221,7 @@ export async function submitShareScreenshot(
   shareId: string,
   screenshotUrl: string,
 ): Promise<{ success: boolean; error: string | null }> {
+  if (!shareLoopEnabled()) return { success: false, error: SHARE_LOOP_DISABLED };
   const user = await getAuthUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
@@ -271,6 +284,7 @@ export async function submitShareScreenshot(
 export async function beginScreenshotCheck(
   shareId: string,
 ): Promise<{ success: boolean; error: string | null }> {
+  if (!shareLoopEnabled()) return { success: false, error: SHARE_LOOP_DISABLED };
   const admin = createAdminClient();
 
   const { data: share, error: fetchErr } = await admin
@@ -311,6 +325,7 @@ export async function recordCheckResult(
   shareId: string,
   result: ScreenshotCheckResult,
 ): Promise<{ success: boolean; error: string | null }> {
+  if (!shareLoopEnabled()) return { success: false, error: SHARE_LOOP_DISABLED };
   const admin = createAdminClient();
 
   const { data: share, error: fetchErr } = await admin
@@ -369,6 +384,9 @@ export async function processScreenshotCheck(
   error: string | null;
   failReason: string | null;
 }> {
+  if (!shareLoopEnabled()) {
+    return { success: false, approved: false, error: SHARE_LOOP_DISABLED, failReason: null };
+  }
   // 1. Mark as processing
   const beginResult = await beginScreenshotCheck(shareId);
   if (!beginResult.success) {
@@ -481,6 +499,7 @@ export async function processScreenshotCheck(
 export async function adminBypassShare(
   shareId: string,
 ): Promise<{ success: boolean; error: string | null }> {
+  if (!shareLoopEnabled()) return { success: false, error: SHARE_LOOP_DISABLED };
   const user = await getAuthUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
@@ -518,6 +537,7 @@ export async function createNannyProfileShare(
   nannyId: string,
   userId: string,
 ): Promise<{ share: ViralShareRow | null; error: string | null }> {
+  if (!shareLoopEnabled()) return { share: null, error: SHARE_LOOP_DISABLED };
   return createShareRecord(SHARE_CASE_TYPE.NANNY_PROFILE, nannyId, userId);
 }
 
@@ -526,6 +546,7 @@ export async function createParentPositionShare(
   positionId: string,
   userId?: string,
 ): Promise<{ share: ViralShareRow | null; error: string | null }> {
+  if (!shareLoopEnabled()) return { share: null, error: SHARE_LOOP_DISABLED };
   return createShareRecord(SHARE_CASE_TYPE.PARENT_POSITION, positionId, userId);
 }
 
@@ -534,6 +555,7 @@ export async function createParentBsrShare(
   bsrId: string,
   userId?: string,
 ): Promise<{ share: ViralShareRow | null; error: string | null }> {
+  if (!shareLoopEnabled()) return { share: null, error: SHARE_LOOP_DISABLED };
   return createShareRecord(SHARE_CASE_TYPE.PARENT_BSR, bsrId, userId);
 }
 
@@ -551,6 +573,7 @@ export async function getNannySharePageData(): Promise<{
   } | null;
   error: string | null;
 }> {
+  if (!shareLoopEnabled()) return { data: null, error: SHARE_LOOP_DISABLED };
   const user = await getAuthUser();
   if (!user) return { data: null, error: "Not authenticated" };
 
@@ -630,6 +653,7 @@ export async function getBsrSharePageData(bsrId: string): Promise<{
   } | null;
   error: string | null;
 }> {
+  if (!shareLoopEnabled()) return { data: null, error: SHARE_LOOP_DISABLED };
   const user = await getAuthUser();
   if (!user) return { data: null, error: "Not authenticated" };
 
@@ -707,6 +731,7 @@ export async function getBsrSharePageData(bsrId: string): Promise<{
 
 /** Is a nanny's profile share approved? (gates BSR pool access) */
 export async function isNannyViralCompliant(nannyId: string): Promise<boolean> {
+  if (!shareLoopEnabled()) return false;
   const admin = createAdminClient();
   const { data } = await admin
     .from("viral_shares")
@@ -723,6 +748,7 @@ export async function isNannyViralCompliant(nannyId: string): Promise<boolean> {
 export async function isPositionViralCompliant(
   positionId: string,
 ): Promise<boolean> {
+  if (!shareLoopEnabled()) return false;
   const admin = createAdminClient();
   const { data } = await admin
     .from("viral_shares")
@@ -737,6 +763,7 @@ export async function isPositionViralCompliant(
 
 /** Is a BSR share approved? (gates nanny notifications) */
 export async function isBsrViralCompliant(bsrId: string): Promise<boolean> {
+  if (!shareLoopEnabled()) return false;
   const admin = createAdminClient();
   const { data } = await admin
     .from("viral_shares")
@@ -768,6 +795,7 @@ export async function getPositionSharePageData(): Promise<{
   } | null;
   error: string | null;
 }> {
+  if (!shareLoopEnabled()) return { data: null, error: SHARE_LOOP_DISABLED };
   const user = await getAuthUser();
   if (!user) return { data: null, error: "Not authenticated" };
 

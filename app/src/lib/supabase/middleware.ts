@@ -2,10 +2,28 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { UserRole } from "@/lib/auth/types";
 
-const PROTECTED_ROUTES: Record<string, UserRole[]> = {
+/**
+ * The six demo/test roots answer only to an admin (5a, R-1). Matched as the
+ * root itself or the root followed by "/" — `/test` and `/test/x`, never
+ * `/testimonials`. Checked before the hub prefixes below, so
+ * `/nanny/profiletest` is decided here and not by `/nanny`.
+ */
+const ADMIN_ONLY_DEMO_ROOTS = [
+  "/nanny/profiletest",
+  "/ui",
+  "/ui2",
+  "/brandkit1",
+  "/test",
+  "/bb/test",
+] as const;
+
+const ADMIN_ROLES: readonly UserRole[] = ["admin", "super_admin"];
+
+/** Hub prefixes; matched with `startsWith` (unchanged behaviour). */
+const PROTECTED_ROUTES: Record<string, readonly UserRole[]> = {
   "/nanny": ["nanny"],
   "/parent": ["parent"],
-  "/admin": ["admin", "super_admin"],
+  "/admin": ADMIN_ROLES,
 };
 
 const AUTH_ROUTES = [
@@ -22,7 +40,14 @@ const ROLE_DASHBOARDS: Record<UserRole, string> = {
   super_admin: "/admin/dashboard",
 };
 
-function getRequiredRolesForPath(pathname: string): UserRole[] | null {
+function isUnderRoot(pathname: string, root: string): boolean {
+  return pathname === root || pathname.startsWith(`${root}/`);
+}
+
+function getRequiredRolesForPath(pathname: string): readonly UserRole[] | null {
+  if (ADMIN_ONLY_DEMO_ROOTS.some((root) => isUnderRoot(pathname, root))) {
+    return ADMIN_ROLES;
+  }
   for (const [route, roles] of Object.entries(PROTECTED_ROUTES)) {
     if (pathname.startsWith(route)) {
       return roles;
