@@ -553,10 +553,13 @@ export async function fetchLeads(state: LeadQueryState): Promise<LeadsPage> {
   // operator opted in.
   const f = state.filters;
   if (f.level.length > 0) q = q.in("verification_level", f.level);
-  if (f.contributions === "complete")
-    q = q.not("bonus_program_completed_at", "is", null);
-  if (f.contributions === "incomplete")
-    q = q.is("bonus_program_completed_at", null);
+  // 5-w3fix (W3-M3, P-23): the Contributions filter is hidden unless PAYOUTS_ENABLED — `?contributions=` is ignored.
+  if (payoutsEnabled()) {
+    if (f.contributions === "complete")
+      q = q.not("bonus_program_completed_at", "is", null);
+    if (f.contributions === "incomplete")
+      q = q.is("bonus_program_completed_at", null);
+  }
   // 4-w5fix (W5-M2, P-23): the ABN filter is hidden unless PAYOUTS_ENABLED — `?abn=` is ignored.
   if (payoutsEnabled()) {
     if (f.abn === "has") q = q.not("abn", "is", null);

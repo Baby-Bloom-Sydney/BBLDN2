@@ -52,3 +52,31 @@ describe("fetchLeads — abn filter behind PAYOUTS_ENABLED", () => {
     expect(abnFilterCalls()).toEqual([{ table: "nannies", method: "not", args: ["abn", "is", null] }]);
   });
 });
+
+/** 5-w3fix (W3-M3, P-23): the "Contributions:" filter is hidden unless PAYOUTS_ENABLED — `?contributions=` is ignored. */
+const contributionsFilterCalls = () =>
+  h.calls.filter(
+    (c) => c.table === "nannies" && (c.method === "not" || c.method === "is") && c.args[0] === "bonus_program_completed_at",
+  );
+
+describe("fetchLeads — contributions filter behind PAYOUTS_ENABLED", () => {
+  it.each(["complete", "incomplete"])("flag off: ?contributions=%s applies no filter (unfiltered list)", async (contributions) => {
+    vi.stubEnv("PAYOUTS_ENABLED", "");
+    await fetchLeads(parseLeadQueryState(new URLSearchParams({ contributions })));
+    expect(h.calls.some((c) => c.table === "nannies")).toBe(true);
+    expect(contributionsFilterCalls()).toHaveLength(0);
+  });
+
+  it("flag on: ?contributions=complete / incomplete filter as before", async () => {
+    vi.stubEnv("PAYOUTS_ENABLED", "true");
+    await fetchLeads(parseLeadQueryState(new URLSearchParams({ contributions: "complete" })));
+    expect(contributionsFilterCalls()).toEqual([
+      { table: "nannies", method: "not", args: ["bonus_program_completed_at", "is", null] },
+    ]);
+    h.calls = [];
+    await fetchLeads(parseLeadQueryState(new URLSearchParams({ contributions: "incomplete" })));
+    expect(contributionsFilterCalls()).toEqual([
+      { table: "nannies", method: "is", args: ["bonus_program_completed_at", null] },
+    ]);
+  });
+});

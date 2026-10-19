@@ -8,6 +8,7 @@ import { Users } from "lucide-react";
 import type { LeadRow } from "@/lib/leads/types";
 import { LeadStatusPill } from "./LeadStatusPill";
 import { VerificationMiniChip } from "./VerificationMiniChip";
+import { payoutsEnabled } from "@/lib/payments/flags";
 
 interface LeadsListCardsProps {
   rows: LeadRow[];
@@ -71,17 +72,20 @@ export function LeadsListCards({
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
                   <span>Signed up {formatLeadDateTime(row.signup_at)}</span>
                   <VerificationMiniChip verification={row.verification} />
-                  <span
-                    className={`rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ${
-                      row.contributions_complete_derived
-                        ? "bg-green-50 text-green-700 ring-green-200"
-                        : "bg-slate-50 text-slate-500 ring-slate-200"
-                    }`}
-                  >
-                    {row.contributions_complete_derived
-                      ? "Contributions ✓"
-                      : "Contributions ✗"}
-                  </span>
+                  {/* 5-w3fix (W3-M3, P-23): hidden unless PAYOUTS_ENABLED. */}
+                  {payoutsEnabled() && (
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ${
+                        row.contributions_complete_derived
+                          ? "bg-green-50 text-green-700 ring-green-200"
+                          : "bg-slate-50 text-slate-500 ring-slate-200"
+                      }`}
+                    >
+                      {row.contributions_complete_derived
+                        ? "Contributions ✓"
+                        : "Contributions ✗"}
+                    </span>
+                  )}
                   {row.external_u3_position === true && (
                     <span
                       className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700"

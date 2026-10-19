@@ -213,26 +213,31 @@ export function LeadFiltersBar({
           }
           disabled={disabled}
         />
-        <span className="ml-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Contributions:
-        </span>
-        {(["any", "complete", "incomplete"] as ContributionsFilter[]).map(
-          (v) => (
-            <button
-              key={v}
-              type="button"
-              disabled={disabled}
-              onClick={() => update({ contributions: v })}
-              aria-pressed={state.filters.contributions === v}
-              className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset transition ${
-                state.filters.contributions === v
-                  ? "bg-violet-50 text-violet-700 ring-violet-200"
-                  : "bg-slate-50 text-slate-600 ring-slate-200 hover:ring-slate-300"
-              } ${disabled ? "opacity-50" : ""}`}
-            >
-              {CONTRIB_LABEL[v]}
-            </button>
-          ),
+        {/* 5-w3fix (W3-M3, P-23): hidden unless PAYOUTS_ENABLED. */}
+        {payoutsEnabled() && (
+          <>
+            <span className="ml-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Contributions:
+            </span>
+            {(["any", "complete", "incomplete"] as ContributionsFilter[]).map(
+              (v) => (
+                <button
+                  key={v}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => update({ contributions: v })}
+                  aria-pressed={state.filters.contributions === v}
+                  className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset transition ${
+                    state.filters.contributions === v
+                      ? "bg-violet-50 text-violet-700 ring-violet-200"
+                      : "bg-slate-50 text-slate-600 ring-slate-200 hover:ring-slate-300"
+                  } ${disabled ? "opacity-50" : ""}`}
+                >
+                  {CONTRIB_LABEL[v]}
+                </button>
+              ),
+            )}
+          </>
         )}
       </div>
 
