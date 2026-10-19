@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Filter, Lock, Sparkles, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { trackEvent } from '@/lib/analytics/trackEvent';
+import { legacyTierCheckoutEnabled } from '@/lib/features/flags';
 
 interface MatchesTileProps {
   hasPosition: boolean;
@@ -108,18 +109,20 @@ export function MatchesTile({ hasPosition, hasDfy }: MatchesTileProps) {
           </p>
         </div>
 
-        {/* Primary CTA */}
-        <Button
-          asChild
-          className="w-full bg-violet-600 hover:bg-violet-700 text-white font-medium"
-          size="lg"
-          onClick={() => trackEvent({ event_name: 'matches_tile_find_nanny_clicked' })}
-        >
-          <Link href="/parent/matches/checkout" className="flex items-center justify-center gap-2">
-            <Sparkles className="w-5 h-5" />
-            Find Me a Nanny
-          </Link>
-        </Button>
+        {/* Primary CTA — 5g (P-23): the tier checkout is hidden unless LEGACY_TIER_CHECKOUT_ENABLED. */}
+        {legacyTierCheckoutEnabled() && (
+          <Button
+            asChild
+            className="w-full bg-violet-600 hover:bg-violet-700 text-white font-medium"
+            size="lg"
+            onClick={() => trackEvent({ event_name: 'matches_tile_find_nanny_clicked' })}
+          >
+            <Link href="/parent/matches/checkout" className="flex items-center justify-center gap-2">
+              <Sparkles className="w-5 h-5" />
+              Find Me a Nanny
+            </Link>
+          </Button>
+        )}
 
         {/* Secondary link */}
         <Link

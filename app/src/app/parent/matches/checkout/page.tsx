@@ -1,9 +1,13 @@
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { MatchmakerCheckoutClient } from './MatchmakerCheckoutClient';
+import { legacyTierCheckoutEnabled } from '@/lib/features/flags';
 
 export default async function MatchmakerCheckoutPage() {
+  // 5g (P-23): hidden unless LEGACY_TIER_CHECKOUT_ENABLED — before any auth or read.
+  if (!legacyTierCheckoutEnabled()) notFound();
+
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
 

@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Sparkles, Check } from "lucide-react";
+import { legacyTierCheckoutEnabled } from "@/lib/features/flags";
 
 const FEATURES = [
   "We contact your top matched nannies",
@@ -49,15 +50,18 @@ export function DfyModal({ open, onClose }: DfyModalProps) {
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            onClick={() => {
-              window.location.href = "/parent/matches/checkout";
-            }}
-            className="bg-violet-600 hover:bg-violet-700"
-          >
-            <Sparkles className="w-4 h-4 mr-1.5" />
-            Get started
-          </Button>
+          {/* 5g (P-23): the tier checkout is hidden unless LEGACY_TIER_CHECKOUT_ENABLED. */}
+          {legacyTierCheckoutEnabled() && (
+            <Button
+              onClick={() => {
+                window.location.href = "/parent/matches/checkout";
+              }}
+              className="bg-violet-600 hover:bg-violet-700"
+            >
+              <Sparkles className="w-4 h-4 mr-1.5" />
+              Get started
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>
