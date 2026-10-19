@@ -6,6 +6,7 @@ import {
   getNannyUpcomingIntros,
 } from "@/lib/actions/position-funnel";
 import { getNannyBabysittingJobs } from "@/lib/actions/babysitting";
+import { babysittingEnabled } from "@/lib/features/flags";
 import { getDfyNotificationsForNanny } from "@/lib/actions/matching";
 import { getVerificationData } from "@/lib/actions/verification";
 import { getPendingInvitesForUser } from "@/lib/actions/bapp/child-invites";
@@ -259,7 +260,10 @@ export default async function NannyHubPage() {
   ] = await Promise.all([
     getNannyPlacements(),
     getNannyUpcomingIntros(),
-    getNannyBabysittingJobs(),
+    // 5c (P-23): not called while BABYSITTING_ENABLED is off, so its lazy expiry/reminder sweeps never run.
+    babysittingEnabled()
+      ? getNannyBabysittingJobs()
+      : Promise.resolve({ data: [], error: null, banned: false, banUntil: null }),
     getDfyNotificationsForNanny(),
     getVerificationData(),
     nannyId

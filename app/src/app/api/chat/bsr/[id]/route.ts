@@ -17,6 +17,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { KATIE_ENABLED } from "@/lib/chat/flags";
+import { babysittingEnabled } from "@/lib/features/flags";
 import {
   getNannyBabysittingJobs,
   getParentBabysittingRequests,
@@ -87,7 +88,8 @@ export async function GET(
   _request: Request,
   { params }: { params: { id: string } },
 ) {
-  if (!KATIE_ENABLED) {
+  // 5c (P-23): 404 while BABYSITTING_ENABLED is off, before auth and any read.
+  if (!KATIE_ENABLED || !babysittingEnabled()) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 

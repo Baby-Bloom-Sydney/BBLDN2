@@ -40,6 +40,7 @@ import {
 import { nannyWriteTools, tryExecuteNannyWrite } from "./bsr-writes-nanny";
 import { parentWriteTools, tryExecuteParentWrite } from "./bsr-writes-parent";
 import { bsrTriggers } from "./bsr-triggers";
+import { babysittingEnabled } from "@/lib/features/flags";
 
 const personaHeader =
   "For anything about babysitting requests (one-off jobs, BSRs, 'sitters'), call the bsr tools. Hard rules:\n\n" +
@@ -72,6 +73,12 @@ export const bsrModule: BloomBotModule = {
     "Full surface for the babysitting-request pipeline — nanny job invitations, parent requests, nanny request/decline/cancel, parent accept/decline/cancel. All state translated to plain English; phone and address never leak until the appropriate apply returns them.",
 
   rolesAllowed: ["nanny", "parent"],
+
+  // 5c (P-23): not offered while BABYSITTING_ENABLED is off — the registry drops a module whose `enabled` is false
+  // (no tools, no proactive triggers, no prompt fragment). Read at call time.
+  get enabled() {
+    return babysittingEnabled();
+  },
 
   proactiveTriggers: bsrTriggers,
 

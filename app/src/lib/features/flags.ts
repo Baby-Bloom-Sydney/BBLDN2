@@ -42,6 +42,22 @@ export function isShareUnlocked(visibleInBsr: boolean | null | undefined): boole
 }
 
 /**
+ * The babysitting line (Stage 5 ruling 1, N-1; unit 5c). It will reopen later; code and tables stay.
+ *
+ * While off:
+ * - The parent and nanny hub "Babysitting" tabs stay and say "Coming soon." (`BabysittingComingSoon`); so do
+ *   `/parent/babysitting` and `/nanny/babysitting` (not 404, so nav links keep working).
+ * - `/babysitting/[id]`, `/api/og/babysitting/[id]`, `/api/chat/bsr/[id]`, `/api/babysitting` → 404; the payment
+ *   page redirects to `/parent/babysitting`; the sitemap skips babysitting.
+ * - The `babysitting` server-action writers refuse with `"babysitting_disabled"` and its readers return empty, so
+ *   the lazy expiry / reminder sweeps never run. `getLondonDistricts()` is not babysitting and stays live.
+ * - Katie's `bsr` module and `bsr_job` tile are not offered.
+ */
+export function babysittingEnabled(): boolean {
+  return isOn(process.env.BABYSITTING_ENABLED);
+}
+
+/**
  * The old DFY Standard tier checkout (Stage 5 ruling 7; unit 5g).
  *
  * While off:

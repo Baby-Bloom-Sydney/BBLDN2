@@ -1,10 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   getActiveModules,
   collectTools,
   findToolHandler,
   collectProactiveTriggers,
 } from "./registry";
+
+afterEach(() => vi.unstubAllEnvs());
 
 describe("module registry", () => {
   describe("getActiveModules", () => {
@@ -114,6 +116,8 @@ describe("module registry", () => {
     });
 
     it("includes a known bsr trigger id", () => {
+      // 5c: the bsr module is offered only with BABYSITTING_ENABLED on.
+      vi.stubEnv("BABYSITTING_ENABLED", "true");
       const ids = collectProactiveTriggers().map((t) => t.id);
       expect(ids).toContain("bsr.accepted_by_parent");
     });
@@ -191,5 +195,26 @@ describe("module registry", () => {
       const names = collectTools("nanny", completedSettings).map((t) => t.name);
       expect(names).not.toContain("update_onboarding_state");
     });
+  });
+});
+
+// Unit 5c (BB-LDN-5c-151026) — Katie's babysitting module is not offered while BABYSITTING_ENABLED is off.
+describe("module registry — bsr module behind BABYSITTING_ENABLED", () => {
+  it("off: no bsr module, no bsr tool, no bsr trigger, for any role", () => {
+    vi.stubEnv("BABYSITTING_ENABLED", "");
+    for (const role of [undefined, "nanny", "parent"] as const) {
+      expect(getActiveModules(role).map((m) => m.id)).not.toContain("bsr");
+      expect(collectProactiveTriggers(role).map((t) => t.id).some((id) => id.startsWith("bsr."))).toBe(false);
+    }
+    expect(findToolHandler("read_my_jobs", "nanny")?.id).not.toBe("bsr");
+    const offCount = collectTools("parent").length;
+    vi.stubEnv("BABYSITTING_ENABLED", "true");
+    expect(collectTools("parent").length).toBeGreaterThan(offCount);
+  });
+
+  it("on: the bsr module is offered to nannies and parents again", () => {
+    vi.stubEnv("BABYSITTING_ENABLED", "true");
+    expect(getActiveModules("nanny").map((m) => m.id)).toContain("bsr");
+    expect(getActiveModules("parent").map((m) => m.id)).toContain("bsr");
   });
 });

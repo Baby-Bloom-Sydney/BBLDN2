@@ -14,6 +14,10 @@ import { dispatchActionTriggeredInBackground } from "@/lib/chat/proactive/action
 import { emailHeader } from "@/lib/email/brand";
 import { BRAND } from "@/lib/constants";
 import { formatClockTime as formatTime } from "@/lib/timezone";
+import { babysittingEnabled } from "@/lib/features/flags";
+
+/** 5c (P-23): what every babysitting writer returns while `BABYSITTING_ENABLED` is off. */
+const BABYSITTING_DISABLED = "babysitting_disabled";
 
 // ── Types ──
 
@@ -624,6 +628,9 @@ export async function getPublicBsrProfile(bsrId: string): Promise<{
   data: PublicBsrProfile | null;
   error: string | null;
 }> {
+  // 5c (P-23): hidden while BABYSITTING_ENABLED is off — refuse / return empty before any read or write.
+  if (!babysittingEnabled()) return { data: null, error: null };
+
   const admin = createAdminClient();
 
   const { data: bsr, error: bsrErr } = await admin
@@ -706,6 +713,9 @@ export async function createBabysittingRequest(data: {
   specialRequirements?: string;
   title?: string;
 }): Promise<{ success: boolean; error: string | null; requestId?: string }> {
+  // 5c (P-23): hidden while BABYSITTING_ENABLED is off — refuse / return empty before any read or write.
+  if (!babysittingEnabled()) return { success: false, error: BABYSITTING_DISABLED };
+
   const adminClient = createAdminClient();
 
   const parentId = await getParentId();
@@ -896,6 +906,9 @@ export async function createBabysittingRequest(data: {
 export async function activateBsr(
   bsrId: string,
 ): Promise<{ success: boolean; error: string | null }> {
+  // 5c (P-23): hidden while BABYSITTING_ENABLED is off — refuse / return empty before any read or write.
+  if (!babysittingEnabled()) return { success: false, error: BABYSITTING_DISABLED };
+
   const adminClient = createAdminClient();
 
   const parentId = await getParentId();
@@ -1068,6 +1081,9 @@ export async function activateBsr(
 export async function requestBabysittingJob(
   babysittingRequestId: string,
 ): Promise<{ success: boolean; error: string | null }> {
+  // 5c (P-23): hidden while BABYSITTING_ENABLED is off — refuse / return empty before any read or write.
+  if (!babysittingEnabled()) return { success: false, error: BABYSITTING_DISABLED };
+
   const adminClient = createAdminClient();
   const now = new Date().toISOString();
 
@@ -1246,6 +1262,9 @@ export type BsrPublicApplyResult =
 export async function applyToBsrPublic(
   bsrId: string,
 ): Promise<BsrPublicApplyResult> {
+  // 5c (P-23): hidden while BABYSITTING_ENABLED is off — refuse / return empty before any read or write.
+  if (!babysittingEnabled()) return { status: "error", error: BABYSITTING_DISABLED };
+
   const supabase = createClient();
   const {
     data: { user },
@@ -1459,6 +1478,9 @@ export async function parentAcceptNanny(
   nannyPhone?: string;
   nannyFirstName?: string;
 }> {
+  // 5c (P-23): hidden while BABYSITTING_ENABLED is off — refuse / return empty before any read or write.
+  if (!babysittingEnabled()) return { success: false, error: BABYSITTING_DISABLED };
+
   const adminClient = createAdminClient();
   const now = new Date().toISOString();
 
@@ -1775,6 +1797,9 @@ export async function parentDeclineNanny(
   babysittingRequestId: string,
   nannyId: string,
 ): Promise<{ success: boolean; error: string | null }> {
+  // 5c (P-23): hidden while BABYSITTING_ENABLED is off — refuse / return empty before any read or write.
+  if (!babysittingEnabled()) return { success: false, error: BABYSITTING_DISABLED };
+
   const adminClient = createAdminClient();
   const now = new Date().toISOString();
 
@@ -1857,6 +1882,9 @@ export async function declineBabysittingRequest(
   babysittingRequestId: string,
   reason?: string,
 ): Promise<{ success: boolean; error: string | null }> {
+  // 5c (P-23): hidden while BABYSITTING_ENABLED is off — refuse / return empty before any read or write.
+  if (!babysittingEnabled()) return { success: false, error: BABYSITTING_DISABLED };
+
   const adminClient = createAdminClient();
   const now = new Date().toISOString();
 
@@ -1892,6 +1920,9 @@ export async function declineBabysittingRequest(
 export async function cancelBabysittingRequest(
   babysittingRequestId: string,
 ): Promise<{ success: boolean; error: string | null }> {
+  // 5c (P-23): hidden while BABYSITTING_ENABLED is off — refuse / return empty before any read or write.
+  if (!babysittingEnabled()) return { success: false, error: BABYSITTING_DISABLED };
+
   const adminClient = createAdminClient();
   const now = new Date().toISOString();
 
@@ -1981,6 +2012,9 @@ export async function nannyCancelBabysittingRequest(
   cancellationCount?: number;
   banned?: boolean;
 }> {
+  // 5c (P-23): hidden while BABYSITTING_ENABLED is off — refuse / return empty before any read or write.
+  if (!babysittingEnabled()) return { success: false, error: BABYSITTING_DISABLED };
+
   const adminClient = createAdminClient();
   const now = new Date().toISOString();
 
@@ -2237,6 +2271,9 @@ export async function getParentBabysittingRequests(): Promise<{
   data: BabysittingRequestWithSlots[];
   error: string | null;
 }> {
+  // 5c (P-23): hidden while BABYSITTING_ENABLED is off — refuse / return empty before any read or write.
+  if (!babysittingEnabled()) return { data: [], error: null };
+
   const adminClient = createAdminClient();
 
   const parentId = await getParentId();
@@ -2528,6 +2565,9 @@ export async function getNannyBabysittingJobs(): Promise<{
   banned: boolean;
   banUntil: string | null;
 }> {
+  // 5c (P-23): hidden while BABYSITTING_ENABLED is off — refuse / return empty before any read or write.
+  if (!babysittingEnabled()) return { data: [], error: null, banned: false, banUntil: null };
+
   const adminClient = createAdminClient();
 
   const nannyInfo = await getNannyId();

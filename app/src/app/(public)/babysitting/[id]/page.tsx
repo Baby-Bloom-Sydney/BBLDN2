@@ -3,6 +3,7 @@ import { BsrJobView } from "./BsrJobView";
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
 import { BRAND, OG_LOCALE, SITE_NAME, SITE_URL } from "@/lib/constants";
+import { babysittingEnabled } from "@/lib/features/flags";
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
@@ -16,6 +17,8 @@ export async function generateMetadata({
 }: {
   params: { id: string };
 }): Promise<Metadata> {
+  // 5c (P-23): the public babysitting page 404s while BABYSITTING_ENABLED is off, before any read.
+  if (!babysittingEnabled()) notFound();
   const { data: bsr } = await getPublicBsrProfile(params.id);
 
   if (!bsr) {
@@ -64,6 +67,7 @@ export default async function BsrPublicPage({
 }: {
   params: { id: string };
 }) {
+  if (!babysittingEnabled()) notFound();
   const { data: bsr, error } = await getPublicBsrProfile(params.id);
 
   if (error || !bsr) {

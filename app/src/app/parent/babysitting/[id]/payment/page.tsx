@@ -3,12 +3,19 @@ import { getPublicBsrProfile } from '@/lib/actions/babysitting';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import BsrPaymentClient from './BsrPaymentClient';
+import { babysittingEnabled } from '@/lib/features/flags';
 
 export default async function BsrPaymentPage({
   params,
 }: {
   params: { id: string };
 }) {
+  // 5c (P-23): while BABYSITTING_ENABLED is off there is nothing to pay for — back to the "Coming soon." page
+  // (this page's own fallback target), before any read.
+  if (!babysittingEnabled()) {
+    redirect('/parent/babysitting');
+  }
+
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
