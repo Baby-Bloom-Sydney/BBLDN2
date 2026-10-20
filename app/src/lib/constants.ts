@@ -34,9 +34,10 @@ export const SITE_DESCRIPTION =
 /**
  * The bare host — no scheme, no path. It is what `SENDERS` is built on
  * and what the internal-user email filters match against, so the two
- * can never drift apart. ADR-033; not yet purchased (B-50).
+ * can never drift apart. Bought by BAI 2026-10-21 (B-50); not yet verified
+ * with the mail provider, so mail still goes out on the interim sender below.
  */
-export const SITE_DOMAIN = "babybloomlondon.co.uk";
+export const SITE_DOMAIN = "babybloomnannies.co.uk";
 
 /** Default origin when `NEXT_PUBLIC_SITE_URL` is unset. ADR-033. */
 const DEFAULT_SITE_URL = `https://${SITE_DOMAIN}`;
