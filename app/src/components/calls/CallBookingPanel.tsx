@@ -1,25 +1,34 @@
 "use client";
 
 /**
- * Her call booking, as one panel (04b rework W5; brief §0a.1, §3 parent 2–4). The funnel slide (`/matchmaking/call`)
- * draws it in the funnel's shell; the in-app popup (W12) reuses its parts. States, all in the shell:
+ * Her call booking, as one panel (04b rework W5, W12; brief §0a.1, §3 parent 2–4), drawn in two frames:
  *
+ * - the **funnel slide** (`/matchmaking/call`: the matchmaking and quick-match sign-ups, the email links) — the
+ *   funnel's shell, "Skip for now" / "Keep my time" on the left, one button onward when booked;
+ * - the **in-app popup** (`inPopup`, W12: BAI 2026-11-05 "the version from inside the app should be a popup") — the
+ *   same content inside the dialog, the primary button alone (no Skip, no Keep my time: those would be close buttons;
+ *   she taps outside), no onward button.
+ *
+ * States:
  * - **picking** (not booked; after a no-answer with "We tried to call you — pick another time"; no times; load
- *   failed): the heading and 04b's intro, then the picker with "Skip for now" onward;
- * - **changing** (Change time, or `?change=1`): her booking stays on top ("Your call: …", the green panel) and the
- *   picker shows underneath with her slot chosen, "Keep my time" on the left; confirming moves the same booking;
- * - **no position yet** (W11, the quick-match sign-up and anyone else without one): picking a time holds nothing;
- *   "Complete my childcare position" takes the time to `/parent/request?callAt=`;
- * - **booked**: the tick, "You're booked", the time "(London time)", "We'll call you on <her mobile>", one primary
- *   button onward (labelled by `next`), and Change time / Cancel as text links (none at or after the start).
+ *   failed): the heading and 04b's intro, then the picker;
+ * - **changing** (Change time, `?change=1`, or the card's Change time): her booking stays on top ("Your call: …", the
+ *   green panel) and the picker shows underneath with her slot chosen; confirming moves the same booking;
+ * - **no position yet** (W11): picking a time holds nothing; "Complete my childcare position" takes the time to
+ *   `/parent/request?callAt=`;
+ * - **booked**: the tick, "You're booked", "We'll call you on <her mobile>"; on the slide the time "(London time)" and
+ *   one button onward, in the popup "Your call: …" (BAI 2026-11-05: "this pop up would also display their current
+ *   booking for ammendments"); Change time / Cancel as text links (none at or after the start).
  *
  * BB-wave1-041126/04b-rework, 2026-11-05.
  */
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PARENT_COPY } from "@/lib/calls/copy";
+import { callOnLine, PARENT_COPY } from "@/lib/calls/copy";
 import { positionWithCallPath, type Onward } from "@/lib/calls/next-path";
 import type { MyCallView } from "@/lib/calls/parent-view";
 import { BookedLinks, BookedTick, BookedWords, YourCallPanel } from "./BookedCall";
@@ -32,9 +41,46 @@ const NO_POSITION_GATE = { href: positionWithCallPath };
 
 export interface CallBookingPanelProps {
   readonly initial: MyCallView;
-  readonly onward: Onward;
-  /** `?change=1`: open straight into picking a new time for her booking. */
+  /** Open straight into picking a new time for her booking (`?change=1`, or the card's Change time). */
   readonly startChanging?: boolean;
+  /** The funnel slide's way on (Skip for now; the button when booked). */
+  readonly onward?: Onward;
+  /** Drawn inside the in-app popup (W12) instead of the funnel slide. */
+  readonly inPopup?: boolean;
+  /** Open with the taken notice for this time, in words (the popup's `call=gone`). */
+  readonly notice?: string | null;
+}
+
+interface FrameProps {
+  readonly inPopup: boolean;
+  readonly mark?: ReactNode;
+  readonly heading: string;
+  readonly subtitle?: ReactNode;
+  readonly children: ReactNode;
+}
+
+/** The dialog's own heading and description (its accessible name), centred as the slide's. */
+function PopupFrame({ mark, heading, subtitle, children }: Omit<FrameProps, "inPopup">) {
+  return (
+    <div className="space-y-5">
+      <DialogHeader className="items-center text-center">
+        {mark}
+        <DialogTitle className="text-xl font-semibold leading-snug text-slate-800">{heading}</DialogTitle>
+        {subtitle ? (
+          <DialogDescription asChild>
+            <div className="text-sm text-slate-500">{subtitle}</div>
+          </DialogDescription>
+        ) : (
+          <DialogDescription className="sr-only">{heading}</DialogDescription>
+        )}
+      </DialogHeader>
+      {children}
+    </div>
+  );
+}
+
+function Frame({ inPopup, ...rest }: FrameProps) {
+  return inPopup ? <PopupFrame {...rest} /> : <FunnelSlide {...rest} />;
 }
 
 function Status({ text }: { readonly text: string }) {
@@ -45,25 +91,30 @@ function Status({ text }: { readonly text: string }) {
   );
 }
 
-function BookedSlide({ call, onward }: { readonly call: CallBooking; readonly onward: Onward }) {
+interface StateProps {
+  readonly call: CallBooking;
+  readonly inPopup: boolean;
+  readonly onward?: Onward;
+  readonly notice?: string | null;
+}
+
+function Booked({ call, inPopup, onward }: StateProps) {
   const { view } = call;
   if (view.kind !== "booked") return null;
+  const subtitle = inPopup ? view.mobile && callOnLine(view.mobile) : <BookedWords booking={view.booking} mobile={view.mobile} />;
   return (
-    <FunnelSlide mark={<BookedTick />} heading={PARENT_COPY.youreBooked} subtitle={<BookedWords booking={view.booking} mobile={view.mobile} />}>
+    <Frame inPopup={inPopup} mark={<BookedTick />} heading={PARENT_COPY.youreBooked} subtitle={subtitle || undefined}>
       <Status text={call.status} />
       <div className="space-y-4">
-        <Button asChild className={FUNNEL_PRIMARY}>
-          <Link href={onward.href}>{onward.label}</Link>
-        </Button>
-        <BookedLinks
-          booking={view.booking}
-          busy={call.pending}
-          message={call.cancelMessage}
-          onChange={call.startChange}
-          onCancel={() => call.cancel(view.booking.bookingId)}
-        />
+        {inPopup && <YourCallPanel booking={view.booking} />}
+        {!inPopup && onward && (
+          <Button asChild className={FUNNEL_PRIMARY}>
+            <Link href={onward.href}>{onward.label}</Link>
+          </Button>
+        )}
+        <BookedLinks booking={view.booking} busy={call.pending} message={call.cancelMessage} onChange={call.startChange} onCancel={() => call.cancel(view.booking.bookingId)} />
       </div>
-    </FunnelSlide>
+    </Frame>
   );
 }
 
@@ -76,11 +127,11 @@ function PickSubtitle({ afterNoAnswer }: { readonly afterNoAnswer: boolean }) {
   );
 }
 
-function PickSlide({ call, onward }: { readonly call: CallBooking; readonly onward: Onward }) {
+function Picking({ call, inPopup, onward, notice }: StateProps) {
   const { view } = call;
   const booked = view.kind === "booked" ? view.booking : null;
   return (
-    <FunnelSlide heading={PARENT_COPY.pageHeading} subtitle={<PickSubtitle afterNoAnswer={view.kind === "pick" && view.afterNoAnswer} />}>
+    <Frame inPopup={inPopup} heading={PARENT_COPY.pageHeading} subtitle={<PickSubtitle afterNoAnswer={view.kind === "pick" && view.afterNoAnswer} />}>
       <Status text={call.status} />
       <div className="space-y-4">
         {booked && <YourCallPanel booking={booked} />}
@@ -91,19 +142,21 @@ function PickSlide({ call, onward }: { readonly call: CallBooking; readonly onwa
             days={view.kind === "load_failed" ? null : view.days}
             actions={call.actions}
             onConfirmed={call.onConfirmed}
-            onKeepTime={booked ? call.keepTime : undefined}
-            skipHref={booked ? undefined : onward.href}
+            onKeepTime={booked && !inPopup ? call.keepTime : undefined}
+            skipHref={booked || inPopup ? undefined : onward?.href}
             current={booked?.startsAt ?? null}
             gate={view.kind !== "load_failed" && view.needsPosition ? NO_POSITION_GATE : undefined}
+            initialNotice={notice ?? null}
           />
         )}
       </div>
-    </FunnelSlide>
+    </Frame>
   );
 }
 
-export function CallBookingPanel({ initial, onward, startChanging = false }: CallBookingPanelProps) {
+export function CallBookingPanel({ initial, startChanging = false, onward, inPopup = false, notice = null }: CallBookingPanelProps) {
   const call = useCallBooking(initial, startChanging);
   const showBooked = call.view.kind === "booked" && !call.changing;
-  return showBooked ? <BookedSlide call={call} onward={onward} /> : <PickSlide call={call} onward={onward} />;
+  const props = { call, inPopup, onward, notice };
+  return showBooked ? <Booked {...props} /> : <Picking {...props} />;
 }

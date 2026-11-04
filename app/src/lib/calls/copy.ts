@@ -60,6 +60,8 @@ export const PARENT_COPY = Object.freeze({
   // 04b rework W11: a parent with no position yet — BAI 2026-11-05, the line verbatim
   completePositionLine: "Complete your childcare position so that we can confirm your call with your matchmaker.",
   completePosition: "Complete my childcare position",
+  // 04b rework W12: the taken notice when the time that went isn't known
+  thatTime: "that time",
 });
 
 export const ADMIN_COPY = Object.freeze({

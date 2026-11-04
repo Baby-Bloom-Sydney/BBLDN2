@@ -29,6 +29,13 @@ vi.mock("./ParentHubClient", () => ({
   ParentHubClient: ({ callCard }: { callCard?: ReactNode }) => <div data-testid="hub">{callCard}</div>,
 }));
 vi.mock("@/lib/calls/parent-state", () => ({ loadHubCallCard: h.card }));
+vi.mock("@/components/calls/ChildcareCall", () => ({
+  ChildcareCall: ({ card, openWith }: { card: { kind: string } | null; openWith: string | null }) => (
+    <section data-card={card?.kind ?? "none"} data-open={openWith ?? "none"}>
+      {card ? "Book a time" : null}
+    </section>
+  ),
+}));
 
 import ParentHubPage from "./page";
 
@@ -116,5 +123,51 @@ describe("/parent and the call card — only with no hired or connected nanny (W
 
   it("neither → the card", async () => {
     expect((await props()).callCard).toBeDefined();
+  });
+});
+
+// ── 04b rework W12 (BAI 2026-11-05): in the app the call is a popup over the Childcare tab. The hub reads `call`
+//    (open | booked | gone; anything else ignored) and `at` (the time that went, for the notice). Flag off: ignored. ──
+describe("/parent and the call popup's param (W12)", () => {
+  const props = async (searchParams: Record<string, string>) =>
+    ((await ParentHubPage({ searchParams })) as ReactElement<{ children: ReactElement<Record<string, unknown>> }>).props.children.props;
+  const slot = async (searchParams: Record<string, string>) => {
+    const p = await props(searchParams);
+    return p.callCard as ReactElement<{ openWith: string | null; goneWhen: string | null }> | undefined;
+  };
+
+  it.each([["open"], ["booked"], ["gone"]])("call=%s opens the popup", async (mode) => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    expect((await slot({ t: "childcare", call: mode }))?.props.openWith).toBe(mode);
+  });
+
+  it("call=gone&at=<the slot> names the time for the notice, in London words", async () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    expect((await slot({ t: "childcare", call: "gone", at: "2027-02-09T14:00:00.000Z" }))?.props.goneWhen).toBe("Tuesday 9 February at 14:00");
+    expect((await slot({ t: "childcare", call: "gone", at: "nope" }))?.props.goneWhen).toBeNull();
+  });
+
+  it("anything else is ignored", async () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    expect((await slot({ t: "childcare", call: "please" }))?.props.openWith).toBeNull();
+  });
+
+  it("the popup opens even with no card (out of scope), so W8/W11's destinations always land", async () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    h.card.mockResolvedValue(null);
+    expect((await slot({ t: "childcare", call: "open" }))?.props.openWith).toBe("open");
+    expect("callCard" in (await props({ t: "childcare" }))).toBe(false);
+  });
+
+  it("a hired or connected nanny → no card and no popup, whatever the param", async () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    h.placement.mockResolvedValue({ data: { id: "pl-1" } });
+    expect("callCard" in (await props({ t: "childcare", call: "open" }))).toBe(false);
+  });
+
+  it("flag off → the param is ignored and nothing renders (today's props and markup)", async () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "");
+    expect("callCard" in (await props({ t: "childcare", call: "open" }))).toBe(false);
+    expect(h.card).not.toHaveBeenCalled();
   });
 });

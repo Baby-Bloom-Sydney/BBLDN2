@@ -15,7 +15,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { ParentHubClient } from "./ParentHubClient";
 import type { ChildClient } from "@/types/bapp";
-import { CallHubCard } from "@/components/calls/CallHubCard";
+import { ChildcareCall } from "@/components/calls/ChildcareCall";
+import { slotAtLine } from "@/lib/calls/copy";
+import { parseCallAt, parseCallPopup } from "@/lib/calls/next-path";
+import { slotWords } from "@/lib/calls/slot-words";
 import { loadHubCallCard } from "@/lib/calls/parent-state";
 
 const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === "true";
@@ -26,10 +29,20 @@ function noCallCard(thrown: unknown): null {
   return null;
 }
 
+/**
+ * Brief 04 (04b rework W12): the call popup's `call` param (open | booked | gone), checked; with `gone`, the time that
+ * went (`at`) in London words for the notice. Anything else → null (ignored).
+ */
+function callPopupFrom(searchParams: { call?: string; at?: string }) {
+  const openWith = parseCallPopup(searchParams.call);
+  const at = openWith === "gone" ? parseCallAt(searchParams.at) : null;
+  return { openWith, goneWhen: at === null ? null : slotAtLine(slotWords(at)) };
+}
+
 export default async function ParentHubPage({
   searchParams,
 }: {
-  searchParams: { t?: string; s?: string; v?: string };
+  searchParams: { t?: string; s?: string; v?: string; call?: string; at?: string };
 }) {
   let position: PositionWithChildren | null = null;
   let error: string | null = null;
@@ -87,8 +100,10 @@ export default async function ParentHubPage({
   const dfyExpiresAt = dfyStatusResult.expiresAt;
   const dfyActivated = dfyStatusResult.activated;
   const babysittingRequests = bsrResult.data ?? [];
-  // Brief 04 §0a.4 (04b rework W9): the call card only while no nanny is hired or connected.
-  const showCallCard = callCard !== null && !placement && confirmedNannies.length === 0;
+  // Brief 04 §0a.4 (04b rework W9, W12): the call card — and the popup it opens, or that `call=` opens — only with the
+  // flag on and while no nanny is hired or connected. With no card (out of scope) the popup still opens from `call=`.
+  const popup = callBookingEnabled() ? callPopupFrom(searchParams) : { openWith: null, goneWhen: null };
+  const showCallCard = callBookingEnabled() && !placement && confirmedNannies.length === 0 && (callCard !== null || popup.openWith !== null);
   const showFillButton =
     position &&
     !placement &&
@@ -127,7 +142,7 @@ export default async function ParentHubPage({
         educationChildren={(educationChildrenRes.data ?? []) as ChildClient[]}
         pendingInvites={pendingInvitesResult.data ?? []}
         // Brief 04 (B7, W9): only with a card — while CALL_BOOKING_ENABLED is off the props are exactly today's.
-        {...(showCallCard ? { callCard: <CallHubCard card={callCard} /> } : {})}
+        {...(showCallCard ? { callCard: <ChildcareCall card={callCard} openWith={popup.openWith} goneWhen={popup.goneWhen} /> } : {})}
       />
     </div>
   );
