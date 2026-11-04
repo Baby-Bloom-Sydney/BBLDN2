@@ -177,6 +177,39 @@ describe("holdSlotForParent — the server recomputes the slot", () => {
     expect(callsTo(booked.fake, "holdSlot")).toEqual([]);
   });
 
+  it("her own live hold doesn't block her (the database replaces it); someone else's does", async () => {
+    const hold = (parentUserId: string) =>
+      bookingRow({ parentUserId, startsAt: TUE_14, status: "held", bookedAt: null, holdExpiresAt: "2027-02-04T10:04:00.000Z" });
+    const own = setup({ bookings: [hold(PARENT)] });
+    expect((await holdSlotForParent({ parentUserId: PARENT, startsAt: TUE_14, positionId: null, actor: PARENT_ACTOR }, own.deps)).ok).toBe(true);
+    const ownBook = await bookSlotForParent({ parentUserId: PARENT, startsAt: TUE_14, positionId: null, idempotencyKey: "k", actor: ADMIN_ACTOR }, own.deps);
+    expect(ownBook.ok).toBe(true);
+    const other = setup({ bookings: [hold(OTHER_PARENT)] });
+    expect(await holdSlotForParent({ parentUserId: PARENT, startsAt: TUE_14, positionId: null, actor: PARENT_ACTOR }, other.deps)).toEqual({
+      ok: false,
+      error: "taken",
+    });
+  });
+
+  it("her own hold for the other purpose, or her own booked call, still blocks (the database would refuse)", async () => {
+    const prebookHold = bookingRow({
+      parentUserId: PARENT,
+      startsAt: TUE_14,
+      status: "held",
+      purpose: "cohort_prebook",
+      bookedAt: null,
+      holdExpiresAt: "2027-02-04T10:04:00.000Z",
+    });
+    const ownBooked = bookingRow({ parentUserId: PARENT, startsAt: TUE_14 });
+    for (const bookings of [[prebookHold], [ownBooked]]) {
+      const { deps } = setup({ bookings });
+      expect(await holdSlotForParent({ parentUserId: PARENT, startsAt: TUE_14, positionId: null, actor: PARENT_ACTOR }, deps)).toEqual({
+        ok: false,
+        error: "taken",
+      });
+    }
+  });
+
   it("a cohort pre-book may hold beyond the window, on that day", async () => {
     const { fake, deps } = setup();
     const held = await holdSlotForParent(

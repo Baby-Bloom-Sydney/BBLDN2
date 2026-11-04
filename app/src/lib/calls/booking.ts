@@ -27,6 +27,7 @@ import { checkOutcome } from "./outcomes";
 import type {
   ActorKind,
   CallActor,
+  CallBooking,
   CallMethod,
   CallOutcomeCode,
   CallPurpose,
@@ -141,8 +142,17 @@ async function loadFreeSlots(
   return ok(withoutTaken(candidates, { blocks: blocks.value, bookings: bookings.value, now }));
 }
 
-/** Is `startsAt` a current free slot for this purpose? The slot (with the grid's end), or why not. */
-async function currentFreeSlot(startsAt: string, slotPurpose: CallPurpose, deps: CallsDeps): Promise<CallsResult<Slot>> {
+/** Her own live hold for this purpose: `call_hold_slot` replaces it first, so it never blocks her own pick. */
+const isOwnReplaceableHold = (b: CallBooking, parentUserId: string, slotPurpose: CallPurpose): boolean =>
+  b.parentUserId === parentUserId && b.status === "held" && b.purpose === slotPurpose;
+
+/** Is `startsAt` a current free slot for her, for this purpose? The slot (with the grid's end), or why not. */
+async function currentFreeSlot(
+  startsAt: string,
+  slotPurpose: CallPurpose,
+  parentUserId: string,
+  deps: CallsDeps,
+): Promise<CallsResult<Slot>> {
   const [settings, hours] = await Promise.all([deps.repo.readSettings(), deps.repo.readWeeklyHours()]);
   if (!settings.ok) return settings;
   if (!hours.ok) return hours;
@@ -158,7 +168,8 @@ async function currentFreeSlot(startsAt: string, slotPurpose: CallPurpose, deps:
   const [blocks, bookings] = await Promise.all([deps.repo.readBlocks(slot), deps.repo.readOccupyingBookings(slot)]);
   if (!blocks.ok) return blocks;
   if (!bookings.ok) return bookings;
-  return withoutTaken([slot], { blocks: blocks.value, bookings: bookings.value, now }).length === 1 ? ok(slot) : { ok: false, error: "taken" };
+  const others = bookings.value.filter((b) => !isOwnReplaceableHold(b, parentUserId, slotPurpose));
+  return withoutTaken([slot], { blocks: blocks.value, bookings: others, now }).length === 1 ? ok(slot) : { ok: false, error: "taken" };
 }
 
 async function positionFor(parentUserId: string, given: string | null | undefined, deps: CallsDeps): Promise<string | null> {
@@ -198,7 +209,7 @@ export async function holdSlotForParent(request: HoldRequest, deps: CallsDeps = 
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
   const parsed = parse(holdSchema, request);
   if (parsed === null) return INVALID;
-  const slot = await currentFreeSlot(parsed.startsAt, parsed.purpose, deps);
+  const slot = await currentFreeSlot(parsed.startsAt, parsed.purpose, parsed.parentUserId, deps);
   if (!slot.ok) return slot;
   const positionId = await positionFor(parsed.parentUserId, parsed.positionId, deps);
   const held = await deps.repo.holdSlot({ ...slot.value, parentUserId: parsed.parentUserId, purpose: parsed.purpose, positionId, actor: parsed.actor });
@@ -218,7 +229,7 @@ export async function bookSlotForParent(request: BookRequest, deps: CallsDeps = 
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
   const parsed = parse(bookSchema, request);
   if (parsed === null) return INVALID;
-  const slot = await currentFreeSlot(parsed.startsAt, parsed.purpose, deps);
+  const slot = await currentFreeSlot(parsed.startsAt, parsed.purpose, parsed.parentUserId, deps);
   if (!slot.ok) return slot;
   const positionId = await positionFor(parsed.parentUserId, parsed.positionId, deps);
   const booked = await deps.repo.bookSlot({
