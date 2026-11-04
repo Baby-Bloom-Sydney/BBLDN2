@@ -11,10 +11,9 @@ import {
   callOnLine,
   callsToMakeLine,
   fewFreeTimesLine,
-  hubBookedLine,
+  heldLine,
   noFreeTimesLine,
   prebookFullLine,
-  shortTimeLine,
   slotAtLine,
   takenNoticeLine,
   yourCallLine,
@@ -64,7 +63,6 @@ describe("parent copy, word for word", () => {
       goToDashboard: "Go to my dashboard",
     });
     expect(callOnLine("07700 900123")).toBe("We'll call you on 07700 900123.");
-    expect(yourCallLine("Thursday 5 November at 10:00")).toBe("Your call: Thursday 5 November at 10:00 (London time)");
   });
 
   it("the no-position words (04b rework W11, BAI 2026-11-05 verbatim)", () => {
@@ -74,13 +72,13 @@ describe("parent copy, word for word", () => {
 
   it("the Childcare tab card's words (04b rework W9)", () => {
     expect(PARENT_COPY.bookATime).toBe("Book a time");
-    expect(shortTimeLine({ short: "Thu 5 Nov, 10:00" })).toBe("Thu 5 Nov, 10:00 (London time)");
   });
 
-  it("builds the booked lines from London words", () => {
+  it("builds the booked lines from London words, without saying London (W14)", () => {
     const words = { day: "Tuesday 9 February", time: "14:00", short: "Tue 9 Feb, 14:00" };
-    expect(bookedLine(words)).toBe("Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)");
-    expect(hubBookedLine(words)).toBe("Your Complimentary matchmaker call: Tue 9 Feb, 14:00 (London time)");
+    expect(bookedLine(words)).toBe("Your Complimentary matchmaker call is on Tuesday 9 February at 14:00");
+    expect(heldLine(words, "10:05")).toBe("We're holding Tuesday 9 February, 14:00 for you until 10:05.");
+    expect(yourCallLine("Thursday 5 November at 10:00")).toBe("Your call: Thursday 5 November at 10:00");
     expect(prebookFullLine("Monday 8 February")).toBe("We'll call you on Monday 8 February");
   });
 
@@ -112,6 +110,11 @@ describe("admin copy", () => {
 });
 
 describe("the copy rules", () => {
+  it("parents are never told 'London time' (W14, BAI 2026-11-05: \"this is just a given\"); admin still is", () => {
+    for (const text of allStrings(PARENT_COPY)) expect(text).not.toMatch(/London/);
+    expect(PARENT_COPY.pageIntro).toBe("Pick a time and we'll call you then.");
+  });
+
   const every = [...allStrings(PARENT_COPY), ...allStrings(ADMIN_COPY)];
 
   it("never says intro (it means the nanny meet-and-greet)", () => {

@@ -3,8 +3,8 @@
 /**
  * Her booked Complimentary matchmaker call (brief 04 §0.3, §0a.1, §3 parent 4; plan B6; 04b rework W5, W12).
  *
- * - `BookedWords`: the time "(London time)" and "We'll call you on <her mobile>" — the booked slide's lines.
- * - `YourCallPanel`: "Your call: Thursday 5 November at 10:00 (London time)" in the picker's green panel, at the top
+ * - `BookedWords`: the time and "We'll call you on <her mobile>" — the booked slide's lines (W14: no "London time").
+ * - `YourCallPanel`: "Your call: Thursday 5 November at 10:00" in the picker's green panel, at the top
  *   while she changes it (and always in the in-app popup).
  * - `BookedLinks`: **Change time** and **Cancel** as text links while the start is still ahead (at or after it, none).
  *   Cancel asks once ("Yes, cancel it"); a refused cancel is an alert that takes focus, and the booking stays.
@@ -17,7 +17,7 @@
 import { Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { callOnLine, LONDON_TIME_SUFFIX, PARENT_COPY } from "@/lib/calls/copy";
+import { callOnLine, PARENT_COPY } from "@/lib/calls/copy";
 import type { BookedCallView } from "@/lib/calls/parent-view";
 
 const TEXT_LINK =
@@ -36,7 +36,6 @@ export function BookedWords({ booking, mobile }: { readonly booking: BookedCallV
   return (
     <div className="mt-3 space-y-1">
       <p className="text-base font-medium text-slate-800">{booking.when}</p>
-      <p>{LONDON_TIME_SUFFIX}</p>
       {mobile !== null && <p className="pt-2">{callOnLine(mobile)}</p>}
     </div>
   );

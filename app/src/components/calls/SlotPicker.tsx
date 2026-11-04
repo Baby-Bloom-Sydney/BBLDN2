@@ -27,7 +27,7 @@ import { useEffect, useId, useRef, type RefObject } from "react";
 import { Calendar, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LONDON_TIME_SUFFIX, PARENT_COPY } from "@/lib/calls/copy";
+import { PARENT_COPY } from "@/lib/calls/copy";
 import type { SlotDay } from "@/lib/calls/group-slots-by-day";
 import { AvailabilityGrid, isOpenSlot, slotsIn, TimeBox } from "./SlotPickerGrid";
 import { TakenNotice } from "./TakenNotice";
@@ -238,9 +238,7 @@ export function SlotPicker<T>({ days, actions, onConfirmed, onKeepTime, skipHref
     <section aria-labelledby={`${uid}-heading`} className="space-y-4">
       <h2 ref={headingRef} id={`${uid}-heading`} tabIndex={-1} className="text-sm font-medium text-slate-700 flex items-center gap-1.5 focus:outline-none">
         <Calendar className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        <span>
-          {words.heading} <span className="font-normal text-slate-400">{LONDON_TIME_SUFFIX}</span>
-        </span>
+        <span>{words.heading}</span>
       </h2>
       {picker.message !== null && (
         <p

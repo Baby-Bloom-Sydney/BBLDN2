@@ -26,3 +26,11 @@ describe("buildCallNotBookedEmail", () => {
     expect(`${subject} ${html}`).not.toMatch(/\bfree\b|\bintro\b|track/i);
   });
 });
+
+// 04b rework W14 (BAI 2026-11-05: "It also does not need to state 'london time' anywhere"): parent emails don't say it.
+describe("no 'London time' in the parent's email (W14)", () => {
+  it("the subject and body never say London", () => {
+    const { subject, html } = buildCallNotBookedEmail(base);
+    expect(`${subject} ${html}`).not.toMatch(/London/);
+  });
+});

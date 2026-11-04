@@ -32,15 +32,15 @@ import { ChildcareCall } from "./ChildcareCall";
 const BOOKED: BookedCallView = {
   bookingId: "b-1",
   startsAt: TUE_15,
-  line: "Your Complimentary matchmaker call is on Tuesday 9 February at 15:00 (London time)",
+  line: "Your Complimentary matchmaker call is on Tuesday 9 February at 15:00",
   when: "Tuesday 9 February, 15:00",
-  yourCall: "Your call: Tuesday 9 February at 15:00 (London time)",
+  yourCall: "Your call: Tuesday 9 February at 15:00",
   changeable: true,
 };
-const MOVED: BookedCallView = { ...BOOKED, startsAt: TUE_14, when: "Tuesday 9 February, 14:00", yourCall: "Your call: Tuesday 9 February at 14:00 (London time)" };
+const MOVED: BookedCallView = { ...BOOKED, startsAt: TUE_14, when: "Tuesday 9 February, 14:00", yourCall: "Your call: Tuesday 9 February at 14:00" };
 const PICK: MyCallView = { kind: "pick", afterNoAnswer: false, days: DAYS, mobile: "07700 900123", needsPosition: false };
 const BOOKED_VIEW: MyCallView = { kind: "booked", booking: BOOKED, days: gridDays({ [TUE_15]: false }), mobile: "07700 900123", needsPosition: false };
-const HOLD = { holdId: "h-1", startsAt: TUE_14, line: "We're holding Tuesday 9 February, 14:00 (London time) for you until 10:05." };
+const HOLD = { holdId: "h-1", startsAt: TUE_14, line: "We're holding Tuesday 9 February, 14:00 for you until 10:05." };
 
 const popup = () => screen.findByRole("dialog", { name: /Complimentary matchmaker call|You're booked/ });
 
@@ -100,11 +100,11 @@ describe("ChildcareCall — opening", () => {
   it("the card's Change time opens straight into changing: her booking on top, her slot chosen until she picks another", async () => {
     const user = userEvent.setup();
     h.reload.mockResolvedValue({ ok: true, value: BOOKED_VIEW });
-    render(<ChildcareCall card={{ kind: "booked", line: "Tue 9 Feb, 15:00 (London time)", changeable: true }} openWith={null} goneWhen={null} />);
+    render(<ChildcareCall card={{ kind: "booked", line: "Tue 9 Feb, 15:00", changeable: true }} openWith={null} goneWhen={null} />);
     await user.click(screen.getByRole("button", { name: "Change time" }));
     const dialog = await popup();
     expect(await within(dialog).findByText(BOOKED.yourCall)).toBeInTheDocument();
-    expect(within(dialog).getByRole("radio", { name: "Tuesday 9 February, 15:00 (London time)" })).toHaveAttribute("aria-checked", "true");
+    expect(within(dialog).getByRole("radio", { name: "Tuesday 9 February, 15:00" })).toHaveAttribute("aria-checked", "true");
   });
 
   it("no param and no card → nothing at all", () => {
@@ -165,7 +165,7 @@ describe("ChildcareCall — her booking, for changes (BAI 2026-11-05)", () => {
     await user.click(within(dialog).getByRole("button", { name: "Change time" }));
     const picking = await popup();
     expect(within(picking).getByText(BOOKED.yourCall)).toBeInTheDocument();
-    await user.click(await within(picking).findByRole("radio", { name: "Tuesday 9 February, 14:00 (London time)" }));
+    await user.click(await within(picking).findByRole("radio", { name: "Tuesday 9 February, 14:00" }));
     await user.click(await within(picking).findByRole("button", { name: "Confirm time" }));
     const booked = await screen.findByRole("dialog", { name: "You're booked" });
     expect(within(booked).getByText(MOVED.yourCall)).toBeInTheDocument();
@@ -179,8 +179,8 @@ describe("ChildcareCall — her booking, for changes (BAI 2026-11-05)", () => {
     h.reload.mockResolvedValue({ ok: true, value: { ...PICK, needsPosition: true } });
     render(<ChildcareCall card={null} openWith="open" goneWhen={null} />);
     const dialog = await popup();
-    await user.click(await within(dialog).findByRole("radio", { name: "Tuesday 9 February, Afternoon (London time)" }));
-    await user.click(within(dialog).getByRole("radio", { name: "Tuesday 9 February, 14:00 (London time)" }));
+    await user.click(await within(dialog).findByRole("radio", { name: "Tuesday 9 February, Afternoon" }));
+    await user.click(within(dialog).getByRole("radio", { name: "Tuesday 9 February, 14:00" }));
     expect(h.hold).not.toHaveBeenCalled();
     expect(within(dialog).getByText("Complete your childcare position so that we can confirm your call with your matchmaker.")).toBeInTheDocument();
     expect(within(dialog).getByRole("link", { name: "Complete my childcare position" })).toHaveAttribute(
@@ -188,5 +188,17 @@ describe("ChildcareCall — her booking, for changes (BAI 2026-11-05)", () => {
       `/parent/request?callAt=${encodeURIComponent(TUE_14)}`,
     );
     expect(within(dialog).queryByRole("link", { name: "Skip for now" })).not.toBeInTheDocument();
+  });
+});
+
+describe("no 'London time' in the popup or on the card (W14)", () => {
+  it("booked popup, picking popup and the card say no 'London'", async () => {
+    const user = userEvent.setup();
+    h.reload.mockResolvedValue({ ok: true, value: BOOKED_VIEW });
+    render(<ChildcareCall card={{ kind: "booked", line: "Tue 9 Feb, 15:00", changeable: true }} openWith={null} goneWhen={null} />);
+    expect(document.body.innerHTML).not.toMatch(/London/);
+    await user.click(screen.getByRole("button", { name: "Change time" }));
+    await within(await popup()).findByText(BOOKED.yourCall);
+    expect(document.body.innerHTML).not.toMatch(/London/);
   });
 });

@@ -15,7 +15,7 @@ describe("buildCallBookingConfirmationEmail", () => {
 
   it("body says the London time in full and links to change or cancel", () => {
     const { html } = buildCallBookingConfirmationEmail(base);
-    expect(html).toContain("Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)");
+    expect(html).toContain("Your Complimentary matchmaker call is on Tuesday 9 February at 14:00");
     expect(html).toMatch(/href="https?:\/\/[^"]+\/matchmaking\/call"/);
   });
 
@@ -33,5 +33,13 @@ describe("buildCallBookingConfirmationEmail", () => {
   it("never says free, intro or tracking", () => {
     const { subject, html } = buildCallBookingConfirmationEmail(base);
     expect(`${subject} ${html}`).not.toMatch(/\bfree\b|\bintro\b|track/i);
+  });
+});
+
+// 04b rework W14 (BAI 2026-11-05: "It also does not need to state 'london time' anywhere"): parent emails don't say it.
+describe("no 'London time' in the parent's email (W14)", () => {
+  it("the subject and body never say London", () => {
+    const { subject, html } = buildCallBookingConfirmationEmail(base);
+    expect(`${subject} ${html}`).not.toMatch(/London/);
   });
 });

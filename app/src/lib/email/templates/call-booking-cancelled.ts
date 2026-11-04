@@ -5,7 +5,7 @@
  * BB-wave1-041126/04b-build, 2026-11-04.
  */
 
-import { CALL_NAME, LONDON_TIME_SUFFIX } from "@/lib/calls/copy";
+import { CALL_NAME } from "@/lib/calls/copy";
 import { slotWords } from "@/lib/calls/slot-words";
 import { CALL_PAGE_URL, callEmailShell, oneLine, parentParagraphs, type ParentCallEmailParams } from "./call-email-parts";
 import type { EmailTemplate } from "./types";
@@ -21,7 +21,7 @@ export function buildCallBookingCancelledEmail(params: CallBookingCancelledParam
     html: callEmailShell({
       heading: "Your call is cancelled",
       paragraphs: parentParagraphs(params, [
-        `Your ${CALL_NAME} on ${words.day} at ${words.time} ${LONDON_TIME_SUFFIX} is cancelled.`,
+        `Your ${CALL_NAME} on ${words.day} at ${words.time} is cancelled.`,
         "We'll still call you — or pick a new time whenever it suits you.",
       ]),
       button: { label: "Pick a new time", href: CALL_PAGE_URL },

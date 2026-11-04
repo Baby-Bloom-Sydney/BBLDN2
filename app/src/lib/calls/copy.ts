@@ -32,7 +32,8 @@ export const PARENT_COPY = Object.freeze({
   goToMatches: "Go to my matches",
   retry: "Retry",
   // 04b: the call page (BB-wave1-041126/04b-build)
-  pageIntro: "Pick a time and we'll call you then. All times are London time.",
+  // W14 (BAI 2026-11-05): parents are never told "London time" — "this is just a given". Times are still London.
+  pageIntro: "Pick a time and we'll call you then.",
   pickHeading: "Pick a time",
   pickHint: "Choose a time, then confirm it. We'll hold it for you while you do.",
   confirmTime: "Confirm this time",
@@ -82,19 +83,14 @@ export const ADMIN_COPY = Object.freeze({
   startCallBooking: "Start call booking",
 });
 
-/** "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)" */
+/** Parent-facing (W14: no "London time"): "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00" */
 export function bookedLine(words: Pick<SlotWords, "day" | "time">): string {
-  return `Your ${CALL_NAME} is on ${words.day} at ${words.time} ${LONDON_TIME_SUFFIX}`;
+  return `Your ${CALL_NAME} is on ${words.day} at ${words.time}`;
 }
 
-/** The hub card: "Your Complimentary matchmaker call: Tue 9 Feb, 14:00 (London time)" */
-export function hubBookedLine(words: Pick<SlotWords, "short">): string {
-  return `Your ${CALL_NAME}: ${words.short} ${LONDON_TIME_SUFFIX}`;
-}
-
-/** The held time (04b): "We're holding Tuesday 9 February, 14:00 (London time) for you until 10:05." */
-export function heldLine(words: Pick<SlotWords, "full">, until: string): string {
-  return `We're holding ${words.full} for you until ${until}.`;
+/** The held time (04b; W14 no "London time"): "We're holding Tuesday 9 February, 14:00 for you until 10:05." */
+export function heldLine(words: Pick<SlotWords, "day" | "time">, until: string): string {
+  return `We're holding ${words.day}, ${words.time} for you until ${until}.`;
 }
 
 /** The picker's green panel (04b rework W4): "Tuesday 9 February at 14:00". */
@@ -107,22 +103,17 @@ export function takenNoticeLine(when: string): string {
   return `Someone else booked ${when} a moment ago. Please pick another time.`;
 }
 
-/** The Childcare tab card's booked line (04b rework W9): "Thu 5 Nov, 10:00 (London time)". */
-export function shortTimeLine(words: Pick<SlotWords, "short">): string {
-  return `${words.short} ${LONDON_TIME_SUFFIX}`;
-}
-
 /** The booked slide (04b rework W5): "We'll call you on 07700 900123." */
 export function callOnLine(mobile: string): string {
   return `We'll call you on ${mobile}.`;
 }
 
-/** Her booking, at the top while she changes it (04b rework W5, W12): "Your call: Thursday 5 November at 10:00 (London time)". */
+/** Her booking, at the top while she changes it (04b rework W5, W12; W14 no "London time"): "Your call: Thursday 5 November at 10:00". */
 export function yourCallLine(at: string): string {
-  return `Your call: ${at} ${LONDON_TIME_SUFFIX}`;
+  return `Your call: ${at}`;
 }
 
-/** Announced once she has booked (04b): "Done — Your Complimentary matchmaker call is on … (London time)." */
+/** Announced once she has booked (04b): "Done — Your Complimentary matchmaker call is on …." */
 export function doneLine(bookedText: string): string {
   return `Done — ${bookedText}.`;
 }

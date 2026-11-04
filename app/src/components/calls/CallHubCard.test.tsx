@@ -3,7 +3,7 @@
  * nanny is hired or connected (decided by the page). States:
  *   not booked        "Your Complimentary matchmaker call" · 04b's intro · "Book a time"
  *   after no-answer   … "We tried to call you — pick another time" · "Book a time"
- *   booked            … "Tue 9 Feb, 14:00 (London time)" · "Change time" (moves the same booking; never a second)
+ *   booked            … "Tue 9 Feb, 14:00" · "Change time" (moves the same booking; never a second)
  * W12: both buttons open the call popup in place — no navigation. No card → nothing at all.
  */
 import { render, screen } from "@testing-library/react";
@@ -23,7 +23,7 @@ describe("CallHubCard", () => {
     const user = userEvent.setup();
     const { onBook } = card({ kind: "not_booked", afterNoAnswer: false });
     expect(screen.getByRole("heading", { name: "Your Complimentary matchmaker call" })).toBeInTheDocument();
-    expect(screen.getByText("Pick a time and we'll call you then. All times are London time.")).toBeInTheDocument();
+    expect(screen.getByText("Pick a time and we'll call you then.")).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Book a time" }));
     expect(onBook).toHaveBeenCalled();
@@ -37,8 +37,8 @@ describe("CallHubCard", () => {
 
   it("booked: her time and Change time (opens the popup changing her booking, never a second)", async () => {
     const user = userEvent.setup();
-    const { onChange, onBook } = card({ kind: "booked", line: "Tue 9 Feb, 14:00 (London time)", changeable: true });
-    expect(screen.getByText("Tue 9 Feb, 14:00 (London time)")).toBeInTheDocument();
+    const { onChange, onBook } = card({ kind: "booked", line: "Tue 9 Feb, 14:00", changeable: true });
+    expect(screen.getByText("Tue 9 Feb, 14:00")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Book a time" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Change time" }));
     expect(onChange).toHaveBeenCalled();
@@ -46,8 +46,8 @@ describe("CallHubCard", () => {
   });
 
   it("booked, at or after the start: her time, no Change time", () => {
-    card({ kind: "booked", line: "Tue 9 Feb, 14:00 (London time)", changeable: false });
-    expect(screen.getByText("Tue 9 Feb, 14:00 (London time)")).toBeInTheDocument();
+    card({ kind: "booked", line: "Tue 9 Feb, 14:00", changeable: false });
+    expect(screen.getByText("Tue 9 Feb, 14:00")).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 

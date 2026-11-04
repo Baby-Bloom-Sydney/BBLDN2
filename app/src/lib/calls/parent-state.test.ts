@@ -42,8 +42,8 @@ describe("loadMyCallView", () => {
     expect(view.ok && view.value.kind).toBe("pick");
     // 04b rework W4: the whole grid — today's past and inside-the-notice slots are listed, greyed (not free).
     const first = view.ok && view.value.kind === "pick" ? view.value.days[0] : null;
-    expect(first?.slots[0]).toMatchObject({ name: "Thursday 4 February, 09:00 (London time)", free: false });
-    expect(first?.slots.find((s) => s.free)?.name).toBe("Thursday 4 February, 12:00 (London time)");
+    expect(first?.slots[0]).toMatchObject({ name: "Thursday 4 February, 09:00", free: false });
+    expect(first?.slots.find((s) => s.free)?.name).toBe("Thursday 4 February, 12:00");
   });
 
   it("her mobile from her own profile row, in UK national form (W5); none → null", async () => {
@@ -71,7 +71,7 @@ describe("loadMyCallView", () => {
     const { deps } = setup({ bookings: [bookingRow({ parentUserId: HER, startsAt: "2027-02-09T14:00:00.000Z" })] });
     const view = await loadMyCallView(HER, deps);
     expect(view.ok && view.value.kind === "booked" && view.value.booking.line).toBe(
-      "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)",
+      "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00",
     );
   });
 });

@@ -26,7 +26,7 @@ export function gridDays(over: Partial<Record<string, boolean>> = {}): readonly 
 
 export const DAYS = gridDays();
 
-export const HOLD: PickerHold = { holdId: "h-1", startsAt: TUE_14, line: "We're holding Tuesday 9 February, 14:00 (London time) for you until 10:05." };
+export const HOLD: PickerHold = { holdId: "h-1", startsAt: TUE_14, line: "We're holding Tuesday 9 February, 14:00 for you until 10:05." };
 
 export function actionsWith(over: Partial<SlotPickerActions<string>> = {}): SlotPickerActions<string> {
   return {

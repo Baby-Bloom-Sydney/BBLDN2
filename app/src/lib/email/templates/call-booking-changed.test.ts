@@ -19,7 +19,7 @@ describe("buildCallBookingChangedEmail", () => {
 
   it("body gives the new time, the old time and the change link", () => {
     const { html } = buildCallBookingChangedEmail(base);
-    expect(html).toContain("Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)");
+    expect(html).toContain("Your Complimentary matchmaker call is on Tuesday 9 February at 14:00");
     expect(html).toContain("It was Monday 8 February at 10:30.");
     expect(html).toMatch(/href="https?:\/\/[^"]+\/matchmaking\/call"/);
   });
@@ -30,5 +30,13 @@ describe("buildCallBookingChangedEmail", () => {
     expect(buildCallBookingChangedEmail({ ...base, firstName: "<i>j</i>" }).html).toContain("&lt;i&gt;j&lt;/i&gt;");
     const { subject, html } = buildCallBookingChangedEmail(base);
     expect(`${subject} ${html}`).not.toMatch(/\bfree\b|\bintro\b|track/i);
+  });
+});
+
+// 04b rework W14 (BAI 2026-11-05: "It also does not need to state 'london time' anywhere"): parent emails don't say it.
+describe("no 'London time' in the parent's email (W14)", () => {
+  it("the subject and body never say London", () => {
+    const { subject, html } = buildCallBookingChangedEmail(base);
+    expect(`${subject} ${html}`).not.toMatch(/London/);
   });
 });

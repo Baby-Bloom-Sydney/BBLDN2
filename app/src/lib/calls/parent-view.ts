@@ -7,7 +7,7 @@
  */
 
 import { isUkMobile, normaliseUkMobile } from "@/lib/uk-contact";
-import { bookedLine, heldLine, shortTimeLine, slotAtLine, yourCallLine } from "./copy";
+import { bookedLine, heldLine, slotAtLine, yourCallLine } from "./copy";
 import { groupSlotGridByDay, type SlotDay } from "./group-slots-by-day";
 import type { SlotGrid } from "./slot-grid";
 import { slotWords } from "./slot-words";
@@ -18,11 +18,11 @@ import type { CallBooking, CallError, CallLogEntry, CallsResult, ScopeParent } f
 export interface BookedCallView {
   readonly bookingId: string;
   readonly startsAt: string;
-  /** "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)" */
+  /** "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00" */
   readonly line: string;
-  /** "Tuesday 9 February, 14:00" — the booked slide, over "(London time)" (04b rework W5). */
+  /** "Tuesday 9 February, 14:00" — the booked slide (04b rework W5). */
   readonly when: string;
-  /** "Your call: Tuesday 9 February at 14:00 (London time)" — at the top while she changes it (W5, W12). */
+  /** "Your call: Tuesday 9 February at 14:00" — at the top while she changes it (W5, W12). */
   readonly yourCall: string;
   /** Change time and Cancel only before the start (brief §3 parent 4). */
   readonly changeable: boolean;
@@ -31,7 +31,7 @@ export interface BookedCallView {
 export interface HeldCallView {
   readonly holdId: string;
   readonly startsAt: string;
-  /** "We're holding Tuesday 9 February, 14:00 (London time) for you until 10:05." */
+  /** "We're holding Tuesday 9 February, 14:00 for you until 10:05." */
   readonly line: string;
 }
 
@@ -159,8 +159,8 @@ export function callViewOf(reads: {
 }
 
 /**
- * The call card on her Childcare tab (brief §0a.4; plan B7 → 04b rework W9): booked → "Tue 9 Feb, 14:00 (London
- * time)" (changeable before the start); not booked → Book a time, saying so after a no-answer.
+ * The call card on her Childcare tab (brief §0a.4; plan B7 → 04b rework W9): booked → "Tue 9 Feb, 14:00" (changeable
+ * before the start); not booked → Book a time, saying so after a no-answer.
  */
 export type HubCallCard =
   | { readonly kind: "booked"; readonly line: string; readonly changeable: boolean }
@@ -189,7 +189,7 @@ export function hubCardFor(facts: {
 }): HubCallCard | null {
   const booked = myBookedCall(facts.bookings);
   if (booked !== null) {
-    return { kind: "booked", line: shortTimeLine(slotWords(booked.startsAt)), changeable: Date.parse(booked.startsAt) > facts.now.getTime() };
+    return { kind: "booked", line: slotWords(booked.startsAt).short, changeable: Date.parse(booked.startsAt) > facts.now.getTime() };
   }
   if (!inScope(facts.parent, facts.enabledSince)) return null;
   if (facts.entries.some((e) => e.result === "answered" || e.outcome === "stop_calling")) return null;

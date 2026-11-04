@@ -16,7 +16,7 @@
  *   green panel) and the picker shows underneath with her slot chosen; confirming moves the same booking;
  * - **no position yet** (W11): picking a time holds nothing; "Complete my childcare position" takes the time to
  *   `/parent/request?callAt=`;
- * - **booked**: the tick, "You're booked", "We'll call you on <her mobile>"; on the slide the time "(London time)" and
+ * - **booked**: the tick, "You're booked", "We'll call you on <her mobile>"; on the slide the time and
  *   one button onward, in the popup "Your call: …" (BAI 2026-11-05: "this pop up would also display their current
  *   booking for ammendments"); Change time / Cancel as text links (none at or after the start).
  *

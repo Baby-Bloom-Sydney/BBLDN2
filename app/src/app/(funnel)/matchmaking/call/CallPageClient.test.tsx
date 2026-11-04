@@ -2,7 +2,7 @@
  * The call slide, the client (`/matchmaking/call`; plan B6; brief §0a.1, §3 parent 2–4, §0.3, §0.10, §0.13; 04b rework
  * W3–W5). The seven states — loading, times shown, held, booked, after a no-answer, no times, load failed — in the
  * funnel's shell; change (her booking on top, `?change=1` straight in) and cancel; onward always to the checked
- * `next`, labelled by where it goes. Every label arrives preformatted from the server (London time).
+ * `next`, labelled by where it goes. Every label arrives preformatted from the server.
  */
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -27,21 +27,21 @@ const MOBILE = "07700 900123";
 const BOOKED: BookedCallView = {
   bookingId: "b-1",
   startsAt: TUE_14,
-  line: "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)",
+  line: "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00",
   when: "Tuesday 9 February, 14:00",
-  yourCall: "Your call: Tuesday 9 February at 14:00 (London time)",
+  yourCall: "Your call: Tuesday 9 February at 14:00",
   changeable: true,
 };
 const PICK: MyCallView = { kind: "pick", afterNoAnswer: false, days: DAYS, mobile: MOBILE, needsPosition: false };
 const BOOKED_VIEW: MyCallView = { kind: "booked", booking: BOOKED, days: DAYS, mobile: MOBILE, needsPosition: false };
-const HOLD = { holdId: "h-1", startsAt: TUE_14, line: "We're holding Tuesday 9 February, 14:00 (London time) for you until 10:05." };
+const HOLD = { holdId: "h-1", startsAt: TUE_14, line: "We're holding Tuesday 9 February, 14:00 for you until 10:05." };
 
 const page = (initial: MyCallView, next = NEXT, startChanging = false) =>
   render(<CallPageClient initial={initial} nextHref={next} startChanging={startChanging} />);
 /** W4: a time-of-day cell, then a time in it (a tap holds at once). */
 async function pickTue14(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole("radio", { name: "Tuesday 9 February, Afternoon (London time)" }));
-  await user.click(screen.getByRole("radio", { name: "Tuesday 9 February, 14:00 (London time)" }));
+  await user.click(await screen.findByRole("radio", { name: "Tuesday 9 February, Afternoon" }));
+  await user.click(screen.getByRole("radio", { name: "Tuesday 9 February, 14:00" }));
 }
 const youreBooked = () => screen.findByRole("heading", { level: 1, name: "You're booked" });
 
@@ -58,7 +58,7 @@ describe("the funnel slide (04b rework W3)", () => {
     page(PICK);
     expect(screen.getByTestId("funnel-progress")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Your Complimentary matchmaker call" })).toBeInTheDocument();
-    expect(screen.getByText("Pick a time and we'll call you then. All times are London time.")).toBeInTheDocument();
+    expect(screen.getByText("Pick a time and we'll call you then.")).toBeInTheDocument();
   });
 });
 
@@ -78,7 +78,7 @@ describe("the seven states", () => {
     expect(h.confirm).toHaveBeenCalledWith("h-1", "h-1");
     expect(await youreBooked()).toBeInTheDocument();
     expect(screen.getByText("Tuesday 9 February, 14:00")).toBeInTheDocument();
-    expect(screen.getByText("(London time)")).toBeInTheDocument();
+    expect(screen.queryByText(/London/)).not.toBeInTheDocument();
     expect(screen.getByText(`We'll call you on ${MOBILE}.`)).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(`Done — ${BOOKED.line}.`);
     expect(screen.getByRole("link", { name: "Go to my matches" })).toHaveAttribute("href", NEXT);
@@ -177,7 +177,7 @@ describe("change and cancel", () => {
   it("?change=1 opens straight into picking a new time for her booking, her slot chosen", async () => {
     page(BOOKED_VIEW, NEXT, true);
     expect(screen.getByText(BOOKED.yourCall)).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Tuesday 9 February, Afternoon (London time)" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Tuesday 9 February, Afternoon" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("button", { name: "Keep my time" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Skip for now" })).not.toBeInTheDocument();
     expect(h.reload).not.toHaveBeenCalled();
@@ -321,5 +321,19 @@ describe("review fixes: one live region, and focus after the state changes", () 
       (document.activeElement as HTMLElement).blur();
     }
     expect(h.cancel).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("no 'London time' shown to her anywhere on the slide (W14, BAI: \"this is just a given\")", () => {
+  it.each([
+    ["picking", PICK],
+    ["booked", BOOKED_VIEW],
+    ["changing", BOOKED_VIEW],
+  ])("%s: no 'London' in the text or the accessible names", async (state, view) => {
+    const user = userEvent.setup();
+    page(view, NEXT, state === "changing");
+    if (state === "picking") await pickTue14(user);
+    await screen.findAllByRole("heading");
+    expect(document.body.innerHTML).not.toMatch(/London/);
   });
 });

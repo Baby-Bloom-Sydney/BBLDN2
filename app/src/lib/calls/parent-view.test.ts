@@ -32,9 +32,9 @@ describe("bookedViewOf / heldViewOf", () => {
     expect(bookedViewOf({ id: "b-1", startsAt: TUE_14 }, NOW)).toEqual({
       bookingId: "b-1",
       startsAt: TUE_14,
-      line: "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)",
+      line: "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00",
       when: "Tuesday 9 February, 14:00",
-      yourCall: "Your call: Tuesday 9 February at 14:00 (London time)",
+      yourCall: "Your call: Tuesday 9 February at 14:00",
       changeable: true,
     });
     expect(bookedViewOf({ id: "b-1", startsAt: TUE_14 }, new Date(TUE_14)).changeable).toBe(false);
@@ -44,13 +44,13 @@ describe("bookedViewOf / heldViewOf", () => {
     expect(heldViewOf({ bookingId: "h-1", startsAt: TUE_14, holdExpiresAt: "2027-02-04T10:05:00.000Z" })).toEqual({
       holdId: "h-1",
       startsAt: TUE_14,
-      line: "We're holding Tuesday 9 February, 14:00 (London time) for you until 10:05.",
+      line: "We're holding Tuesday 9 February, 14:00 for you until 10:05.",
     });
   });
 
   it("a BST hold expiry reads on the London clock", () => {
     expect(heldViewOf({ bookingId: "h", startsAt: "2027-07-01T13:00:00.000Z", holdExpiresAt: "2027-07-01T09:05:00.000Z" }).line).toBe(
-      "We're holding Thursday 1 July, 14:00 (London time) for you until 10:05.",
+      "We're holding Thursday 1 July, 14:00 for you until 10:05.",
     );
   });
 });
@@ -176,10 +176,10 @@ describe("hubCardFor (plan B7; the Childcare tab card since 04b rework W9, brief
   const inScope = { userId: HER, signupSource: "advanced_match", signedUpAt: "2027-02-03T10:00:00.000Z" };
   const base = { bookings: [], entries: [], parent: inScope, enabledSince: SWITCH_ON, now: NOW };
 
-  it("booked → '<Day d Mon>, <HH:MM> (London time)', changeable before the start (W9)", () => {
+  it("booked → '<Day d Mon>, <HH:MM>', changeable before the start (W9)", () => {
     expect(hubCardFor({ ...base, bookings: [bookingRow({ parentUserId: HER, startsAt: TUE_14 })] })).toEqual({
       kind: "booked",
-      line: "Tue 9 Feb, 14:00 (London time)",
+      line: "Tue 9 Feb, 14:00",
       changeable: true,
     });
     expect(hubCardFor({ ...base, now: new Date(TUE_14), bookings: [bookingRow({ parentUserId: HER, startsAt: TUE_14 })] })).toMatchObject({ changeable: false });

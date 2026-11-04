@@ -101,7 +101,7 @@ describe("each action", () => {
   it("holdMyCallSlot → the held time in London words", async () => {
     expect(await holdMyCallSlot(TUE_14)).toEqual({
       ok: true,
-      value: { holdId: HOLD, startsAt: TUE_14, line: "We're holding Tuesday 9 February, 14:00 (London time) for you until 10:05." },
+      value: { holdId: HOLD, startsAt: TUE_14, line: "We're holding Tuesday 9 February, 14:00 for you until 10:05." },
     });
   });
 
@@ -117,9 +117,9 @@ describe("each action", () => {
         booking: {
           bookingId: HOLD,
           startsAt: TUE_14,
-          line: "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)",
+          line: "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00",
           when: "Tuesday 9 February, 14:00",
-          yourCall: "Your call: Tuesday 9 February at 14:00 (London time)",
+          yourCall: "Your call: Tuesday 9 February at 14:00",
           changeable: true,
         },
       },

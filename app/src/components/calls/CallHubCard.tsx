@@ -6,7 +6,7 @@
  *
  *   not booked        "Your Complimentary matchmaker call" · 04b's intro · [Book a time]
  *   after no-answer   "Your Complimentary matchmaker call" · "We tried to call you — pick another time" · [Book a time]
- *   booked            "Your Complimentary matchmaker call" · "Tue 9 Feb, 14:00 (London time)" · [Change time]
+ *   booked            "Your Complimentary matchmaker call" · "Tue 9 Feb, 14:00" · [Change time]   (W14: no "London time")
  *
  * Both buttons open the call popup in place (W12; no navigation); Change time opens it changing her booking (the
  * database moves one booking, never adds a second). Lines arrive in London words from `parent-view.ts`.

@@ -1,6 +1,6 @@
 /**
  * Slots grouped by London day for the picker (plan A4; port of LDN1 `group-slots-by-day.ts`, 24-hour words).
- * One group per day with the full date as its legend; every option named "… (London time)" (brief §2, picker
+ * One group per day with the full date as its legend; every option named "…" (brief §2, picker
  * semantics). A day with no free slot is simply absent.
  */
 import { describe, expect, it } from "vitest";
@@ -21,12 +21,12 @@ describe("groupSlotsByDay", () => {
     expect(days.map((d) => d.londonDate)).toEqual(["2027-02-09", "2027-02-11"]);
     expect(days[0].legend).toBe("Tuesday 9 February");
     expect(days[0].slots.map((s) => s.time)).toEqual(["14:00", "14:30"]);
-    expect(days[0].slots[0].name).toBe("Tuesday 9 February, 14:00 (London time)");
+    expect(days[0].slots[0].name).toBe("Tuesday 9 February, 14:00");
     expect(days[1].slots[0]).toEqual({
       startsAt: "2027-02-11T09:30:00.000Z",
       endsAt: "2027-02-11T10:00:00.000Z",
       time: "09:30",
-      name: "Thursday 11 February, 09:30 (London time)",
+      name: "Thursday 11 February, 09:30",
       when: "Thursday 11 February at 09:30",
       bracket: "morning",
       free: true,

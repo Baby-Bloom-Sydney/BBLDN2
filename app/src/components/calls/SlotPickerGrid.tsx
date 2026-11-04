@@ -17,7 +17,7 @@
 
 import type { KeyboardEvent, RefObject } from "react";
 import { cn } from "@/lib/utils";
-import { LONDON_TIME_SUFFIX, PARENT_COPY } from "@/lib/calls/copy";
+import { PARENT_COPY } from "@/lib/calls/copy";
 import type { SlotDay, SlotOption } from "@/lib/calls/group-slots-by-day";
 import { BRACKET_KEYS, TIME_BRACKETS, type BracketKey } from "@/lib/timezone";
 import { isMoveKey, moveInGrid, moveInList } from "./picker-keys";
@@ -118,7 +118,7 @@ export function AvailabilityGrid({ days, cell, gone, current, busy, onPick, grid
                     type="button"
                     role="radio"
                     aria-checked={chosen}
-                    aria-label={`${day.legend}, ${TIME_BRACKETS[bracket].label} ${LONDON_TIME_SUFFIX}`}
+                    aria-label={`${day.legend}, ${TIME_BRACKETS[bracket].label}`}
                     data-cell={`${row}-${col}`}
                     tabIndex={col === stop ? 0 : -1}
                     disabled={!isOpen || busy}

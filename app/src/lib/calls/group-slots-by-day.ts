@@ -22,7 +22,7 @@ import type { Slot } from "./types";
 export interface SlotOption extends Slot {
   /** "14:00" */
   readonly time: string;
-  /** "Tuesday 9 February, 14:00 (London time)" */
+  /** "Tuesday 9 February, 14:00" — its accessible name (W14: parents aren't told "London time"; it is a given). */
   readonly name: string;
   /** "Tuesday 9 February at 14:00" — the picker's green panel. */
   readonly when: string;
@@ -49,7 +49,7 @@ function optionOf(slot: GridSlot): SlotOption {
     startsAt: slot.startsAt,
     endsAt: slot.endsAt,
     time: words.time,
-    name: words.full,
+    name: `${words.day}, ${words.time}`,
     when: slotAtLine(words),
     bracket: callBracketOf(slotHour(slot.startsAt)),
     free: slot.free,

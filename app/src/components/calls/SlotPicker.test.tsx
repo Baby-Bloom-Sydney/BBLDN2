@@ -16,10 +16,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { actionsWith, DAYS, gridDays, HOLD, TUE_09, TUE_14, TUE_1430, TUE_15, WED_09 } from "./slot-picker.fixtures.test-util";
 import { SlotPicker } from "./SlotPicker";
 
-const cell = (legend: string, bracket: string) => screen.getByRole("radio", { name: `${legend}, ${bracket} (London time)` });
+const cell = (legend: string, bracket: string) => screen.getByRole("radio", { name: `${legend}, ${bracket}` });
 const tueAfternoon = () => cell("Tuesday 9 February", "Afternoon");
 const time = (name: string) => screen.getByRole("radio", { name });
-const tue14 = () => time("Tuesday 9 February, 14:00 (London time)");
+const tue14 = () => time("Tuesday 9 February, 14:00");
 const confirmButton = () => screen.getByRole("button", { name: "Confirm time" });
 const NOTICE = "Someone else booked Tuesday 9 February at 14:00 a moment ago. Please pick another time.";
 
@@ -31,14 +31,14 @@ async function holdTue14(user: ReturnType<typeof userEvent.setup>) {
 describe("SlotPicker — the grid, in the meet-and-greet picker's look", () => {
   it("the Calendar header, one radiogroup per date, four time-of-day cells each, Confirm disabled", () => {
     render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />);
-    expect(screen.getByRole("heading", { name: "Your matchmaker's availability (London time)" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Your matchmaker's availability" })).toBeInTheDocument();
     const rows = screen.getAllByRole("radiogroup");
     expect(rows.map((r) => r.getAttribute("aria-label"))).toEqual(["Tuesday 9 February", "Wednesday 10 February", "Thursday 11 February"]);
     expect(within(rows[0]).getAllByRole("radio").map((r) => r.getAttribute("aria-label"))).toEqual([
-      "Tuesday 9 February, Morning (London time)",
-      "Tuesday 9 February, Midday (London time)",
-      "Tuesday 9 February, Afternoon (London time)",
-      "Tuesday 9 February, Evening (London time)",
+      "Tuesday 9 February, Morning",
+      "Tuesday 9 February, Midday",
+      "Tuesday 9 February, Afternoon",
+      "Tuesday 9 February, Evening",
     ]);
     expect(within(rows[0]).getByText("Tue")).toBeInTheDocument();
     expect(within(rows[0]).getByText("9 Feb")).toBeInTheDocument();
@@ -71,7 +71,7 @@ describe("SlotPicker — the grid, in the meet-and-greet picker's look", () => {
     expect(tueAfternoon()).toHaveTextContent("✓");
     const box = screen.getByRole("radiogroup", { name: "Select a time" });
     expect(within(box).getAllByRole("radio").map((r) => r.textContent)).toEqual(["14:00", "14:30", "15:00"]);
-    const t15 = time("Tuesday 9 February, 15:00 (London time)");
+    const t15 = time("Tuesday 9 February, 15:00");
     expect(t15).toBeDisabled();
     expect(t15).toHaveAttribute("aria-disabled", "true");
     expect(t15.className).toContain("bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed");
@@ -123,7 +123,7 @@ describe("SlotPicker — keyboard", () => {
     await user.click(tueAfternoon());
     tue14().focus();
     await user.keyboard("{ArrowRight}");
-    expect(time("Tuesday 9 February, 14:30 (London time)")).toHaveFocus();
+    expect(time("Tuesday 9 February, 14:30")).toHaveFocus();
     await user.keyboard("{ArrowRight}");
     expect(tue14()).toHaveFocus();
     expect(actions.hold).not.toHaveBeenCalled();
@@ -134,7 +134,7 @@ describe("SlotPicker — keyboard", () => {
   it("each row is one tab stop (Tab moves between days, as 04b's did)", () => {
     render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />);
     const stops = screen.getAllByRole("radio").filter((r) => r.getAttribute("tabindex") === "0");
-    expect(stops.map((r) => r.getAttribute("aria-label"))).toEqual(["Tuesday 9 February, Morning (London time)", "Wednesday 10 February, Morning (London time)"]);
+    expect(stops.map((r) => r.getAttribute("aria-label"))).toEqual(["Tuesday 9 February, Morning", "Wednesday 10 February, Morning"]);
   });
 });
 
@@ -163,7 +163,7 @@ describe("SlotPicker — hold and confirm", () => {
     await holdTue14(user);
     await user.click(await screen.findByRole("button", { name: "Confirm time" }));
     expect(screen.getByRole("button", { name: "Confirming..." })).toBeDisabled();
-    expect(time("Tuesday 9 February, 14:30 (London time)")).toBeDisabled();
+    expect(time("Tuesday 9 February, 14:30")).toBeDisabled();
     finish({ ok: true, value: "booked" });
     await waitFor(() => expect(screen.queryByText("Confirming...")).not.toBeInTheDocument());
   });
@@ -174,7 +174,7 @@ describe("SlotPicker — hold and confirm", () => {
     render(<SlotPicker days={DAYS} actions={actions} onConfirmed={vi.fn()} />);
     await holdTue14(user);
     await screen.findByText("Tuesday 9 February at 14:00");
-    await user.click(time("Tuesday 9 February, 14:30 (London time)"));
+    await user.click(time("Tuesday 9 February, 14:30"));
     expect(actions.hold).toHaveBeenLastCalledWith(TUE_1430);
     expect(await screen.findByText("Tuesday 9 February at 14:30")).toBeInTheDocument();
     expect(actions.hold).toHaveBeenCalledTimes(2);
@@ -186,9 +186,9 @@ describe("SlotPicker — hold and confirm", () => {
     const days = gridDays({ [TUE_15]: false });
     render(<SlotPicker days={days} actions={actionsWith()} onConfirmed={vi.fn()} current={TUE_15} onKeepTime={keep} />);
     expect(tueAfternoon()).toHaveAttribute("aria-checked", "true");
-    expect(time("Tuesday 9 February, 15:00 (London time)")).toHaveAttribute("aria-checked", "true");
+    expect(time("Tuesday 9 February, 15:00")).toHaveAttribute("aria-checked", "true");
     await user.click(tue14());
-    expect(time("Tuesday 9 February, 15:00 (London time)")).toHaveAttribute("aria-checked", "false");
+    expect(time("Tuesday 9 February, 15:00")).toHaveAttribute("aria-checked", "false");
     await user.click(screen.getByRole("button", { name: "Keep my time" }));
     expect(keep).toHaveBeenCalled();
   });
@@ -208,7 +208,7 @@ describe("SlotPicker — taken by someone else: the notice (BAI 2026-11-05)", ()
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     await user.click(within(notice).getByRole("button", { name: "Pick another time" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(screen.getByRole("radio", { name: /14:00 \(London time\) — no longer available/ })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: /14:00 — no longer available/ })).toBeDisabled();
     await waitFor(() => expect(document.activeElement?.getAttribute("role")).toBe("radio"));
   });
 
@@ -326,7 +326,7 @@ describe("SlotPicker — reuse (04c on-behalf, 03 pre-book)", () => {
         <SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />
       </>,
     );
-    const [first, second] = screen.getAllByRole("radio", { name: "Tuesday 9 February, Afternoon (London time)" });
+    const [first, second] = screen.getAllByRole("radio", { name: "Tuesday 9 February, Afternoon" });
     await user.click(first);
     await user.click(second);
     const ids = [...document.querySelectorAll("[id]")].map((e) => e.id);
@@ -395,7 +395,7 @@ describe("SlotPicker — a parent with no position yet (W11, BAI 2026-11-05)", (
     const user = userEvent.setup();
     render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} gate={gate} />);
     await user.click(tueAfternoon());
-    await user.click(time("Tuesday 9 February, 15:00 (London time)"));
+    await user.click(time("Tuesday 9 February, 15:00"));
     expect(screen.queryByRole("link", { name: "Complete my childcare position" })).not.toBeInTheDocument();
   });
 });
@@ -460,12 +460,12 @@ describe("SlotPicker — review fixes (react review HIGH 1–2, MEDIUM, LOW)", (
 });
 
 describe("SlotPicker — the header wraps as one line of text at 320px (walk finding)", () => {
-  it("the heading's words and its '(London time)' are one text run beside the icon, not two flex columns", () => {
+  it("the heading's words are one text run beside the icon (no 'London time' since W14)", () => {
     render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />);
-    const heading = screen.getByRole("heading", { name: "Your matchmaker's availability (London time)" });
+    const heading = screen.getByRole("heading", { name: "Your matchmaker's availability" });
     const runs = [...heading.children].filter((el) => el.tagName !== "svg");
     expect(runs).toHaveLength(1);
-    expect(runs[0]).toHaveTextContent("Your matchmaker's availability (London time)");
+    expect(runs[0]).toHaveTextContent("Your matchmaker's availability");
   });
 });
 
