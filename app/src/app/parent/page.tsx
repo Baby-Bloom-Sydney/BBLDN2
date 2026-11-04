@@ -8,13 +8,15 @@ import {
 } from "@/lib/actions/position-funnel";
 import { getDfyStatus } from "@/lib/actions/matching";
 import { getParentBabysittingRequests } from "@/lib/actions/babysitting";
-import { babysittingEnabled } from "@/lib/features/flags";
+import { babysittingEnabled, callBookingEnabled } from "@/lib/features/flags";
 import { getPendingInvitesForUser } from "@/lib/actions/bapp/child-invites";
 import { POSITION_STAGE } from "@/lib/position/constants";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { ParentHubClient } from "./ParentHubClient";
 import type { ChildClient } from "@/types/bapp";
+import { CallHubCard } from "@/components/calls/CallHubCard";
+import { loadHubCallCard } from "@/lib/calls/parent-state";
 
 const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === "true";
 
@@ -47,6 +49,7 @@ export default async function ParentHubPage({
     bsrResult,
     educationChildrenRes,
     pendingInvitesResult,
+    callCard,
   ] = await Promise.all([
     getParentPlacement(),
     position?.id
@@ -67,6 +70,8 @@ export default async function ParentHubPage({
           .order("created_at", { ascending: true })
       : Promise.resolve({ data: [] }),
     user ? getPendingInvitesForUser() : Promise.resolve({ data: [] }),
+    // Brief 04 (B7): not called while CALL_BOOKING_ENABLED is off, so no call table is read.
+    callBookingEnabled() && user ? loadHubCallCard(user.id) : Promise.resolve(null),
   ]);
 
   const placement = placementResult.data;
@@ -98,6 +103,7 @@ export default async function ParentHubPage({
 
   return (
     <div className="mx-auto max-w-2xl space-y-3">
+      <CallHubCard card={callCard} />
       <ParentHubClient
         position={position}
         placement={placement}

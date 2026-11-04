@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { bookingRow, entryRow } from "./fake-calls-repo.test-util";
-import { bookedViewOf, callViewOf, heldViewOf, isAfterNoAnswer, myBookedCall, refusalOf } from "./parent-view";
+import { bookedViewOf, callViewOf, heldViewOf, hubCardFor, isAfterNoAnswer, myBookedCall, refusalOf } from "./parent-view";
 import type { CallsResult, Slot } from "./types";
 
 const HER = "b0400000-0000-4000-8000-000000000001";
@@ -104,5 +104,41 @@ describe("refusalOf", () => {
     expect(refusalOf("not_found")).toBe("not_yours");
     expect(refusalOf("booked_call_exists")).toBe("error");
     expect(refusalOf("error")).toBe("error");
+  });
+});
+
+describe("hubCardFor (plan B7; brief §0.5)", () => {
+  const SWITCH_ON = "2027-02-01T09:00:00.000Z";
+  const inScope = { userId: HER, signupSource: "advanced_match", signedUpAt: "2027-02-03T10:00:00.000Z" };
+  const base = { bookings: [], entries: [], parent: inScope, enabledSince: SWITCH_ON, now: NOW };
+
+  it("booked → her short London time, changeable before the start", () => {
+    expect(hubCardFor({ ...base, bookings: [bookingRow({ parentUserId: HER, startsAt: TUE_14 })] })).toEqual({
+      kind: "booked",
+      line: "Your Complimentary matchmaker call: Tue 9 Feb, 14:00 (London time)",
+      changeable: true,
+    });
+    expect(hubCardFor({ ...base, now: new Date(TUE_14), bookings: [bookingRow({ parentUserId: HER, startsAt: TUE_14 })] })).toMatchObject({ changeable: false });
+  });
+
+  it("not booked, in scope → 'Pick a time for your Complimentary matchmaker call' (a NULL source counts)", () => {
+    expect(hubCardFor(base)).toEqual({ kind: "not_booked", line: "Pick a time for your Complimentary matchmaker call" });
+    expect(hubCardFor({ ...base, parent: { ...inScope, signupSource: null } })).toMatchObject({ kind: "not_booked" });
+    expect(hubCardFor({ ...base, entries: [entryRow({ parentUserId: HER, occurredAt: "2027-02-03T12:00:00.000Z", result: "no_answer" })] })).toMatchObject({
+      kind: "not_booked",
+    });
+  });
+
+  it("hidden after Answered or Stop calling", () => {
+    expect(hubCardFor({ ...base, entries: [entryRow({ parentUserId: HER, occurredAt: "2027-02-03T12:00:00.000Z", result: "answered", outcome: "call_back_later" })] })).toBeNull();
+    expect(hubCardFor({ ...base, entries: [entryRow({ parentUserId: HER, occurredAt: "2027-02-03T12:00:00.000Z", result: null, outcome: "stop_calling" })] })).toBeNull();
+  });
+
+  it("hidden outside the scope: an invite sign-up, before switch-on, switch-on not pressed, no parents row", () => {
+    expect(hubCardFor({ ...base, parent: { ...inScope, signupSource: "nanny_invite" } })).toBeNull();
+    expect(hubCardFor({ ...base, parent: { ...inScope, signupSource: "parent_invite" } })).toBeNull();
+    expect(hubCardFor({ ...base, parent: { ...inScope, signedUpAt: "2027-01-31T09:00:00.000Z" } })).toBeNull();
+    expect(hubCardFor({ ...base, enabledSince: null })).toBeNull();
+    expect(hubCardFor({ ...base, parent: null })).toBeNull();
   });
 });

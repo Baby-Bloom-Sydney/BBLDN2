@@ -6,12 +6,12 @@
  * BB-wave1-041126/04b-build, 2026-11-04.
  */
 
-import { bookedLine, heldLine } from "./copy";
+import { bookedLine, heldLine, hubBookedLine, PARENT_COPY } from "./copy";
 import { groupSlotsByDay, type SlotDay } from "./group-slots-by-day";
 import { slotWords } from "./slot-words";
 import { everBooked } from "./status";
 import { latestEntryOf } from "./to-call";
-import type { CallBooking, CallError, CallLogEntry, CallsResult, Slot } from "./types";
+import type { CallBooking, CallError, CallLogEntry, CallsResult, ScopeParent, Slot } from "./types";
 
 export interface BookedCallView {
   readonly bookingId: string;
@@ -113,4 +113,38 @@ export function callViewOf(reads: {
   if (booked !== null) return { kind: "booked", booking: bookedViewOf(booked, reads.now), days };
   if (!reads.entries.ok || days === null) return { kind: "load_failed" };
   return { kind: "pick", afterNoAnswer: isAfterNoAnswer(reads.bookings.value, reads.entries.value), days };
+}
+
+/** The one card at the top of `/parent` (brief §0.5; plan B7). */
+export type HubCallCard =
+  | { readonly kind: "booked"; readonly line: string; readonly changeable: boolean }
+  | { readonly kind: "not_booked"; readonly line: string };
+
+const INVITE_SOURCES: ReadonlySet<string> = new Set(["nanny_invite", "parent_invite"]);
+
+/** Brief §3 "who appears": not from an invite (a NULL source counts, plan D7), signed up since Start call booking. */
+function inScope(parent: ScopeParent | null, enabledSince: string | null): boolean {
+  if (parent === null || enabledSince === null) return false;
+  const fromInvite = parent.signupSource !== null && INVITE_SOURCES.has(parent.signupSource);
+  return !fromInvite && parent.signedUpAt >= enabledSince;
+}
+
+/**
+ * Booked → her short London time ("· Change" while it's ahead). Not booked → "Pick a time…", but only in scope, and
+ * never after an answered call or Stop calling (the call has happened, or BAI has stopped). Otherwise no card.
+ */
+export function hubCardFor(facts: {
+  readonly bookings: readonly CallBooking[];
+  readonly entries: readonly CallLogEntry[];
+  readonly parent: ScopeParent | null;
+  readonly enabledSince: string | null;
+  readonly now: Date;
+}): HubCallCard | null {
+  const booked = myBookedCall(facts.bookings);
+  if (booked !== null) {
+    return { kind: "booked", line: hubBookedLine(slotWords(booked.startsAt)), changeable: Date.parse(booked.startsAt) > facts.now.getTime() };
+  }
+  if (!inScope(facts.parent, facts.enabledSince)) return null;
+  if (facts.entries.some((e) => e.result === "answered" || e.outcome === "stop_calling")) return null;
+  return { kind: "not_booked", line: PARENT_COPY.hubNotBooked };
 }

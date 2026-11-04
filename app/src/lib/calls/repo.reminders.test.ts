@@ -6,7 +6,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeAdmin, writesTo } from "@/lib/payments/fake-admin.test-util";
-import { createReminderRepo } from "./repo";
+import { createCallsRepo, createReminderRepo } from "./repo";
 
 const PARENT = "b0400000-0000-4000-8000-000000000001";
 const BOOKING = "c0400000-0000-4000-8000-000000000001";
@@ -168,5 +168,26 @@ describe("the call_nudges claim (R3)", () => {
     expect(await repo.claimNudge(PARENT, STAMP)).toEqual({ ok: false, error: "error" });
     expect(await repo.releaseNudge(PARENT, STAMP)).toEqual({ ok: false, error: "error" });
     expect(await repo.readNudgedParents([PARENT])).toEqual({ ok: false, error: "error" });
+  });
+});
+
+// ── 04b B7: her own scope row, for the hub card (repo.ts stays the only reader of these tables) ──
+
+describe("readScopeParent", () => {
+  it("her parents row: source and sign-up time; no row → null", async () => {
+    const f = fakeAdmin({ parents: { user_id: PARENT, signup_source: null, created_at: "2027-02-04T10:00:00+00:00" } });
+    expect(await createCallsRepo({ client: f.client }).readScopeParent(PARENT)).toEqual({
+      ok: true,
+      value: { userId: PARENT, signupSource: null, signedUpAt: "2027-02-04T10:00:00.000Z" },
+    });
+    expect(f.ops[0]).toMatchObject({ table: "parents", kind: "select", filters: [["eq", "user_id", PARENT]] });
+    expect(await createCallsRepo({ client: fakeAdmin({}).client }).readScopeParent(PARENT)).toEqual({ ok: true, value: null });
+  });
+
+  it("a row that doesn't fit, or an error → error", async () => {
+    expect(await createCallsRepo({ client: fakeAdmin({ parents: { user_id: 7 } }).client }).readScopeParent(PARENT)).toEqual({ ok: false, error: "error" });
+    const f = fakeAdmin({});
+    f.readErrors.parents = { message: "boom" };
+    expect(await createCallsRepo({ client: f.client }).readScopeParent(PARENT)).toEqual({ ok: false, error: "error" });
   });
 });

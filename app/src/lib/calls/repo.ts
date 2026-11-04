@@ -89,6 +89,8 @@ export interface CallsRepo {
   readRecentLogEntries(limit: number): Promise<CallsResult<readonly CallLogEntry[]>>;
   /** Parents not from an invite (NULL source included, plan D7) who signed up at or after `enabledSince`. */
   readScopeParents(enabledSince: string): Promise<CallsResult<readonly ScopeParent[]>>;
+  /** Her own parents row (04b: the hub card's scope check); null when she has none. */
+  readScopeParent(userId: string): Promise<CallsResult<ScopeParent | null>>;
   readContacts(userIds: readonly string[]): Promise<CallsResult<readonly ParentContact[]>>;
   readLatestPositionId(parentUserId: string): Promise<CallsResult<string | null>>;
   holdSlot(input: HoldInput): Promise<CallsResult<HeldSlot>>;
@@ -329,7 +331,13 @@ async function latestPositionId(db: Db, parentUserId: string): Promise<CallsResu
   return position.ok ? ok(position.value.id) : position;
 }
 
-function familyQueries(db: Db): Pick<CallsRepo, "readScopeParents" | "readContacts" | "readLatestPositionId"> {
+/** One parents row, or none; a row that doesn't fit → undefined (`rows` fails it). */
+const oneScopeParent = (data: unknown): { readonly parent: ScopeParent | null } | undefined => {
+  const list = scopeParentsFromRows(data === null || data === undefined ? [] : [data]);
+  return list === null ? undefined : { parent: list[0] ?? null };
+};
+
+function familyQueries(db: Db): Pick<CallsRepo, "readScopeParents" | "readScopeParent" | "readContacts" | "readLatestPositionId"> {
   return {
     readScopeParents: (enabledSince) =>
       guarded("readScopeParents", async () =>
@@ -348,6 +356,11 @@ function familyQueries(db: Db): Pick<CallsRepo, "readScopeParents" | "readContac
           scopeParentsFromRows,
         ),
       ),
+    readScopeParent: (userId) =>
+      guarded("readScopeParent", async () => {
+        const read = await rows("readScopeParent", db().from("parents").select(SCOPE_COLUMNS).eq("user_id", userId).maybeSingle(), oneScopeParent);
+        return read.ok ? ok(read.value.parent) : read;
+      }),
     readContacts: (ids) =>
       guarded("readContacts", async () =>
         mapped(

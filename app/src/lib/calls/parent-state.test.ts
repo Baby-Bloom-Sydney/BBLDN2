@@ -5,7 +5,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CallsDeps } from "./deps";
 import { bookingRow, callsTo, fakeCallsRepo, type FakeCallsState } from "./fake-calls-repo.test-util";
-import { loadMyCallView } from "./parent-state";
+import { loadHubCallCard, loadMyCallView } from "./parent-state";
+import { CALL_SETTINGS_DEFAULTS } from "./settings";
 
 const HER = "b0400000-0000-4000-8000-000000000001";
 const NOW = new Date("2027-02-04T10:00:00.000Z");
@@ -48,5 +49,40 @@ describe("loadMyCallView", () => {
     expect(view.ok && view.value.kind === "booked" && view.value.booking.line).toBe(
       "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)",
     );
+  });
+});
+
+describe("loadHubCallCard (plan B7)", () => {
+  const SCOPE = { userId: HER, signupSource: "advanced_match", signedUpAt: "2027-02-03T10:00:00.000Z" };
+  const STARTED = { ...CALL_SETTINGS_DEFAULTS, enabledSince: "2027-02-01T09:00:00.000Z" };
+
+  it("switch off → null with zero reads", async () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "");
+    const { fake, deps } = setup();
+    expect(await loadHubCallCard(HER, deps)).toBeNull();
+    expect(fake.calls).toEqual([]);
+  });
+
+  it("not a user id → null with zero reads", async () => {
+    const { fake, deps } = setup();
+    expect(await loadHubCallCard("x", deps)).toBeNull();
+    expect(fake.calls).toEqual([]);
+  });
+
+  it("reads her settings, scope row, bookings and attempts → the card", async () => {
+    const { fake, deps } = setup({ settings: STARTED, scope: [SCOPE] });
+    expect(await loadHubCallCard(HER, deps)).toEqual({ kind: "not_booked", line: "Pick a time for your Complimentary matchmaker call" });
+    expect(callsTo(fake, "readScopeParent")[0].args).toEqual([HER]);
+    expect(callsTo(fake, "readBookingsForParents")[0].args).toEqual([[HER]]);
+  });
+
+  it("any read failing → no card (logged), never a wrong one", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const failing of ["readSettings", "readScopeParent", "readBookingsForParents", "readLogEntriesForParents"] as const) {
+      const { deps } = setup({ settings: STARTED, scope: [SCOPE], failing: [failing] });
+      expect(await loadHubCallCard(HER, deps)).toBeNull();
+    }
+    expect(log).toHaveBeenCalledTimes(4);
+    log.mockRestore();
   });
 });
