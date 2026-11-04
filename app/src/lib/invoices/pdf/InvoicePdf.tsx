@@ -57,14 +57,16 @@ const COLOUR = {
 /** The built-in bold face, for ASCII-only text (the wordmark, the title, the total). */
 const BOLD = { fontFamily: "Helvetica", fontWeight: "bold" } as const;
 
+/** The wordmark's size; the halves sit a fifth of it apart, as `gap-1` does at `text-xl` in the site header. */
+const WORDMARK_SIZE = 22;
+
 const styles = StyleSheet.create({
   page: { paddingTop: 52, paddingHorizontal: 48, paddingBottom: 80, backgroundColor: COLOUR.white, fontFamily: INVOICE_FONT_FAMILY, fontSize: 10, color: COLOUR.text },
   band: { position: "absolute", top: 0, left: 0, right: 0, height: 6, backgroundColor: COLOUR.violet },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 28 },
-  wordmark: { ...BOLD, fontSize: 22 },
-  // Nested Text keeps the family but not the weight, so each half carries the bold face itself.
-  wordmarkBaby: { ...BOLD, color: COLOUR.ink },
-  wordmarkBloom: { ...BOLD, color: COLOUR.violet },
+  wordmark: { flexDirection: "row" },
+  wordmarkBaby: { ...BOLD, fontSize: WORDMARK_SIZE, color: COLOUR.ink },
+  wordmarkBloom: { ...BOLD, fontSize: WORDMARK_SIZE, color: COLOUR.violet, marginLeft: WORDMARK_SIZE / 5 },
   title: { ...BOLD, fontSize: 18, letterSpacing: 4, color: COLOUR.ink },
   meta: { flexDirection: "row", backgroundColor: COLOUR.violetTint, borderRadius: 8, paddingVertical: 14, paddingHorizontal: 16, marginBottom: 32 },
   metaNumber: { flex: 1, paddingRight: 16 },
@@ -87,7 +89,7 @@ const styles = StyleSheet.create({
   payTo: { marginTop: 40, paddingVertical: 14, paddingHorizontal: 16, backgroundColor: COLOUR.panel, borderLeft: `3 solid ${COLOUR.violet}`, borderRadius: 4 },
   payRow: { flexDirection: "row", marginBottom: 4 },
   payLabel: { width: 120, color: COLOUR.muted },
-  payValue: { color: COLOUR.ink },
+  payValue: { flex: 1, color: COLOUR.ink }, // a long account name wraps inside the box
   footer: { position: "absolute", bottom: 32, left: 48, right: 48, paddingTop: 10, borderTop: `1 solid ${COLOUR.rule}`, fontSize: 8, color: COLOUR.faint, textAlign: "center" },
 });
 
@@ -103,10 +105,10 @@ export function describeLine(kind: InvoiceKind, periodStart: string): string {
 function header(): ReactElement {
   return (
     <View style={styles.header}>
-      <Text style={styles.wordmark}>
+      <View style={styles.wordmark}>
         <Text style={styles.wordmarkBaby}>Baby</Text>
         <Text style={styles.wordmarkBloom}>Bloom</Text>
-      </Text>
+      </View>
       <Text style={styles.title}>INVOICE</Text>
     </View>
   );

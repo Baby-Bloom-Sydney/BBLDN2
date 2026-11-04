@@ -73,7 +73,8 @@ describe("InvoicePdf", () => {
   });
 
   it("BabyBloom is only the header mark and the footer, never the issuer (R8, brief D7; BAI 2026-11-04)", () => {
-    expect(lines.filter((l) => l.includes(SITE_NAME))).toEqual([SITE_NAME, `Generated with ${SITE_NAME}`]);
+    expect(lines.slice(0, 2)).toEqual(["Baby", "Bloom"]);
+    expect(lines.filter((l) => l.includes(SITE_NAME))).toEqual([`Generated with ${SITE_NAME}`]);
     expect(lines.slice(lines.indexOf("From"), lines.indexOf("Bill to"))).toEqual(["From", "Sophie Taylor", "1 Upper Street\nLondon N1 0AA"]);
     expect(text).not.toMatch(/Baby Bloom/);
   });
@@ -109,16 +110,23 @@ describe("InvoicePdf look (BAI 2026-11-04: our logo, a white background not see 
     expect(flat(page?.props.style).backgroundColor).toBe("#FFFFFF");
   });
 
-  it("heads the page with the website header's wordmark: logo.svg's two colours, bold", () => {
+  it("heads the page with the website header's wordmark: logo.svg's two colours, bold, the header's gap", () => {
     const svg = readFileSync(path.join(process.cwd(), "public/logo.svg"), "utf8");
     const fills = [...svg.matchAll(/<tspan fill="(#[0-9a-fA-F]{6})">(\w+)<\/tspan>/g)].map((m) => [m[2], m[1].toLowerCase()]);
     expect(fills).toEqual([["Baby", "#0f172a"], ["Bloom", "#8b5cf6"]]);
 
-    expect(linesOf(InvoicePdf(HARTLEY_INVOICE))[0]).toBe(SITE_NAME);
-    expect(flat(texts[0]?.props.style)).toMatchObject({ fontFamily: "Helvetica", fontWeight: "bold" });
+    expect(texts.slice(0, 2).map((e) => e.props.children)).toEqual(["Baby", "Bloom"]);
     for (const [word, fill] of fills) {
       const part = texts.find((e) => e.props.children === word);
       expect(flat(part?.props.style)).toMatchObject({ fontFamily: "Helvetica", fontWeight: "bold", color: fill });
     }
+    // LandingHeader.tsx: `gap-1` (4px) between the halves at `text-xl` (20px), so a fifth of the type size.
+    const [baby, bloom] = texts.slice(0, 2).map((e) => flat(e.props.style));
+    expect(bloom.marginLeft).toBeCloseTo(Number(baby.fontSize) / 5);
+  });
+
+  it("a long account name wraps inside the Pay to box (review M1)", () => {
+    const accountName = texts.filter((e) => e.props.children === HARTLEY_INVOICE.payTo.accountName).at(-1);
+    expect(flat(accountName?.props.style).flex).toBe(1);
   });
 });

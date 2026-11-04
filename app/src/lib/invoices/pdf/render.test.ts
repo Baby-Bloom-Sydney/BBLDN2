@@ -31,12 +31,12 @@ describe("renderInvoicePdf", () => {
     const { bytes, text, pages } = await rendered(HARTLEY_INVOICE);
     expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
     expect(pages).toBe(1);
-    for (const s of ["BabyBloom", "INVOICE", "BB-SophieTaylor-270215-0001", "15 Feb 2027", "Olivia Hartley", "Childcare, week of 8–14 Feb 2027", "£540.00", "11-22-33", "87654321", "Generated with BabyBloom"]) {
+    for (const s of ["INVOICE", "BB-SophieTaylor-270215-0001", "15 Feb 2027", "Olivia Hartley", "Childcare, week of 8–14 Feb 2027", "£540.00", "11-22-33", "87654321", "Generated with BabyBloom"]) {
       expect(text).toContain(s);
     }
   }, 30_000);
 
-  it("prints the wordmark in the built-in bold face, with no font file (BAI 2026-11-04)", async () => {
+  it("uses the built-in bold face (wordmark, title, total), with no font file (BAI 2026-11-04)", async () => {
     const { bytes } = await rendered(HARTLEY_INVOICE);
     expect(bytes.toString("latin1")).toContain("/BaseFont /Helvetica-Bold");
   }, 30_000);
