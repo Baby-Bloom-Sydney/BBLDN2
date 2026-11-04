@@ -83,3 +83,17 @@ export function legacyTierCheckoutEnabled(): boolean {
 export function callBookingEnabled(): boolean {
   return isOn(process.env.CALL_BOOKING_ENABLED);
 }
+
+/**
+ * Cohorts in admin (brief 02; plan `BUILD/plans/02-plan.md`). A **launch** switch, set to "true" at switch-on (#14).
+ *
+ * While off:
+ * - `/admin/cohorts` → `notFound()` before any auth check or read; no Cohorts entry in either admin nav.
+ * - The `/admin/cohorts` actions refuse with `"cohorts_disabled"` before any read.
+ * - The family dossier makes no cohort read and shows no "Current cohort" line; 04's call page shows none either.
+ * - Never gated: re-opening a place on a full Stripe refund (and 03's take-a-place) — a payment already made is
+ *   always recorded. With no place for the payment they do nothing. Recorded places stay while it's off.
+ */
+export function cohortsEnabled(): boolean {
+  return isOn(process.env.COHORTS_ENABLED);
+}
