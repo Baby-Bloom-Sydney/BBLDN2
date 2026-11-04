@@ -13,8 +13,6 @@ import { capitalizeName } from "@/lib/utils";
 import { signupViaInvite } from "@/lib/actions/bapp/child-invites";
 import { isUkMobile, normaliseUkMobile } from "@/lib/uk-contact";
 import { SITE_URL } from "@/lib/constants";
-import { callBookingEnabled } from "@/lib/features/flags";
-import { callPagePath } from "@/lib/calls/next-path";
 
 const INVITE_TOKEN_REGEX = /^[A-HJKMN-Z2-9]{4}-[A-HJKMN-Z2-9]{4}$/;
 
@@ -415,11 +413,9 @@ export async function signUp(formData: FormData): Promise<ActionResult> {
       };
     }
 
-    // Brief 04: a parent with no invite goes through the call page while CALL_BOOKING_ENABLED is on.
     return {
       success: true,
-      redirectTo:
-        callBookingEnabled() && role === "parent" ? callPagePath(getDashboardPath(role)) : getDashboardPath(role),
+      redirectTo: getDashboardPath(role),
     };
   } catch (error) {
     console.error("Signup error:", error);
