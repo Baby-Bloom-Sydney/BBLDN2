@@ -7,7 +7,21 @@
  * runtime); the plain numbers are immutable `const` bindings.
  */
 
-/** First week on us: discount ≤ 15 per hour × ≤ 40 contracted hours, in pence (ADR-100, offer §2). */
+/**
+ * The first week comes off the bill at a flat rate, whatever the nanny's own rate, for at most this many hours
+ * (OPEN-call-and-deposit §5d.1 as amended by §5e.2 — BAI 2026-11-04). Most off the bill: rate × cap, derived,
+ * never stored. The hours themselves are not config: they come from the nanny's first-week invoice (brief 06),
+ * and BAI can edit them before approving the bill (brief 07).
+ */
+export const FIRST_WEEK_OFF_BILL = Object.freeze({
+  flatHourlyPence: 2_000, // §5d.1 / §5e.2 — 2026-11-04
+  maxHours: 37.5, // §5e.2 — 2026-11-04; half-hour steps (06 invoices in 0.5 h), so rate × hours is whole pence
+} as const);
+
+/**
+ * Retired 2026-11-04 (OPEN §5d): the September first-week rule (≤ 15 an hour × ≤ 40 contracted hours, ADR-100).
+ * Read only by the flag-off path of brief 07 (kept under P-23, hide not delete); deleted in the post-switch-on clean-up.
+ */
 export const FIRST_WEEK_DISCOUNT_CAP = Object.freeze({
   hourlyPence: 1_500, // ADR-100
   maxHours: 40, // ADR-100 — hours from the parent–nanny contract
@@ -15,17 +29,24 @@ export const FIRST_WEEK_DISCOUNT_CAP = Object.freeze({
 
 /**
  * G1 — a nanny you'll love within this many days of our call (ADR-088).
- * 14 at launch; 7 once the calendar proves it. Test value — offer §9.
+ * Retired 2026-11-04 (OPEN §5d: G1 becomes the case-by-case goodwill bonus). Read only by the flag-off path of
+ * brief 08 (kept under P-23); deleted in the post-switch-on clean-up.
  */
 export const G1 = Object.freeze({ windowDays: 14 } as const);
 
-/** G2 — full refund within this many days of the nanny's first day (ADR-088, offer §4). */
+/**
+ * G2 — the one-month guarantee: refund of the fee actually paid, keep the app; 30 days from the chosen nanny's
+ * first day, moving if a later nanny is placed, once per family (OPEN §5d.5, §5e.6 — 2026-11-04).
+ */
 export const G2 = Object.freeze({ windowDays: 30 } as const);
 
-/** G4 (mega) — offered only after this many placements (ADR-088; offer §4 "test only", §9). */
+/**
+ * G4 (mega) — offered only after this many placements (ADR-088). Retired 2026-11-04 (OPEN §5d: G4 is "later").
+ * Read only by the flag-off path of brief 08 (kept under P-23); deleted in the post-switch-on clean-up.
+ */
 export const G4 = Object.freeze({ enabledAfterPlacements: 20 } as const);
 
-/** The balance is billed this many days after the nanny's start (ADR-094, offer §3). */
+/** The balance is billed this many days after the nanny's start (ADR-094; OPEN §5d.7, kept 2026-11-04). */
 export const BILL_AFTER_START_DAYS = 7;
 
 /** Preset amounts on the manual payment portal (ADR-092, offer §3 mechanism). */

@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   BILL_AFTER_START_DAYS,
   FIRST_WEEK_DISCOUNT_CAP,
+  FIRST_WEEK_OFF_BILL,
   G1,
   G2,
   G4,
@@ -27,6 +28,33 @@ describe("FIRST_WEEK_DISCOUNT_CAP — ADR-100", () => {
   it("caps the first week at 15 an hour for 40 hours, in pence", () => {
     const capPence = FIRST_WEEK_DISCOUNT_CAP.hourlyPence * FIRST_WEEK_DISCOUNT_CAP.maxHours;
     expect(capPence).toBe(15 * 40 * 100);
+  });
+});
+
+describe("FIRST_WEEK_OFF_BILL — OPEN §5d.1 as amended by §5e.2 (2026-11-04)", () => {
+  it("is a positive whole number of pence an hour", () => {
+    expect(isPositiveInteger(FIRST_WEEK_OFF_BILL.flatHourlyPence)).toBe(true);
+  });
+
+  it("caps the hours at a positive multiple of half an hour", () => {
+    expect(FIRST_WEEK_OFF_BILL.maxHours).toBeGreaterThan(0);
+    expect(Number.isInteger(FIRST_WEEK_OFF_BILL.maxHours * 2)).toBe(true);
+  });
+
+  it("takes at most 750 pounds off the bill: flat rate × hour cap, in whole pence", () => {
+    const maxOffPence = FIRST_WEEK_OFF_BILL.flatHourlyPence * FIRST_WEEK_OFF_BILL.maxHours;
+    expect(Number.isInteger(maxOffPence)).toBe(true);
+    expect(maxOffPence).toBe(75_000);
+  });
+});
+
+describe("timing and the one-month guarantee — OPEN §5d.5, §5d.7, §5e.6 (2026-11-04)", () => {
+  it("bills the balance 7 days after the nanny starts", () => {
+    expect(BILL_AFTER_START_DAYS).toBe(7);
+  });
+
+  it("holds the one-month guarantee for 30 days from the chosen nanny's first day", () => {
+    expect(G2.windowDays).toBe(30);
   });
 });
 
@@ -55,7 +83,7 @@ describe("PAYMENT_LINK_PRESETS — ADR-092, offer §3 mechanism", () => {
 
 describe("frozen — no runtime mutation", () => {
   it("freezes every exported object and the preset list", () => {
-    for (const value of [FIRST_WEEK_DISCOUNT_CAP, G1, G2, G4, PAYMENT_LINK_PRESETS]) {
+    for (const value of [FIRST_WEEK_DISCOUNT_CAP, FIRST_WEEK_OFF_BILL, G1, G2, G4, PAYMENT_LINK_PRESETS]) {
       expect(Object.isFrozen(value)).toBe(true);
     }
   });
