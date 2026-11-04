@@ -136,3 +136,70 @@ export type CallError = CallRefusal | "call_booking_disabled" | "error";
 export type CallsResult<T, E extends string = CallError> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly error: E };
+
+// ── What the repository's writers take and give back (amendment 19's six functions + Start call booking) ──
+
+export interface HoldInput {
+  readonly parentUserId: string;
+  readonly startsAt: string;
+  readonly endsAt: string;
+  readonly purpose: CallPurpose;
+  readonly positionId: string | null;
+  readonly actor: CallActor;
+}
+
+export interface BookInput extends HoldInput {
+  readonly idempotencyKey: string;
+}
+
+export interface ConfirmInput {
+  readonly parentUserId: string;
+  readonly holdId: string;
+  readonly idempotencyKey: string;
+  readonly actor: CallActor;
+}
+
+export interface CancelInput {
+  readonly parentUserId: string;
+  readonly bookingId: string;
+  readonly actor: CallActor;
+}
+
+export interface OutcomeInput {
+  readonly parentUserId: string;
+  readonly bookingId: string | null;
+  readonly result: CallResultCode | null;
+  readonly outcome: CallOutcomeCode | null;
+  readonly note: string | null;
+  readonly callBackAt: string | null;
+  readonly method: CallMethod;
+  readonly source: CallSource;
+  readonly actor: Pick<CallActor, "userId">;
+  readonly justcallCallId: string | null;
+}
+
+export interface HeldSlot {
+  readonly bookingId: string;
+  readonly holdExpiresAt: string;
+}
+
+/** A confirmed time: a new booking, or her existing booking moved (the same row keeps its id). */
+export type ConfirmedBooking =
+  | { readonly kind: "booked"; readonly bookingId: string; readonly startsAt: string; readonly replay: boolean }
+  | { readonly kind: "moved"; readonly bookingId: string; readonly startsAt: string; readonly fromStartsAt: string };
+
+export interface CancelledBooking {
+  readonly bookingId: string;
+  readonly startsAt: string;
+}
+
+export interface RecordedOutcome {
+  readonly entryId: string;
+  readonly replay: boolean;
+}
+
+export interface StartedCallBooking {
+  readonly enabledSince: string;
+  /** False when it was already started (the first time is kept). */
+  readonly startedNow: boolean;
+}
