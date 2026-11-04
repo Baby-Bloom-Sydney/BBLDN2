@@ -1,0 +1,28 @@
+/**
+ * call_not_booked (brief §0.4; plan B1, §12 R2): "Pick a time … — we'll call you either way", a link back to
+ * /parent/call; caller line only when set; escaped name; nothing says free.
+ */
+import { describe, expect, it } from "vitest";
+import { buildCallNotBookedEmail } from "./call-not-booked";
+
+const base = { firstName: "Jane", callerNumber: "+447700900123" };
+
+describe("buildCallNotBookedEmail", () => {
+  it("subject is the brief's line", () => {
+    expect(buildCallNotBookedEmail(base).subject).toBe("Pick a time for your Complimentary matchmaker call — we'll call you either way");
+  });
+
+  it("body links back to the call page", () => {
+    const { html } = buildCallNotBookedEmail(base);
+    expect(html).toContain("Complimentary matchmaker call");
+    expect(html).toMatch(/href="https?:\/\/[^"]+\/parent\/call"/);
+  });
+
+  it("names the caller number only when set; escapes her name; never says free", () => {
+    expect(buildCallNotBookedEmail(base).html).toContain("We'll call you from +44 (0) 7700 900 123.");
+    expect(buildCallNotBookedEmail({ ...base, callerNumber: null }).html).not.toContain("call you from");
+    expect(buildCallNotBookedEmail({ ...base, firstName: "<i>j</i>" }).html).toContain("&lt;i&gt;j&lt;/i&gt;");
+    const { subject, html } = buildCallNotBookedEmail(base);
+    expect(`${subject} ${html}`).not.toMatch(/\bfree\b|\bintro\b|track/i);
+  });
+});
