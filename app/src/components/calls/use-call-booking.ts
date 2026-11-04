@@ -33,7 +33,7 @@ function withoutDays(view: MyCallView): MyCallView {
 
 /** Booked now: her new booking, her number kept from what was on screen. */
 function bookedNow(current: MyCallView, confirmed: ConfirmedCallView): MyCallView {
-  return { kind: "booked", booking: confirmed.booking, days: null, mobile: current.kind === "load_failed" ? null : current.mobile };
+  return { kind: "booked", booking: confirmed.booking, days: null, mobile: current.kind === "load_failed" ? null : current.mobile, needsPosition: false };
 }
 
 export function useCallBooking(initial: MyCallView, startChanging = false) {

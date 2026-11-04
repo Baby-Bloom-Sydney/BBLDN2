@@ -67,6 +67,11 @@ describe("parent copy, word for word", () => {
     expect(yourCallLine("Thursday 5 November at 10:00")).toBe("Your call: Thursday 5 November at 10:00 (London time)");
   });
 
+  it("the no-position words (04b rework W11, BAI 2026-11-05 verbatim)", () => {
+    expect(PARENT_COPY.completePositionLine).toBe("Complete your childcare position so that we can confirm your call with your matchmaker.");
+    expect(PARENT_COPY.completePosition).toBe("Complete my childcare position");
+  });
+
   it("the Childcare tab card's words (04b rework W9)", () => {
     expect(PARENT_COPY.bookATime).toBe("Book a time");
     expect(shortTimeLine({ short: "Thu 5 Nov, 10:00" })).toBe("Thu 5 Nov, 10:00 (London time)");
@@ -80,7 +85,9 @@ describe("parent copy, word for word", () => {
   });
 
   it("names the call as the Complimentary matchmaker call wherever it names it", () => {
-    for (const text of allStrings(PARENT_COPY)) {
+    // BAI's own words for the no-position line, verbatim (2026-11-05, brief §0a.6) — the one exception.
+    const verbatim = new Set<string>([PARENT_COPY.completePositionLine]);
+    for (const text of allStrings(PARENT_COPY).filter((t) => !verbatim.has(t))) {
       if (/call\b/i.test(text) && /matchmaker/i.test(text)) expect(text).toMatch(/Complimentary matchmaker call/);
     }
   });

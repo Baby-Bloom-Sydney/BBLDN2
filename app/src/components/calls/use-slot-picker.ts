@@ -111,6 +111,8 @@ export interface UsePickerOptions<T> {
   readonly current?: string | null;
   /** Open with the taken notice (a time she chose elsewhere has just gone), in words. */
   readonly initialNotice?: string | null;
+  /** No position yet (W11): a tap only selects; nothing is held. */
+  readonly gated?: boolean;
 }
 
 type Phase = "idle" | "holding" | "confirming";
@@ -164,6 +166,7 @@ export function useSlotPicker<T>(o: UsePickerOptions<T>) {
     s.setSelected(startsAt);
     s.setHold(null);
     s.setMessage(null);
+    if (o.gated) return; // W11: no position yet — her choice waits for her position; nothing is held.
     await during("holding", async () => {
       const held = await settled(() => o.actions.hold(startsAt));
       if (held.ok) s.setHold(held.value);

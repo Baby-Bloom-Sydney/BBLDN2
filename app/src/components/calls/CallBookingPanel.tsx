@@ -8,6 +8,8 @@
  *   failed): the heading and 04b's intro, then the picker with "Skip for now" onward;
  * - **changing** (Change time, or `?change=1`): her booking stays on top ("Your call: …", the green panel) and the
  *   picker shows underneath with her slot chosen, "Keep my time" on the left; confirming moves the same booking;
+ * - **no position yet** (W11, the quick-match sign-up and anyone else without one): picking a time holds nothing;
+ *   "Complete my childcare position" takes the time to `/parent/request?callAt=`;
  * - **booked**: the tick, "You're booked", the time "(London time)", "We'll call you on <her mobile>", one primary
  *   button onward (labelled by `next`), and Change time / Cancel as text links (none at or after the start).
  *
@@ -18,12 +20,15 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PARENT_COPY } from "@/lib/calls/copy";
-import type { Onward } from "@/lib/calls/next-path";
+import { positionWithCallPath, type Onward } from "@/lib/calls/next-path";
 import type { MyCallView } from "@/lib/calls/parent-view";
 import { BookedLinks, BookedTick, BookedWords, YourCallPanel } from "./BookedCall";
 import { FUNNEL_PRIMARY, FunnelSlide } from "./FunnelSlide";
 import { SlotPicker } from "./SlotPicker";
 import { useCallBooking, type CallBooking } from "./use-call-booking";
+
+/** No position yet (W11): a picked time goes with her to her position form, and is booked once it is saved. */
+const NO_POSITION_GATE = { href: positionWithCallPath };
 
 export interface CallBookingPanelProps {
   readonly initial: MyCallView;
@@ -89,6 +94,7 @@ function PickSlide({ call, onward }: { readonly call: CallBooking; readonly onwa
             onKeepTime={booked ? call.keepTime : undefined}
             skipHref={booked ? undefined : onward.href}
             current={booked?.startsAt ?? null}
+            gate={view.kind !== "load_failed" && view.needsPosition ? NO_POSITION_GATE : undefined}
           />
         )}
       </div>

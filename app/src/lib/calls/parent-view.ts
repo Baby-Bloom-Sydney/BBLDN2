@@ -40,8 +40,21 @@ export interface HeldCallView {
  * her own number in UK national form for "We'll call you on …" (04b rework W5), or null.
  */
 export type MyCallView =
-  | { readonly kind: "booked"; readonly booking: BookedCallView; readonly days: readonly SlotDay[] | null; readonly mobile: string | null }
-  | { readonly kind: "pick"; readonly afterNoAnswer: boolean; readonly days: readonly SlotDay[]; readonly mobile: string | null }
+  | {
+      readonly kind: "booked";
+      readonly booking: BookedCallView;
+      readonly days: readonly SlotDay[] | null;
+      readonly mobile: string | null;
+      readonly needsPosition: boolean;
+    }
+  | {
+      readonly kind: "pick";
+      readonly afterNoAnswer: boolean;
+      readonly days: readonly SlotDay[];
+      readonly mobile: string | null;
+      /** No position yet (W11): a picked time isn't held; she completes her position first. */
+      readonly needsPosition: boolean;
+    }
   | { readonly kind: "load_failed" };
 
 /** What the parent's actions can answer. Never a detail: a code the page turns into one of its lines. */
@@ -131,15 +144,18 @@ export function callViewOf(reads: {
   readonly now: Date;
   /** Her number, already in national form (or null). */
   readonly mobile: string | null;
+  /** She has no position yet (W11). */
+  readonly needsPosition?: boolean;
 }): MyCallView {
   if (!reads.bookings.ok) return { kind: "load_failed" };
   const days = reads.grid.ok ? groupSlotGridByDay(reads.grid.value) : null;
+  const facts = { mobile: reads.mobile, needsPosition: reads.needsPosition ?? false };
   const booked = myBookedCall(reads.bookings.value);
-  if (booked !== null) return { kind: "booked", booking: bookedViewOf(booked, reads.now), days, mobile: reads.mobile };
+  if (booked !== null) return { kind: "booked", booking: bookedViewOf(booked, reads.now), days, ...facts };
   if (days === null) return { kind: "load_failed" };
   // Her attempts unreadable: she can still pick; there's just no "We tried to call you" line (review F6).
   const afterNoAnswer = reads.entries.ok && isAfterNoAnswer(reads.bookings.value, reads.entries.value);
-  return { kind: "pick", afterNoAnswer, days, mobile: reads.mobile };
+  return { kind: "pick", afterNoAnswer, days, ...facts };
 }
 
 /**

@@ -14,6 +14,8 @@
  * - Taken (by someone else, or a held time that ran out and was taken) → the "This time has just been booked" notice,
  *   and the list refreshes under it. Ran-out-but-free, invalid and failed → 04b's inline alert, which takes focus.
  * - The left button: "Skip for now" (a link), or "Keep my time" while changing; none in the in-app popup.
+ * - No position yet (W11): a tap selects without a hold; the panel says "Complete your childcare position so that we
+ *   can confirm your call with your matchmaker." and the right button reads "Complete my childcare position".
  * - Every label arrives preformatted from the server (`SlotDay`), so the device's zone can't matter. Motion stops under
  *   `prefers-reduced-motion`. Two pickers on one page share no ids (`useId`). 04c and 03 reuse it.
  *
@@ -52,7 +54,16 @@ export interface SlotPickerProps<T> {
   readonly current?: string | null;
   /** Open with the taken notice for this time, in words (a time chosen elsewhere has just gone). */
   readonly initialNotice?: string | null;
+  /**
+   * No position yet (W11, BAI 2026-11-05): a tap selects without holding; the green panel asks her to complete her
+   * position, and the right button goes there carrying the time (`href`). Nothing is held until her position is saved.
+   */
+  readonly gate?: PickerGate;
   readonly copy?: Partial<SlotPickerCopy>;
+}
+
+export interface PickerGate {
+  readonly href: (startsAt: string) => string;
 }
 
 const DEFAULT_COPY: SlotPickerCopy = {
@@ -82,6 +93,7 @@ function Empty({ line, busy, onRetry }: { readonly line: string; readonly busy: 
   );
 }
 
+/** The green panel: the chosen time, then the hold line (or, with no position yet, BAI's line). */
 function HeldPanel({ when, line }: { readonly when: string; readonly line: string }) {
   return (
     <div className="rounded-lg border border-green-200 bg-green-50 p-3">
@@ -93,13 +105,31 @@ function HeldPanel({ when, line }: { readonly when: string; readonly line: strin
   );
 }
 
+const PRIMARY = "flex-1 bg-violet-500 hover:bg-violet-600";
+
+function GateButton({ gate, selected }: { readonly gate: PickerGate; readonly selected: string | null }) {
+  if (selected === null) {
+    return (
+      <Button type="button" className={PRIMARY} disabled>
+        {PARENT_COPY.completePosition}
+      </Button>
+    );
+  }
+  return (
+    <Button asChild className={`${PRIMARY} h-auto min-h-9 whitespace-normal`}>
+      <Link href={gate.href(selected)}>{PARENT_COPY.completePosition}</Link>
+    </Button>
+  );
+}
+
 interface ButtonRowProps {
   readonly picker: SlotPickerState;
   readonly onKeepTime?: () => void;
   readonly skipHref?: string;
+  readonly gate?: PickerGate;
 }
 
-function ButtonRow({ picker, onKeepTime, skipHref }: ButtonRowProps) {
+function ButtonRow({ picker, onKeepTime, skipHref, gate }: ButtonRowProps) {
   const confirmRef = useRef<HTMLButtonElement>(null);
   // Focus Confirm once a hold is in and nothing is in flight (never while busy).
   useEffect(() => {
@@ -116,16 +146,20 @@ function ButtonRow({ picker, onKeepTime, skipHref }: ButtonRowProps) {
           <Link href={skipHref}>{PARENT_COPY.skipForNow}</Link>
         </Button>
       ) : null}
-      <Button ref={confirmRef} type="button" className="flex-1 bg-violet-500 hover:bg-violet-600" disabled={picker.hold === null || picker.busy} onClick={picker.confirm}>
-        {picker.confirming ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
-            {PARENT_COPY.confirming}
-          </>
-        ) : (
-          PARENT_COPY.confirmTimeButton
-        )}
-      </Button>
+      {gate ? (
+        <GateButton gate={gate} selected={picker.selected} />
+      ) : (
+        <Button ref={confirmRef} type="button" className={PRIMARY} disabled={picker.hold === null || picker.busy} onClick={picker.confirm}>
+          {picker.confirming ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+              {PARENT_COPY.confirming}
+            </>
+          ) : (
+            PARENT_COPY.confirmTimeButton
+          )}
+        </Button>
+      )}
     </div>
   );
 }
@@ -137,31 +171,42 @@ interface BodyProps {
   readonly current: string | null;
   readonly words: SlotPickerCopy;
   readonly gridRef: RefObject<HTMLDivElement>;
+  readonly gated: boolean;
+}
+
+/** The green panel's two lines, or null: a hold's, or (no position yet) the chosen time with BAI's line. */
+function panelOf(picker: SlotPickerState, days: readonly SlotDay[], gated: boolean): { when: string; line: string } | null {
+  if (gated) {
+    const chosen = picker.selected ? findSlot(days, picker.selected) : null;
+    return chosen ? { when: chosen.when, line: PARENT_COPY.completePositionLine } : null;
+  }
+  const held = picker.hold ? findSlot(days, picker.hold.startsAt) : null;
+  return picker.hold && held ? { when: held.when, line: picker.hold.line } : null;
 }
 
 /** Loading, failed, no free time, or the grid with its time box and green panel. */
-function PickerBody({ uid, picker, days, current, words, gridRef }: BodyProps) {
+function PickerBody({ uid, picker, days, current, words, gridRef, gated }: BodyProps) {
   if (picker.loading) return <Loading />;
   if (days === null) return <Empty line={words.loadFailed} busy={picker.busy} onRetry={picker.reload} />;
   const anyOpen = days.some((d) => d.slots.some((s) => isOpenSlot(s, picker.gone)));
   if (!anyOpen && current === null) return <Empty line={words.noTimes} busy={picker.busy} onRetry={picker.reload} />;
   const day = picker.cell ? days.find((d) => d.londonDate === picker.cell?.londonDate) : undefined;
   const cellSlots = day && picker.cell ? slotsIn(day, picker.cell.bracket) : [];
-  const held = picker.hold ? findSlot(days, picker.hold.startsAt) : null;
+  const panel = panelOf(picker, days, gated);
   return (
     <>
       <AvailabilityGrid days={days} cell={day ? picker.cell : null} gone={picker.gone} current={current} busy={picker.busy} onPick={picker.pickCell} gridRef={gridRef} />
       {cellSlots.length > 0 && (
         <TimeBox uid={uid} slots={cellSlots} chosen={picker.selected ?? current} gone={picker.gone} busy={picker.busy} onTap={picker.tapTime} />
       )}
-      {picker.hold && held && <HeldPanel when={held.when} line={picker.hold.line} />}
+      {panel && <HeldPanel when={panel.when} line={panel.line} />}
     </>
   );
 }
 
-export function SlotPicker<T>({ days, actions, onConfirmed, onKeepTime, skipHref, current = null, initialNotice = null, copy }: SlotPickerProps<T>) {
+export function SlotPicker<T>({ days, actions, onConfirmed, onKeepTime, skipHref, current = null, initialNotice = null, gate, copy }: SlotPickerProps<T>) {
   const words = { ...DEFAULT_COPY, ...copy };
-  const picker = useSlotPicker({ days, actions, onConfirmed, current, initialNotice });
+  const picker = useSlotPicker({ days, actions, onConfirmed, current, initialNotice, gated: gate !== undefined });
   const uid = useId();
   const alertRef = useRef<HTMLParagraphElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -187,8 +232,8 @@ export function SlotPicker<T>({ days, actions, onConfirmed, onKeepTime, skipHref
           {picker.message}
         </p>
       )}
-      <PickerBody uid={uid} picker={picker} days={picker.reloadFailed ? null : days} current={current} words={words} gridRef={gridRef} />
-      <ButtonRow picker={picker} onKeepTime={onKeepTime} skipHref={skipHref} />
+      <PickerBody uid={uid} picker={picker} days={picker.reloadFailed ? null : days} current={current} words={words} gridRef={gridRef} gated={gate !== undefined} />
+      <ButtonRow picker={picker} onKeepTime={onKeepTime} skipHref={skipHref} gate={gate} />
       <TakenNotice when={picker.notice} onClose={picker.closeNotice} onClosed={backToGrid} />
     </section>
   );

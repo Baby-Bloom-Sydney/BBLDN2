@@ -4,7 +4,19 @@
  * `/matchmaking/call` since the 04b rework W1) — anything else falls back to /parent. `callPagePath` builds the redirect.
  */
 import { describe, expect, it } from "vitest";
-import { CALL_PAGE_PATH, CHILDCARE_TAB, MATCHES_VIEW, PARENT_HOME, callPagePath, callPopupPath, onwardFor, parseCallPopup, safeNextPath } from "./next-path";
+import {
+  CALL_PAGE_PATH,
+  CHILDCARE_TAB,
+  MATCHES_VIEW,
+  PARENT_HOME,
+  callPagePath,
+  callPopupPath,
+  onwardFor,
+  parseCallAt,
+  parseCallPopup,
+  positionWithCallPath,
+  safeNextPath,
+} from "./next-path";
 
 const MATCHES = "/parent?t=childcare&s=nannies&v=matches";
 
@@ -91,5 +103,25 @@ describe("the in-app call popup's path and param (W8, W12)", () => {
 
   it.each([[undefined], [null], [""], ["OPEN"], ["change"], [["open", "booked"]]])("%s is ignored", (raw) => {
     expect(parseCallPopup(raw as string | string[] | null | undefined)).toBeNull();
+  });
+});
+
+describe("a picked time carried into her position (W11)", () => {
+  const AT = "2027-02-09T14:00:00.000Z";
+
+  it("/parent/request?callAt=<the slot, encoded>", () => {
+    expect(positionWithCallPath(AT)).toBe(`/parent/request?callAt=${encodeURIComponent(AT)}`);
+  });
+
+  it("callAt is read only as an instant with an offset", () => {
+    expect(parseCallAt(AT)).toBe(AT);
+    expect(parseCallAt("2027-02-09T14:00:00+00:00")).toBe("2027-02-09T14:00:00+00:00");
+    for (const bad of [undefined, null, "", "2027-02-09", "2027-02-09T14:00:00", "tomorrow", [AT, AT]]) {
+      expect(parseCallAt(bad as string | string[] | null | undefined)).toBeNull();
+    }
+  });
+
+  it("the gone popup can carry the time", () => {
+    expect(callPopupPath("gone", AT)).toBe(`/parent?t=childcare&call=gone&at=${encodeURIComponent(AT)}`);
   });
 });

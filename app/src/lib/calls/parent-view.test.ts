@@ -122,8 +122,8 @@ describe("callViewOf", () => {
   it("not booked → the days, grouped, with the after-no-answer flag", () => {
     const entries = ok([entryRow({ parentUserId: HER, occurredAt: "2027-02-03T14:05:00.000Z", result: "no_answer" })]);
     const view = callViewOf({ bookings: ok([]), entries, grid: ok(SLOTS), now: NOW, mobile: null });
-    expect(view).toEqual({ kind: "pick", afterNoAnswer: true, days: [expect.objectContaining({ legend: "Tuesday 9 February" })], mobile: null });
-    expect(callViewOf({ bookings: ok([]), entries: ok([]), grid: ok(NONE), now: NOW, mobile: null })).toEqual({ kind: "pick", afterNoAnswer: false, days: [], mobile: null });
+    expect(view).toEqual({ kind: "pick", afterNoAnswer: true, days: [expect.objectContaining({ legend: "Tuesday 9 February" })], mobile: null, needsPosition: false });
+    expect(callViewOf({ bookings: ok([]), entries: ok([]), grid: ok(NONE), now: NOW, mobile: null })).toEqual({ kind: "pick", afterNoAnswer: false, days: [], mobile: null, needsPosition: false });
   });
 
   it("the bookings or the slots unreadable (without a known booking) → load_failed", () => {
@@ -137,6 +137,7 @@ describe("callViewOf", () => {
       afterNoAnswer: false,
       days: [expect.objectContaining({ legend: "Tuesday 9 February" })],
       mobile: null,
+      needsPosition: false,
     });
   });
 });

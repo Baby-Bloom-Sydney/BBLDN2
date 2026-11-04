@@ -372,3 +372,30 @@ describe("SlotPicker — a rejected action never sticks (review F1, F2)", () => 
     idle();
   });
 });
+
+describe("SlotPicker — a parent with no position yet (W11, BAI 2026-11-05)", () => {
+  const gate = { href: (startsAt: string) => `/parent/request?callAt=${encodeURIComponent(startsAt)}` };
+
+  it("a tap selects the time but never holds; the panel asks her to complete her position; the button goes there", async () => {
+    const user = userEvent.setup();
+    const actions = actionsWith();
+    render(<SlotPicker days={DAYS} actions={actions} onConfirmed={vi.fn()} gate={gate} skipHref="/parent?t=childcare" />);
+    expect(screen.getByRole("button", { name: "Complete my childcare position" })).toBeDisabled();
+    await holdTue14(user);
+    expect(actions.hold).not.toHaveBeenCalled();
+    expect(tue14()).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("Tuesday 9 February at 14:00")).toBeInTheDocument();
+    expect(screen.getByText("Complete your childcare position so that we can confirm your call with your matchmaker.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Complete my childcare position" })).toHaveAttribute("href", `/parent/request?callAt=${encodeURIComponent(TUE_14)}`);
+    expect(screen.queryByRole("button", { name: "Confirm time" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Skip for now" })).toBeInTheDocument();
+  });
+
+  it("a greyed time still can't be chosen", async () => {
+    const user = userEvent.setup();
+    render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} gate={gate} />);
+    await user.click(tueAfternoon());
+    await user.click(time("Tuesday 9 February, 15:00 (London time)"));
+    expect(screen.queryByRole("link", { name: "Complete my childcare position" })).not.toBeInTheDocument();
+  });
+});

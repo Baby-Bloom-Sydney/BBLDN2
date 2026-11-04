@@ -14,19 +14,23 @@ import { callViewOf, hubCardFor, nationalMobile, type HubCallCard, type MyCallVi
 import type { CallsResult } from "./types";
 import { uuid } from "./zod-parts";
 
-/** Her call page: her bookings and attempts, the first-call grid (free or greyed) and her number, read together. */
+/** Her call page: her bookings and attempts, the first-call grid (free or greyed), her number and whether she has a
+ * position, read together. */
 export async function loadMyCallView(sessionUserId: string, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<MyCallView>> {
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
   if (!uuid.safeParse(sessionUserId).success) return CALLS_INVALID;
-  const [bookings, entries, grid, contacts] = await Promise.all([
+  const [bookings, entries, grid, contacts, position] = await Promise.all([
     deps.repo.readBookingsForParents([sessionUserId]),
     deps.repo.readLogEntriesForParents([sessionUserId]),
     parentSlotGrid(sessionUserId, deps),
     deps.repo.readContacts([sessionUserId]),
+    deps.repo.readLatestPositionId(sessionUserId),
   ]);
   // Her number for "We'll call you on …" (W5); unreadable → no line, never a failed page.
   const mobile = contacts.ok ? nationalMobile(contacts.value.find((c) => c.userId === sessionUserId)?.mobile ?? null) : null;
-  return { ok: true, value: callViewOf({ bookings, entries, grid, now: deps.now(), mobile }) };
+  // No position yet (W11): a picked time waits for her position. Unreadable → treated as having one (a hold works).
+  const needsPosition = position.ok && position.value === null;
+  return { ok: true, value: callViewOf({ bookings, entries, grid, now: deps.now(), mobile, needsPosition }) };
 }
 
 /**

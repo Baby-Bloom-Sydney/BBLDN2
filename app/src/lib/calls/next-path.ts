@@ -13,6 +13,7 @@
  * BB-wave1-041126/04b-rework, 2026-11-05.
  */
 
+import { z } from "zod";
 import { isSafeInternalPath } from "@/lib/invite/redirect";
 import { PARENT_COPY } from "./copy";
 
@@ -68,9 +69,21 @@ export function onwardFor(next: string): Onward {
 export type CallPopupMode = "open" | "booked" | "gone";
 const POPUP_MODES: ReadonlySet<string> = new Set(["open", "booked", "gone"]);
 
-/** `/parent?t=childcare&call=<mode>` — her Childcare tab with the call popup open over it. */
-export function callPopupPath(mode: CallPopupMode): string {
-  return `${CHILDCARE_TAB}&call=${mode}`;
+/** `/parent?t=childcare&call=<mode>` — her Childcare tab with the call popup open over it (`at`: the time that went). */
+export function callPopupPath(mode: CallPopupMode, at?: string): string {
+  return `${CHILDCARE_TAB}&call=${mode}${at === undefined ? "" : `&at=${encodeURIComponent(at)}`}`;
+}
+
+/** Her position form carrying the call time she picked (W11): `/parent/request?callAt=<the slot, encoded>`. */
+export function positionWithCallPath(startsAt: string): string {
+  return `/parent/request?callAt=${encodeURIComponent(startsAt)}`;
+}
+
+const callAtInput = z.iso.datetime({ offset: true });
+
+/** A `callAt` / `at` from a URL, checked: an instant with an offset, else null (ignored). */
+export function parseCallAt(raw: string | readonly string[] | null | undefined): string | null {
+  return typeof raw === "string" && callAtInput.safeParse(raw).success ? raw : null;
 }
 
 /** The hub's `call` param, checked: one of the three modes, else null (ignored). */

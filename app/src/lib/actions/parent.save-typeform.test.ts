@@ -34,8 +34,20 @@ describe("saveTypeformPosition → redirectTo (W8)", () => {
   it("returns the destination decided for her saved position", async () => {
     h.after.mockResolvedValue("/parent?t=childcare&call=open");
     expect(await saveTypeformPosition(FORM)).toEqual({ success: true, error: null, positionId: "pos-1", redirectTo: "/parent?t=childcare&call=open" });
-    expect(h.after).toHaveBeenCalledWith("pos-1");
+    expect(h.after).toHaveBeenCalledWith("pos-1", undefined, undefined);
     expect(h.autofire).toHaveBeenCalledWith("pos-1");
+  });
+
+  it("W11: the time she picked (callAt) is handed on after the save; its outcome is the destination", async () => {
+    h.after.mockResolvedValue("/parent?t=childcare&call=booked");
+    const result = await saveTypeformPosition(FORM, { callAt: "2027-02-09T14:00:00.000Z" });
+    expect(h.after).toHaveBeenCalledWith("pos-1", undefined, "2027-02-09T14:00:00.000Z");
+    expect(result).toEqual({ success: true, error: null, positionId: "pos-1", redirectTo: "/parent?t=childcare&call=booked" });
+  });
+
+  it("W11: a booking that went wrong never fails the position save", async () => {
+    h.after.mockResolvedValue("/parent?t=childcare&call=gone");
+    expect(await saveTypeformPosition(FORM, { callAt: "2027-02-09T14:00:00.000Z" })).toMatchObject({ success: true, positionId: "pos-1" });
   });
 
   it("no destination (flag off) → today's result exactly, no redirectTo key", async () => {

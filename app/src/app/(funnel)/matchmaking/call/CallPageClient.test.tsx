@@ -32,8 +32,8 @@ const BOOKED: BookedCallView = {
   yourCall: "Your call: Tuesday 9 February at 14:00 (London time)",
   changeable: true,
 };
-const PICK: MyCallView = { kind: "pick", afterNoAnswer: false, days: DAYS, mobile: MOBILE };
-const BOOKED_VIEW: MyCallView = { kind: "booked", booking: BOOKED, days: DAYS, mobile: MOBILE };
+const PICK: MyCallView = { kind: "pick", afterNoAnswer: false, days: DAYS, mobile: MOBILE, needsPosition: false };
+const BOOKED_VIEW: MyCallView = { kind: "booked", booking: BOOKED, days: DAYS, mobile: MOBILE, needsPosition: false };
 const HOLD = { holdId: "h-1", startsAt: TUE_14, line: "We're holding Tuesday 9 February, 14:00 (London time) for you until 10:05." };
 
 const page = (initial: MyCallView, next = NEXT, startChanging = false) =>
@@ -101,7 +101,7 @@ describe("the seven states", () => {
   });
 
   it("booked, at or after the start: the booking and no buttons but onward", async () => {
-    page({ kind: "booked", booking: { ...BOOKED, changeable: false }, days: DAYS, mobile: MOBILE });
+    page({ kind: "booked", booking: { ...BOOKED, changeable: false }, days: DAYS, mobile: MOBILE, needsPosition: false });
     expect(await youreBooked()).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Change time" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
@@ -109,13 +109,13 @@ describe("the seven states", () => {
   });
 
   it("after a no-answer: 'We tried to call you — pick another time', with the picker", () => {
-    page({ kind: "pick", afterNoAnswer: true, days: DAYS, mobile: null });
+    page({ kind: "pick", afterNoAnswer: true, days: DAYS, mobile: null, needsPosition: false });
     expect(screen.getByText("We tried to call you — pick another time")).toBeInTheDocument();
     expect(screen.getByRole("radiogroup", { name: "Tuesday 9 February" })).toBeInTheDocument();
   });
 
   it("no times: the §0.13 line, and Skip for now", () => {
-    page({ kind: "pick", afterNoAnswer: false, days: [], mobile: null });
+    page({ kind: "pick", afterNoAnswer: false, days: [], mobile: null, needsPosition: false });
     expect(screen.getByText("No times free right now — we'll still call you for your Complimentary matchmaker call.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Skip for now" })).toBeInTheDocument();
   });
@@ -275,5 +275,17 @@ describe("a rejected or refused action never sticks (review F1, F2)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't do that — try again");
     expect(screen.getByRole("button", { name: "Change time" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
+  });
+});
+
+describe("a parent with no position yet (W11: the quick-match sign-up, the card, the email link)", () => {
+  it("picking a time holds nothing; 'Complete my childcare position' carries the time to her position form", async () => {
+    const user = userEvent.setup();
+    page({ ...PICK, needsPosition: true }, "/parent?t=childcare");
+    await pickTue14(user);
+    expect(h.hold).not.toHaveBeenCalled();
+    expect(screen.getByText("Complete your childcare position so that we can confirm your call with your matchmaker.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Complete my childcare position" })).toHaveAttribute("href", `/parent/request?callAt=${encodeURIComponent(TUE_14)}`);
+    expect(screen.getByRole("link", { name: "Skip for now" })).toHaveAttribute("href", "/parent?t=childcare");
   });
 });

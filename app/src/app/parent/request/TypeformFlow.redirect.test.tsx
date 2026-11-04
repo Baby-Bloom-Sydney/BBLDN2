@@ -23,9 +23,9 @@ beforeEach(() => {
   h.save.mockReset();
 });
 
-async function finish() {
+async function finish(callAt?: string) {
   const user = userEvent.setup();
-  render(<TypeformFlow />);
+  render(<TypeformFlow callAt={callAt} />);
   await user.click(await screen.findByRole("button", { name: "18+" }, { timeout: 2000 }));
   await waitFor(() => expect(h.save).toHaveBeenCalled(), { timeout: 3000 });
 }
@@ -35,6 +35,19 @@ describe("TypeformFlow — where she goes after the save", () => {
     h.save.mockResolvedValue({ success: true, error: null, positionId: "pos-1", redirectTo: "/parent?t=childcare&call=open" });
     await finish();
     await waitFor(() => expect(h.push).toHaveBeenCalledWith("/parent?t=childcare&call=open"));
+  });
+
+  it("W11: a picked call time goes with the save; the popup then says she's booked", async () => {
+    h.save.mockResolvedValue({ success: true, error: null, positionId: "pos-1", redirectTo: "/parent?t=childcare&call=booked" });
+    await finish("2027-02-09T14:00:00.000Z");
+    expect(h.save).toHaveBeenCalledWith(expect.objectContaining({ minimum_age: "18" }), { callAt: "2027-02-09T14:00:00.000Z" });
+    await waitFor(() => expect(h.push).toHaveBeenCalledWith("/parent?t=childcare&call=booked"));
+  });
+
+  it("without a picked time the save gets no callAt", async () => {
+    h.save.mockResolvedValue({ success: true, error: null, positionId: "pos-1" });
+    await finish();
+    expect(h.save).toHaveBeenCalledWith(expect.any(Object), { callAt: undefined });
   });
 
   it("no redirectTo → /parent, as today", async () => {

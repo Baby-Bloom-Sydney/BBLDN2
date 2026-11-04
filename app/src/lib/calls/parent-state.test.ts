@@ -58,6 +58,15 @@ describe("loadMyCallView", () => {
     expect(failing.ok && failing.value.kind === "pick" && failing.value.mobile).toBeNull();
   });
 
+  it("W11: no position yet → needsPosition (a picked time can't be held until she has one); a failed read → false", async () => {
+    const none = await loadMyCallView(HER, setup({ latestPositionId: null }).deps);
+    expect(none.ok && none.value.kind === "pick" && none.value.needsPosition).toBe(true);
+    const has = await loadMyCallView(HER, setup({ latestPositionId: "pos-1" }).deps);
+    expect(has.ok && has.value.kind === "pick" && has.value.needsPosition).toBe(false);
+    const failing = await loadMyCallView(HER, setup({ latestPositionId: null, failing: ["readLatestPositionId"] }).deps);
+    expect(failing.ok && failing.value.kind === "pick" && failing.value.needsPosition).toBe(false);
+  });
+
   it("booked → her booking", async () => {
     const { deps } = setup({ bookings: [bookingRow({ parentUserId: HER, startsAt: "2027-02-09T14:00:00.000Z" })] });
     const view = await loadMyCallView(HER, deps);

@@ -17,7 +17,8 @@ import { DaysTimesCompound } from "./renderers/DaysTimesCompound";
 import { saveTypeformPosition } from "@/lib/actions/parent";
 import { Button } from "@/components/ui/button";
 
-export function TypeformFlow() {
+/** `callAt` (04b rework W11): the call time she picked before she had a position; booked once it is saved. */
+export function TypeformFlow({ callAt }: { callAt?: string } = {}) {
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [formData, setFormData] = useState<Partial<TypeformFormData>>(
@@ -194,7 +195,7 @@ export function TypeformFlow() {
   useEffect(() => {
     if (completed && !hasSaved.current) {
       hasSaved.current = true;
-      saveTypeformPosition(formData).then((result) => {
+      saveTypeformPosition(formData, { callAt }).then((result) => {
         if (result.success) {
           // Brief 04 §0a.3 (04b rework W8): the server decides (the call popup over her Childcare tab, or today's).
           router.push(result.redirectTo ?? "/parent");
@@ -203,7 +204,7 @@ export function TypeformFlow() {
         }
       });
     }
-  }, [completed, formData, router]);
+  }, [completed, formData, router, callAt]);
 
   // Form complete — show finalizing spinner
   if (completed) {
