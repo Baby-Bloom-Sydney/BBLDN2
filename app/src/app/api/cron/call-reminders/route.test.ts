@@ -13,7 +13,7 @@ const h = vi.hoisted(() => ({ run: vi.fn(), admin: vi.fn() }));
 vi.mock("@/lib/calls/reminders", () => ({ runCallReminders: h.run }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: h.admin }));
 
-import { GET } from "./route";
+import { GET, dynamic } from "./route";
 
 const req = (auth?: string) =>
   new NextRequest("http://localhost/api/cron/call-reminders", { headers: auth ? { authorization: auth } : {} });
@@ -65,6 +65,12 @@ describe("GET /api/cron/call-reminders", () => {
     const failed = await GET(req("Bearer test-secret"));
     expect(failed.status).toBe(500);
     expect(await failed.json()).toEqual({ ok: false, error: "error" });
+  });
+});
+
+describe("never cached", () => {
+  it("is force-dynamic, so a flag-off build can't prerender its 404 (or any answer) as a static file", () => {
+    expect(dynamic).toBe("force-dynamic");
   });
 });
 

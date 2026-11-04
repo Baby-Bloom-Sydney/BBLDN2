@@ -11,8 +11,11 @@ import { callBookingEnabled } from "@/lib/features/flags";
  *
  * `CALL_BOOKING_ENABLED` off → 404 before anything else (brief §0.15). Auth: `Authorization: Bearer $CRON_SECRET`,
  * failing closed when the secret is unset (the `payment-due-sweep` pattern, plan D2). 500 when a pass couldn't
- * read, so the cron log shows it. BB-wave1-041126/04b-build.
+ * read, so the cron log shows it. Force-dynamic: with the flag off it answers before reading the request, and Next
+ * would otherwise prerender that 404 as a static file at build. BB-wave1-041126/04b-build.
  */
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   if (!callBookingEnabled()) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
