@@ -11,6 +11,9 @@
 
 import { createClient } from "@/lib/supabase/server";
 
+/** PostgREST's "no rows" for `.single()`: no role row, which is a plain "not a parent", not an error to log. */
+const NO_ROWS = "PGRST116";
+
 export async function sessionParentId(): Promise<string | null> {
   try {
     const supabase = createClient();
@@ -19,7 +22,10 @@ export async function sessionParentId(): Promise<string | null> {
       error,
     } = await supabase.auth.getUser();
     if (error || !user) return null;
-    const { data: role } = await supabase.from("user_roles").select("role").eq("user_id", user.id).single();
+    const { data: role, error: roleError } = await supabase.from("user_roles").select("role").eq("user_id", user.id).single();
+    if (roleError && roleError.code !== NO_ROWS) {
+      console.error("[calls/parent-session] the role read failed", { name: roleError.name, code: roleError.code });
+    }
     return role?.role === "parent" ? user.id : null;
   } catch (thrown) {
     console.error("[calls/parent-session] the session check failed", { name: thrown instanceof Error ? thrown.name : typeof thrown });

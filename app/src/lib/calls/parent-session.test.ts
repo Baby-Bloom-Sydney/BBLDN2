@@ -59,3 +59,22 @@ describe("sessionParentId", () => {
     expect(log).toHaveBeenCalledWith("[calls/parent-session] the session check failed", { name: "TypeError" });
   });
 });
+
+describe("sessionParentId — a role read error is logged (review F7)", () => {
+  it("a real error (not 'no rows') → null, logged by name and code only", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    h.getUser.mockResolvedValue({ data: { user: { id: HER } }, error: null });
+    h.single.mockResolvedValue({ data: null, error: { name: "PostgrestError", code: "42501", message: "permission denied for jane@example.com" } });
+    expect(await sessionParentId()).toBeNull();
+    expect(log).toHaveBeenCalledWith("[calls/parent-session] the role read failed", { name: "PostgrestError", code: "42501" });
+    expect(JSON.stringify(log.mock.calls)).not.toContain("jane@example.com");
+  });
+
+  it("'no rows' (PGRST116) → null, not logged", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    h.getUser.mockResolvedValue({ data: { user: { id: HER } }, error: null });
+    h.single.mockResolvedValue({ data: null, error: { name: "PostgrestError", code: "PGRST116", message: "0 rows" } });
+    expect(await sessionParentId()).toBeNull();
+    expect(log).not.toHaveBeenCalled();
+  });
+});
