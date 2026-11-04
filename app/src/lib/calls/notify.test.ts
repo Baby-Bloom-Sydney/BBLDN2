@@ -94,6 +94,17 @@ describe("createCallNoticeSender — the emails (plan B1)", () => {
     expect(send).toHaveBeenCalledTimes(2);
   });
 
+  it("her own booking: both emails go out together — a slow or failing one never holds up the other (review F9)", async () => {
+    const { send, notice } = sender();
+    let release: (v: { success: boolean }) => void = () => {};
+    send.mockImplementationOnce(() => new Promise((resolve) => (release = resolve)));
+    const pending = notice(NOTICE);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mails(send).map((m) => m.emailType)).toEqual(["call_booking_confirmation", "admin_call_booked"]);
+    release({ success: false });
+    await expect(pending).resolves.toBeUndefined();
+  });
+
   it("a booking BAI made for her: her confirmation only, no admin_call_booked", async () => {
     const { send, notice } = sender();
     await notice({ ...NOTICE, actorKind: "admin" });

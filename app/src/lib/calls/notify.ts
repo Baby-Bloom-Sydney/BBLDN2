@@ -64,11 +64,14 @@ async function sendNotice(notice: CallNotice, deps: CallNoticeDeps): Promise<voi
     await mailParent(deps.send, contact, buildCallBookingCancelledEmail(params), CALL_EMAIL_TYPES.cancelled);
     return;
   }
-  await mailParent(deps.send, contact, buildCallBookingConfirmationEmail(params), CALL_EMAIL_TYPES.confirmation);
-  if (notice.actorKind === "parent") {
-    const admin = buildCallAdminBookedEmail({ parentName: parentNameOf(contact), startsAt: notice.startsAt });
-    await mailAdmin(deps.send, admin, CALL_EMAIL_TYPES.adminBooked);
+  const confirmation = mailParent(deps.send, contact, buildCallBookingConfirmationEmail(params), CALL_EMAIL_TYPES.confirmation);
+  if (notice.actorKind !== "parent") {
+    await confirmation;
+    return;
   }
+  // Her own booking: both emails together, so neither waits on the other (review F9; mailer never throws).
+  const admin = buildCallAdminBookedEmail({ parentName: parentNameOf(contact), startsAt: notice.startsAt });
+  await Promise.all([confirmation, mailAdmin(deps.send, admin, CALL_EMAIL_TYPES.adminBooked)]);
 }
 
 /** A sender over the given repository and mail function (tests pass their own). */
