@@ -10,6 +10,8 @@ import type { TimelineEntry } from "./build-timeline";
 import { payoutsEnabled } from "@/lib/payments/flags";
 import { wagesPenceFromSnapshot } from "@/lib/payments/dfy-access";
 import { cumulativeSpendPence } from "@/app/admin/subscriptions/types";
+import { cohortsEnabled } from "@/lib/features/flags";
+import { readCurrentCohortSummary } from "@/lib/cohorts/read";
 
 /**
  * `/admin/users/[userId]/subscription` — full subscription dossier.
@@ -88,6 +90,11 @@ export default async function AdminUserSubscriptionPage({
       .limit(500)
       .returns<ActivityLogRow[]>(),
   ]);
+
+  // Brief 02: the current cohort for the Done-for-you panel — read only while COHORTS_ENABLED is on.
+  const cohort = cohortsEnabled()
+    ? await readCurrentCohortSummary(admin, new Date())
+    : null;
 
   const sub = subRes.data;
   const childrenBase = childrenRes.data ?? [];
@@ -225,6 +232,7 @@ export default async function AdminUserSubscriptionPage({
         nannyUserData={nannyUserData}
         sub={sub}
         placementWagesPence={placementWagesPence}
+        cohort={cohort}
       />
 
       <SubscriptionStatsGrid

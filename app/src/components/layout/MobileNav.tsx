@@ -38,9 +38,11 @@ import {
   LifeBuoy,
   Phone,
   BadgeCheck,
+  CalendarRange,
 } from "lucide-react";
 import { payoutsEnabled } from "@/lib/payments/flags";
 import { shareLoopEnabled } from "@/lib/features/flags";
+import { cohortsEnabled } from "@/lib/features/flags";
 
 type UserRole = "nanny" | "parent" | "admin" | "super_admin" | "guest";
 
@@ -88,6 +90,7 @@ const adminNavItems: NavItem[] = [
   { href: "/admin/users", icon: Users, label: "User Management" },
   { href: "/admin/subscriptions", icon: CreditCard, label: "Subscriptions" },
   { href: "/admin/guarantees", icon: BadgeCheck, label: "Guarantees" },
+  { href: "/admin/cohorts", icon: CalendarRange, label: "Cohorts" },
   { href: "/admin/payouts", icon: Wallet, label: "Payouts" },
   { href: "/admin/support", icon: LifeBuoy, label: "Support" },
   { href: "/admin/analytics", icon: BarChart3, label: "Analytics" },
@@ -122,9 +125,11 @@ export function MobileNav({
   const isGuest = role === "guest";
   // 4a-i (P-23): the admin Payouts entry is hidden unless PAYOUTS_ENABLED.
   // 5b (P-23): the nanny Share Profile entry is hidden unless SHARE_LOOP_ENABLED.
+  // Brief 02: the admin Cohorts entry is hidden unless COHORTS_ENABLED.
   const navItems = (navItemsByRole[role] || publicNavItems).filter(
     (item) =>
       (payoutsEnabled() || item.href !== "/admin/payouts") &&
+      (cohortsEnabled() || item.href !== "/admin/cohorts") &&
       (shareLoopEnabled() || item.href !== "/nanny/share"),
   );
 

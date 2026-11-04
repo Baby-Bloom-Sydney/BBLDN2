@@ -14,6 +14,8 @@ const nextConfig = {
     LEGACY_TIER_CHECKOUT_ENABLED: process.env.LEGACY_TIER_CHECKOUT_ENABLED ?? "",
     // Brief 04: call booking is off unless CALL_BOOKING_ENABLED is "true"; the sign-up subtitles and nav read it.
     CALL_BOOKING_ENABLED: process.env.CALL_BOOKING_ENABLED ?? "",
+    // Brief 02: cohorts in admin are off unless COHORTS_ENABLED is "true"; the admin navs read it.
+    COHORTS_ENABLED: process.env.COHORTS_ENABLED ?? "",
   },
   typescript: {
     // strict: build fails on TS errors
