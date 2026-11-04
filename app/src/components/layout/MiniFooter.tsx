@@ -12,6 +12,8 @@ const HIDDEN_PATHS = [
   // T-022 — same hide-footer treatment as the verification flow.
   "/nanny/onboarding/add-child",
   "/apply",
+  // Brief 04 §0a.1 (04b rework W2): the call slide is a funnel slide — no footer.
+  "/matchmaking/call",
 ];
 
 // useSearchParams forces the closest Suspense boundary to client-render;
