@@ -115,8 +115,10 @@ export function callViewOf(reads: {
   const days = reads.slots.ok ? groupSlotsByDay(reads.slots.value) : null;
   const booked = myBookedCall(reads.bookings.value);
   if (booked !== null) return { kind: "booked", booking: bookedViewOf(booked, reads.now), days };
-  if (!reads.entries.ok || days === null) return { kind: "load_failed" };
-  return { kind: "pick", afterNoAnswer: isAfterNoAnswer(reads.bookings.value, reads.entries.value), days };
+  if (days === null) return { kind: "load_failed" };
+  // Her attempts unreadable: she can still pick; there's just no "We tried to call you" line (review F6).
+  const afterNoAnswer = reads.entries.ok && isAfterNoAnswer(reads.bookings.value, reads.entries.value);
+  return { kind: "pick", afterNoAnswer, days };
 }
 
 /** The one card at the top of `/parent` (brief §0.5; plan B7). */

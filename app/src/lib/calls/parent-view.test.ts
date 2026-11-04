@@ -88,10 +88,17 @@ describe("callViewOf", () => {
     expect(callViewOf({ bookings: ok([]), entries: ok([]), slots: ok([]), now: NOW })).toEqual({ kind: "pick", afterNoAnswer: false, days: [] });
   });
 
-  it("any read failing (without a known booking) → load_failed", () => {
+  it("the bookings or the slots unreadable (without a known booking) → load_failed", () => {
     expect(callViewOf({ bookings: FAILED, entries: ok([]), slots: ok(SLOTS), now: NOW })).toEqual({ kind: "load_failed" });
-    expect(callViewOf({ bookings: ok([]), entries: FAILED, slots: ok(SLOTS), now: NOW })).toEqual({ kind: "load_failed" });
     expect(callViewOf({ bookings: ok([]), entries: ok([]), slots: FAILED, now: NOW })).toEqual({ kind: "load_failed" });
+  });
+
+  it("the attempts unreadable → she can still pick; just no after-no-answer line (review F6)", () => {
+    expect(callViewOf({ bookings: ok([]), entries: FAILED, slots: ok(SLOTS), now: NOW })).toEqual({
+      kind: "pick",
+      afterNoAnswer: false,
+      days: [expect.objectContaining({ legend: "Tuesday 9 February" })],
+    });
   });
 });
 
