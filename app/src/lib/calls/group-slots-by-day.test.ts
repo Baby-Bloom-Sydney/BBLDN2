@@ -4,7 +4,7 @@
  * semantics). A day with no free slot is simply absent.
  */
 import { describe, expect, it } from "vitest";
-import { groupSlotsByDay } from "./group-slots-by-day";
+import { groupSlotGridByDay, groupSlotsByDay } from "./group-slots-by-day";
 
 const slot = (startsAt: string) => ({
   startsAt,
@@ -27,7 +27,11 @@ describe("groupSlotsByDay", () => {
       endsAt: "2027-02-11T10:00:00.000Z",
       time: "09:30",
       name: "Thursday 11 February, 09:30 (London time)",
+      when: "Thursday 11 February at 09:30",
+      bracket: "morning",
+      free: true,
     });
+    expect(days[1]).toMatchObject({ rowWeekday: "Thu", rowDate: "11 Feb" });
   });
 
   it("puts a 23:30Z slot in July on the next London day", () => {
@@ -41,5 +45,47 @@ describe("groupSlotsByDay", () => {
     expect(groupSlotsByDay([])).toEqual([]);
     groupSlotsByDay(input);
     expect(input[0].startsAt).toBe("2027-02-09T14:30:00.000Z");
+  });
+});
+
+// ── 04b rework W4 (BAI 2026-11-05: "the unavailable times and dates are greyed out and unable to be selected"):
+//    every date in the window is a row — a date with no free slot too — and every grid slot is listed, free or not. ──
+describe("groupSlotGridByDay", () => {
+  const grid = {
+    dates: ["2027-02-09", "2027-02-10", "2027-02-11"],
+    slots: [
+      { ...slot("2027-02-09T14:00:00.000Z"), free: false },
+      { ...slot("2027-02-09T14:30:00.000Z"), free: true },
+      { ...slot("2027-02-10T07:30:00.000Z"), free: false },
+      { ...slot("2027-02-10T20:00:00.000Z"), free: false },
+    ],
+  };
+
+  it("one row per date, in order — a date with no free slot, and one with no slots at all, included", () => {
+    const days = groupSlotGridByDay(grid);
+    expect(days.map((d) => [d.londonDate, d.legend, d.rowWeekday, d.rowDate])).toEqual([
+      ["2027-02-09", "Tuesday 9 February", "Tue", "9 Feb"],
+      ["2027-02-10", "Wednesday 10 February", "Wed", "10 Feb"],
+      ["2027-02-11", "Thursday 11 February", "Thu", "11 Feb"],
+    ]);
+    expect(days[2].slots).toEqual([]);
+  });
+
+  it("every slot keeps its free flag; outside 08:00–20:00 folds into the first and last bracket", () => {
+    const days = groupSlotGridByDay(grid);
+    expect(days[0].slots.map((s) => [s.time, s.free, s.bracket])).toEqual([
+      ["14:00", false, "afternoon"],
+      ["14:30", true, "afternoon"],
+    ]);
+    expect(days[1].slots.map((s) => [s.time, s.bracket])).toEqual([
+      ["07:30", "morning"],
+      ["20:00", "evening"],
+    ]);
+  });
+
+  it("a slot on a date outside the list is dropped (the list is the window)", () => {
+    const days = groupSlotGridByDay({ dates: ["2027-02-09"], slots: grid.slots });
+    expect(days).toHaveLength(1);
+    expect(days[0].slots).toHaveLength(2);
   });
 });

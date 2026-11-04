@@ -7,11 +7,12 @@
  */
 
 import { bookedLine, heldLine, hubBookedLine, PARENT_COPY } from "./copy";
-import { groupSlotsByDay, type SlotDay } from "./group-slots-by-day";
+import { groupSlotGridByDay, type SlotDay } from "./group-slots-by-day";
+import type { SlotGrid } from "./slot-grid";
 import { slotWords } from "./slot-words";
 import { everBooked } from "./status";
 import { latestEntryOf } from "./to-call";
-import type { CallBooking, CallError, CallLogEntry, CallsResult, ScopeParent, Slot } from "./types";
+import type { CallBooking, CallError, CallLogEntry, CallsResult, ScopeParent } from "./types";
 
 export interface BookedCallView {
   readonly bookingId: string;
@@ -104,15 +105,15 @@ export function isAfterNoAnswer(bookings: readonly CallBooking[], entries: reado
   return !bookings.some((b) => everBooked(b) && [b.bookedAt, b.movedAt].some((at) => at !== null && at > last.occurredAt));
 }
 
-/** The page's view from her three reads. */
+/** The page's view from her three reads. The days are the whole grid, greyed where not free (04b rework W4). */
 export function callViewOf(reads: {
   readonly bookings: CallsResult<readonly CallBooking[]>;
   readonly entries: CallsResult<readonly CallLogEntry[]>;
-  readonly slots: CallsResult<readonly Slot[]>;
+  readonly grid: CallsResult<SlotGrid>;
   readonly now: Date;
 }): MyCallView {
   if (!reads.bookings.ok) return { kind: "load_failed" };
-  const days = reads.slots.ok ? groupSlotsByDay(reads.slots.value) : null;
+  const days = reads.grid.ok ? groupSlotGridByDay(reads.grid.value) : null;
   const booked = myBookedCall(reads.bookings.value);
   if (booked !== null) return { kind: "booked", booking: bookedViewOf(booked, reads.now), days };
   if (days === null) return { kind: "load_failed" };

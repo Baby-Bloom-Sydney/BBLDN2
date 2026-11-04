@@ -1,0 +1,84 @@
+/**
+ * Arrow-key movement for the call picker's two radio grids (brief 04 §2 picker semantics; 04b rework W4). Pure.
+ *
+ * - The availability grid (`moveInGrid`): one radiogroup per day row. Left/Right step between that row's open cells
+ *   (wrapping), Home/End go to its first/last, Up/Down go to the same column in the nearest row above/below where it
+ *   is open. Tab moves between rows, as 04b's days did.
+ * - The time box (`moveInList`): one radiogroup, four columns. Left/Right step through the open times (wrapping),
+ *   Up/Down move a row (four) to the nearest open time in that column, Home/End go to the first/last.
+ *
+ * Arrows only move focus; choosing is Space/Enter or a tap, so arrowing never takes a hold (plan R17's intent).
+ *
+ * BB-wave1-041126/04b-rework, 2026-11-05.
+ */
+
+export type MoveKey = "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown" | "Home" | "End";
+
+const MOVE_KEYS: ReadonlySet<string> = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"]);
+
+export function isMoveKey(key: string): key is MoveKey {
+  return MOVE_KEYS.has(key);
+}
+
+/** The next open index stepping by `step` from `from` (exclusive), wrapping round `open`; null if none. */
+function scanWrapping(open: readonly boolean[], from: number, step: 1 | -1): number | null {
+  for (let n = 1; n <= open.length; n += 1) {
+    const i = (from + step * n + open.length * n) % open.length;
+    if (open[i]) return i;
+  }
+  return null;
+}
+
+function firstOpen(open: readonly boolean[]): number | null {
+  const i = open.indexOf(true);
+  return i === -1 ? null : i;
+}
+
+function lastOpen(open: readonly boolean[]): number | null {
+  const i = open.lastIndexOf(true);
+  return i === -1 ? null : i;
+}
+
+/** Within one row: Left/Right (wrapping), Home/End. */
+function moveInRow(key: MoveKey, col: number, open: readonly boolean[]): number | null {
+  if (key === "Home") return firstOpen(open);
+  if (key === "End") return lastOpen(open);
+  if (key === "ArrowRight") return scanWrapping(open, col, 1);
+  if (key === "ArrowLeft") return scanWrapping(open, col, -1);
+  return null;
+}
+
+export interface GridSpot {
+  readonly row: number;
+  readonly col: number;
+}
+
+/** The availability grid: rows of cells, `open[row][col]`. Null = stay. */
+export function moveInGrid(key: MoveKey, at: GridSpot, open: readonly (readonly boolean[])[]): GridSpot | null {
+  if (key === "ArrowUp" || key === "ArrowDown") {
+    const step = key === "ArrowDown" ? 1 : -1;
+    for (let row = at.row + step; row >= 0 && row < open.length; row += step) {
+      if (open[row][at.col]) return { row, col: at.col };
+    }
+    return null;
+  }
+  const col = moveInRow(key, at.col, open[at.row] ?? []);
+  return col === null || col === at.col ? null : { row: at.row, col };
+}
+
+/** The time box: a list laid out in `columns`. Null = stay. */
+export function moveInList(key: MoveKey, at: number, open: readonly boolean[], columns: number): number | null {
+  let next: number | null = null;
+  if (key === "ArrowUp" || key === "ArrowDown") {
+    const step = key === "ArrowDown" ? columns : -columns;
+    for (let i = at + step; i >= 0 && i < open.length; i += step) {
+      if (open[i]) {
+        next = i;
+        break;
+      }
+    }
+  } else {
+    next = moveInRow(key, at, open);
+  }
+  return next === at ? null : next;
+}

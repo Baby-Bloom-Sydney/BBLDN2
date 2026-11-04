@@ -32,6 +32,11 @@ const PICK: MyCallView = { kind: "pick", afterNoAnswer: false, days: DAYS };
 const HOLD = { holdId: "h-1", startsAt: TUE_14, line: "We're holding Tuesday 9 February, 14:00 (London time) for you until 10:05." };
 
 const page = (initial: MyCallView) => render(<CallPageClient initial={initial} nextHref={NEXT} />);
+/** W4: a time-of-day cell, then a time in it (a tap holds at once). */
+async function pickTue14(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole("radio", { name: "Tuesday 9 February, Afternoon (London time)" }));
+  await user.click(screen.getByRole("radio", { name: "Tuesday 9 February, 14:00 (London time)" }));
+}
 const matchesLink = () => screen.getByRole("link", { name: "Go to my matches" });
 
 beforeEach(() => {
@@ -54,17 +59,16 @@ describe("the funnel slide (04b rework W3)", () => {
 describe("the seven states", () => {
   it("times shown: the picker, and Go to my matches → next", () => {
     page(PICK);
-    expect(screen.getByRole("group", { name: "Tuesday 9 February" })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Tuesday 9 February" })).toBeInTheDocument();
     expect(matchesLink()).toHaveAttribute("href", NEXT);
   });
 
   it("held, then booked: confirm uses the hold id as its idempotency key; the booked line and an announcement", async () => {
     const user = userEvent.setup();
     page(PICK);
-    await user.click(screen.getByRole("radio", { name: "Tuesday 9 February, 14:00 (London time)" }));
-    await user.click(screen.getByRole("button", { name: "Choose this time" }));
+    await pickTue14(user);
     expect(await screen.findByText(HOLD.line)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Confirm this time" }));
+    await user.click(screen.getByRole("button", { name: "Confirm time" }));
     expect(h.confirm).toHaveBeenCalledWith("h-1", "h-1");
     expect(await screen.findByText(BOOKED.line)).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(`Done — ${BOOKED.line}.`);
@@ -90,7 +94,7 @@ describe("the seven states", () => {
   it("after a no-answer: 'We tried to call you — pick another time', with the picker", () => {
     page({ kind: "pick", afterNoAnswer: true, days: DAYS });
     expect(screen.getByText("We tried to call you — pick another time")).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Tuesday 9 February" })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Tuesday 9 February" })).toBeInTheDocument();
   });
 
   it("no times: the §0.13 line", () => {
@@ -108,7 +112,7 @@ describe("the seven states", () => {
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(screen.getByTestId("slot-picker-loading")).toBeInTheDocument();
     finish({ ok: true, value: PICK });
-    expect(await screen.findByRole("group", { name: "Tuesday 9 February" })).toBeInTheDocument();
+    expect(await screen.findByRole("radiogroup", { name: "Tuesday 9 February" })).toBeInTheDocument();
   });
 
   it("a reload that finds her booked (another tab) shows the booking", async () => {
@@ -135,7 +139,7 @@ describe("change and cancel", () => {
     h.reload.mockResolvedValueOnce({ ok: true, value: { kind: "booked", booking: BOOKED, days: DAYS } });
     page({ kind: "booked", booking: BOOKED, days: null });
     await user.click(screen.getByRole("button", { name: "Change time" }));
-    expect(await screen.findByRole("group", { name: "Tuesday 9 February" })).toBeInTheDocument();
+    expect(await screen.findByRole("radiogroup", { name: "Tuesday 9 February" })).toBeInTheDocument();
     expect(screen.getByText(BOOKED.line)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Keep my time" }));
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
@@ -152,7 +156,7 @@ describe("change and cancel", () => {
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     await user.click(screen.getByRole("button", { name: "Yes, cancel it" }));
     expect(h.cancel).toHaveBeenCalledWith("b-1");
-    expect(await screen.findByRole("group", { name: "Tuesday 9 February" })).toBeInTheDocument();
+    expect(await screen.findByRole("radiogroup", { name: "Tuesday 9 February" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Your call is cancelled");
   });
 
@@ -174,13 +178,14 @@ describe("change and cancel", () => {
   it("a move: the confirmed booking replaces the old line", async () => {
     const user = userEvent.setup();
     const moved = { ...BOOKED, line: "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)" };
-    h.reload.mockResolvedValueOnce({ ok: true, value: { kind: "booked", booking: { ...BOOKED, line: "old line" }, days: DAYS } });
+    // Her old time (16:00) is not in the list (it is hers, so not free); she moves to 14:00.
+    const OLD = { ...BOOKED, line: "old line", startsAt: "2027-02-09T16:00:00.000Z" };
+    h.reload.mockResolvedValueOnce({ ok: true, value: { kind: "booked", booking: OLD, days: DAYS } });
     h.confirm.mockResolvedValueOnce({ ok: true, value: { bookingId: "b-1", moved: true, replay: false, booking: moved } });
-    page({ kind: "booked", booking: { ...BOOKED, line: "old line" }, days: DAYS });
+    page({ kind: "booked", booking: OLD, days: DAYS });
     await user.click(screen.getByRole("button", { name: "Change time" }));
-    await user.click(await screen.findByRole("radio", { name: "Tuesday 9 February, 14:00 (London time)" }));
-    await user.click(screen.getByRole("button", { name: "Choose this time" }));
-    await user.click(await screen.findByRole("button", { name: "Confirm this time" }));
+    await pickTue14(user);
+    await user.click(await screen.findByRole("button", { name: "Confirm time" }));
     expect(await screen.findByText(moved.line)).toBeInTheDocument();
     expect(screen.queryByText("old line")).not.toBeInTheDocument();
   });
@@ -214,8 +219,7 @@ describe("a rejected or refused action never sticks (review F1, F2)", () => {
     h.hold.mockResolvedValueOnce({ ok: false, error: "taken" });
     h.reload.mockResolvedValueOnce({ ok: false, error: "error" });
     page(PICK);
-    await user.click(screen.getByRole("radio", { name: "Tuesday 9 February, 14:00 (London time)" }));
-    await user.click(screen.getByRole("button", { name: "Choose this time" }));
+    await pickTue14(user);
     expect(await screen.findByText("We couldn't load the times — we'll still call you for your Complimentary matchmaker call")).toBeInTheDocument();
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
   });

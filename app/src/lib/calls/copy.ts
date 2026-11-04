@@ -44,6 +44,13 @@ export const PARENT_COPY = Object.freeze({
   keepCall: "Keep it",
   cancelledStatus: "Your call is cancelled — we'll still call you, or pick a new time.",
   noLongerAvailable: "no longer available",
+  // 04b rework W4: the picker in the meet-and-greet grid's style (BB-wave1-041126/04b-rework)
+  availability: "Your matchmaker's availability",
+  selectTime: "Select a time",
+  confirmTimeButton: "Confirm time",
+  confirming: "Confirming...",
+  skipForNow: "Skip for now",
+  takenTitle: "This time has just been booked",
 });
 
 export const ADMIN_COPY = Object.freeze({
@@ -77,6 +84,16 @@ export function hubBookedLine(words: Pick<SlotWords, "short">): string {
 /** The held time (04b): "We're holding Tuesday 9 February, 14:00 (London time) for you until 10:05." */
 export function heldLine(words: Pick<SlotWords, "full">, until: string): string {
   return `We're holding ${words.full} for you until ${until}.`;
+}
+
+/** The picker's green panel (04b rework W4): "Tuesday 9 February at 14:00". */
+export function slotAtLine(words: Pick<SlotWords, "day" | "time">): string {
+  return `${words.day} at ${words.time}`;
+}
+
+/** The taken notice (04b rework W4, BAI 2026-11-05): "Someone else booked Tuesday 9 February at 14:00 a moment ago. …" */
+export function takenNoticeLine(when: string): string {
+  return `Someone else booked ${when} a moment ago. Please pick another time.`;
 }
 
 /** Announced once she has booked (04b): "Done — Your Complimentary matchmaker call is on … (London time)." */

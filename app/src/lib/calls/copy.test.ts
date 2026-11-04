@@ -4,7 +4,18 @@
  * the placement is free, and audience-facing text never says "tracking".
  */
 import { describe, expect, it } from "vitest";
-import { ADMIN_COPY, PARENT_COPY, bookedLine, callsToMakeLine, fewFreeTimesLine, hubBookedLine, noFreeTimesLine, prebookFullLine } from "./copy";
+import {
+  ADMIN_COPY,
+  PARENT_COPY,
+  bookedLine,
+  callsToMakeLine,
+  fewFreeTimesLine,
+  hubBookedLine,
+  noFreeTimesLine,
+  prebookFullLine,
+  slotAtLine,
+  takenNoticeLine,
+} from "./copy";
 
 const allStrings = (copy: Readonly<Record<string, string>>) => Object.values(copy);
 
@@ -24,6 +35,22 @@ describe("parent copy, word for word", () => {
       cancel: "Cancel",
       goToMatches: "Go to my matches",
     });
+  });
+
+  it("the picker's words (04b rework W4)", () => {
+    expect(PARENT_COPY).toMatchObject({
+      availability: "Your matchmaker's availability",
+      selectTime: "Select a time",
+      confirmTimeButton: "Confirm time",
+      confirming: "Confirming...",
+      skipForNow: "Skip for now",
+      takenTitle: "This time has just been booked",
+      pickAnother: "Pick another time",
+    });
+    expect(slotAtLine({ day: "Thursday 5 November", time: "10:00" })).toBe("Thursday 5 November at 10:00");
+    expect(takenNoticeLine("Thursday 5 November at 10:00")).toBe(
+      "Someone else booked Thursday 5 November at 10:00 a moment ago. Please pick another time.",
+    );
   });
 
   it("builds the booked lines from London words", () => {

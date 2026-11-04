@@ -40,7 +40,10 @@ describe("loadMyCallView", () => {
     expect(callsTo(fake, "readBookingsForParents")[0].args).toEqual([[HER]]);
     expect(callsTo(fake, "readLogEntriesForParents")[0].args).toEqual([[HER]]);
     expect(view.ok && view.value.kind).toBe("pick");
-    expect(view.ok && view.value.kind === "pick" && view.value.days[0].slots[0].name).toBe("Thursday 4 February, 12:00 (London time)");
+    // 04b rework W4: the whole grid — today's past and inside-the-notice slots are listed, greyed (not free).
+    const first = view.ok && view.value.kind === "pick" ? view.value.days[0] : null;
+    expect(first?.slots[0]).toMatchObject({ name: "Thursday 4 February, 09:00 (London time)", free: false });
+    expect(first?.slots.find((s) => s.free)?.name).toBe("Thursday 4 February, 12:00 (London time)");
   });
 
   it("booked → her booking", async () => {

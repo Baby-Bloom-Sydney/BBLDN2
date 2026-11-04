@@ -62,9 +62,11 @@ function useCallPage(initial: MyCallView) {
   const [status, setStatus] = useState("");
   const [cancelMessage, setCancelMessage] = useState<string | null>(null);
 
+  /** Her view again; hands the picker the fresh days too, so a run-out hold can be told from a taken one (W4). */
   const refresh = async () => {
     const next = await attempt(() => reloadMyCallSlots());
     setView((current) => (next.ok ? next.value : withoutDays(current)));
+    return next.ok && next.value.kind !== "load_failed" ? next.value.days : null;
   };
   const actions: SlotPickerActions<ConfirmedCallView> = {
     hold: (startsAt) => holdMyCallSlot(startsAt),
@@ -160,6 +162,7 @@ export function CallPageClient({ initial, nextHref }: CallPageClientProps) {
             actions={page.actions}
             onConfirmed={page.onConfirmed}
             onKeepTime={view.kind === "booked" ? page.keepTime : undefined}
+            current={view.kind === "booked" ? view.booking.startsAt : null}
           />
         )}
         <Button asChild variant="outline">

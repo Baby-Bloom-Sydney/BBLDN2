@@ -13,6 +13,7 @@
 import { callBookingEnabled } from "@/lib/features/flags";
 import { cancelBooking, confirmHoldForParent, getFreeSlots, holdSlotForParent, type BookingActor, type HeldTime } from "./booking";
 import { CALL_BOOKING_DISABLED, CALLS_INVALID, defaultCallsDeps, type CallsDeps } from "./deps";
+import { loadSlotGrid, type SlotGrid } from "./slot-grid";
 import type { CallsResult, CancelledBooking, ConfirmedBooking, Slot } from "./types";
 import { uuid } from "./zod-parts";
 
@@ -29,7 +30,14 @@ export async function parentFreeSlots(sessionUserId: string, deps: CallsDeps = d
   return getFreeSlots({ purpose: "first_call" }, deps);
 }
 
-/** "Choose this time": hold it for her (the server rechecks it is a free slot). */
+/** Her picker's whole grid (04b rework W4): every date and slot in the window, free or greyed. */
+export async function parentSlotGrid(sessionUserId: string, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<SlotGrid>> {
+  if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
+  if (herself(sessionUserId) === null) return CALLS_INVALID;
+  return loadSlotGrid({ purpose: "first_call" }, deps);
+}
+
+/** A tap on a time: hold it for her (the server rechecks it is a free slot). */
 export async function parentHoldSlot(sessionUserId: string, startsAt: string, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<HeldTime>> {
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
   const her = herself(sessionUserId);

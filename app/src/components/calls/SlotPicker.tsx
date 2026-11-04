@@ -1,158 +1,71 @@
 "use client";
 
 /**
- * The call-time picker (brief 04 §2 picker semantics, §3 parent 2–3; plan B6 + §12 R16, R17). Ported from LDN1
- * `call-layer/components/SlotPicker.tsx` onto LDN2's `Button`, the 24-hour clock, and actions passed as props, so
- * 04c's on-behalf booking and brief 03's pre-book reuse it.
+ * The call-time picker (brief 04 §2 picker semantics, §3 parent 2–3; plan B6; 04b rework W4). BAI 2026-11-05: "use
+ * the same date/time selector style as is already in our system … for arranging a call/meetup with their nanny" —
+ * so it is `components/position/ScheduleTimeGrid.tsx` (`/ui` CMP-033), copied near-identically and left unchanged:
+ * the Calendar header, the dates × time-of-day grid, "Select a time", the green panel, the two-button row.
  *
- * - One `fieldset` per London day, its full date as the `legend`; a `radiogroup` inside; every option's accessible
- *   name is the full date and time with "(London time)", the visible time a `<time dateTime>`. Native radios, one
- *   name per day: Tab moves between days, arrow keys within one.
- * - Choosing a radio (by click or arrow key) only selects. **"Choose this time" holds** (R17), so arrow keys never
- *   take holds; then "Confirm this time" writes with that hold.
- * - A taken slot or a run-out hold says so in an alert that takes focus, and the list refreshes (`actions.reload`;
- *   the owner passes the new `days`). The no-times and load-failed states offer Retry; a skeleton shows while the
- *   list reloads. Motion stops under `prefers-reduced-motion`.
- * - Every label arrives preformatted from the server (`SlotDay`), so the device's zone can't matter.
+ * - Greyed, never hidden (BAI 2026-11-05): every date in the window is a row and every slot in a cell is listed; what
+ *   isn't free is greyed and can't be chosen by mouse or keyboard. Only with no free time at all does the no-times line
+ *   (with Retry) stand in for the grid; the load-failed line likewise.
+ * - Tapping a free time holds it at once; the green panel names it ("Thursday 5 November at 10:00") with the hold line,
+ *   and Confirm takes focus once it is enabled (never while busy). Confirm writes with the hold.
+ * - Taken (by someone else, or a held time that ran out and was taken) → the "This time has just been booked" notice,
+ *   and the list refreshes under it. Ran-out-but-free, invalid and failed → 04b's inline alert, which takes focus.
+ * - The left button: "Skip for now" (a link), or "Keep my time" while changing; none in the in-app popup.
+ * - Every label arrives preformatted from the server (`SlotDay`), so the device's zone can't matter. Motion stops under
+ *   `prefers-reduced-motion`. Two pickers on one page share no ids (`useId`). 04c and 03 reuse it.
  *
- * BB-wave1-041126/04b-build, 2026-11-04.
+ * BB-wave1-041126/04b-build, 2026-11-04; BB-wave1-041126/04b-rework, 2026-11-05.
  */
 
-import { useEffect, useId, useRef, useState } from "react";
+import Link from "next/link";
+import { useEffect, useId, useRef, type RefObject } from "react";
+import { Calendar, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LONDON_TIME_SUFFIX, PARENT_COPY } from "@/lib/calls/copy";
 import type { SlotDay } from "@/lib/calls/group-slots-by-day";
+import { AvailabilityGrid, isOpenSlot, slotsIn, TimeBox } from "./SlotPickerGrid";
+import { TakenNotice } from "./TakenNotice";
+import { findSlot, useSlotPicker, type SlotPickerActions, type SlotPickerState } from "./use-slot-picker";
 
-/** A held time: what the server holds, and its line ("We're holding … until 10:05."). */
-export interface PickerHold {
-  readonly holdId: string;
-  readonly startsAt: string;
-  readonly line: string;
-}
-
-export type PickerResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: string };
-
-export interface SlotPickerActions<T> {
-  /** "Choose this time". */
-  hold(startsAt: string): Promise<PickerResult<PickerHold>>;
-  /** "Confirm this time": the write. */
-  confirm(hold: PickerHold): Promise<PickerResult<T>>;
-  /** Refresh the list; the owner passes the new `days`. A rejection here shows load-failed with Retry. */
-  reload(): Promise<void>;
-}
+export { pickerMessage, type PickerHold, type PickerResult, type SlotPickerActions } from "./use-slot-picker";
 
 export interface SlotPickerCopy {
   readonly heading: string;
-  readonly hint: string;
   readonly noTimes: string;
   readonly loadFailed: string;
 }
 
 export interface SlotPickerProps<T> {
-  /** The free times by London day; `[]` = none free; null = they couldn't be loaded. */
+  /** Every date in the window with every slot, free or not; null = they couldn't be loaded. */
   readonly days: readonly SlotDay[] | null;
   readonly actions: SlotPickerActions<T>;
   readonly onConfirmed: (value: T) => void;
-  /** Offered while changing an existing booking ("Keep my time"). */
+  /** The left button while changing an existing booking ("Keep my time"). */
   readonly onKeepTime?: () => void;
+  /** The left button otherwise ("Skip for now"), a link onward. Neither → the primary button alone, full width. */
+  readonly skipHref?: string;
+  /** Her booked time while she changes it: shown chosen until she picks another. */
+  readonly current?: string | null;
+  /** Open with the taken notice for this time, in words (a time chosen elsewhere has just gone). */
+  readonly initialNotice?: string | null;
   readonly copy?: Partial<SlotPickerCopy>;
 }
 
 const DEFAULT_COPY: SlotPickerCopy = {
-  heading: PARENT_COPY.pickHeading,
-  hint: PARENT_COPY.pickHint,
+  heading: PARENT_COPY.availability,
   noTimes: PARENT_COPY.noTimes,
   loadFailed: PARENT_COPY.loadFailed,
 };
 
-const OPTION =
-  "inline-flex cursor-pointer select-none rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 " +
-  "transition-colors motion-reduce:transition-none hover:border-slate-300 peer-checked:border-violet-500 peer-checked:bg-violet-50 " +
-  "peer-checked:text-violet-700 peer-focus-visible:ring-2 peer-focus-visible:ring-violet-500 peer-focus-visible:ring-offset-2 " +
-  "peer-disabled:cursor-not-allowed peer-disabled:opacity-40 peer-disabled:line-through";
-
-const TAKEN = new Set(["taken", "too_soon", "overlap"]);
-const RAN_OUT = new Set(["hold_expired", "not_yours", "not_found"]);
-
-/** The line for a refused hold or confirm. */
-export function pickerMessage(error: string): string {
-  if (TAKEN.has(error)) return PARENT_COPY.taken;
-  if (RAN_OUT.has(error)) return PARENT_COPY.holdExpired;
-  if (error === "rate_limited") return PARENT_COPY.rateLimited;
-  return PARENT_COPY.notSet;
-}
-
-interface DayGroupProps {
-  /** This picker's own id prefix, so two pickers on one page never share ids or radio names. */
-  readonly uid: string;
-  readonly day: SlotDay;
-  readonly selected: string | null;
-  readonly gone: ReadonlySet<string>;
-  readonly disabled: boolean;
-  readonly onSelect: (startsAt: string) => void;
-}
-
-function DayGroup({ uid, day, selected, gone, disabled, onSelect }: DayGroupProps) {
-  return (
-    <fieldset className="min-w-0">
-      <legend className="text-sm font-semibold text-slate-900">{day.legend}</legend>
-      <div role="radiogroup" aria-label={`${day.legend} ${LONDON_TIME_SUFFIX}`} className="mt-3 flex flex-wrap gap-2">
-        {day.slots.map((slot) => {
-          const isGone = gone.has(slot.startsAt);
-          const id = `${uid}-slot-${slot.startsAt}`;
-          return (
-            <span key={slot.startsAt} className="inline-flex">
-              <input
-                type="radio"
-                id={id}
-                name={`${uid}-day-${day.londonDate}`}
-                value={slot.startsAt}
-                className="peer sr-only"
-                checked={selected === slot.startsAt}
-                disabled={disabled || isGone}
-                aria-label={isGone ? `${slot.name} — ${PARENT_COPY.noLongerAvailable}` : slot.name}
-                onChange={() => onSelect(slot.startsAt)}
-              />
-              <label htmlFor={id} className={OPTION}>
-                <time dateTime={slot.startsAt}>{slot.time}</time>
-              </label>
-            </span>
-          );
-        })}
-      </div>
-    </fieldset>
-  );
-}
-
-function HeldPanel({ hold, busy, onConfirm, onPickAnother }: { readonly hold: PickerHold; readonly busy: boolean; readonly onConfirm: () => void; readonly onPickAnother: () => void }) {
-  const confirmRef = useRef<HTMLButtonElement>(null);
-  // Focus Confirm once it is enabled (the panel mounts while the hold is still settling).
-  useEffect(() => {
-    if (!busy) confirmRef.current?.focus();
-  }, [busy]);
-  return (
-    <div className="mt-6 rounded-xl border border-violet-200 bg-violet-50 p-5">
-      <p role="status" className="text-sm font-medium text-violet-900">
-        {hold.line}
-      </p>
-      <div className="mt-4 flex flex-wrap gap-3">
-        <Button ref={confirmRef} type="button" onClick={onConfirm} disabled={busy} className="bg-violet-600 text-white hover:bg-violet-700">
-          {PARENT_COPY.confirmTime}
-        </Button>
-        <Button type="button" variant="outline" onClick={onPickAnother} disabled={busy}>
-          {PARENT_COPY.pickAnother}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 function Loading() {
   return (
-    <div data-testid="slot-picker-loading" className="mt-6 space-y-4" aria-hidden="true">
-      {[0, 1, 2].map((n) => (
-        <Skeleton key={n} className="h-16 w-full motion-reduce:animate-none" />
+    <div data-testid="slot-picker-loading" className="space-y-2" aria-hidden="true">
+      {[0, 1, 2, 3].map((n) => (
+        <Skeleton key={n} className="h-10 w-full motion-reduce:animate-none" />
       ))}
     </div>
   );
@@ -160,152 +73,123 @@ function Loading() {
 
 function Empty({ line, busy, onRetry }: { readonly line: string; readonly busy: boolean; readonly onRetry: () => void }) {
   return (
-    <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-5">
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
       <p className="text-sm text-slate-700">{line}</p>
-      <Button type="button" variant="link" onClick={onRetry} disabled={busy} className="mt-2 h-auto px-0 text-violet-700">
+      <Button type="button" variant="link" onClick={onRetry} disabled={busy} className="mt-1 h-auto px-0 text-violet-700">
         {PARENT_COPY.retry}
       </Button>
     </div>
   );
 }
 
-/** A throw or a rejection is a refusal like any other (review F1): the picker never sticks busy or loading. */
-async function settled<T>(run: () => Promise<PickerResult<T>>): Promise<PickerResult<T>> {
-  try {
-    return await run();
-  } catch {
-    return { ok: false, error: "error" };
-  }
+function HeldPanel({ when, line }: { readonly when: string; readonly line: string }) {
+  return (
+    <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+      <p className="text-sm font-medium text-green-800">{when}</p>
+      <p role="status" className="mt-1 text-xs text-green-700">
+        {line}
+      </p>
+    </div>
+  );
 }
 
-/** Refusals that mean the list is stale: refresh it (taken, run out, or off the grid — review F2). */
-const REFRESHES = new Set([...TAKEN, ...RAN_OUT, "invalid"]);
-
-/** The list's own state: loading, and a reload that failed (shown as load-failed with Retry, review F2). */
-function useListReload(reloadList: () => Promise<void>) {
-  const [loading, setLoading] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const reload = async () => {
-    setLoading(true);
-    try {
-      await reloadList();
-      setFailed(false);
-    } catch {
-      setFailed(true);
-    } finally {
-      setLoading(false);
-    }
-  };
-  return { loading, failed, reload };
+interface ButtonRowProps {
+  readonly picker: SlotPickerState;
+  readonly onKeepTime?: () => void;
+  readonly skipHref?: string;
 }
 
-/** Selection, hold, alert and reload state, and the three things a person can do. */
-function usePicker<T>({ days, actions, onConfirmed }: Pick<SlotPickerProps<T>, "days" | "actions" | "onConfirmed">) {
-  const [selected, setSelected] = useState<string | null>(null);
-  const [hold, setHold] = useState<PickerHold | null>(null);
-  const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set());
-  const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const list = useListReload(() => actions.reload());
-
-  const listed = days?.some((d) => d.slots.some((s) => s.startsAt === selected)) ?? false;
-  const choice = listed && selected !== null && !gone.has(selected) ? selected : null;
-
-  const refuse = async (error: string, startsAt: string, reloadAnyway = false) => {
-    if (TAKEN.has(error)) setGone((previous) => new Set([...previous, startsAt]));
-    setHold(null);
-    setSelected(null);
-    setMessage(pickerMessage(error));
-    if (reloadAnyway || REFRESHES.has(error)) await list.reload();
-  };
-  /** Busy while `step` runs, whatever it does. */
-  const whileBusy = async (step: () => Promise<void>) => {
-    setBusy(true);
-    try {
-      await step();
-    } finally {
-      setBusy(false);
-    }
-  };
-  const chooseTime = async () => {
-    if (choice === null) return;
-    setMessage(null);
-    await whileBusy(async () => {
-      const held = await settled(() => actions.hold(choice));
-      if (held.ok) setHold(held.value);
-      else await refuse(held.error, choice);
-    });
-  };
-  const confirmTime = async () => {
-    if (hold === null) return;
-    await whileBusy(async () => {
-      const confirmed = await settled(() => actions.confirm(hold));
-      if (confirmed.ok) onConfirmed(confirmed.value);
-      // A confirm that failed may still have been written (a lost reply): the reload shows her booking if so.
-      else await refuse(confirmed.error, hold.startsAt, true);
-    });
-  };
-  return { choice, hold, gone, message, busy, loading: list.loading, reloadFailed: list.failed, setSelected, setHold, reload: list.reload, chooseTime, confirmTime };
+function ButtonRow({ picker, onKeepTime, skipHref }: ButtonRowProps) {
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  // Focus Confirm once a hold is in and nothing is in flight (never while busy).
+  useEffect(() => {
+    if (picker.hold !== null && !picker.busy) confirmRef.current?.focus();
+  }, [picker.hold, picker.busy]);
+  return (
+    <div className="flex gap-3">
+      {onKeepTime ? (
+        <Button type="button" variant="outline" className="flex-1" onClick={onKeepTime} disabled={picker.busy}>
+          {PARENT_COPY.keepTime}
+        </Button>
+      ) : skipHref ? (
+        <Button asChild variant="outline" className="flex-1">
+          <Link href={skipHref}>{PARENT_COPY.skipForNow}</Link>
+        </Button>
+      ) : null}
+      <Button ref={confirmRef} type="button" className="flex-1 bg-violet-500 hover:bg-violet-600" disabled={picker.hold === null || picker.busy} onClick={picker.confirm}>
+        {picker.confirming ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+            {PARENT_COPY.confirming}
+          </>
+        ) : (
+          PARENT_COPY.confirmTimeButton
+        )}
+      </Button>
+    </div>
+  );
 }
 
-type Picker = ReturnType<typeof usePicker>;
+interface BodyProps {
+  readonly uid: string;
+  readonly picker: SlotPickerState;
+  readonly days: readonly SlotDay[] | null;
+  readonly current: string | null;
+  readonly words: SlotPickerCopy;
+  readonly gridRef: RefObject<HTMLDivElement>;
+}
 
-/** Held, loading, empty or failed, or the days and "Choose this time". */
-function PickerBody({ uid, picker, days, words }: { readonly uid: string; readonly picker: Picker; readonly days: readonly SlotDay[] | null; readonly words: SlotPickerCopy }) {
-  if (picker.hold !== null) {
-    return <HeldPanel hold={picker.hold} busy={picker.busy} onConfirm={picker.confirmTime} onPickAnother={() => picker.setHold(null)} />;
-  }
+/** Loading, failed, no free time, or the grid with its time box and green panel. */
+function PickerBody({ uid, picker, days, current, words, gridRef }: BodyProps) {
   if (picker.loading) return <Loading />;
-  if (days === null || days.length === 0) {
-    return <Empty line={days === null ? words.loadFailed : words.noTimes} busy={picker.busy} onRetry={picker.reload} />;
-  }
+  if (days === null) return <Empty line={words.loadFailed} busy={picker.busy} onRetry={picker.reload} />;
+  const anyOpen = days.some((d) => d.slots.some((s) => isOpenSlot(s, picker.gone)));
+  if (!anyOpen && current === null) return <Empty line={words.noTimes} busy={picker.busy} onRetry={picker.reload} />;
+  const day = picker.cell ? days.find((d) => d.londonDate === picker.cell?.londonDate) : undefined;
+  const cellSlots = day && picker.cell ? slotsIn(day, picker.cell.bracket) : [];
+  const held = picker.hold ? findSlot(days, picker.hold.startsAt) : null;
   return (
     <>
-      <div className="mt-6 space-y-6">
-        {days.map((day) => (
-          <DayGroup key={day.londonDate} uid={uid} day={day} selected={picker.choice} gone={picker.gone} disabled={picker.busy} onSelect={picker.setSelected} />
-        ))}
-      </div>
-      <div className="mt-8">
-        <Button type="button" onClick={picker.chooseTime} disabled={picker.busy || picker.choice === null} className="bg-violet-600 text-white hover:bg-violet-700">
-          {PARENT_COPY.chooseThisTime}
-        </Button>
-      </div>
+      <AvailabilityGrid days={days} cell={day ? picker.cell : null} gone={picker.gone} current={current} busy={picker.busy} onPick={picker.pickCell} gridRef={gridRef} />
+      {cellSlots.length > 0 && (
+        <TimeBox uid={uid} slots={cellSlots} chosen={picker.selected ?? current} gone={picker.gone} busy={picker.busy} onTap={picker.tapTime} />
+      )}
+      {picker.hold && held && <HeldPanel when={held.when} line={picker.hold.line} />}
     </>
   );
 }
 
-export function SlotPicker<T>({ days, actions, onConfirmed, onKeepTime, copy }: SlotPickerProps<T>) {
+export function SlotPicker<T>({ days, actions, onConfirmed, onKeepTime, skipHref, current = null, initialNotice = null, copy }: SlotPickerProps<T>) {
   const words = { ...DEFAULT_COPY, ...copy };
-  const picker = usePicker({ days, actions, onConfirmed });
+  const picker = useSlotPicker({ days, actions, onConfirmed, current, initialNotice });
   const uid = useId();
   const alertRef = useRef<HTMLParagraphElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     if (picker.message !== null) alertRef.current?.focus();
   }, [picker.message]);
+  const backToGrid = () => (gridRef.current?.querySelector<HTMLElement>('[tabindex="0"]:not([disabled])') ?? headingRef.current)?.focus();
 
   return (
-    <section aria-labelledby={`${uid}-heading`} aria-busy={picker.busy || picker.loading}>
-      <h2 id={`${uid}-heading`} className="text-lg font-semibold text-slate-900">
-        {words.heading}
+    <section aria-labelledby={`${uid}-heading`} aria-busy={picker.busy || picker.loading} className="space-y-4">
+      <h2 ref={headingRef} id={`${uid}-heading`} tabIndex={-1} className="text-sm font-medium text-slate-700 flex items-center gap-1.5 focus:outline-none">
+        <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
+        {words.heading} <span className="font-normal text-slate-400">{LONDON_TIME_SUFFIX}</span>
       </h2>
-      <p className="mt-1 text-sm text-slate-600">{words.hint}</p>
       {picker.message !== null && (
         <p
           ref={alertRef}
           tabIndex={-1}
           role="alert"
-          className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
         >
           {picker.message}
         </p>
       )}
-      <PickerBody uid={uid} picker={picker} days={picker.reloadFailed ? null : days} words={words} />
-      {onKeepTime && (
-        <Button type="button" variant="link" onClick={onKeepTime} className="mt-4 h-auto px-0 text-violet-700">
-          {PARENT_COPY.keepTime}
-        </Button>
-      )}
+      <PickerBody uid={uid} picker={picker} days={picker.reloadFailed ? null : days} current={current} words={words} gridRef={gridRef} />
+      <ButtonRow picker={picker} onKeepTime={onKeepTime} skipHref={skipHref} />
+      <TakenNotice when={picker.notice} onClose={picker.closeNotice} onClosed={backToGrid} />
     </section>
   );
 }

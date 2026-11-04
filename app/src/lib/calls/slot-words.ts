@@ -12,7 +12,7 @@
  */
 
 import { APP_LOCALE, APP_TZ } from "@/lib/constants";
-import { londonDateOf } from "@/lib/timezone";
+import { londonDateOf, londonWallClockOf } from "@/lib/timezone";
 import { LONDON_TIME_SUFFIX } from "./copy";
 
 export interface SlotWords {
@@ -56,4 +56,28 @@ export function slotWords(startsAt: string): SlotWords {
     short: `${short("weekday")} ${short("day")} ${short("month")}, ${time}`,
     full: `${day}, ${time} ${LONDON_TIME_SUFFIX}`,
   });
+}
+
+/** A London date's words for the picker's row (04b rework W4): "Tue" over "9 Feb", and its full "Tuesday 9 February". */
+export interface DayWords {
+  readonly weekday: string;
+  readonly date: string;
+  readonly legend: string;
+}
+
+export function dayWords(londonDate: string): DayWords {
+  // Midday UTC is the same calendar date in London in every season.
+  const at = new Date(`${londonDate}T12:00:00.000Z`);
+  const long = partsOf(LONG, at);
+  const short = partsOf(SHORT, at);
+  return Object.freeze({
+    weekday: short("weekday"),
+    date: `${short("day")} ${short("month")}`,
+    legend: `${long("weekday")} ${long("day")} ${long("month")}`,
+  });
+}
+
+/** A slot's hour on the London 24-hour clock (for its time-of-day column). */
+export function slotHour(startsAt: string): number {
+  return londonWallClockOf(startsAt).hour;
 }
