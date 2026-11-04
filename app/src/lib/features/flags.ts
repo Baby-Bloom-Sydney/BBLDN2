@@ -97,3 +97,18 @@ export function callBookingEnabled(): boolean {
 export function cohortsEnabled(): boolean {
   return isOn(process.env.COHORTS_ENABLED);
 }
+
+/**
+ * The nanny invoice generator (brief 06; plan `BUILD/plans/06-plan.md`). A **launch** switch, set to "true" at
+ * switch-on (#14).
+ *
+ * While off:
+ * - Every `src/lib/invoices` operation refuses with `"invoices_disabled"` (or returns `null` / `[]`) before any read,
+ *   so no database, storage or email call happens; brief 07's readers return nothing and 07 asks BAI for the hours.
+ * - Later PRs gate the rest on the same switch: `/nanny/invoices`, its PDF route and `/admin/invoices` →
+ *   `notFound()` before any auth or read; no avatar item, popup button or admin entry; Katie's hidden-tab paths
+ *   unchanged. Recorded invoices and PDFs stay while it's off.
+ */
+export function nannyInvoicesEnabled(): boolean {
+  return isOn(process.env.NANNY_INVOICES_ENABLED);
+}
