@@ -38,7 +38,7 @@ export interface SlotPickerActions<T> {
   hold(startsAt: string): Promise<PickerResult<PickerHold>>;
   /** "Confirm this time": the write. */
   confirm(hold: PickerHold): Promise<PickerResult<T>>;
-  /** Refresh the list; the owner passes the new `days`. */
+  /** Refresh the list; the owner passes the new `days`. A rejection here shows load-failed with Retry. */
   reload(): Promise<void>;
 }
 
@@ -211,12 +211,12 @@ function usePicker<T>({ days, actions, onConfirmed }: Pick<SlotPickerProps<T>, "
   const listed = days?.some((d) => d.slots.some((s) => s.startsAt === selected)) ?? false;
   const choice = listed && selected !== null && !gone.has(selected) ? selected : null;
 
-  const refuse = async (error: string, startsAt: string) => {
+  const refuse = async (error: string, startsAt: string, reloadAnyway = false) => {
     if (TAKEN.has(error)) setGone((previous) => new Set([...previous, startsAt]));
     setHold(null);
     setSelected(null);
     setMessage(pickerMessage(error));
-    if (REFRESHES.has(error)) await list.reload();
+    if (reloadAnyway || REFRESHES.has(error)) await list.reload();
   };
   /** Busy while `step` runs, whatever it does. */
   const whileBusy = async (step: () => Promise<void>) => {
@@ -241,7 +241,8 @@ function usePicker<T>({ days, actions, onConfirmed }: Pick<SlotPickerProps<T>, "
     await whileBusy(async () => {
       const confirmed = await settled(() => actions.confirm(hold));
       if (confirmed.ok) onConfirmed(confirmed.value);
-      else await refuse(confirmed.error, hold.startsAt);
+      // A confirm that failed may still have been written (a lost reply): the reload shows her booking if so.
+      else await refuse(confirmed.error, hold.startsAt, true);
     });
   };
   return { choice, hold, gone, message, busy, loading: list.loading, reloadFailed: list.failed, setSelected, setHold, reload: list.reload, chooseTime, confirmTime };

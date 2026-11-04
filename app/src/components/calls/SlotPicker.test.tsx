@@ -244,6 +244,17 @@ describe("SlotPicker — a rejected action never sticks (review F1, F2)", () => 
     idle();
   });
 
+  it("a confirm that fails in transit refreshes the list, so a booking that was written shows (re-review)", async () => {
+    const user = userEvent.setup();
+    const actions = actionsWith({ confirm: vi.fn(boom) });
+    render(<SlotPicker days={DAYS} actions={actions} onConfirmed={vi.fn()} />);
+    await user.click(tue14());
+    await user.click(choose());
+    await user.click(await screen.findByRole("button", { name: "Confirm this time" }));
+    await screen.findByRole("alert");
+    expect(actions.reload).toHaveBeenCalledTimes(1);
+  });
+
   it("an invalid refusal (a stale list) refreshes the list too", async () => {
     const user = userEvent.setup();
     const actions = actionsWith({ hold: vi.fn(async () => ({ ok: false as const, error: "invalid" })) });
