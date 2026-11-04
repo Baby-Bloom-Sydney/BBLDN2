@@ -10,7 +10,7 @@
  * New (BAI 2026-11-05): unavailable days and times are greyed and can't be chosen, never hidden; a time taken by
  * someone else opens the "This time has just been booked" notice while the list refreshes.
  */
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { actionsWith, DAYS, gridDays, HOLD, TUE_09, TUE_14, TUE_1430, TUE_15, WED_09 } from "./slot-picker.fixtures.test-util";
@@ -302,7 +302,7 @@ describe("SlotPicker — no times, failed, loading", () => {
     render(<SlotPicker days={null} actions={actions} onConfirmed={vi.fn()} />);
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(screen.getByTestId("slot-picker-loading")).toBeInTheDocument();
-    expect(screen.getByRole("region", { busy: true })).toBeInTheDocument();
+    expect(screen.getByTestId("slot-picker-body")).toHaveAttribute("aria-busy", "true");
     finish();
     await waitFor(() => expect(screen.queryByTestId("slot-picker-loading")).not.toBeInTheDocument());
   });
@@ -339,7 +339,7 @@ describe("SlotPicker — reuse (04c on-behalf, 03 pre-book)", () => {
 describe("SlotPicker — a rejected action never sticks (review F1, F2)", () => {
   const boom = () => Promise.reject(new Error("network"));
   const idle = () => {
-    expect(screen.getByRole("region")).toHaveAttribute("aria-busy", "false");
+    expect(screen.getByTestId("slot-picker-body")).toHaveAttribute("aria-busy", "false");
     expect(screen.queryByTestId("slot-picker-loading")).not.toBeInTheDocument();
   };
 
@@ -397,5 +397,64 @@ describe("SlotPicker — a parent with no position yet (W11, BAI 2026-11-05)", (
     await user.click(tueAfternoon());
     await user.click(time("Tuesday 9 February, 15:00 (London time)"));
     expect(screen.queryByRole("link", { name: "Complete my childcare position" })).not.toBeInTheDocument();
+  });
+});
+
+describe("SlotPicker — review fixes (react review HIGH 1–2, MEDIUM, LOW)", () => {
+  it("after a taken time closes the chosen cell, that cell is not the row's tab stop; the row's open cell is", async () => {
+    const user = userEvent.setup();
+    const days = gridDays({ [TUE_1430]: false });
+    render(<SlotPicker days={days} actions={actionsWith({ hold: vi.fn(async () => ({ ok: false as const, error: "taken" })) })} onConfirmed={vi.fn()} />);
+    await holdTue14(user);
+    const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
+    await user.click(within(notice).getByRole("button", { name: "Pick another time" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(tueAfternoon()).toBeDisabled();
+    expect(tueAfternoon()).toHaveAttribute("tabindex", "-1");
+    expect(cell("Tuesday 9 February", "Morning")).toHaveAttribute("tabindex", "0");
+  });
+
+  it("a time seen taken is free again when a fresh list says so (the set of gone times is reconciled on reload)", async () => {
+    const user = userEvent.setup();
+    const actions = actionsWith({
+      hold: vi.fn(async () => ({ ok: false as const, error: "taken" })),
+      reload: vi.fn(async () => gridDays()),
+    });
+    render(<SlotPicker days={DAYS} actions={actions} onConfirmed={vi.fn()} />);
+    await holdTue14(user);
+    const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
+    await user.click(within(notice).getByRole("button", { name: "Pick another time" }));
+    await waitFor(() => expect(tue14()).toBeEnabled());
+    expect(tue14().getAttribute("aria-label")).not.toContain("no longer available");
+  });
+
+  it("tapping the chosen cell again keeps it chosen (radio semantics), and keeps her hold", async () => {
+    const user = userEvent.setup();
+    render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />);
+    await holdTue14(user);
+    await screen.findByText(HOLD.line);
+    await user.click(tueAfternoon());
+    expect(tueAfternoon()).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText(HOLD.line)).toBeInTheDocument();
+    expect(confirmButton()).toBeEnabled();
+  });
+
+  it("aria-busy sits on the grid, not on the region that holds the alert", async () => {
+    const user = userEvent.setup();
+    render(<SlotPicker days={DAYS} actions={actionsWith({ hold: vi.fn(async () => ({ ok: false as const, error: "error" })) })} onConfirmed={vi.fn()} />);
+    expect(screen.getByRole("region")).not.toHaveAttribute("aria-busy");
+    expect(screen.getByTestId("slot-picker-body")).toHaveAttribute("aria-busy", "false");
+    await holdTue14(user);
+    expect((await screen.findByRole("alert")).closest("[aria-busy]")).toBeNull();
+  });
+
+  it("arrow keys with Alt, Ctrl or Meta are left to the browser (e.g. Alt+Left is Back)", () => {
+    render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />);
+    const morning = cell("Tuesday 9 February", "Morning");
+    morning.focus();
+    for (const modifier of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }]) {
+      expect(fireEvent.keyDown(morning, { key: "ArrowRight", ...modifier })).toBe(true);
+      expect(morning).toHaveFocus();
+    }
   });
 });

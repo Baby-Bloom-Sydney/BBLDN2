@@ -73,6 +73,7 @@ export function useCallBooking(initial: MyCallView, startChanging = false) {
     await whilePending(refresh);
   };
   const cancel = async (bookingId: string) => {
+    setCancelMessage(null); // so the same refusal twice is announced (and focused) twice (react review LOW)
     const result = await whilePending(() => attempt(() => cancelMyCall(bookingId)));
     if (!result.ok) return setCancelMessage(result.error === "rate_limited" ? PARENT_COPY.rateLimited : PARENT_COPY.notSet);
     setCancelMessage(null);

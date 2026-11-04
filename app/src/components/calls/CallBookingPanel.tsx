@@ -24,7 +24,7 @@
  */
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -65,7 +65,9 @@ function PopupFrame({ mark, heading, subtitle, children }: Omit<FrameProps, "inP
     <div className="space-y-5">
       <DialogHeader className="items-center text-center">
         {mark}
-        <DialogTitle className="text-xl font-semibold leading-snug text-slate-800">{heading}</DialogTitle>
+        <DialogTitle data-call-heading tabIndex={-1} className="text-xl font-semibold leading-snug text-slate-800 focus:outline-none">
+          {heading}
+        </DialogTitle>
         {subtitle ? (
           <DialogDescription asChild>
             <div className="text-sm text-slate-500">{subtitle}</div>
@@ -104,7 +106,6 @@ function Booked({ call, inPopup, onward }: StateProps) {
   const subtitle = inPopup ? view.mobile && callOnLine(view.mobile) : <BookedWords booking={view.booking} mobile={view.mobile} />;
   return (
     <Frame inPopup={inPopup} mark={<BookedTick />} heading={PARENT_COPY.youreBooked} subtitle={subtitle || undefined}>
-      <Status text={call.status} />
       <div className="space-y-4">
         {inPopup && <YourCallPanel booking={view.booking} />}
         {!inPopup && onward && (
@@ -132,7 +133,6 @@ function Picking({ call, inPopup, onward, notice }: StateProps) {
   const booked = view.kind === "booked" ? view.booking : null;
   return (
     <Frame inPopup={inPopup} heading={PARENT_COPY.pageHeading} subtitle={<PickSubtitle afterNoAnswer={view.kind === "pick" && view.afterNoAnswer} />}>
-      <Status text={call.status} />
       <div className="space-y-4">
         {booked && <YourCallPanel booking={booked} />}
         {call.pending ? (
@@ -154,9 +154,27 @@ function Picking({ call, inPopup, onward, notice }: StateProps) {
   );
 }
 
+/** Once she has just booked, focus her new heading ("You're booked"); Confirm has gone (react review MEDIUM). */
+function useFocusOnBooked(showBooked: boolean) {
+  const root = useRef<HTMLDivElement>(null);
+  const was = useRef(showBooked);
+  useEffect(() => {
+    if (showBooked && !was.current) root.current?.querySelector<HTMLElement>("[data-call-heading]")?.focus();
+    was.current = showBooked;
+  }, [showBooked]);
+  return root;
+}
+
 export function CallBookingPanel({ initial, startChanging = false, onward, inPopup = false, notice = null }: CallBookingPanelProps) {
   const call = useCallBooking(initial, startChanging);
   const showBooked = call.view.kind === "booked" && !call.changing;
+  const root = useFocusOnBooked(showBooked);
   const props = { call, inPopup, onward, notice };
-  return showBooked ? <Booked {...props} /> : <Picking {...props} />;
+  // One status region for the panel's life, so booking and cancelling are announced into it (code review MEDIUM).
+  return (
+    <div ref={root}>
+      <Status text={call.status} />
+      {showBooked ? <Booked {...props} /> : <Picking {...props} />}
+    </div>
+  );
 }

@@ -34,7 +34,8 @@ export interface CallPopupProps {
 function useViewWhenOpen(open: boolean): MyCallView | null {
   const [view, setView] = useState<MyCallView | null>(null);
   useEffect(() => {
-    if (!open) return setView(null);
+    if (!open) return; // kept while the dialog animates out; cleared when it opens again (react review MEDIUM)
+    setView(null);
     let live = true;
     reloadMyCallSlots()
       .then((result) => live && setView(result.ok ? result.value : { kind: "load_failed" }))

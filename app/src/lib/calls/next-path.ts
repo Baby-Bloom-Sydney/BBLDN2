@@ -87,6 +87,8 @@ export function parseCallAt(raw: string | readonly string[] | null | undefined):
 }
 
 /** The hub's `call` param, checked: one of the three modes, else null (ignored). */
+const isPopupMode = (raw: unknown): raw is CallPopupMode => typeof raw === "string" && POPUP_MODES.has(raw);
+
 export function parseCallPopup(raw: string | readonly string[] | null | undefined): CallPopupMode | null {
-  return typeof raw === "string" && POPUP_MODES.has(raw) ? (raw as CallPopupMode) : null;
+  return isPopupMode(raw) ? raw : null;
 }

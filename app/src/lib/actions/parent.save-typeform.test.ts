@@ -45,6 +45,11 @@ describe("saveTypeformPosition → redirectTo (W8)", () => {
     expect(result).toEqual({ success: true, error: null, positionId: "pos-1", redirectTo: "/parent?t=childcare&call=booked" });
   });
 
+  it("a hand-crafted null options never throws after the save (security review LOW)", async () => {
+    h.after.mockResolvedValue(undefined);
+    expect(await saveTypeformPosition(FORM, null as unknown as { callAt?: string })).toMatchObject({ success: true, positionId: "pos-1" });
+  });
+
   it("W11: a booking that went wrong never fails the position save", async () => {
     h.after.mockResolvedValue("/parent?t=childcare&call=gone");
     expect(await saveTypeformPosition(FORM, { callAt: "2027-02-09T14:00:00.000Z" })).toMatchObject({ success: true, positionId: "pos-1" });

@@ -289,3 +289,37 @@ describe("a parent with no position yet (W11: the quick-match sign-up, the card,
     expect(screen.getByRole("link", { name: "Skip for now" })).toHaveAttribute("href", "/parent?t=childcare");
   });
 });
+
+describe("review fixes: one live region, and focus after the state changes", () => {
+  it("the status region is one node for the panel's life (booking and cancelling announce into it)", async () => {
+    const user = userEvent.setup();
+    page(PICK);
+    const region = screen.getByRole("status", { name: "" });
+    await pickTue14(user);
+    await user.click(await screen.findByRole("button", { name: "Confirm time" }));
+    await youreBooked();
+    expect(screen.getAllByRole("status").includes(region)).toBe(true);
+    expect(region).toHaveTextContent(`Done — ${BOOKED.line}.`);
+  });
+
+  it("after booking, focus moves to 'You're booked' (Confirm is gone)", async () => {
+    const user = userEvent.setup();
+    page(PICK);
+    await pickTue14(user);
+    await user.click(await screen.findByRole("button", { name: "Confirm time" }));
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "You're booked" })).toHaveFocus());
+  });
+
+  it("a second refused cancel with the same line still takes focus (the line clears when a cancel starts)", async () => {
+    const user = userEvent.setup();
+    h.cancel.mockResolvedValue({ ok: false, error: "error" });
+    page(BOOKED_VIEW);
+    for (let n = 0; n < 2; n += 1) {
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+      await user.click(screen.getByRole("button", { name: "Yes, cancel it" }));
+      await waitFor(() => expect(screen.getByRole("alert")).toHaveFocus());
+      (document.activeElement as HTMLElement).blur();
+    }
+    expect(h.cancel).toHaveBeenCalledTimes(2);
+  });
+});

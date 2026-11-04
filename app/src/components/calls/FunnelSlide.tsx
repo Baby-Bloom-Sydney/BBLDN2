@@ -31,7 +31,9 @@ export function FunnelSlide({ heading, subtitle, mark, children }: FunnelSlidePr
       <div className="flex flex-1 items-center justify-center px-4 py-8 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300">
         <div className="max-w-lg text-center">
           {mark}
-          <h1 className="text-xl sm:text-2xl font-semibold text-slate-800 leading-snug">{heading}</h1>
+          <h1 data-call-heading tabIndex={-1} className="text-xl sm:text-2xl font-semibold text-slate-800 leading-snug focus:outline-none">
+            {heading}
+          </h1>
           {subtitle && <div className="text-sm text-slate-500 mt-2 max-w-md mx-auto">{subtitle}</div>}
         </div>
       </div>

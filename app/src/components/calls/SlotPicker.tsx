@@ -217,7 +217,7 @@ export function SlotPicker<T>({ days, actions, onConfirmed, onKeepTime, skipHref
   const backToGrid = () => (gridRef.current?.querySelector<HTMLElement>('[tabindex="0"]:not([disabled])') ?? headingRef.current)?.focus();
 
   return (
-    <section aria-labelledby={`${uid}-heading`} aria-busy={picker.busy || picker.loading} className="space-y-4">
+    <section aria-labelledby={`${uid}-heading`} className="space-y-4">
       <h2 ref={headingRef} id={`${uid}-heading`} tabIndex={-1} className="text-sm font-medium text-slate-700 flex items-center gap-1.5 focus:outline-none">
         <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
         {words.heading} <span className="font-normal text-slate-400">{LONDON_TIME_SUFFIX}</span>
@@ -232,7 +232,10 @@ export function SlotPicker<T>({ days, actions, onConfirmed, onKeepTime, skipHref
           {picker.message}
         </p>
       )}
-      <PickerBody uid={uid} picker={picker} days={picker.reloadFailed ? null : days} current={current} words={words} gridRef={gridRef} gated={gate !== undefined} />
+      {/* aria-busy on the grid only, so the alert and status lines are never held back (react review MEDIUM). */}
+      <div data-testid="slot-picker-body" aria-busy={picker.busy || picker.loading} className="space-y-4">
+        <PickerBody uid={uid} picker={picker} days={picker.reloadFailed ? null : days} current={current} words={words} gridRef={gridRef} gated={gate !== undefined} />
+      </div>
       <ButtonRow picker={picker} onKeepTime={onKeepTime} skipHref={skipHref} gate={gate} />
       <TakenNotice when={picker.notice} onClose={picker.closeNotice} onClosed={backToGrid} />
     </section>

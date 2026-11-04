@@ -48,6 +48,9 @@ export function openCells(days: readonly SlotDay[], gone: ReadonlySet<string>, c
   );
 }
 
+/** Alt/Ctrl/Meta + arrow is the browser's (Alt+Left is Back): never taken over (react review LOW). */
+const withModifier = (event: KeyboardEvent): boolean => event.altKey || event.ctrlKey || event.metaKey;
+
 function focusWithin(root: RefObject<HTMLElement>, selector: string) {
   root.current?.querySelector<HTMLElement>(selector)?.focus();
 }
@@ -90,7 +93,7 @@ function DayLabel({ day, open }: { readonly day: SlotDay; readonly open: boolean
 export function AvailabilityGrid({ days, cell, gone, current, busy, onPick, gridRef }: AvailabilityGridProps) {
   const open = openCells(days, gone, current);
   const onKey = (event: KeyboardEvent, row: number, col: number) => {
-    if (!isMoveKey(event.key)) return;
+    if (!isMoveKey(event.key) || withModifier(event)) return;
     event.preventDefault();
     const to = moveInGrid(event.key, { row, col }, open);
     if (to !== null) focusWithin(gridRef, `[data-cell="${to.row}-${to.col}"]`);
@@ -101,7 +104,8 @@ export function AvailabilityGrid({ days, cell, gone, current, busy, onPick, grid
         <BracketHeads />
         {days.map((day, row) => {
           const chosenCol = cell?.londonDate === day.londonDate ? BRACKET_KEYS.indexOf(cell.bracket) : -1;
-          const stop = chosenCol >= 0 ? chosenCol : open[row].indexOf(true);
+          // The row's tab stop: the chosen cell while it is open, else its first open cell (react review HIGH 1).
+          const stop = chosenCol >= 0 && open[row][chosenCol] ? chosenCol : open[row].indexOf(true);
           return (
             <div key={day.londonDate} role="radiogroup" aria-label={day.legend} className={ROW}>
               <DayLabel day={day} open={open[row].includes(true)} />
@@ -149,7 +153,7 @@ export function TimeBox({ uid, slots, chosen, gone, busy, onTap }: TimeBoxProps)
   const chosenAt = slots.findIndex((s) => s.startsAt === chosen);
   const stop = chosenAt >= 0 && open[chosenAt] ? chosenAt : open.indexOf(true);
   const onKey = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
-    if (!isMoveKey(event.key)) return;
+    if (!isMoveKey(event.key) || withModifier(event)) return;
     event.preventDefault();
     const to = moveInList(event.key, index, open, 4);
     if (to !== null) event.currentTarget.parentElement?.querySelector<HTMLElement>(`[data-time="${to}"]`)?.focus();

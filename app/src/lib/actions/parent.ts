@@ -547,7 +547,7 @@ export async function saveTypeformPosition(
 
   // Brief 04 §0a.3, §0a.6 (04b rework W8, W11): where she goes next — and the call time she picked first, booked as
   // her — decided here; it never throws, so it never fails the save. `callAt` is checked there, never trusted.
-  const redirectTo = await redirectAfterPosition(positionId, undefined, options.callAt);
+  const redirectTo = await redirectAfterPosition(positionId, undefined, options?.callAt);
   return { success: true, error: null, positionId, ...(redirectTo === undefined ? {} : { redirectTo }) };
 }
 

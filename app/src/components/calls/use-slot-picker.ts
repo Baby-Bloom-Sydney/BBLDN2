@@ -83,8 +83,11 @@ export function cellOf(days: readonly SlotDay[] | null, startsAt: string | null 
   return day && slot ? { londonDate: day.londonDate, bracket: slot.bracket } : null;
 }
 
-/** The list's own state: loading, and a reload that failed (shown as load-failed with Retry, review F2). */
-function useListReload(reloadList: () => Promise<readonly SlotDay[] | null | void>) {
+/**
+ * The list's own state: loading, and a reload that failed (shown as load-failed with Retry, review F2). Fresh days
+ * handed back by the owner go to `onFresh` (the gone times are reconciled with them, react review HIGH 2).
+ */
+function useListReload(reloadList: () => Promise<readonly SlotDay[] | null | void>, onFresh: (fresh: readonly SlotDay[]) => void) {
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
   const reload = async (): Promise<readonly SlotDay[] | null | undefined> => {
@@ -92,6 +95,7 @@ function useListReload(reloadList: () => Promise<readonly SlotDay[] | null | voi
     try {
       const fresh = await reloadList();
       setFailed(false);
+      if (fresh) onFresh(fresh);
       return fresh ?? undefined;
     } catch {
       setFailed(true);
@@ -126,48 +130,65 @@ function usePickerState<T>(o: UsePickerOptions<T>) {
   const [notice, setNotice] = useState<string | null>(o.initialNotice ?? null);
   const [phase, setPhase] = useState<Phase>("idle");
   const markGone = (startsAt: string) => setGone((previous) => new Set([...previous, startsAt]));
-  return { cell, setCell, selected, setSelected, hold, setHold, gone, markGone, message, setMessage, notice, setNotice, phase, setPhase };
+  /** A time seen taken that a fresh list says is free again is free again (react review HIGH 2). */
+  const reconcileGone = (fresh: readonly SlotDay[]) =>
+    setGone((previous) => new Set([...previous].filter((startsAt) => findSlot(fresh, startsAt)?.free !== true)));
+  return { cell, setCell, selected, setSelected, hold, setHold, gone, markGone, reconcileGone, message, setMessage, notice, setNotice, phase, setPhase };
 }
 
-export function useSlotPicker<T>(o: UsePickerOptions<T>) {
-  const s = usePickerState(o);
-  const list = useListReload(() => o.actions.reload());
-  const busy = s.phase !== "idle";
+type PickerState = ReturnType<typeof usePickerState>;
+type ListReload = ReturnType<typeof useListReload>;
 
-  const takenNotice = async (startsAt: string) => {
+/**
+ * A refusal, as she sees it: taken (or a held time that ran out and was taken) → the notice, with the list refreshed
+ * once under it; ran out but still free, invalid, failed → 04b's inline line, refreshing as 04b did.
+ */
+function useRefusal<T>(s: PickerState, list: ListReload, o: UsePickerOptions<T>) {
+  const notice = (startsAt: string) => {
     s.markGone(startsAt);
     s.setMessage(null);
-    s.setNotice(findSlot(o.days, startsAt)?.when ?? "");
-    await list.reload();
+    s.setNotice(findSlot(o.days, startsAt)?.when ?? PARENT_COPY.thatTime);
   };
-  const refuse = async (error: string, startsAt: string, reloadAnyway = false) => {
+  return async (error: string, startsAt: string, reloadAnyway = false) => {
     s.setHold(null);
     s.setSelected(null);
-    if (TAKEN.has(error)) return takenNotice(startsAt);
+    if (TAKEN.has(error)) {
+      notice(startsAt);
+      await list.reload();
+      return;
+    }
     if (RAN_OUT.has(error)) {
       const fresh = await list.reload();
-      const stillFree = fresh === undefined || fresh === null || findSlot(fresh, startsAt)?.free === true;
-      if (!stillFree) return takenNotice(startsAt);
+      if (fresh && findSlot(fresh, startsAt)?.free !== true) return notice(startsAt);
       return s.setMessage(pickerMessage(error));
     }
     s.setMessage(pickerMessage(error));
     if (reloadAnyway || REFRESHES.has(error)) await list.reload();
   };
-  const during = async (phase: Phase, step: () => Promise<void>) => {
-    s.setPhase(phase);
-    try {
-      await step();
-    } finally {
-      s.setPhase("idle");
-    }
-  };
+}
+
+/** Busy in `phase` while `step` runs, whatever it does. */
+async function inPhase(s: PickerState, phase: Phase, step: () => Promise<void>) {
+  s.setPhase(phase);
+  try {
+    await step();
+  } finally {
+    s.setPhase("idle");
+  }
+}
+
+export function useSlotPicker<T>(o: UsePickerOptions<T>) {
+  const s = usePickerState(o);
+  const list = useListReload(() => o.actions.reload(), s.reconcileGone);
+  const refuse = useRefusal(s, list, o);
+  const busy = s.phase !== "idle";
   const tapTime = async (startsAt: string) => {
     if (busy || s.hold?.startsAt === startsAt) return;
     s.setSelected(startsAt);
     s.setHold(null);
     s.setMessage(null);
     if (o.gated) return; // W11: no position yet — her choice waits for her position; nothing is held.
-    await during("holding", async () => {
+    await inPhase(s, "holding", async () => {
       const held = await settled(() => o.actions.hold(startsAt));
       if (held.ok) s.setHold(held.value);
       else await refuse(held.error, startsAt);
@@ -176,31 +197,21 @@ export function useSlotPicker<T>(o: UsePickerOptions<T>) {
   const confirm = async () => {
     const hold = s.hold;
     if (hold === null || busy) return;
-    await during("confirming", async () => {
+    await inPhase(s, "confirming", async () => {
       const confirmed = await settled(() => o.actions.confirm(hold));
       if (confirmed.ok) o.onConfirmed(confirmed.value);
       // A confirm that failed may still have been written (a lost reply): the reload shows her booking if so.
       else await refuse(confirmed.error, hold.startsAt, true);
     });
   };
+  /** A cell is a radio: tapping the chosen one again keeps it (and her hold), react review MEDIUM. */
   const pickCell = (next: PickerCell) => {
-    const same = s.cell?.londonDate === next.londonDate && s.cell.bracket === next.bracket;
-    s.setCell(same ? null : next);
+    if (s.cell?.londonDate === next.londonDate && s.cell.bracket === next.bracket) return;
+    s.setCell(next);
     s.setSelected(null);
     s.setHold(null);
   };
-  return {
-    ...s,
-    busy,
-    confirming: s.phase === "confirming",
-    loading: list.loading,
-    reloadFailed: list.failed,
-    reload: list.reload,
-    tapTime,
-    confirm,
-    pickCell,
-    closeNotice: () => s.setNotice(null),
-  };
+  return { ...s, busy, confirming: s.phase === "confirming", loading: list.loading, reloadFailed: list.failed, reload: list.reload, tapTime, confirm, pickCell, closeNotice: () => s.setNotice(null) };
 }
 
 export type SlotPickerState = ReturnType<typeof useSlotPicker>;
