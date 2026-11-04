@@ -14,6 +14,8 @@ import { sendEmail } from "@/lib/email/resend";
 import { buildWelcomeAdvParentEmail } from "@/lib/email/templates/welcome-adv-parent";
 import { buildWelcomeParentEmail } from "@/lib/email/templates/welcome-parent";
 import { SITE_URL } from "@/lib/constants";
+import { callBookingEnabled } from "@/lib/features/flags";
+import { callPagePath } from "@/lib/calls/next-path";
 
 const APP_URL =
   SITE_URL;
@@ -254,8 +256,10 @@ export async function signUpAndConvertLead(
   }
 
   // Override redirect to browse page with matches tab active
+  // (brief 04: through the call page while CALL_BOOKING_ENABLED is on, `next` carrying today's target).
+  const matches = "/parent?t=childcare&s=nannies&v=matches";
   return {
     success: true,
-    redirectTo: "/parent?t=childcare&s=nannies&v=matches",
+    redirectTo: callBookingEnabled() ? callPagePath(matches) : matches,
   };
 }
