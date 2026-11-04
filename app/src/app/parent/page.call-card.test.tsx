@@ -4,6 +4,7 @@
  * not edited); no card → today's markup.
  */
 import { render } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({ card: vi.fn() }));
@@ -47,6 +48,12 @@ describe("/parent and the call card", () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "");
     expect(await markup()).toBe(TODAY);
     expect(h.card).not.toHaveBeenCalled();
+  });
+
+  it("flag off → the element tree is today's too: ParentHubClient is the wrapper's only child", async () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "");
+    const out = (await ParentHubPage({ searchParams: {} })) as ReactElement<{ children: ReactElement<{ babysittingRequests: unknown }> }>;
+    expect(out.props.children.props.babysittingRequests).toEqual([]);
   });
 
   it("flag on → her card, for her session id, above ParentHubClient", async () => {
