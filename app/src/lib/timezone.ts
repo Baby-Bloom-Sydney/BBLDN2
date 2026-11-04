@@ -110,6 +110,11 @@ export function londonDateOf(instant: Date | string): string {
   return wallClockOf(typeof instant === 'string' ? new Date(instant) : instant).date;
 }
 
+/** The London wall clock of an instant: its date and 24-hour time (seconds included). */
+export function londonWallClockOf(instant: Date | string): { date: string; hour: number; minute: number; second: number } {
+  return wallClockOf(typeof instant === 'string' ? new Date(instant) : instant);
+}
+
 /** Today's London date. */
 export function londonToday(now: Date = new Date()): string {
   return londonDateOf(now);

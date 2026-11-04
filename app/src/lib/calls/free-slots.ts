@@ -5,20 +5,20 @@
  *        − anything under a block
  *        − anything overlapping a booked call or a live hold (any length, any purpose)
  *        − anything before now + notice
- *        − anything after now + window (inclusive)   ← dropped in the one-date pre-book mode (brief §11 Q9)
+ *        − anything after the same London time window_days London days on (inclusive)   ← dropped in the
+ *          one-date pre-book mode (brief §11 Q9)
  *
  * The server always recomputes this before a hold or a booking, so a client can never book off the grid.
  *
  * BB-wave1-041126/04a-core, 2026-11-04.
  */
 
-import { londonDateOf } from "@/lib/timezone";
+import { addLondonDays, localToUTC, londonDateOf, londonWallClockOf } from "@/lib/timezone";
 import { generateSlots } from "./generate-slots";
 import { occupiesSlot, type OccupancyFacts } from "./status";
 import type { CallSettings, Slot, TimeSpan, WeeklyHoursRange } from "./types";
 
 const MINUTE_MS = 60 * 1000;
-const DAY_MS = 24 * 60 * MINUTE_MS;
 
 export interface FreeSlotsInput {
   readonly hours: readonly WeeklyHoursRange[];
@@ -37,16 +37,27 @@ export const overlaps = (a: TimeSpan, b: TimeSpan): boolean => a.startsAt < b.en
 type GridInput = Omit<FreeSlotsInput, "blocks" | "bookings">;
 
 /**
- * The earliest and latest start a parent may pick now: now + notice, and now + window (inclusive). The window is
- * dropped (`latest: null`) only for one London date asked with `ignoreWindow` — the cohort pre-book.
+ * The same London wall-clock time `days` London calendar days after `now` (coordinator's ruling, 04a review M3):
+ * Thu 4 Feb 10:00 → Thu 11 Feb 10:00, and Thu 25 Mar 10:00 GMT → Thu 1 Apr 10:00 BST across the spring change.
+ * A wall time the clocks skip on that day comes out an hour later (`localToUTC`).
+ */
+function sameLondonTimeDaysLater(now: Date, days: number): string {
+  const wall = londonWallClockOf(now);
+  const atMinute = Date.parse(localToUTC(addLondonDays(wall.date, days), wall.hour, wall.minute));
+  return new Date(atMinute + wall.second * 1000 + now.getUTCMilliseconds()).toISOString();
+}
+
+/**
+ * The earliest and latest start a parent may pick now: now + notice (a duration), and the same London time
+ * `window_days` London days on (inclusive). The window is dropped (`latest: null`) only for one London date asked
+ * with `ignoreWindow` — the cohort pre-book.
  */
 export function slotBounds(
   input: Pick<GridInput, "settings" | "now" | "londonDate" | "ignoreWindow">,
 ): { readonly earliest: string; readonly latest: string | null } {
   const earliest = new Date(input.now.getTime() + input.settings.noticeMinutes * MINUTE_MS).toISOString();
   const keepWindow = !(input.londonDate !== undefined && input.ignoreWindow === true);
-  const latest = keepWindow ? new Date(input.now.getTime() + input.settings.windowDays * DAY_MS).toISOString() : null;
-  return { earliest, latest };
+  return { earliest, latest: keepWindow ? sameLondonTimeDaysLater(input.now, input.settings.windowDays) : null };
 }
 
 /** The grid inside the notice and the window, before blocks and bookings are taken away. */

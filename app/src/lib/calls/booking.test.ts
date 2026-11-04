@@ -239,6 +239,28 @@ describe("holdSlotForParent — the server recomputes the slot", () => {
   });
 });
 
+describe("holdSlotForParent across the spring clock change (review M3)", () => {
+  const ALL_DAY = ([1, 2, 3, 4, 5, 6, 7] as const).map((weekday) => ({ weekday, startMinute: 0, endMinute: 1440 }));
+  const at = (iso: string, seed: Partial<FakeCallsState> = {}) => {
+    const { deps } = setup(seed);
+    return { ...deps, now: () => new Date(iso) };
+  };
+  const hold = (startsAt: string, deps: CallsDeps) =>
+    holdSlotForParent({ parentUserId: PARENT, startsAt, positionId: null, actor: PARENT_ACTOR }, deps);
+
+  it("Thu 25 Mar 10:00: Thu 1 Apr 10:00 BST is the last time; 10:30 BST is past the window", async () => {
+    expect((await hold("2027-04-01T09:00:00.000Z", at("2027-03-25T10:00:00.000Z"))).ok).toBe(true);
+    expect(await hold("2027-04-01T09:30:00.000Z", at("2027-03-25T10:00:00.000Z"))).toEqual({ ok: false, error: "invalid" });
+  });
+
+  it("Sat 27 Mar 23:30: Sun 02:30 BST is the first time; 02:00 BST and 00:30 GMT are too soon", async () => {
+    const deps = at("2027-03-27T23:30:00.000Z", { hours: ALL_DAY });
+    expect((await hold("2027-03-28T01:30:00.000Z", deps)).ok).toBe(true);
+    expect(await hold("2027-03-28T01:00:00.000Z", deps)).toEqual({ ok: false, error: "too_soon" });
+    expect(await hold("2027-03-28T00:30:00.000Z", deps)).toEqual({ ok: false, error: "too_soon" });
+  });
+});
+
 describe("confirmHoldForParent", () => {
   const confirm = (deps: CallsDeps) =>
     confirmHoldForParent({ parentUserId: PARENT, holdId: HOLD, idempotencyKey: "key-1", actor: PARENT_ACTOR }, deps);

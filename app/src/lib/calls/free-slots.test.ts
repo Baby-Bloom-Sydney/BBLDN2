@@ -4,7 +4,7 @@
  * The §9.2 fixture: hours 09:00–19:00 every day, clock Thu 4 Feb 2027 10:00 London.
  */
 import { describe, expect, it } from "vitest";
-import { candidateSlots, computeFreeSlots, spanOf, withoutTaken } from "./free-slots";
+import { candidateSlots, computeFreeSlots, slotBounds, spanOf, withoutTaken } from "./free-slots";
 import { CALL_SETTINGS_DEFAULTS } from "./settings";
 import type { CallSettings, WeeklyHoursRange } from "./types";
 
@@ -134,5 +134,35 @@ describe("candidateSlots / withoutTaken / spanOf — the two-step read booking.t
     const candidates = candidateSlots(base);
     expect(spanOf(candidates)).toEqual({ startsAt: "2027-02-04T12:00:00.000Z", endsAt: "2027-02-11T10:30:00.000Z" });
     expect(spanOf([])).toBeNull();
+  });
+});
+
+describe("the window is in London calendar days, also across a clock change (review M3)", () => {
+  const ALL_DAY: WeeklyHoursRange[] = ([1, 2, 3, 4, 5, 6, 7] as const).map((weekday) => ({ weekday, startMinute: 0, endMinute: 1440 }));
+
+  it("Thu 25 Mar 10:00 (GMT) → last slot Thu 1 Apr 10:00 BST (09:00Z), not 11:00 BST", () => {
+    const now = new Date("2027-03-25T10:00:00.000Z");
+    expect(slotBounds({ settings: SETTINGS, now })).toEqual({ earliest: "2027-03-25T12:00:00.000Z", latest: "2027-04-01T09:00:00.000Z" });
+    const slots = computeFreeSlots({ ...base, now });
+    expect(slots[0].startsAt).toBe("2027-03-25T12:00:00.000Z");
+    expect(slots.at(-1)?.startsAt).toBe("2027-04-01T09:00:00.000Z");
+  });
+
+  it("Sat 27 Mar 23:30 (GMT) → first slot Sun 02:30 BST (the gap skipped), last Sat 3 Apr 23:30 BST", () => {
+    const now = new Date("2027-03-27T23:30:00.000Z");
+    expect(slotBounds({ settings: SETTINGS, now })).toEqual({ earliest: "2027-03-28T01:30:00.000Z", latest: "2027-04-03T22:30:00.000Z" });
+    const slots = computeFreeSlots({ ...base, hours: ALL_DAY, now });
+    expect(slots[0].startsAt).toBe("2027-03-28T01:30:00.000Z");
+    expect(slots.at(-1)?.startsAt).toBe("2027-04-03T22:30:00.000Z");
+  });
+
+  it("and back again in autumn: Thu 28 Oct 10:00 BST → last Thu 4 Nov 10:00 GMT", () => {
+    const now = new Date("2027-10-28T09:00:00.000Z");
+    expect(slotBounds({ settings: SETTINGS, now }).latest).toBe("2027-11-04T10:00:00.000Z");
+  });
+
+  it("keeps seconds: now 10:00:30 still offers 10:00 seven London days on", () => {
+    const now = new Date("2027-02-04T10:00:30.000Z");
+    expect(slotBounds({ settings: SETTINGS, now }).latest).toBe("2027-02-11T10:00:30.000Z");
   });
 });
