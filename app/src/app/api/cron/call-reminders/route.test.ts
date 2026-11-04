@@ -13,7 +13,7 @@ const h = vi.hoisted(() => ({ run: vi.fn(), admin: vi.fn() }));
 vi.mock("@/lib/calls/reminders", () => ({ runCallReminders: h.run }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: h.admin }));
 
-import { GET, dynamic } from "./route";
+import { GET, dynamic, maxDuration } from "./route";
 
 const req = (auth?: string) =>
   new NextRequest("http://localhost/api/cron/call-reminders", { headers: auth ? { authorization: auth } : {} });
@@ -72,20 +72,19 @@ describe("never cached", () => {
   it("is force-dynamic, so a flag-off build can't prerender its 404 (or any answer) as a static file", () => {
     expect(dynamic).toBe("force-dynamic");
   });
+
+  it("may run up to 60 seconds (review F8a)", () => {
+    expect(maxDuration).toBe(60);
+  });
 });
 
 describe("vercel.json (R12)", () => {
   const crons = (JSON.parse(readFileSync(join(process.cwd(), "vercel.json"), "utf8")) as { crons: Array<{ path: string; schedule: string }> }).crons;
 
-  it("registers call-reminders once, every 5 minutes, right after the first entry", () => {
+  // Only this route's own entry is pinned (review F8b): briefs 07 and 14 remove other crons without touching this test.
+  it("registers call-reminders exactly once, every 5 minutes, right after the first entry", () => {
     expect(crons.filter((c) => c.path === "/api/cron/call-reminders")).toEqual([{ path: "/api/cron/call-reminders", schedule: "*/5 * * * *" }]);
-    expect(crons[0].path).toBe("/api/cron/send-delayed-emails");
-    expect(crons[1].path).toBe("/api/cron/call-reminders");
+    expect(crons.findIndex((c) => c.path === "/api/cron/call-reminders")).toBe(1);
     expect(existsSync(join(process.cwd(), "src/app/api/cron/call-reminders/route.ts"))).toBe(true);
-  });
-
-  it("leaves payment-due-sweep (07 removes it) and usage-weekly-check (14 removes it) in place", () => {
-    expect(crons.map((c) => c.path)).toEqual(expect.arrayContaining(["/api/cron/payment-due-sweep", "/api/cron/usage-weekly-check"]));
-    expect(crons).toHaveLength(17);
   });
 });

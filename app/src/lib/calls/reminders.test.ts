@@ -370,3 +370,46 @@ describe("read failures", () => {
     expect(s.send).not.toHaveBeenCalled();
   });
 });
+
+describe("two runs at once (review F8c)", () => {
+  const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  it("each read and claim yields, so the runs interleave; the claim is a compare-and-set, so each email goes once", async () => {
+    const START = T0 + 23 * HOUR;
+    const OTHER = "b0400000-0000-4000-8000-000000000002";
+    const NEW = "b0400000-0000-4000-8000-000000000003";
+    const s = setup({
+      bookings: [booked(START, 3 * DAY), bookingRow({ parentUserId: OTHER, startsAt: iso(T0 + 10 * MIN), bookedAt: iso(T0 - HOUR), createdAt: iso(T0 - HOUR) })],
+      contacts: [contact(JANE), contact(OTHER, "Olive"), contact(NEW, "Nina")],
+      scope: [scope(NEW, iso(T0 - 31 * MIN))],
+    });
+    const base = s.reminders.repo;
+    const attempts = { parent: 0, admin: 0, nudge: 0 };
+    const yielding: ReminderRepo = {
+      readUnremindedCalls: async (kind, w) => {
+        await tick();
+        return base.readUnremindedCalls(kind, w);
+      },
+      claimReminder: async (kind, b, stamp) => {
+        attempts[kind] += 1;
+        await tick();
+        return base.claimReminder(kind, b, stamp);
+      },
+      releaseReminder: base.releaseReminder,
+      readNudgedParents: async (ids) => {
+        await tick();
+        return base.readNudgedParents(ids);
+      },
+      claimNudge: async (id, stamp) => {
+        attempts.nudge += 1;
+        await tick();
+        return base.claimNudge(id, stamp);
+      },
+      releaseNudge: base.releaseNudge,
+    };
+    const deps = { ...s.deps, reminders: yielding };
+    await Promise.all([runCallReminders(deps), runCallReminders(deps)]);
+    expect(attempts).toEqual({ parent: 2, admin: 2, nudge: 2 });
+    expect([...s.sentTypes()].sort()).toEqual(["admin_call_reminder", "call_not_booked", "call_reminder"]);
+  });
+});

@@ -15,6 +15,8 @@ import { callBookingEnabled } from "@/lib/features/flags";
  * would otherwise prerender that 404 as a static file at build. BB-wave1-041126/04b-build.
  */
 export const dynamic = "force-dynamic";
+/** Seconds: room for the three passes' sends one after another (review F8a). */
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   if (!callBookingEnabled()) return NextResponse.json({ error: "Not found" }, { status: 404 });
