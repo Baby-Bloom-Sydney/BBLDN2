@@ -9,6 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { NannyPreview } from "@/components/landing/NannyPreviewCard";
 import { BRAND, OG_LOCALE, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/constants";
 import { qualificationRank } from "@/lib/nanny-options";
+import { serviceJsonLd } from "./home-json-ld";
 
 const HOME_TITLE = `${SITE_NAME} — Verified Nannies for ${BRAND.city} Families`;
 
@@ -101,34 +102,6 @@ const websiteJsonLd = {
   url: SITE_URL,
 };
 
-const serviceJsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'Service',
-  name: `Verified Nanny Matching — ${BRAND.city}`,
-  serviceType: 'Nanny and Childcare Matching Service',
-  description: `Baby Bloom matches ${BRAND.city} families with background-checked, ID-verified nannies and babysitters.`,
-  provider: {
-    '@type': 'Organization',
-    name: SITE_NAME,
-    url: SITE_URL,
-  },
-  areaServed: {
-    '@type': 'City',
-    name: BRAND.city,
-    addressRegion: 'England',
-    addressCountry: BRAND.countryCode,
-  },
-  hasOfferCatalog: {
-    '@type': 'OfferCatalog',
-    name: 'Childcare Services',
-    itemListElement: [
-      { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Permanent Nanny Matching', description: 'Find a verified permanent nanny matched to your family\'s needs' } },
-      { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Part-Time Nanny Matching', description: `Flexible part-time nanny arrangements for ${BRAND.city} families` } },
-      { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Casual Babysitting', description: 'On-demand babysitting from verified sitters in your area' } },
-      { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'After-School Care', description: 'Verified nannies for school pickups and after-school care' } },
-    ],
-  },
-};
 
 export default async function HomePage() {
   const topNannies = await getTopNannies(3);
@@ -144,7 +117,7 @@ export default async function HomePage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(serviceJsonLd).replace(/</g, '\\u003c'),
+          __html: JSON.stringify(serviceJsonLd()).replace(/</g, '\\u003c'),
         }}
       />
       <QuickMatch />

@@ -7,6 +7,7 @@ import { parseFunnelSource, parseFunnelLead } from "@/lib/funnel/source";
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
 import { BRAND, OG_LOCALE, SITE_NAME, SITE_URL } from "@/lib/constants";
+import { babysittingEnabled } from "@/lib/features/flags";
 
 export async function generateMetadata({
   params,
@@ -20,7 +21,10 @@ export async function generateMetadata({
   }
 
   const firstName = nanny.first_name ?? "Nanny";
-  const title = `${firstName} now has availability to Nanny & Babysit | see availability now`;
+  // Brief 12 B5: "& Babysit" only while babysitting is live (P-23).
+  const title = babysittingEnabled()
+    ? `${firstName} now has availability to Nanny & Babysit | see availability now`
+    : `${firstName} now has availability to nanny | see availability now`;
 
   // Use AI bio summary or fallback
   const suburb = nanny.suburb ?? BRAND.city;
