@@ -20,6 +20,12 @@ import { loadHubCallCard } from "@/lib/calls/parent-state";
 
 const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === "true";
 
+/** Brief 04 (B7, review F5): a call-card error never fails the hub. Logged by error name only. */
+function noCallCard(thrown: unknown): null {
+  console.error("[parent/page] the call card could not be loaded", { name: thrown instanceof Error ? thrown.name : typeof thrown });
+  return null;
+}
+
 export default async function ParentHubPage({
   searchParams,
 }: {
@@ -71,7 +77,7 @@ export default async function ParentHubPage({
       : Promise.resolve({ data: [] }),
     user ? getPendingInvitesForUser() : Promise.resolve({ data: [] }),
     // Brief 04 (B7): not called while CALL_BOOKING_ENABLED is off, so no call table is read.
-    callBookingEnabled() && user ? loadHubCallCard(user.id) : Promise.resolve(null),
+    callBookingEnabled() && user ? loadHubCallCard(user.id).catch(noCallCard) : Promise.resolve(null),
   ]);
 
   const placement = placementResult.data;

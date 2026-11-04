@@ -59,6 +59,16 @@ describe("/parent and the call card", () => {
     expect("callCard" in out.props.children.props).toBe(false);
   });
 
+  it("flag on, the card loader throwing → the hub still renders today's markup; logged by error name only (review F5)", async () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    h.card.mockRejectedValueOnce(new TypeError("fetch failed for jane@example.com"));
+    expect(await markup()).toBe(TODAY);
+    expect(log).toHaveBeenCalledWith("[parent/page] the call card could not be loaded", { name: "TypeError" });
+    expect(JSON.stringify(log.mock.calls)).not.toContain("jane@example.com");
+    log.mockRestore();
+  });
+
   it("flag on, no card → no callCard prop either", async () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "true");
     h.card.mockResolvedValueOnce(null);
