@@ -797,8 +797,11 @@ export function ParentHubClient({
         </aside>
       )}
 
-      {/* Brief 04 (B7): the call card, under the banner and above the hub. */}
-      {callCard}
+      {/* Brief 04 (B7): the call card, under the banner and above the hub. Below xl the banner's `sticky top-16` is
+          measured from KatieShell's scrolling <main>, so it draws 64px below its own slot; under the banner the card
+          clears that with padding (`pt-16 xl:pt-0`; the parent's space-y outranks a margin), measured at 320–1440.
+          Absent → nothing rendered, as today. */}
+      {callCard ? <div className={hasPosition ? undefined : "pt-16 xl:pt-0"}>{callCard}</div> : null}
 
       {/* ═══════════════════════════════════════════════════
           HERO CARD — profile + "My Childcare" accordion

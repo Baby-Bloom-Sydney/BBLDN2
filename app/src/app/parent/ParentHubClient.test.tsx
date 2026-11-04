@@ -359,7 +359,17 @@ describe("the call card slot (brief 04b)", () => {
 
   it("with a position (no banner): the card comes first", () => {
     const { container } = render(<ParentHubClient position={POSITION} callCard={<p data-testid="call-card">CARD</p>} />);
-    expect(container.firstElementChild).toBe(screen.getByTestId("call-card"));
+    expect(container.firstElementChild?.contains(screen.getByTestId("call-card"))).toBe(true);
+  });
+
+  it("under the banner, the card clears the banner's 64px sticky offset below xl (measured: it drew over the card at 320–1024)", () => {
+    render(<ParentHubClient position={null} callCard={<p data-testid="call-card">CARD</p>} />);
+    expect(screen.getByTestId("call-card").parentElement?.className).toBe("pt-16 xl:pt-0");
+  });
+
+  it("with a position (no banner) the card needs no offset", () => {
+    render(<ParentHubClient position={POSITION} callCard={<p data-testid="call-card">CARD</p>} />);
+    expect(screen.getByTestId("call-card").parentElement?.className ?? "").not.toContain("pt-16");
   });
 
   it("no card: nothing extra — the banner is still the first thing", () => {
