@@ -6,6 +6,7 @@
  *   3. next booked  booked calls still to come, soonest first
  *   4. not booked   the to-call list, by when she's due (call-back time or sign-up), oldest first
  *
+ * Booked rows follow the counts' rule: a family taken out since her booking is left out (review M2).
  * Every row carries `lastAttemptAt` and `callBackAt`, so 05 can skip a family tried in the last two hours or not
  * yet due a call-back. Test users are included and tagged by `contact.isTestUser`.
  *
@@ -15,7 +16,7 @@
 import { callBookingEnabled } from "@/lib/features/flags";
 import { CALL_BOOKING_DISABLED, defaultCallsDeps, type CallsDeps } from "./deps";
 import type { PrebookRequest } from "./prebook-requests";
-import { latestEntryOf, loadToCall, type ToCallFamily } from "./to-call";
+import { bookedCallsToMake, latestEntryOf, loadToCall, type ToCallFamily } from "./to-call";
 import type { CallBooking, CallLogEntry, CallsResult, ParentContact } from "./types";
 
 export type WhoIsNextGroup = "overdue" | "due_now" | "next_booked" | "not_booked";
@@ -66,15 +67,15 @@ const notBookedRow = (f: ToCallFamily): WhoIsNextRow => ({
   prebookRequest: f.prebookRequest,
 });
 
+/** Booked calls still to make — the counts' rule (`bookedCallsToMake`) — as rows. */
 async function bookedRows(deps: CallsDeps, graceMinutes: number): Promise<CallsResult<readonly WhoIsNextRow[]>> {
   const booked = await deps.repo.readBookedCalls();
   if (!booked.ok) return booked;
-  const ids = [...new Set(booked.value.map((b) => b.parentUserId))];
-  const [contacts, entries] = await Promise.all([deps.repo.readContacts(ids), deps.repo.readLogEntriesForParents(ids)]);
-  if (!contacts.ok) return contacts;
-  if (!entries.ok) return entries;
+  const toMake = await bookedCallsToMake(booked.value, deps);
+  if (!toMake.ok) return toMake;
+  const { calls, facts } = toMake.value;
   const now = deps.now();
-  return { ok: true, value: booked.value.map((b) => bookedRow(b, contacts.value, entries.value, groupOf(b.startsAt, now, graceMinutes))) };
+  return { ok: true, value: calls.map((b) => bookedRow(b, facts.contacts, facts.entries, groupOf(b.startsAt, now, graceMinutes))) };
 }
 
 /** Booked rows by start time within their group; the to-call list keeps its own (due-time) order. */

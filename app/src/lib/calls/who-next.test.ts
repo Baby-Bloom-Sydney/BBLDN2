@@ -91,6 +91,18 @@ describe("getWhoIsNext", () => {
     expect(next.ok && next.value.map((r) => r.booking?.purpose)).toEqual(["first_call", "cohort_prebook"]);
   });
 
+  it("leaves out a booked family taken out since her booking — the same rule the counts use (review M2)", async () => {
+    const { deps } = setup({
+      bookings: [
+        bookingRow({ parentUserId: id(1), startsAt: "2027-02-04T13:00:00.000Z", bookedAt: "2027-02-02T10:00:00.000Z" }),
+        bookingRow({ parentUserId: id(2), startsAt: "2027-02-04T14:00:00.000Z" }),
+      ],
+      entries: [entryRow({ parentUserId: id(1), occurredAt: "2027-02-03T10:00:00.000Z", result: "answered", outcome: "deposit_taken" })],
+    });
+    const next = await getWhoIsNext(deps);
+    expect(next.ok && next.value.map((r) => r.parentUserId)).toEqual([id(2)]);
+  });
+
   it("is call_booking_disabled with the switch off, reading nothing", async () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "");
     const { fake, deps } = setup({});

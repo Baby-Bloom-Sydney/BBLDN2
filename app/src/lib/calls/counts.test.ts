@@ -70,6 +70,26 @@ describe("getCallsToMake (02's contract)", () => {
     expect(await getCallsToMake(WEEK, deps)).toEqual({ booked: 8, notBooked: 4 });
   });
 
+  it("counts families, not bookings: a first call and a pre-book in the same week are one family (review L)", async () => {
+    const { deps } = setup({
+      bookings: [
+        bookingRow({ parentUserId: id(1), startsAt: "2027-02-04T14:00:00.000Z" }),
+        bookingRow({ parentUserId: id(1), startsAt: "2027-02-06T10:00:00.000Z", purpose: "cohort_prebook" }),
+      ],
+      contacts: [contact(1)],
+    });
+    expect(await getCallsToMake(WEEK, deps)).toEqual({ booked: 1, notBooked: 0 });
+  });
+
+  it("a booked family taken out since her booking (Deposit taken recorded later) isn't counted — the rule who's next uses", async () => {
+    const { deps } = setup({
+      bookings: [bookingRow({ parentUserId: id(1), startsAt: "2027-02-06T10:00:00.000Z", bookedAt: "2027-02-02T10:00:00.000Z" })],
+      entries: [entryRow({ parentUserId: id(1), occurredAt: "2027-02-03T10:00:00.000Z", result: "answered", outcome: "deposit_taken" })],
+      contacts: [contact(1)],
+    });
+    expect(await getCallsToMake(WEEK, deps)).toEqual({ booked: 0, notBooked: 0 });
+  });
+
   it("leaves a test user's booked call out", async () => {
     const { deps } = setup({ bookings: [bookingRow({ parentUserId: id(1), startsAt: "2027-02-05T09:00:00.000Z" })], contacts: [contact(1, true)] });
     expect(await getCallsToMake(WEEK, deps)).toEqual({ booked: 0, notBooked: 0 });

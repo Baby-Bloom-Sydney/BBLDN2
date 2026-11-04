@@ -2,8 +2,8 @@
  * The call counts (plan A8, §7; brief §0.8, §8 contracts 1–2, §9.8).
  *
  * - `getCallsToMake(range)` — 02's "12 more families to call this week (8 booked · 4 not booked)":
- *   `booked` = booked calls starting in the range (overdue included: still to make); `notBooked` = the to-call
- *   list. Test users and taken-out families (Stop calling …) are left out of both.
+ *   `booked` = families with a booked call starting in the range (overdue included: still to make);
+ *   `notBooked` = the to-call list. Test users and taken-out families (Stop calling …) are left out of both.
  * - `getPrebookedCallCount(londonDate)` — cohort pre-book calls, booked or done, on that London date (04's own
  *   tag; 02's "N pre-booked calls" counts 03's records and is 03's to wire, plan §12 R1).
  *
@@ -17,7 +17,7 @@ import { z } from "zod";
 import { callBookingEnabled } from "@/lib/features/flags";
 import { addLondonDays, localToUTC, type UtcRange } from "@/lib/timezone";
 import { defaultCallsDeps, type CallsDeps } from "./deps";
-import { isTakenOut, loadFamilyFacts, loadToCall } from "./to-call";
+import { bookedCallsToMake, loadToCall } from "./to-call";
 import type { CallBooking, CallsResult, ParentContact, TimeSpan } from "./types";
 import { isoInstantInput, londonDate } from "./zod-parts";
 
@@ -36,21 +36,14 @@ const unique = (ids: readonly string[]): readonly string[] => [...new Set(ids)];
 const isTest = (contacts: readonly ParentContact[], userId: string): boolean =>
   contacts.find((c) => c.userId === userId)?.isTestUser === true;
 
+/** Families (not bookings: 02's line counts families) with a booked call still to make in the span. */
 async function bookedToMake(span: TimeSpan, deps: CallsDeps): Promise<CallsResult<number>> {
   const bookings = await deps.repo.readBookingsStartingIn(span, { statuses: ["booked"] });
   if (!bookings.ok) return bookings;
-  const facts = await loadFamilyFacts(unique(bookings.value.map((b) => b.parentUserId)), deps);
-  if (!facts.ok) return facts;
-  const counted = bookings.value.filter(
-    (b) =>
-      !isTest(facts.value.contacts, b.parentUserId) &&
-      !isTakenOut({
-        bookings: facts.value.bookings.filter((x) => x.parentUserId === b.parentUserId),
-        entries: facts.value.entries.filter((e) => e.parentUserId === b.parentUserId),
-        prebookRequest: facts.value.prebookRequests.get(b.parentUserId) ?? null,
-      }),
-  );
-  return ok(counted.length);
+  const toMake = await bookedCallsToMake(bookings.value, deps);
+  if (!toMake.ok) return toMake;
+  const families = unique(toMake.value.calls.map((b) => b.parentUserId));
+  return ok(families.filter((id) => !isTest(toMake.value.facts.contacts, id)).length);
 }
 
 async function countCallsToMake(span: TimeSpan, deps: CallsDeps): Promise<CallsResult<CallsToMake>> {

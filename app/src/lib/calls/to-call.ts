@@ -79,13 +79,21 @@ export function isTakenOut(facts: {
 const byParent = <T extends { readonly parentUserId: string }>(rows: readonly T[], parentUserId: string): readonly T[] =>
   rows.filter((r) => r.parentUserId === parentUserId);
 
+/** The one "taken out" rule for a family, used by the to-call list, the counts and who's next (review M2). */
+export function familyTakenOut(facts: FamilyFacts, parentUserId: string): boolean {
+  return isTakenOut({
+    bookings: byParent(facts.bookings, parentUserId),
+    entries: byParent(facts.entries, parentUserId),
+    prebookRequest: facts.prebookRequests.get(parentUserId) ?? null,
+  });
+}
+
 /** Pure: the scope and her facts → the families to call, in order. */
 export function selectToCall(scope: readonly ScopeParent[], facts: FamilyFacts): readonly ToCallFamily[] {
   const families = scope.flatMap((p): ToCallFamily[] => {
-    const bookings = byParent(facts.bookings, p.userId);
+    if (hasBookedCall(byParent(facts.bookings, p.userId)) || familyTakenOut(facts, p.userId)) return [];
     const entries = byParent(facts.entries, p.userId);
     const prebookRequest = facts.prebookRequests.get(p.userId) ?? null;
-    if (hasBookedCall(bookings) || isTakenOut({ bookings, entries, prebookRequest })) return [];
     const last = latestEntryOf(entries);
     const callBackAt = last?.callBackAt ?? null;
     return [
@@ -127,6 +135,16 @@ export async function loadFamilyFacts(ids: readonly string[], deps: CallsDeps): 
   if (!contacts.ok) return contacts;
   if (!prebookRequests.ok) return prebookRequests;
   return ok({ bookings: bookings.value, entries: entries.value, contacts: contacts.value, prebookRequests: prebookRequests.value });
+}
+
+/** Booked calls whose family hasn't been taken out since — the booked calls still to make — and their facts. */
+export async function bookedCallsToMake(
+  bookings: readonly CallBooking[],
+  deps: CallsDeps,
+): Promise<CallsResult<{ readonly calls: readonly CallBooking[]; readonly facts: FamilyFacts }>> {
+  const facts = await loadFamilyFacts([...new Set(bookings.map((b) => b.parentUserId))], deps);
+  if (!facts.ok) return facts;
+  return ok({ calls: bookings.filter((b) => !familyTakenOut(facts.value, b.parentUserId)), facts: facts.value });
 }
 
 /** The list, given `enabled_since` (already read). Internal: callers have checked the switch. */
