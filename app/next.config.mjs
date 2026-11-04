@@ -16,6 +16,8 @@ const nextConfig = {
     CALL_BOOKING_ENABLED: process.env.CALL_BOOKING_ENABLED ?? "",
     // Brief 02: cohorts in admin are off unless COHORTS_ENABLED is "true"; the admin navs read it.
     COHORTS_ENABLED: process.env.COHORTS_ENABLED ?? "",
+    // Brief 06: the nanny invoice generator is off unless NANNY_INVOICES_ENABLED is "true"; the nanny chrome and admin navs read it.
+    NANNY_INVOICES_ENABLED: process.env.NANNY_INVOICES_ENABLED ?? "",
   },
   typescript: {
     // strict: build fails on TS errors

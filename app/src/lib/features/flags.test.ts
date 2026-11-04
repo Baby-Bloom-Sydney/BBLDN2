@@ -4,6 +4,8 @@
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { shareLoopEnabled, isShareUnlocked, babysittingEnabled, callBookingEnabled, cohortsEnabled } from "./flags";
+// Brief 06 (BB-wave1-041126/06a-build): its own import line, so later briefs add theirs without a merge conflict.
+import { nannyInvoicesEnabled } from "./flags";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -129,5 +131,37 @@ describe("cohortsEnabled() — brief 02 (COHORTS_ENABLED)", () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "true");
     vi.stubEnv("COHORTS_ENABLED", "");
     expect(cohortsEnabled()).toBe(false);
+  });
+});
+
+describe("nannyInvoicesEnabled() — brief 06 (NANNY_INVOICES_ENABLED)", () => {
+  it.each([
+    ["unset", undefined],
+    ["empty", ""],
+    ["false", "false"],
+    ["TRUE (case matters)", "TRUE"],
+    ["1", "1"],
+    ["a typo", "ture"],
+  ])("off when %s", (_label, value) => {
+    vi.stubEnv("NANNY_INVOICES_ENABLED", value as string);
+    expect(nannyInvoicesEnabled()).toBe(false);
+  });
+
+  it("on only for the literal \"true\" (trimmed), read at call time", () => {
+    vi.stubEnv("NANNY_INVOICES_ENABLED", "");
+    expect(nannyInvoicesEnabled()).toBe(false);
+    vi.stubEnv("NANNY_INVOICES_ENABLED", " true\n");
+    expect(nannyInvoicesEnabled()).toBe(true);
+  });
+
+  it("is independent of the other switches", () => {
+    vi.stubEnv("COHORTS_ENABLED", "true");
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    vi.stubEnv("NANNY_INVOICES_ENABLED", "");
+    expect(nannyInvoicesEnabled()).toBe(false);
+    vi.stubEnv("NANNY_INVOICES_ENABLED", "true");
+    vi.stubEnv("COHORTS_ENABLED", "");
+    expect(cohortsEnabled()).toBe(false);
+    expect(nannyInvoicesEnabled()).toBe(true);
   });
 });
