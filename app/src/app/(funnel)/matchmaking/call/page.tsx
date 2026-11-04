@@ -1,5 +1,4 @@
 import { notFound, redirect } from "next/navigation";
-import { PARENT_COPY } from "@/lib/calls/copy";
 import { CALL_PAGE_PATH, safeNextPath } from "@/lib/calls/next-path";
 import { sessionCaller } from "@/lib/calls/parent-session";
 import { loadMyCallView } from "@/lib/calls/parent-state";
@@ -39,13 +38,6 @@ export default async function MatchmakingCallPage({ searchParams }: { searchPara
   if (caller.kind !== "parent") notFound();
   const view = await loadMyCallView(caller.parentId);
 
-  return (
-    <div className="mx-auto max-w-2xl space-y-6 px-4 py-6">
-      <header>
-        <h1 className="text-2xl font-bold text-slate-900">{PARENT_COPY.pageHeading}</h1>
-        <p className="mt-1 text-sm text-slate-600">{PARENT_COPY.pageIntro}</p>
-      </header>
-      <CallPageClient initial={view.ok ? view.value : { kind: "load_failed" }} nextHref={safeNextPath(searchParams.next)} />
-    </div>
-  );
+  // The slide draws its own funnel shell (W3): no app wrapper here.
+  return <CallPageClient initial={view.ok ? view.value : { kind: "load_failed" }} nextHref={safeNextPath(searchParams.next)} />;
 }

@@ -87,8 +87,9 @@ describe("MatchmakingCallPage — her view", () => {
     expect(clientProps(tree)).toMatchObject({ initial: { kind: "load_failed" }, nextHref: "/parent" });
   });
 
-  it("the heading names the Complimentary matchmaker call", async () => {
-    const tree = await MatchmakingCallPage({ searchParams: {} });
-    expect(JSON.stringify(tree)).toContain("Your Complimentary matchmaker call");
+  it("renders the slide alone — no app wrapper or header of its own (W3: the client draws the funnel shell)", async () => {
+    const tree = (await MatchmakingCallPage({ searchParams: {} })) as { props: Record<string, unknown> };
+    expect(tree.props).toHaveProperty("initial");
+    expect(JSON.stringify(tree)).not.toContain("max-w-2xl");
   });
 });

@@ -42,6 +42,15 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
+describe("the funnel slide (04b rework W3)", () => {
+  it("picking: the funnel shell — the full progress bar, the heading and subtitle, the picker at the bottom", () => {
+    page(PICK);
+    expect(screen.getByTestId("funnel-progress")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Your Complimentary matchmaker call" })).toBeInTheDocument();
+    expect(screen.getByText("Pick a time and we'll call you then. All times are London time.")).toBeInTheDocument();
+  });
+});
+
 describe("the seven states", () => {
   it("times shown: the picker, and Go to my matches → next", () => {
     page(PICK);

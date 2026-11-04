@@ -1,22 +1,36 @@
 "use client";
 
 /**
- * `/parent/call`, the client (brief 04 §3 parent 2–4; plan B6). Seven states: loading (a skeleton), times shown,
- * held, booked, after a no-answer, no times, load failed — and "Go to my matches", always, to the checked `next`.
- * Every line arrives preformatted from the server; nothing here formats a time. Actions: `./actions.ts`.
+ * The call slide, the client (`/matchmaking/call`; brief 04 §0a.1, §3 parent 2–4; plan B6; 04b rework W3). Drawn in
+ * the funnel's own shell (`FunnelSlide`). Seven states: loading (a skeleton), times shown, held, booked, after a
+ * no-answer, no times, load failed — and onward, always, to the checked `next`. Every line arrives preformatted from
+ * the server; nothing here formats a time. Actions: `./actions.ts`.
  *
- * BB-wave1-041126/04b-build, 2026-11-04.
+ * BB-wave1-041126/04b-build, 2026-11-04; BB-wave1-041126/04b-rework, 2026-11-05.
  */
 
 import Link from "next/link";
 import { useState } from "react";
 import { BookedCall } from "@/components/calls/BookedCall";
-import { SlotPicker, type SlotPickerActions } from "@/components/calls/SlotPicker";
+import { FunnelSlide } from "@/components/calls/FunnelSlide";
+import {
+  SlotPicker,
+  type SlotPickerActions,
+} from "@/components/calls/SlotPicker";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { doneLine, PARENT_COPY } from "@/lib/calls/copy";
-import type { ConfirmedCallView, MyCallResult, MyCallView } from "@/lib/calls/parent-view";
-import { cancelMyCall, confirmMyCallHold, holdMyCallSlot, reloadMyCallSlots } from "./actions";
+import type {
+  ConfirmedCallView,
+  MyCallResult,
+  MyCallView,
+} from "@/lib/calls/parent-view";
+import {
+  cancelMyCall,
+  confirmMyCallHold,
+  holdMyCallSlot,
+  reloadMyCallSlots,
+} from "./actions";
 
 export interface CallPageClientProps {
   readonly initial: MyCallView;
@@ -24,7 +38,9 @@ export interface CallPageClientProps {
 }
 
 /** A throw or a rejection is a refusal (review F1): never an unhandled rejection, never stuck pending. */
-async function attempt<T>(run: () => Promise<MyCallResult<T>>): Promise<MyCallResult<T>> {
+async function attempt<T>(
+  run: () => Promise<MyCallResult<T>>,
+): Promise<MyCallResult<T>> {
   try {
     return await run();
   } catch {
@@ -74,14 +90,32 @@ function useCallPage(initial: MyCallView) {
     await whilePending(refresh);
   };
   const cancel = async (bookingId: string) => {
-    const result = await whilePending(() => attempt(() => cancelMyCall(bookingId)));
-    if (!result.ok) return setCancelMessage(result.error === "rate_limited" ? PARENT_COPY.rateLimited : PARENT_COPY.notSet);
+    const result = await whilePending(() =>
+      attempt(() => cancelMyCall(bookingId)),
+    );
+    if (!result.ok)
+      return setCancelMessage(
+        result.error === "rate_limited"
+          ? PARENT_COPY.rateLimited
+          : PARENT_COPY.notSet,
+      );
     setCancelMessage(null);
     setChanging(false);
     setView(result.value);
     setStatus(PARENT_COPY.cancelledStatus);
   };
-  return { view, changing, pending, status, cancelMessage, actions, onConfirmed, startChange, cancel, keepTime: () => setChanging(false) };
+  return {
+    view,
+    changing,
+    pending,
+    status,
+    cancelMessage,
+    actions,
+    onConfirmed,
+    startChange,
+    cancel,
+    keepTime: () => setChanging(false),
+  };
 }
 
 export function CallPageClient({ initial, nextHref }: CallPageClientProps) {
@@ -91,30 +125,47 @@ export function CallPageClient({ initial, nextHref }: CallPageClientProps) {
   const picking = view.kind !== "booked" || page.changing;
 
   return (
-    <div className="space-y-6">
-      <p role="status" className="sr-only">
-        {page.status}
-      </p>
-      {view.kind === "booked" && (
-        <BookedCall
-          booking={view.booking}
-          busy={page.pending}
-          message={page.cancelMessage}
-          changing={page.changing}
-          onChange={page.startChange}
-          onCancel={() => page.cancel(view.booking.bookingId)}
-        />
-      )}
-      {view.kind === "pick" && view.afterNoAnswer && (
-        <p className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm font-medium text-violet-900">{PARENT_COPY.afterNoAnswer}</p>
-      )}
-      {picking && page.pending && <Skeleton data-testid="call-page-loading" className="h-40 w-full motion-reduce:animate-none" />}
-      {picking && !page.pending && (
-        <SlotPicker days={days} actions={page.actions} onConfirmed={page.onConfirmed} onKeepTime={view.kind === "booked" ? page.keepTime : undefined} />
-      )}
-      <Button asChild variant="outline">
-        <Link href={nextHref}>{PARENT_COPY.goToMatches}</Link>
-      </Button>
-    </div>
+    <FunnelSlide
+      heading={PARENT_COPY.pageHeading}
+      subtitle={PARENT_COPY.pageIntro}
+    >
+      <div className="space-y-6">
+        <p role="status" className="sr-only">
+          {page.status}
+        </p>
+        {view.kind === "booked" && (
+          <BookedCall
+            booking={view.booking}
+            busy={page.pending}
+            message={page.cancelMessage}
+            changing={page.changing}
+            onChange={page.startChange}
+            onCancel={() => page.cancel(view.booking.bookingId)}
+          />
+        )}
+        {view.kind === "pick" && view.afterNoAnswer && (
+          <p className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm font-medium text-violet-900">
+            {PARENT_COPY.afterNoAnswer}
+          </p>
+        )}
+        {picking && page.pending && (
+          <Skeleton
+            data-testid="call-page-loading"
+            className="h-40 w-full motion-reduce:animate-none"
+          />
+        )}
+        {picking && !page.pending && (
+          <SlotPicker
+            days={days}
+            actions={page.actions}
+            onConfirmed={page.onConfirmed}
+            onKeepTime={view.kind === "booked" ? page.keepTime : undefined}
+          />
+        )}
+        <Button asChild variant="outline">
+          <Link href={nextHref}>{PARENT_COPY.goToMatches}</Link>
+        </Button>
+      </div>
+    </FunnelSlide>
   );
 }
