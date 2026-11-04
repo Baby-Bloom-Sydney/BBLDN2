@@ -342,3 +342,29 @@ describe("ParentHubClient — babysitting tab while BABYSITTING_ENABLED is off (
     expect(screen.getByText("Find Babysitter")).toBeInTheDocument();
   });
 });
+
+// ── Brief 04b (review F4): the call card slot, right after the no-position banner. Add-only. ──
+describe("the call card slot (brief 04b)", () => {
+  const follows = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+  it("no position: the banner, then the card, then the hub", () => {
+    const { container } = render(<ParentHubClient position={null} callCard={<p data-testid="call-card">CARD</p>} />);
+    const banner = screen.getByRole("region", { name: "Position incomplete notice" });
+    const card = screen.getByTestId("call-card");
+    const hero = container.querySelector(".rounded-2xl");
+    expect(hero).not.toBeNull();
+    expect(follows(banner, card)).toBe(true);
+    expect(follows(card, hero as Node)).toBe(true);
+  });
+
+  it("with a position (no banner): the card comes first", () => {
+    const { container } = render(<ParentHubClient position={POSITION} callCard={<p data-testid="call-card">CARD</p>} />);
+    expect(container.firstElementChild).toBe(screen.getByTestId("call-card"));
+  });
+
+  it("no card: nothing extra — the banner is still the first thing", () => {
+    const { container } = render(<ParentHubClient position={null} />);
+    expect(screen.queryByTestId("call-card")).toBeNull();
+    expect(container.firstElementChild).toBe(screen.getByRole("region", { name: "Position incomplete notice" }));
+  });
+});

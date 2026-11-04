@@ -143,6 +143,11 @@ interface ParentHubClientProps {
   initialView?: string;
   educationChildren?: ChildClient[];
   pendingInvites?: PendingInviteCard[];
+  /**
+   * Brief 04 (B7, review F4): the Complimentary matchmaker call card, rendered right after the no-position banner
+   * (which sits flush under the header). Absent while CALL_BOOKING_ENABLED is off, or with no card.
+   */
+  callCard?: React.ReactNode;
 }
 
 function bsrFormatSlotDate(dateStr: string): string {
@@ -302,6 +307,7 @@ export function ParentHubClient({
   initialView,
   educationChildren = [],
   pendingInvites = [],
+  callCard,
 }: ParentHubClientProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -790,6 +796,9 @@ export function ParentHubClient({
           </div>
         </aside>
       )}
+
+      {/* Brief 04 (B7): the call card, under the banner and above the hub. */}
+      {callCard}
 
       {/* ═══════════════════════════════════════════════════
           HERO CARD — profile + "My Childcare" accordion

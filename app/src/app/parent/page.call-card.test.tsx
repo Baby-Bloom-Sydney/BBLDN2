@@ -4,7 +4,7 @@
  * not edited); no card → today's markup.
  */
 import { render } from "@testing-library/react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({ card: vi.fn() }));
@@ -25,7 +25,9 @@ vi.mock("@/lib/supabase/admin", () => {
   chain.order = async () => empty;
   return { createAdminClient: () => ({ from: () => chain }) };
 });
-vi.mock("./ParentHubClient", () => ({ ParentHubClient: () => <div data-testid="hub" /> }));
+vi.mock("./ParentHubClient", () => ({
+  ParentHubClient: ({ callCard }: { callCard?: ReactNode }) => <div data-testid="hub">{callCard}</div>,
+}));
 vi.mock("@/lib/calls/parent-state", () => ({ loadHubCallCard: h.card }));
 
 import ParentHubPage from "./page";
@@ -50,18 +52,28 @@ describe("/parent and the call card", () => {
     expect(h.card).not.toHaveBeenCalled();
   });
 
-  it("flag off → the element tree is today's too: ParentHubClient is the wrapper's only child", async () => {
+  it("flag off → the element tree is today's too: ParentHubClient is the wrapper's only child, with no callCard prop", async () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "");
-    const out = (await ParentHubPage({ searchParams: {} })) as ReactElement<{ children: ReactElement<{ babysittingRequests: unknown }> }>;
+    const out = (await ParentHubPage({ searchParams: {} })) as ReactElement<{ children: ReactElement<Record<string, unknown>> }>;
     expect(out.props.children.props.babysittingRequests).toEqual([]);
+    expect("callCard" in out.props.children.props).toBe(false);
   });
 
-  it("flag on → her card, for her session id, above ParentHubClient", async () => {
+  it("flag on, no card → no callCard prop either", async () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    h.card.mockResolvedValueOnce(null);
+    const out = (await ParentHubPage({ searchParams: {} })) as ReactElement<{ children: ReactElement<Record<string, unknown>> }>;
+    expect("callCard" in out.props.children.props).toBe(false);
+  });
+
+  it("flag on → her card, for her session id, handed to ParentHubClient's call-card slot (review F4)", async () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "true");
     const html = await markup();
     expect(h.card).toHaveBeenCalledWith("u-1");
+    expect(html).toContain('<div data-testid="hub"><div');
     expect(html).toContain("Pick a time for your Complimentary matchmaker call");
-    expect(html.indexOf("Pick a time")).toBeLessThan(html.indexOf('data-testid="hub"'));
+    const out = (await ParentHubPage({ searchParams: {} })) as ReactElement<{ children: ReactElement<Record<string, unknown>> }>;
+    expect(out.props.children.props.callCard).toBeDefined();
   });
 
   it("flag on, no card → today's markup", async () => {

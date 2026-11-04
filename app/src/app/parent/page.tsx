@@ -101,36 +101,26 @@ export default async function ParentHubPage({
     );
   }
 
-  const hub = (
-    <ParentHubClient
-      position={position}
-      placement={placement}
-      confirmedNannies={confirmedNannies}
-      showFillButton={!!showFillButton}
-      upcomingIntros={upcomingIntros}
-      dfyTier={dfyTier}
-      dfyExpiresAt={dfyExpiresAt}
-      dfyActivated={dfyActivated}
-      babysittingRequests={babysittingRequests}
-      initialTab={searchParams.t}
-      initialSub={searchParams.s}
-      initialView={searchParams.v}
-      educationChildren={(educationChildrenRes.data ?? []) as ChildClient[]}
-      pendingInvites={pendingInvitesResult.data ?? []}
-    />
-  );
-
-  // Brief 04 (B7): with no call card (always, while CALL_BOOKING_ENABLED is off) the tree is exactly today's.
   return (
     <div className="mx-auto max-w-2xl space-y-3">
-      {callCard === null ? (
-        hub
-      ) : (
-        <>
-          <CallHubCard card={callCard} />
-          {hub}
-        </>
-      )}
+      <ParentHubClient
+        position={position}
+        placement={placement}
+        confirmedNannies={confirmedNannies}
+        showFillButton={!!showFillButton}
+        upcomingIntros={upcomingIntros}
+        dfyTier={dfyTier}
+        dfyExpiresAt={dfyExpiresAt}
+        dfyActivated={dfyActivated}
+        babysittingRequests={babysittingRequests}
+        initialTab={searchParams.t}
+        initialSub={searchParams.s}
+        initialView={searchParams.v}
+        educationChildren={(educationChildrenRes.data ?? []) as ChildClient[]}
+        pendingInvites={pendingInvitesResult.data ?? []}
+        // Brief 04 (B7): only with a card — while CALL_BOOKING_ENABLED is off the props are exactly today's.
+        {...(callCard === null ? {} : { callCard: <CallHubCard card={callCard} /> })}
+      />
     </div>
   );
 }
