@@ -13,6 +13,7 @@ import { funnelLog } from "@/lib/position/logger";
 import { createInboxMessage } from "./connection-helpers";
 import { autofireMatchmaking } from "./autofire-matchmaking";
 import { isUkMobile, normaliseUkMobile } from "@/lib/uk-contact";
+import { redirectAfterPosition } from "@/lib/calls/after-position";
 
 export interface Position {
   id: string;
@@ -338,7 +339,7 @@ import {
 
 export async function saveTypeformPosition(
   formData: Partial<TypeformFormData>,
-): Promise<{ success: boolean; error: string | null; positionId?: string }> {
+): Promise<{ success: boolean; error: string | null; positionId?: string; redirectTo?: string }> {
   const supabase = createClient();
 
   const parentId = await getParentId();
@@ -543,7 +544,9 @@ export async function saveTypeformPosition(
     }
   }
 
-  return { success: true, error: null, positionId };
+  // Brief 04 §0a.3 (04b rework W8): where she goes next, decided here; it never throws, so never fails the save.
+  const redirectTo = await redirectAfterPosition(positionId);
+  return { success: true, error: null, positionId, ...(redirectTo === undefined ? {} : { redirectTo }) };
 }
 
 export async function closePosition(

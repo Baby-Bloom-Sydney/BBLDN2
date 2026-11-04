@@ -196,7 +196,8 @@ export function TypeformFlow() {
       hasSaved.current = true;
       saveTypeformPosition(formData).then((result) => {
         if (result.success) {
-          router.push("/parent");
+          // Brief 04 §0a.3 (04b rework W8): the server decides (the call popup over her Childcare tab, or today's).
+          router.push(result.redirectTo ?? "/parent");
         } else {
           setSubmitError(result.error);
         }

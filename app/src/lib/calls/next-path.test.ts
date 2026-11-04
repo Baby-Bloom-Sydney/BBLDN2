@@ -4,7 +4,7 @@
  * `/matchmaking/call` since the 04b rework W1) — anything else falls back to /parent. `callPagePath` builds the redirect.
  */
 import { describe, expect, it } from "vitest";
-import { CALL_PAGE_PATH, CHILDCARE_TAB, MATCHES_VIEW, PARENT_HOME, callPagePath, onwardFor, safeNextPath } from "./next-path";
+import { CALL_PAGE_PATH, CHILDCARE_TAB, MATCHES_VIEW, PARENT_HOME, callPagePath, callPopupPath, onwardFor, parseCallPopup, safeNextPath } from "./next-path";
 
 const MATCHES = "/parent?t=childcare&s=nannies&v=matches";
 
@@ -70,5 +70,22 @@ describe("onwardFor (04b rework W5: the one button onward, labelled by where it 
   it("names the two targets the sign-ups and the in-app flow use", () => {
     expect(MATCHES_VIEW).toBe(MATCHES);
     expect(CHILDCARE_TAB).toBe("/parent?t=childcare");
+  });
+});
+
+describe("the in-app call popup's path and param (W8, W12)", () => {
+  it("opens over her Childcare tab", () => {
+    expect(callPopupPath("open")).toBe("/parent?t=childcare&call=open");
+    expect(callPopupPath("booked")).toBe("/parent?t=childcare&call=booked");
+    expect(callPopupPath("gone")).toBe("/parent?t=childcare&call=gone");
+    expect(safeNextPath(callPopupPath("open"))).toBe(callPopupPath("open"));
+  });
+
+  it.each([["open"], ["booked"], ["gone"]])("'%s' is read", (mode) => {
+    expect(parseCallPopup(mode)).toBe(mode);
+  });
+
+  it.each([[undefined], [null], [""], ["OPEN"], ["change"], [["open", "booked"]]])("%s is ignored", (raw) => {
+    expect(parseCallPopup(raw as string | string[] | null | undefined)).toBeNull();
   });
 });

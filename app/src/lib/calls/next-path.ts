@@ -63,3 +63,17 @@ export function onwardFor(next: string): Onward {
   if (params.get("t") === "childcare") return { href: next, label: PARENT_COPY.goToChildcare };
   return { href: next, label: PARENT_COPY.goToDashboard };
 }
+
+/** What the in-app call popup opens with (04b rework W12): picking, "You're booked", or "that time has just gone". */
+export type CallPopupMode = "open" | "booked" | "gone";
+const POPUP_MODES: ReadonlySet<string> = new Set(["open", "booked", "gone"]);
+
+/** `/parent?t=childcare&call=<mode>` — her Childcare tab with the call popup open over it. */
+export function callPopupPath(mode: CallPopupMode): string {
+  return `${CHILDCARE_TAB}&call=${mode}`;
+}
+
+/** The hub's `call` param, checked: one of the three modes, else null (ignored). */
+export function parseCallPopup(raw: string | readonly string[] | null | undefined): CallPopupMode | null {
+  return typeof raw === "string" && POPUP_MODES.has(raw) ? (raw as CallPopupMode) : null;
+}
