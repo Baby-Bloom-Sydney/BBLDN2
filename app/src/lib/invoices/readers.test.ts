@@ -1,6 +1,7 @@
 /**
  * The readers brief 07 (and 08) use — plan 06 step 9, §7 as superseded by §12 R18/R21; brief §0.12, §8, §9.15.
- * Worked example: Hartley, w/c 8 Feb 2027 — INV-0001 30 h cancelled, INV-0003 28 h replaces it → 28 h from INV-0003.
+ * Worked example: Hartley, w/c 8 Feb 2027 — …-0001 30 h cancelled, …-0003 28 h replaces it → 28 h from …-0003
+ * (numbers BB-<name>-<YYMMDD>-<seq>, BAI 2026-11-04).
  * Admin proof first (the 04a lesson); switch off → null / []; a read failure throws InvoiceReadError; no reader
  * returns an email, a bank field, a PDF path or a link.
  *
@@ -31,7 +32,7 @@ const HARTLEY = u(11);
 const PLACEMENT = u(411);
 
 const row = (n: number, extra: Record<string, unknown>) => ({
-  id: u(9000 + n), invoice_seq: n, nanny_id: SOPHIE, nanny_name: "Sophie Taylor", parent_user_id: HARTLEY,
+  id: u(9000 + n), invoice_seq: n, invoice_number: `BB-SophieTaylor-270215-${String(n).padStart(4, "0")}`, nanny_id: SOPHIE, nanny_name: "Sophie Taylor", parent_user_id: HARTLEY,
   placement_id: PLACEMENT, kind: "regular_week", period_start: "2027-02-08", hours: 30, rate_pence: 1800, total_pence: 54000,
   status: "sent", pdf_path: `${SOPHIE}/${u(9000 + n)}.pdf`, sent_at: `2027-02-1${n}T09:00:00+00:00`, cancelled_at: null,
   cancel_reason: null, replaces_invoice_id: null, family_email: "admin+b06-11@babybloomnannies.co.uk", account_last4: "4321",
@@ -73,20 +74,20 @@ afterEach(() => {
 });
 
 describe("getPlacementWeekHours — sets 07's first-week hours", () => {
-  it("the worked example: 28 h from INV-0003; the cancelled INV-0001 (30 h) never counts", async () => {
+  it("the worked example: 28 h from …-0003; the cancelled …-0001 (30 h) never counts", async () => {
     expect(await getPlacementWeekHours(admin, PLACEMENT, "2027-02-08")).toEqual({
       hours: 28,
       invoiceId: u(9003),
-      number: "INV-0003",
-      invoices: [{ invoiceId: u(9003), number: "INV-0003", nannyName: "Sophie Taylor", hours: 28 }],
+      number: "BB-SophieTaylor-270215-0003",
+      invoices: [{ invoiceId: u(9003), number: "BB-SophieTaylor-270215-0003", nannyName: "Sophie Taylor", hours: 28 }],
     });
   });
 
   it("adds two live invoices for the same week together (brief §11 Q9) and names the latest", async () => {
     f.reads.nanny_invoices = table([INV3, row(6, { hours: 4.5, total_pence: 8100 })]);
     const week = await getPlacementWeekHours(admin, PLACEMENT, "2027-02-08");
-    expect(week).toMatchObject({ hours: 32.5, number: "INV-0006" });
-    expect(week?.invoices.map((i) => i.number)).toEqual(["INV-0003", "INV-0006"]);
+    expect(week).toMatchObject({ hours: 32.5, number: "BB-SophieTaylor-270215-0006" });
+    expect(week?.invoices.map((i) => i.number)).toEqual(["BB-SophieTaylor-270215-0003", "BB-SophieTaylor-270215-0006"]);
   });
 
   it("is null when the week has no live Regular-week invoice (failed, sending, Trial Shift and cancelled are ignored)", async () => {
@@ -128,22 +129,22 @@ describe("listFamilyInvoices", () => {
   it("lists what went out to the family, newest first, with the correction links", async () => {
     const list = await listFamilyInvoices(admin, HARTLEY);
     expect(list.map((i) => [i.number, i.status, i.replacesNumber, i.replacedByNumber])).toEqual([
-      ["INV-0003", "sent", "INV-0001", null],
-      ["INV-0001", "cancelled", null, "INV-0003"],
+      ["BB-SophieTaylor-270215-0003", "sent", "BB-SophieTaylor-270215-0001", null],
+      ["BB-SophieTaylor-270215-0001", "cancelled", null, "BB-SophieTaylor-270215-0003"],
     ]);
     expect(list[1]).toEqual({
-      invoiceId: u(9001), number: "INV-0001", nannyId: SOPHIE, nannyName: "Sophie Taylor", kind: "regular_week",
+      invoiceId: u(9001), number: "BB-SophieTaylor-270215-0001", nannyId: SOPHIE, nannyName: "Sophie Taylor", kind: "regular_week",
       periodStart: "2027-02-08", hours: 30, ratePence: 1800, totalPence: 54000, status: "cancelled",
       sentAt: "2027-02-11T09:00:00.000Z", cancelledAt: "2027-02-15T12:00:00.000Z", cancelReason: "wrong_hours",
-      replacesNumber: null, replacedByNumber: "INV-0003",
+      replacesNumber: null, replacedByNumber: "BB-SophieTaylor-270215-0003",
     });
     expect(JSON.stringify(list)).not.toMatch(/@|4321|\.pdf|pdf_path|account/);
   });
 
-  it("tells two nannies' INV-0001s apart by nanny", async () => {
-    f.reads.nanny_invoices = table([INV3, row(1, { id: u(9101), nanny_id: LUCJA, nanny_name: "Łucja Wiśniewska" })]);
+  it("each nanny's numbering is her own (her name is in the number)", async () => {
+    f.reads.nanny_invoices = table([INV3, row(1, { id: u(9101), nanny_id: LUCJA, nanny_name: "Łucja Wiśniewska", invoice_number: "BB-LucjaWisniewska-270215-0001" })]);
     const list = await listFamilyInvoices(admin, HARTLEY);
-    expect(list.map((i) => `${i.nannyName} ${i.number}`)).toEqual(["Sophie Taylor INV-0003", "Łucja Wiśniewska INV-0001"]);
+    expect(list.map((i) => `${i.nannyName} ${i.number}`)).toEqual(["Sophie Taylor BB-SophieTaylor-270215-0003", "Łucja Wiśniewska BB-LucjaWisniewska-270215-0001"]);
   });
 
   it("switch off → [] (R18); a failed read throws; no proof throws", async () => {

@@ -19,14 +19,13 @@ import { NO_PENCE } from "@/config/invoices";
 import { isAdminProof, type AdminProof } from "@/lib/calls/admin-proof";
 import { nannyInvoicesEnabled } from "@/lib/features/flags";
 import { formatHours, formatInvoiceMoney } from "./money";
-import { invoiceNumber } from "./numbering";
 import { readFamilyRows, readPlacementWeekRows, type FamilyRow } from "./store";
 import { InvoiceReadError, type CancelReason, type InvoiceKind, type InvoiceResult, type IssuedStatus } from "./types";
 import { isLondonMonday } from "./week";
 
 export interface WeekHoursInvoice {
   readonly invoiceId: string;
-  readonly number: string; // "INV-0003"
+  readonly number: string; // "BB-SophieTaylor-270215-0003", as stored at insert
   readonly nannyName: string;
   readonly hours: number; // 0.5 steps
 }
@@ -88,23 +87,23 @@ export async function getPlacementWeekHours(proof: AdminProof, placementId: stri
   if (!isLondonMonday(weekStart)) throw new TypeError("weekStart must be a London Monday (londonWeekStart)");
   const rows = rowsOf("placement week hours", await readPlacementWeekRows(proof, placementId, weekStart));
   if (rows.length === 0) return null;
-  const invoices = rows.map((r): WeekHoursInvoice => ({ invoiceId: r.invoiceId, number: invoiceNumber(r.seq), nannyName: r.nannyName, hours: r.hours }));
+  const invoices = rows.map((r): WeekHoursInvoice => ({ invoiceId: r.invoiceId, number: r.number, nannyName: r.nannyName, hours: r.hours }));
   const latest = rows.reduce((a, b) => (b.seq > a.seq ? b : a));
   return {
     hours: rows.reduce((sum, r) => sum + r.hours, 0),
     invoiceId: latest.invoiceId,
-    number: invoiceNumber(latest.seq),
+    number: latest.number,
     invoices,
   };
 }
 
 function toFamilyInvoices(rows: readonly FamilyRow[]): FamilyInvoice[] {
-  const numberOf = new Map(rows.map((r) => [r.invoiceId, invoiceNumber(r.seq)]));
-  const replacedBy = new Map(rows.flatMap((r) => (r.replacesInvoiceId ? [[r.replacesInvoiceId, invoiceNumber(r.seq)] as const] : [])));
+  const numberOf = new Map(rows.map((r) => [r.invoiceId, r.number]));
+  const replacedBy = new Map(rows.flatMap((r) => (r.replacesInvoiceId ? [[r.replacesInvoiceId, r.number] as const] : [])));
   return rows
     .map((r): FamilyInvoice => ({
       invoiceId: r.invoiceId,
-      number: invoiceNumber(r.seq),
+      number: r.number,
       nannyId: r.nannyId,
       nannyName: r.nannyName,
       kind: r.kind,

@@ -31,14 +31,14 @@ describe("renderInvoicePdf", () => {
     const { bytes, text, pages } = await rendered(HARTLEY_INVOICE);
     expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
     expect(pages).toBe(1);
-    for (const s of ["INVOICE", "INV-0001", "Issued 15 Feb 2027", "Olivia Hartley", "Childcare, week of 8–14 Feb 2027", "£540.00", "11-22-33", "87654321", "Generated with BabyBloom"]) {
+    for (const s of ["INVOICE", "BB-SophieTaylor-270215-0001", "Issued 15 Feb 2027", "Olivia Hartley", "Childcare, week of 8–14 Feb 2027", "£540.00", "11-22-33", "87654321", "Generated with BabyBloom"]) {
       expect(text).toContain(s);
     }
   }, 30_000);
 
   it("prints names with accents exactly, in the Unicode font (R7)", async () => {
     const { text } = await rendered(CORRECTION_INVOICE);
-    for (const name of ["Łucja Wiśniewska", "Zoë Ó Briain Childcare", "Kateřina Dvořák", "Replaces INV-0001", "£504.00"]) {
+    for (const name of ["Łucja Wiśniewska", "Zoë Ó Briain Childcare", "Kateřina Dvořák", "BB-LucjaWisniewska-270215-0003", "Replaces BB-LucjaWisniewska-270212-0001", "£504.00"]) {
       expect(text).toContain(name);
     }
   }, 30_000);

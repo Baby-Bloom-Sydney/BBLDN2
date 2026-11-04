@@ -14,8 +14,11 @@ export const INVOICE_RULES = Object.freeze({
   dailySendCap: 10, // brief §11 Q11: invoices one nanny can send in a London day (anti-spam)
   ratePence: Object.freeze({ min: 1_500, max: 3_000 } as const), // brief §11 Q5: HOURLY_RATE_BOUNDS × 100
   pdfLinkSeconds: 60, // plan §9 surface 6: a signed PDF link lives this long
-  numberPrefix: "INV-", // brief §11 Q4
-  numberPad: 4, // brief §11 Q4: INV-0001
+  numberPrefix: "BB", // BAI 2026-11-04: BB-<NannyName>-<YYMMDD>-<Number>, e.g. BB-SophieTaylor-270215-0001
+  numberPad: 4, // brief §11 Q4: her own running count, 0001 up
+  numberNameMax: 30, // BAI 2026-11-04: letters of her name in the number
+  numberNameFallback: "Nanny", // BAI 2026-11-04: when no letter is left
+  numberMaxLength: 52, // amendment 21's CHECK on nanny_invoices.invoice_number
   staleSendingMinutes: 10, // plan R1: a row still sending after this long shows as failed
   text: Object.freeze({ accountNameMax: 70, tradingNameMax: 70, addressMax: 200 } as const), // plan §4, §9 surface 5
 } as const);

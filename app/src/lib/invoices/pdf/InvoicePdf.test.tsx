@@ -27,7 +27,7 @@ describe("InvoicePdf", () => {
 
   it("is an invoice from the nanny: number, issue date, her name and address", () => {
     expect(text).toContain("INVOICE");
-    expect(text).toContain("INV-0001");
+    expect(text).toContain("BB-SophieTaylor-270215-0001");
     expect(text).toContain("Issued 15 Feb 2027");
     expect(text).toContain("Sophie Taylor");
     expect(text).toContain("1 Upper Street\nLondon N1 0AA");
@@ -60,9 +60,10 @@ describe("InvoicePdf", () => {
     expect(text).not.toContain("Replaces");
   });
 
-  it("a correction prints 'Replaces INV-0001' and her trading name above her name", () => {
+  it("a correction prints its own number, 'Replaces <number>' and her trading name above her name", () => {
     const correction = linesOf(InvoicePdf(CORRECTION_INVOICE));
-    expect(correction).toContain("Replaces INV-0001");
+    expect(correction).toContain("BB-LucjaWisniewska-270215-0003");
+    expect(correction).toContain("Replaces BB-LucjaWisniewska-270212-0001");
     expect(correction).toContain("Zoë Ó Briain Childcare");
     expect(correction).toContain("Łucja Wiśniewska");
     expect(correction.indexOf("Zoë Ó Briain Childcare")).toBeLessThan(correction.indexOf("Łucja Wiśniewska"));

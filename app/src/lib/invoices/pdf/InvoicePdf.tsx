@@ -44,7 +44,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 },
   title: { fontSize: 24, letterSpacing: 2, color: COLOUR.text },
   numberBox: { backgroundColor: COLOUR.violetTint, padding: 10, borderRadius: 6, alignItems: "flex-end" },
-  number: { fontSize: 15, color: COLOUR.violet },
+  number: { fontSize: 12, color: COLOUR.violet }, // BB-<name>-<YYMMDD>-<seq> runs to 52 characters
   muted: { color: COLOUR.muted, marginTop: 2 },
   replaces: { color: COLOUR.violet, marginTop: 4 },
   parties: { flexDirection: "row", marginBottom: 24 },
@@ -101,7 +101,7 @@ export function InvoicePdf(data: InvoicePdfData): ReactElement<DocumentProps> {
         <View style={styles.header}>
           <Text style={styles.title}>INVOICE</Text>
           <View style={styles.numberBox}>
-            <Text style={styles.number}>{data.number}</Text>
+            <Text style={styles.number} hyphenationCallback={keepWhole}>{data.number}</Text>
             <Text style={styles.muted}>{`Issued ${issueDateLabel(data.issuedAt)}`}</Text>
             {data.replacesNumber ? <Text style={styles.replaces}>{`Replaces ${data.replacesNumber}`}</Text> : null}
           </View>

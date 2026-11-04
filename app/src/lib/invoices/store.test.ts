@@ -54,11 +54,11 @@ const DRAFT = {
   replacesInvoiceId: null,
 };
 const CREATED = {
-  status: "created", invoice_id: INVOICE, invoice_seq: 1, invoice_status: "sending", kind: "regular_week",
+  status: "created", invoice_id: INVOICE, invoice_seq: 1, invoice_number: "BB-SophieTaylor-270215-0001", invoice_status: "sending", kind: "regular_week",
   placement_id: PLACEMENT, connection_request_id: null, period_start: "2027-02-08", hours: 30, rate_pence: 1800,
   total_pence: 54000, parent_user_id: PARENT_USER, family_name: "Olivia Hartley", family_email: "admin+b06-11@babybloomnannies.co.uk",
   nanny_name: "Sophie Taylor", nanny_email: "admin+b06-1@babybloomnannies.co.uk", account_last4: "4321",
-  pdf_path: `${NANNY_ID}/${INVOICE}.pdf`, replaces_invoice_id: null, replaces_seq: null, created_at: "2027-02-15T10:00:00.123456+00:00",
+  pdf_path: `${NANNY_ID}/${INVOICE}.pdf`, replaces_invoice_id: null, replaces_number: null, created_at: "2027-02-15T10:00:00.123456+00:00",
 };
 
 let f: FakeAdmin;
@@ -250,7 +250,7 @@ describe("createInvoice", () => {
     expect(r).toEqual({
       ok: true,
       value: {
-        invoiceId: INVOICE, seq: 1, number: "INV-0001", status: "sending", kind: "regular_week",
+        invoiceId: INVOICE, seq: 1, number: "BB-SophieTaylor-270215-0001", status: "sending", kind: "regular_week",
         placementId: PLACEMENT, connectionRequestId: null, periodStart: "2027-02-08", hours: 30, ratePence: 1800,
         totalPence: 54000, parentUserId: PARENT_USER, familyName: "Olivia Hartley", familyEmail: "admin+b06-11@babybloomnannies.co.uk",
         nannyName: "Sophie Taylor", nannyEmail: "admin+b06-1@babybloomnannies.co.uk", accountLast4: "4321",
@@ -261,11 +261,12 @@ describe("createInvoice", () => {
 
   it("prints the replaced invoice's number for a correction", async () => {
     f.rpcResults.nanny_invoice_create = {
-      data: { ...CREATED, invoice_seq: 3, replaces_invoice_id: "b0600000-0000-4000-8000-000000009000", replaces_seq: 1, hours: "28.0", total_pence: 50400 },
+      data: { ...CREATED, invoice_seq: 3, invoice_number: "BB-SophieTaylor-270215-0003", replaces_invoice_id: "b0600000-0000-4000-8000-000000009000",
+        replaces_number: "BB-SophieTaylor-270212-0001", hours: "28.0", total_pence: 50400 },
       error: null,
     };
     const r = await createInvoice(nanny, { ...DRAFT, hours: 28, replacesInvoiceId: "b0600000-0000-4000-8000-000000009000" }, "4321", NOW);
-    expect(r.ok && [r.value.number, r.value.replacesNumber, r.value.hours]).toEqual(["INV-0003", "INV-0001", 28]);
+    expect(r.ok && [r.value.number, r.value.replacesNumber, r.value.hours]).toEqual(["BB-SophieTaylor-270215-0003", "BB-SophieTaylor-270212-0001", 28]);
   });
 
   it.each(["future", "not_hers", "no_trial", "wrong_date", "no_details", "bad_replaces", "already_replaced", "no_contact",
@@ -304,6 +305,8 @@ describe("createInvoice", () => {
     expect(await createInvoice(nanny, DRAFT, "4321", NOW)).toEqual({ ok: false, error: "error" });
     f.rpcResults.nanny_invoice_create = { data: { ...CREATED, invoice_seq: 0 }, error: null };
     expect(await createInvoice(nanny, DRAFT, "4321", NOW)).toEqual({ ok: false, error: "error" });
+    f.rpcResults.nanny_invoice_create = { data: { ...CREATED, invoice_number: "INV-0001" }, error: null };
+    expect(await createInvoice(nanny, DRAFT, "4321", NOW)).toEqual({ ok: false, error: "error" });
     f.rpcResults.nanny_invoice_create = { data: { ...CREATED, invoice_status: "sent" }, error: null };
     expect(await createInvoice(nanny, DRAFT, "4321", NOW)).toEqual({ ok: false, error: "error" });
     f.rpcResults.nanny_invoice_create = { data: null, error: { message: "Failing row contains (admin+b06-11@babybloomnannies.co.uk)", code: "XX000" } };
@@ -329,7 +332,7 @@ describe("finishInvoice", () => {
   });
 
   it("refuses a bad id or outcome before the database; a reply for another outcome is an error", async () => {
-    expect(await finishInvoice(nanny, "INV-0001", { kind: "failed" })).toEqual({ ok: false, error: "invalid" });
+    expect(await finishInvoice(nanny, "BB-SophieTaylor-270215-0001", { kind: "failed" })).toEqual({ ok: false, error: "invalid" });
     const bad = { kind: "sent", family: "bounced", nanny: "sent" } as unknown as Parameters<typeof finishInvoice>[2];
     expect(await finishInvoice(nanny, INVOICE, bad)).toEqual({ ok: false, error: "invalid" });
     expect(f.rpcCalls).toEqual([]);
@@ -365,12 +368,12 @@ describe("countTowardsDailyCap (the database's own count, for 06b to say so befo
 });
 
 describe("the readers' rows (an admin proof first; R1: what went out, with its PDF)", () => {
-  const weekRow = { id: INVOICE, invoice_seq: 3, nanny_id: NANNY_ID, nanny_name: "Sophie Taylor", hours: 28, status: "sent", pdf_path: "p", sent_at: "2027-02-15T10:00:01+00:00" };
+  const weekRow = { id: INVOICE, invoice_seq: 3, invoice_number: "BB-SophieTaylor-270215-0003", nanny_id: NANNY_ID, nanny_name: "Sophie Taylor", hours: 28, status: "sent", pdf_path: "p", sent_at: "2027-02-15T10:00:01+00:00" };
 
   it("a placement's week: sent regular weeks only, paged, mapped without the PDF path", async () => {
     f.reads.nanny_invoices = [weekRow, { ...weekRow, id: "x", status: "cancelled" }, { ...weekRow, id: "y", pdf_path: null }];
     const r = await readPlacementWeekRows(admin, PLACEMENT, "2027-02-08");
-    expect(r).toEqual({ ok: true, value: [{ invoiceId: INVOICE, seq: 3, nannyId: NANNY_ID, nannyName: "Sophie Taylor", hours: 28, sentAt: "2027-02-15T10:00:01.000Z" }] });
+    expect(r).toEqual({ ok: true, value: [{ invoiceId: INVOICE, seq: 3, number: "BB-SophieTaylor-270215-0003", nannyId: NANNY_ID, nannyName: "Sophie Taylor", hours: 28, sentAt: "2027-02-15T10:00:01.000Z" }] });
     expect(filtersOf("nanny_invoices")).toEqual([
       ["eq", "placement_id", PLACEMENT],
       ["eq", "period_start", "2027-02-08"],
@@ -394,7 +397,7 @@ describe("the readers' rows (an admin proof first; R1: what went out, with its P
 
   it("a family's invoices: sent and cancelled with a PDF, oldest first, no email or bank field", async () => {
     const row = {
-      id: INVOICE, invoice_seq: 1, nanny_id: NANNY_ID, nanny_name: "Sophie Taylor", kind: "regular_week", period_start: "2027-02-08",
+      id: INVOICE, invoice_seq: 1, invoice_number: "BB-SophieTaylor-270215-0001", nanny_id: NANNY_ID, nanny_name: "Sophie Taylor", kind: "regular_week", period_start: "2027-02-08",
       hours: 30, rate_pence: 1800, total_pence: 54000, status: "cancelled", pdf_path: "p", sent_at: "2027-02-15T10:00:00+00:00",
       cancelled_at: "2027-02-15T11:00:00+00:00", cancel_reason: "wrong_hours", replaces_invoice_id: null,
     };
@@ -403,7 +406,7 @@ describe("the readers' rows (an admin proof first; R1: what went out, with its P
     expect(r).toEqual({
       ok: true,
       value: [{
-        invoiceId: INVOICE, seq: 1, nannyId: NANNY_ID, nannyName: "Sophie Taylor", kind: "regular_week", periodStart: "2027-02-08",
+        invoiceId: INVOICE, seq: 1, number: "BB-SophieTaylor-270215-0001", nannyId: NANNY_ID, nannyName: "Sophie Taylor", kind: "regular_week", periodStart: "2027-02-08",
         hours: 30, ratePence: 1800, totalPence: 54000, status: "cancelled", sentAt: "2027-02-15T10:00:00.000Z",
         cancelledAt: "2027-02-15T11:00:00.000Z", cancelReason: "wrong_hours", replacesInvoiceId: null,
       }],

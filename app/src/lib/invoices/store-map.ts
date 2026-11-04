@@ -8,7 +8,7 @@
 
 import { z } from "zod";
 import type { DetailMasks } from "./masking";
-import { invoiceNumber } from "./numbering";
+import { isInvoiceNumber } from "./numbering";
 import { CANCEL_REASONS, INVOICE_KINDS, INVOICE_STATUSES, type CancelReason, type InvoiceKind, type InvoiceStatus } from "./types";
 import { isLondonDate } from "./week";
 
@@ -17,10 +17,10 @@ export const MASK_COLUMNS = "account_name, sort_code_last2, account_last4, tradi
 /** The PDF's read: the full numbers (brief D12: the PDF is the one place they appear). */
 export const FULL_COLUMNS = "account_name, sort_code, account_number, account_last4, trading_name, invoice_address";
 /** 07's week reader: no email, bank or PDF field leaves (pdf_path is read only to re-check R1). */
-export const WEEK_COLUMNS = "id, invoice_seq, nanny_id, nanny_name, hours, status, pdf_path, sent_at";
+export const WEEK_COLUMNS = "id, invoice_seq, invoice_number, nanny_id, nanny_name, hours, status, pdf_path, sent_at";
 /** The family readers: no email, bank or PDF field leaves. */
 export const FAMILY_COLUMNS =
-  "id, invoice_seq, nanny_id, nanny_name, kind, period_start, hours, rate_pence, total_pence, status, pdf_path, sent_at, cancelled_at, cancel_reason, replaces_invoice_id";
+  "id, invoice_seq, invoice_number, nanny_id, nanny_name, kind, period_start, hours, rate_pence, total_pence, status, pdf_path, sent_at, cancelled_at, cancel_reason, replaces_invoice_id";
 
 const id = z.string().min(1);
 const instant = z.string().refine((v) => !Number.isNaN(Date.parse(v))).transform((v) => new Date(v).toISOString());
@@ -29,6 +29,8 @@ const londonDate = z.string().refine(isLondonDate);
 const hours = z.union([z.number(), z.string()]).transform(Number).pipe(z.number().positive().finite());
 const pence = z.number().int();
 const seq = z.number().int().positive();
+/** BB-<name>-<YYMMDD>-<seq>, as the database stored it (BAI 2026-11-04). */
+const invoiceNumber = z.string().refine(isInvoiceNumber);
 const last2 = z.string().regex(/^\d{2}$/);
 const last4 = z.string().regex(/^\d{4}$/);
 
@@ -81,6 +83,7 @@ export interface CreatedInvoice {
 export interface WeekRow {
   readonly invoiceId: string;
   readonly seq: number;
+  readonly number: string;
   readonly nannyId: string;
   readonly nannyName: string;
   readonly hours: number;
@@ -90,6 +93,7 @@ export interface WeekRow {
 export interface FamilyRow {
   readonly invoiceId: string;
   readonly seq: number;
+  readonly number: string;
   readonly nannyId: string;
   readonly nannyName: string;
   readonly kind: InvoiceKind;
@@ -153,6 +157,7 @@ export const createdReply = z
     status: z.literal("created"),
     invoice_id: id,
     invoice_seq: seq,
+    invoice_number: invoiceNumber,
     invoice_status: z.literal("sending"), // a fresh create is always sending: anything else fails closed
     kind: z.enum(INVOICE_KINDS),
     placement_id: id.nullable(),
@@ -169,13 +174,13 @@ export const createdReply = z
     account_last4: last4,
     pdf_path: z.string().min(1),
     replaces_invoice_id: id.nullable(),
-    replaces_seq: seq.nullable(),
+    replaces_number: invoiceNumber.nullable(),
     created_at: instant,
   })
   .transform((r): CreatedInvoice => ({
     invoiceId: r.invoice_id,
     seq: r.invoice_seq,
-    number: invoiceNumber(r.invoice_seq),
+    number: r.invoice_number,
     status: r.invoice_status,
     kind: r.kind,
     placementId: r.placement_id,
@@ -192,7 +197,7 @@ export const createdReply = z
     accountLast4: r.account_last4,
     pdfPath: r.pdf_path,
     replacesInvoiceId: r.replaces_invoice_id,
-    replacesNumber: r.replaces_seq === null ? null : invoiceNumber(r.replaces_seq),
+    replacesNumber: r.replaces_number,
     createdAt: r.created_at,
   }));
 
@@ -210,6 +215,7 @@ export const finishedReply = z.object({ status: z.enum(["sent", "failed"]) });
 export const weekRow = z.object({
   id,
   invoice_seq: seq,
+  invoice_number: invoiceNumber,
   nanny_id: id,
   nanny_name: z.string(),
   hours,
@@ -224,6 +230,7 @@ export const capRow = z.object({ id, status: z.enum(INVOICE_STATUSES), created_a
 export const familyRow = z.object({
   id,
   invoice_seq: seq,
+  invoice_number: invoiceNumber,
   nanny_id: id,
   nanny_name: z.string(),
   kind: z.enum(INVOICE_KINDS),
@@ -242,6 +249,7 @@ export const familyRow = z.object({
 export const toWeekRow = (r: z.output<typeof weekRow>, sentAt: string): WeekRow => ({
   invoiceId: r.id,
   seq: r.invoice_seq,
+  number: r.invoice_number,
   nannyId: r.nanny_id,
   nannyName: r.nanny_name,
   hours: r.hours,
@@ -251,6 +259,7 @@ export const toWeekRow = (r: z.output<typeof weekRow>, sentAt: string): WeekRow 
 export const toFamilyRow = (r: z.output<typeof familyRow>, status: "sent" | "cancelled", sentAt: string): FamilyRow => ({
   invoiceId: r.id,
   seq: r.invoice_seq,
+  number: r.invoice_number,
   nannyId: r.nanny_id,
   nannyName: r.nanny_name,
   kind: r.kind,
