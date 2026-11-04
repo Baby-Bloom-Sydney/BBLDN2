@@ -42,7 +42,8 @@ const BASE_CARDS: readonly WhyCard[] = [
     description:
       "Resources and tools being built to support nannies on the platform — activity planning, developmental tracking, and more. Coming soon.",
     accent: "from-emerald-400 to-emerald-500",
-  },];
+  },
+];
 
 /** Today's order: the babysitting card sits third when it shows. */
 export function whyCards(): readonly WhyCard[] {

@@ -15,7 +15,11 @@ describe("faqJsonLd — babysitting hidden while off (brief 12 §0.3, §0.5)", (
 
   it("on: today's four questions, the babysitting one last", () => {
     vi.stubEnv("BABYSITTING_ENABLED", "true");
-    expect(questions()).toHaveLength(4);
-    expect(questions()[3]).toBe("Can I find a babysitter for a one-off job?");
+    expect(questions()).toEqual([
+      "How much does a nanny cost in London?",
+      "Are Baby Bloom nannies DBS checked?",
+      "How does the nanny matching process work?",
+      "Can I find a babysitter for a one-off job?",
+    ]);
   });
 });

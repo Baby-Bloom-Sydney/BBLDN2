@@ -17,8 +17,12 @@ describe("serviceJsonLd (brief 12 §0.2, §0.5)", () => {
 
   it("on: today's four offers and description", () => {
     vi.stubEnv("BABYSITTING_ENABLED", "true");
-    expect(offers()).toContain("Casual Babysitting");
-    expect(offers()).toHaveLength(4);
+    expect(offers()).toEqual([
+      "Permanent Nanny Matching",
+      "Part-Time Nanny Matching",
+      "Casual Babysitting",
+      "After-School Care",
+    ]);
     expect(serviceJsonLd().description).toMatch(/nannies and babysitters\.$/);
   });
 });

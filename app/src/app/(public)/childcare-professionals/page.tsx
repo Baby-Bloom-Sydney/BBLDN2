@@ -5,7 +5,6 @@ import {
   ArrowRight,
   ShieldCheck,
   Clock,
-  GraduationCap,
   Heart,
   FileText,
   BadgeCheck,
@@ -29,7 +28,6 @@ export const metadata: Metadata = {
     description: PRO_DESCRIPTION,
   },
 };
-
 
 const CHECKLIST = [
   "You understand that play is learning and structure builds confidence",

@@ -102,7 +102,6 @@ const websiteJsonLd = {
   url: SITE_URL,
 };
 
-
 export default async function HomePage() {
   const topNannies = await getTopNannies(3);
 
