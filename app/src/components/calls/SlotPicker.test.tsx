@@ -206,3 +206,51 @@ describe("SlotPicker — reuse (04c on-behalf, 03 pre-book)", () => {
     expect(new Set(headings).size).toBe(2);
   });
 });
+
+describe("SlotPicker — a rejected action never sticks (review F1, F2)", () => {
+  const boom = () => Promise.reject(new Error("network"));
+  const idle = () => {
+    expect(screen.getByRole("region")).toHaveAttribute("aria-busy", "false");
+    expect(screen.queryByTestId("slot-picker-loading")).not.toBeInTheDocument();
+  };
+
+  it("a rejecting hold: 'We couldn't do that — try again', the days enabled, nothing busy", async () => {
+    const user = userEvent.setup();
+    render(<SlotPicker days={DAYS} actions={actionsWith({ hold: vi.fn(boom) })} onConfirmed={vi.fn()} />);
+    await user.click(tue14());
+    await user.click(choose());
+    expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't do that — try again");
+    expect(tue14()).toBeEnabled();
+    idle();
+  });
+
+  it("a rejecting confirm: the message, back to the days, nothing busy", async () => {
+    const user = userEvent.setup();
+    render(<SlotPicker days={DAYS} actions={actionsWith({ confirm: vi.fn(boom) })} onConfirmed={vi.fn()} />);
+    await user.click(tue14());
+    await user.click(choose());
+    await user.click(await screen.findByRole("button", { name: "Confirm this time" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't do that — try again");
+    expect(tue14()).toBeEnabled();
+    idle();
+  });
+
+  it("a rejecting reload: no skeleton left, the load-failed line with Retry", async () => {
+    const user = userEvent.setup();
+    render(<SlotPicker days={[]} actions={actionsWith({ reload: vi.fn(boom) })} onConfirmed={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("We couldn't load the times — we'll still call you for your Complimentary matchmaker call")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
+    idle();
+  });
+
+  it("an invalid refusal (a stale list) refreshes the list too", async () => {
+    const user = userEvent.setup();
+    const actions = actionsWith({ hold: vi.fn(async () => ({ ok: false as const, error: "invalid" })) });
+    render(<SlotPicker days={DAYS} actions={actions} onConfirmed={vi.fn()} />);
+    await user.click(tue14());
+    await user.click(choose());
+    await screen.findByRole("alert");
+    expect(actions.reload).toHaveBeenCalled();
+  });
+});

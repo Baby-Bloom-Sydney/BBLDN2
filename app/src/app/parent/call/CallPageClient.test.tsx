@@ -176,3 +176,49 @@ describe("change and cancel", () => {
     expect(screen.queryByText("old line")).not.toBeInTheDocument();
   });
 });
+
+describe("a rejected or refused action never sticks (review F1, F2)", () => {
+  const boom = () => Promise.reject(new Error("network"));
+
+  it("Change time rejecting: no skeleton, the booking stays, the picker says the times couldn't load", async () => {
+    const user = userEvent.setup();
+    h.reload.mockImplementationOnce(boom);
+    page({ kind: "booked", booking: BOOKED, days: DAYS });
+    await user.click(screen.getByRole("button", { name: "Change time" }));
+    expect(await screen.findByText("We couldn't load the times — we'll still call you for your Complimentary matchmaker call")).toBeInTheDocument();
+    expect(screen.queryByTestId("call-page-loading")).not.toBeInTheDocument();
+    expect(screen.getByText(BOOKED.line)).toBeInTheDocument();
+  });
+
+  it("Change time refused: the same — the booking stays, the days are gone, Retry offered", async () => {
+    const user = userEvent.setup();
+    h.reload.mockResolvedValueOnce({ ok: false, error: "error" });
+    page({ kind: "booked", booking: BOOKED, days: DAYS });
+    await user.click(screen.getByRole("button", { name: "Change time" }));
+    expect(await screen.findByRole("button", { name: "Retry" })).toBeEnabled();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.getByText(BOOKED.line)).toBeInTheDocument();
+  });
+
+  it("a refused reload while picking: the load-failed line replaces the stale days", async () => {
+    const user = userEvent.setup();
+    h.hold.mockResolvedValueOnce({ ok: false, error: "taken" });
+    h.reload.mockResolvedValueOnce({ ok: false, error: "error" });
+    page(PICK);
+    await user.click(screen.getByRole("radio", { name: "Tuesday 9 February, 14:00 (London time)" }));
+    await user.click(screen.getByRole("button", { name: "Choose this time" }));
+    expect(await screen.findByText("We couldn't load the times — we'll still call you for your Complimentary matchmaker call")).toBeInTheDocument();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+  });
+
+  it("Cancel rejecting: the alert, the booking and its buttons stay, nothing pending", async () => {
+    const user = userEvent.setup();
+    h.cancel.mockImplementationOnce(boom);
+    page({ kind: "booked", booking: BOOKED, days: DAYS });
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Yes, cancel it" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't do that — try again");
+    expect(screen.getByRole("button", { name: "Change time" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
+  });
+});

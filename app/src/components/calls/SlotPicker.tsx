@@ -127,7 +127,10 @@ function DayGroup({ uid, day, selected, gone, disabled, onSelect }: DayGroupProp
 
 function HeldPanel({ hold, busy, onConfirm, onPickAnother }: { readonly hold: PickerHold; readonly busy: boolean; readonly onConfirm: () => void; readonly onPickAnother: () => void }) {
   const confirmRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => confirmRef.current?.focus(), []);
+  // Focus Confirm once it is enabled (the panel mounts while the hold is still settling).
+  useEffect(() => {
+    if (!busy) confirmRef.current?.focus();
+  }, [busy]);
   return (
     <div className="mt-6 rounded-xl border border-violet-200 bg-violet-50 p-5">
       <p role="status" className="text-sm font-medium text-violet-900">
@@ -166,6 +169,36 @@ function Empty({ line, busy, onRetry }: { readonly line: string; readonly busy: 
   );
 }
 
+/** A throw or a rejection is a refusal like any other (review F1): the picker never sticks busy or loading. */
+async function settled<T>(run: () => Promise<PickerResult<T>>): Promise<PickerResult<T>> {
+  try {
+    return await run();
+  } catch {
+    return { ok: false, error: "error" };
+  }
+}
+
+/** Refusals that mean the list is stale: refresh it (taken, run out, or off the grid — review F2). */
+const REFRESHES = new Set([...TAKEN, ...RAN_OUT, "invalid"]);
+
+/** The list's own state: loading, and a reload that failed (shown as load-failed with Retry, review F2). */
+function useListReload(reloadList: () => Promise<void>) {
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const reload = async () => {
+    setLoading(true);
+    try {
+      await reloadList();
+      setFailed(false);
+    } catch {
+      setFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+  return { loading, failed, reload };
+}
+
 /** Selection, hold, alert and reload state, and the three things a person can do. */
 function usePicker<T>({ days, actions, onConfirmed }: Pick<SlotPickerProps<T>, "days" | "actions" | "onConfirmed">) {
   const [selected, setSelected] = useState<string | null>(null);
@@ -173,41 +206,45 @@ function usePicker<T>({ days, actions, onConfirmed }: Pick<SlotPickerProps<T>, "
   const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set());
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const list = useListReload(() => actions.reload());
 
   const listed = days?.some((d) => d.slots.some((s) => s.startsAt === selected)) ?? false;
   const choice = listed && selected !== null && !gone.has(selected) ? selected : null;
 
-  const reload = async () => {
-    setLoading(true);
-    await actions.reload();
-    setLoading(false);
-  };
   const refuse = async (error: string, startsAt: string) => {
     if (TAKEN.has(error)) setGone((previous) => new Set([...previous, startsAt]));
     setHold(null);
     setSelected(null);
     setMessage(pickerMessage(error));
-    if (TAKEN.has(error) || RAN_OUT.has(error)) await reload();
+    if (REFRESHES.has(error)) await list.reload();
+  };
+  /** Busy while `step` runs, whatever it does. */
+  const whileBusy = async (step: () => Promise<void>) => {
+    setBusy(true);
+    try {
+      await step();
+    } finally {
+      setBusy(false);
+    }
   };
   const chooseTime = async () => {
     if (choice === null) return;
     setMessage(null);
-    setBusy(true);
-    const held = await actions.hold(choice);
-    setBusy(false);
-    if (held.ok) setHold(held.value);
-    else await refuse(held.error, choice);
+    await whileBusy(async () => {
+      const held = await settled(() => actions.hold(choice));
+      if (held.ok) setHold(held.value);
+      else await refuse(held.error, choice);
+    });
   };
   const confirmTime = async () => {
     if (hold === null) return;
-    setBusy(true);
-    const confirmed = await actions.confirm(hold);
-    setBusy(false);
-    if (confirmed.ok) onConfirmed(confirmed.value);
-    else await refuse(confirmed.error, hold.startsAt);
+    await whileBusy(async () => {
+      const confirmed = await settled(() => actions.confirm(hold));
+      if (confirmed.ok) onConfirmed(confirmed.value);
+      else await refuse(confirmed.error, hold.startsAt);
+    });
   };
-  return { choice, hold, gone, message, busy, loading, setSelected, setHold, reload, chooseTime, confirmTime };
+  return { choice, hold, gone, message, busy, loading: list.loading, reloadFailed: list.failed, setSelected, setHold, reload: list.reload, chooseTime, confirmTime };
 }
 
 type Picker = ReturnType<typeof usePicker>;
@@ -262,7 +299,7 @@ export function SlotPicker<T>({ days, actions, onConfirmed, onKeepTime, copy }: 
           {picker.message}
         </p>
       )}
-      <PickerBody uid={uid} picker={picker} days={days} words={words} />
+      <PickerBody uid={uid} picker={picker} days={picker.reloadFailed ? null : days} words={words} />
       {onKeepTime && (
         <Button type="button" variant="link" onClick={onKeepTime} className="mt-4 h-auto px-0 text-violet-700">
           {PARENT_COPY.keepTime}

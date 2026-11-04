@@ -15,12 +15,28 @@ import { SlotPicker, type SlotPickerActions } from "@/components/calls/SlotPicke
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { doneLine, PARENT_COPY } from "@/lib/calls/copy";
-import type { ConfirmedCallView, MyCallView } from "@/lib/calls/parent-view";
+import type { ConfirmedCallView, MyCallResult, MyCallView } from "@/lib/calls/parent-view";
 import { cancelMyCall, confirmMyCallHold, holdMyCallSlot, reloadMyCallSlots } from "./actions";
 
 export interface CallPageClientProps {
   readonly initial: MyCallView;
   readonly nextHref: string;
+}
+
+/** A throw or a rejection is a refusal (review F1): never an unhandled rejection, never stuck pending. */
+async function attempt<T>(run: () => Promise<MyCallResult<T>>): Promise<MyCallResult<T>> {
+  try {
+    return await run();
+  } catch {
+    return { ok: false, error: "error" };
+  }
+}
+
+/** Her view when the free times couldn't be read (review F2): picking → load failed; booked → kept, no days. */
+function withoutDays(view: MyCallView): MyCallView {
+  if (view.kind === "pick") return { kind: "load_failed" };
+  if (view.kind === "booked") return { ...view, days: null };
+  return view;
 }
 
 function useCallPage(initial: MyCallView) {
@@ -31,8 +47,8 @@ function useCallPage(initial: MyCallView) {
   const [cancelMessage, setCancelMessage] = useState<string | null>(null);
 
   const refresh = async () => {
-    const next = await reloadMyCallSlots();
-    if (next.ok) setView(next.value);
+    const next = await attempt(() => reloadMyCallSlots());
+    setView((current) => (next.ok ? next.value : withoutDays(current)));
   };
   const actions: SlotPickerActions<ConfirmedCallView> = {
     hold: (startsAt) => holdMyCallSlot(startsAt),
@@ -45,16 +61,20 @@ function useCallPage(initial: MyCallView) {
     setChanging(false);
     setStatus(doneLine(confirmed.booking.line));
   };
+  const whilePending = async <R,>(step: () => Promise<R>): Promise<R> => {
+    setPending(true);
+    try {
+      return await step();
+    } finally {
+      setPending(false);
+    }
+  };
   const startChange = async () => {
     setChanging(true);
-    setPending(true);
-    await refresh();
-    setPending(false);
+    await whilePending(refresh);
   };
   const cancel = async (bookingId: string) => {
-    setPending(true);
-    const result = await cancelMyCall(bookingId);
-    setPending(false);
+    const result = await whilePending(() => attempt(() => cancelMyCall(bookingId)));
     if (!result.ok) return setCancelMessage(result.error === "rate_limited" ? PARENT_COPY.rateLimited : PARENT_COPY.notSet);
     setCancelMessage(null);
     setChanging(false);
