@@ -41,6 +41,8 @@ import {
   Check,
 } from "lucide-react";
 import { formatUkMobile, isUkMobile } from "@/lib/uk-contact";
+import { callBookingEnabled } from "@/lib/features/flags";
+import { PARENT_COPY } from "@/lib/calls/copy";
 
 const signupSchema = z
   .object({
@@ -190,7 +192,7 @@ function SignupForm() {
               Create your parent account
             </h2>
             <p className="text-sm text-slate-400 text-center mb-5">
-              Sign up to find the best childcare for your family
+              {callBookingEnabled() ? PARENT_COPY.signupLine : "Sign up to find the best childcare for your family"}
             </p>
 
             {error && (
