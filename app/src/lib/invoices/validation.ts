@@ -114,9 +114,9 @@ export type PaymentDetails = z.output<typeof paymentDetailsSchema>;
 export function invoiceDraftSchema(now: Date) {
   return z
     .object({
-      invoiceId: z.uuid({ error: M.invalid }),
+      invoiceId: z.guid({ error: M.invalid }),
       kind: z.enum(INVOICE_KINDS, { error: M.kind }),
-      targetId: z.uuid({ error: M.family }),
+      targetId: z.guid({ error: M.family }),
       periodStart: z.string({ error: M.date }).refine(isLondonDate, M.date),
       hours: z
         .number({ error: M.hours })
@@ -124,7 +124,7 @@ export function invoiceDraftSchema(now: Date) {
         .max(maxHours, M.hoursMax)
         .refine((hours) => Number.isInteger(hours / hourStep), M.hourStep),
       ratePence: z.number({ error: M.rate }).int(M.rate).min(ratePence.min, M.rate).max(ratePence.max, M.rate),
-      replacesInvoiceId: z.uuid({ error: M.invalid }).nullable(),
+      replacesInvoiceId: z.guid({ error: M.invalid }).nullable(),
     })
     .superRefine((draft, ctx) => {
       if (draft.kind === "regular_week" && !isLondonMonday(draft.periodStart)) {
