@@ -5,6 +5,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/call-reminders",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/expire-connections",
       "schedule": "*/15 * * * *"
     },
