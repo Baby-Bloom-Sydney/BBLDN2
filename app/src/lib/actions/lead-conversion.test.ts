@@ -21,6 +21,7 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => h.fake.client 
 vi.mock("./autofire-matchmaking", () => ({ autofireMatchmaking: h.autofire }));
 vi.mock("@/lib/email/resend", () => ({ sendEmail: h.send }));
 
+import { onwardFor, safeNextPath } from "@/lib/calls/next-path";
 import { signUpAndConvertLead } from "./lead-conversion";
 
 const MATCHES = "/parent?t=childcare&s=nannies&v=matches";
@@ -122,5 +123,21 @@ describe.each([
     expect(await signUpAndConvertLead(form(), "lead-1")).toEqual({ success: true, redirectTo: "/parent" });
     expect(h.autofire).not.toHaveBeenCalled();
     expect(h.send).not.toHaveBeenCalled();
+  });
+});
+
+// ── 04b rework W6 (brief §0a.2, place 1): results → /matchmaking/signup → the call slide → her matches. ──
+describe("place 1, the funnel (W6)", () => {
+  beforeEach(() => vi.stubEnv("CALL_BOOKING_ENABLED", "true"));
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("the slide is /matchmaking/call, its next is today's matches target, and its button reads 'Go to my matches'", async () => {
+    seed();
+    const result = await signUpAndConvertLead(form(), "lead-1");
+    const url = new URL(result.redirectTo ?? "", "https://x.test");
+    expect(url.pathname).toBe("/matchmaking/call");
+    const next = safeNextPath(url.searchParams.get("next"));
+    expect(next).toBe(MATCHES);
+    expect(onwardFor(next).label).toBe("Go to my matches");
   });
 });
