@@ -41,6 +41,8 @@ import {
   Check,
 } from "lucide-react";
 import { formatUkMobile, isUkMobile } from "@/lib/uk-contact";
+import { callBookingEnabled } from "@/lib/features/flags";
+import { PARENT_COPY } from "@/lib/calls/copy";
 
 const signupSchema = z
   .object({
@@ -190,7 +192,8 @@ function SignupForm() {
               Create your parent account
             </h2>
             <p className="text-sm text-slate-400 text-center mb-5">
-              Sign up to find the best childcare for your family
+              {/* Brief 04 §0a.6 (04b rework W11): a quick-match sign-up goes on to her call, so it names it. */}
+              {callBookingEnabled() && funnelSource === "std" ? PARENT_COPY.signupLine : "Sign up to find the best childcare for your family"}
             </p>
 
             {error && (
