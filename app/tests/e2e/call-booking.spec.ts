@@ -1,11 +1,15 @@
 /**
- * Brief 04b local proof (plan B8; brief §9.1–9.5, §9.9, §9.13; §12 R4, R8, R25). NOT run in CI.
+ * Brief 04b local proof (plan B8; brief §0a, §9.1–9.5, §9.9, §9.13; §12 R4, R8, R25; 04b rework W10). NOT run in CI.
  *
  * Runs only against the LOCAL wave-1 Supabase stack (LDN2/PLAN/PROOF/local-stack, `dev-env.sh`): it refuses any
  * Supabase URL that isn't localhost, so it can never touch bb-ldn or Sydney. The local stack has no real nanny
  * applicants, which satisfies R4; `EMAIL_DEV_DRY_RUN=true` keeps every email a logged dry run.
  *
  * The browser runs in Australia/Sydney on purpose: every time on the page must still read London (brief §3 parent 6).
+ *
+ * 04b rework: the call is a funnel slide at `/matchmaking/call` (W1–W5), in the app a popup over the Childcare tab
+ * (W9, W12); the picker is the meet-and-greet grid (a time-of-day cell, then a time; a tap holds at once, W4); a
+ * quick-match parent with no position picks without a hold and completes her position first (W11).
  *
  * Two runs, one per flag state (the flag is inlined at build, so the dev server is restarted between them):
  *
@@ -19,9 +23,9 @@
  * one temporary `call_blocks` row (removed). `call_settings.enabled_since` and `caller_number` get fixture values
  * for the walk and are restored after (plan §12 R11: never stamped on read).
  *
- * BB-wave1-041126/04b-build, 2026-11-04.
+ * BB-wave1-041126/04b-build, 2026-11-04; BB-wave1-041126/04b-rework, 2026-11-05.
  */
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -43,6 +47,7 @@ const OFF_EMAIL = `admin+b04b-off-${RUN}@babybloomnannies.co.uk`;
 const LEAD_ID = crypto.randomUUID();
 const FIXTURE_CALLER = "+447700900999";
 const MATCHES = "/parent?t=childcare&s=nannies&v=matches";
+const CHILDCARE = "/parent?t=childcare";
 const MINUTE = 60_000;
 /** The fixture switch-on is this long ago: room for the 31-minute backdate, and no earlier local fixture in scope. */
 const WALK_SCOPE_MINUTES = 40;
@@ -93,10 +98,20 @@ async function signUp(page: Page, path: string, email: string): Promise<void> {
   await page.click('button[type="submit"]');
 }
 
-/** Pick the nth time the way a person does: the visible pill (the radio itself is visually hidden). */
-async function pickSlot(page: Page, n: number): Promise<void> {
-  await page.locator("label:has(time)").nth(n).click();
-  await expect(page.getByRole("radio").nth(n)).toBeChecked();
+/** The open time-of-day cells (one radiogroup per day row) and the open times in the chosen cell (W4). */
+const openCells = (scope: Page | Locator, row?: number) =>
+  (row === undefined ? scope.locator('[role="radiogroup"]:not([aria-labelledby])') : scope.locator('[role="radiogroup"]:not([aria-labelledby])').nth(row)).locator(
+    '[role="radio"]:not([disabled])',
+  );
+const openTimes = (scope: Page | Locator) => scope.locator('[role="radiogroup"][aria-labelledby] [role="radio"]:not([disabled])');
+
+/** Pick the way a person does: an open cell (on `row`, if given), then its `n`th open time. Returns its instant. */
+async function pickSlot(scope: Page | Locator, n = 0, row?: number): Promise<string> {
+  await openCells(scope, row).first().click();
+  const time = openTimes(scope).nth(n);
+  const startsAt = (await time.locator("time").getAttribute("datetime")) ?? "";
+  await time.click();
+  return startsAt;
 }
 
 async function dismissCookies(page: Page): Promise<void> {
@@ -148,94 +163,101 @@ test.describe.serial("call booking — flag on (local stack)", () => {
     writeFileSync(join(PROOF_DIR, "walk-readback.json"), `${JSON.stringify(readback, null, 2)}\n`);
   });
 
-  test("quick sign-up lands on /parent/call; the picker reads London in a Sydney browser", async () => {
-    await signUp(page, "/signup?src=std", QUICK_EMAIL);
-    await page.waitForURL(`${BASE_URL}/parent/call?next=%2Fparent`, { timeout: 180_000 });
-    quickId = await userIdOf(db, QUICK_EMAIL);
-    await expect(page.getByRole("heading", { name: "Your Complimentary matchmaker call" })).toBeVisible();
+  test("advanced sign-up lands on the call slide (/matchmaking/call), next = today's matches; London in a Sydney browser", async () => {
+    await signUp(page, `/matchmaking/signup?lead=${LEAD_ID}`, ADVANCED_EMAIL);
+    await page.waitForURL(`${BASE_URL}/matchmaking/call?next=${encodeURIComponent(MATCHES)}`, { timeout: 180_000 });
+    advancedId = await userIdOf(db, ADVANCED_EMAIL);
+    await expect(page.getByRole("heading", { level: 1, name: "Your Complimentary matchmaker call" })).toBeVisible();
     await dismissCookies(page);
     expect(await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone)).toBe("Australia/Sydney");
-    const first = page.getByRole("radio").first();
-    const startsAt = await first.getAttribute("value");
-    expect(await first.getAttribute("aria-label")).toBe(londonName(startsAt ?? ""));
-    readback.quickLanding = page.url();
+    await openCells(page).first().click();
+    const first = openTimes(page).first();
+    const startsAt = (await first.locator("time").getAttribute("datetime")) ?? "";
+    expect(await first.getAttribute("aria-label")).toBe(londonName(startsAt));
+    await expect(page.getByRole("link", { name: "Skip for now" })).toHaveAttribute("href", MATCHES);
+    readback.advancedLanding = page.url();
     readback.firstSlot = { startsAt, name: await first.getAttribute("aria-label"), browserZone: "Australia/Sydney" };
-    await expect(page.getByRole("link", { name: "Go to my matches" })).toHaveAttribute("href", "/parent");
     await shoot(page, "picker");
   });
 
-  test("book: choose, hold, confirm → booked", async () => {
-    await pickSlot(page, 0);
-    await page.getByRole("button", { name: "Choose this time" }).click();
+  test("book: a tap holds at once, Confirm time → You're booked", async () => {
+    await pickSlot(page);
     await expect(page.getByText(/We're holding .* \(London time\) for you until \d\d:\d\d\./)).toBeVisible();
     await shoot(page, "held");
-    await page.getByRole("button", { name: "Confirm this time" }).click();
-    await expect(page.getByText(/^Your Complimentary matchmaker call is on .* at \d\d:\d\d \(London time\)$/)).toBeVisible();
-    const { data } = await db.from("call_bookings").select("id, status, starts_at").eq("parent_user_id", quickId).eq("status", "booked").single();
+    await page.getByRole("button", { name: "Confirm time" }).click();
+    await expect(page.getByRole("heading", { name: "You're booked" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Go to my matches" })).toHaveAttribute("href", MATCHES);
+    const { data } = await db.from("call_bookings").select("id, status, starts_at").eq("parent_user_id", advancedId).eq("status", "booked").single();
     bookingId = (data as { id: string }).id;
     readback.booked = data;
     await shoot(page, "booked");
   });
 
-  test("the hub card shows the booked time · Change", async () => {
-    await page.goto(`${BASE_URL}/parent`, { timeout: 180_000 });
-    await expect(page.getByText(/Your Complimentary matchmaker call: \w{3} \d{1,2} \w{3}, \d\d:\d\d \(London time\)/)).toBeVisible({ timeout: 120_000 });
-    await expect(page.getByRole("link", { name: "Change" })).toHaveAttribute("href", "/parent/call");
-    await shoot(page, "hub-booked");
+  test("the Childcare card shows her time · Change time (no nanny hired or connected)", async () => {
+    await page.goto(`${BASE_URL}${CHILDCARE}`, { timeout: 180_000 });
+    await expect(page.getByText(/^\w{3} \d{1,2} \w{3}, \d\d:\d\d \(London time\)$/)).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByRole("button", { name: "Change time" })).toBeVisible();
+    await shoot(page, "card-booked");
   });
 
-  test("change time moves the same booking", async () => {
-    await page.goto(`${BASE_URL}/parent/call`, { timeout: 180_000 });
+  test("Change time opens the popup in place and moves the same booking", async () => {
     await page.getByRole("button", { name: "Change time" }).click();
-    await pickSlot(page, 3);
-    await page.getByRole("button", { name: "Choose this time" }).click();
-    await page.getByRole("button", { name: "Confirm this time" }).click();
-    await expect(page.getByRole("button", { name: "Change time" })).toBeVisible();
-    const { data } = await db.from("call_bookings").select("id, status, starts_at, moved_at, moved_from_starts_at").eq("parent_user_id", quickId).eq("status", "booked").single();
+    const dialog = page.getByRole("dialog", { name: "Your Complimentary matchmaker call" });
+    await expect(dialog.getByText(/^Your call: /)).toBeVisible({ timeout: 120_000 });
+    expect(new URL(page.url()).pathname).toBe("/parent");
+    await pickSlot(dialog); // her own time is never open, so the first open one is a different time
+    await dialog.getByRole("button", { name: "Confirm time" }).click();
+    await expect(page.getByRole("dialog", { name: "You're booked" })).toBeVisible();
+    const { data } = await db.from("call_bookings").select("id, status, starts_at, moved_at, moved_from_starts_at").eq("parent_user_id", advancedId).eq("status", "booked").single();
     expect((data as { id: string }).id).toBe(bookingId);
     expect((data as { moved_at: string | null }).moved_at).not.toBeNull();
     readback.moved = data;
   });
 
-  test("cancel → back to picking; the hub card says Pick a time", async () => {
-    await page.getByRole("button", { name: "Cancel" }).click();
-    await page.getByRole("button", { name: "Yes, cancel it" }).click();
-    await expect(page.getByRole("button", { name: "Choose this time" })).toBeVisible();
+  test("Cancel in the popup → back to picking; the card says Book a time", async () => {
+    const dialog = page.getByRole("dialog", { name: "You're booked" });
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await dialog.getByRole("button", { name: "Yes, cancel it" }).click();
+    await expect(page.getByRole("dialog").getByRole("button", { name: "Confirm time" })).toBeVisible();
     const { data } = await db.from("call_bookings").select("id, status, cancel_reason").eq("id", bookingId).single();
     expect(data).toMatchObject({ status: "cancelled", cancel_reason: "parent" });
     readback.cancelled = data;
-    await page.goto(`${BASE_URL}/parent`, { timeout: 180_000 });
-    await expect(page.getByRole("link", { name: "Pick a time for your Complimentary matchmaker call" })).toBeVisible({ timeout: 120_000 });
-    await shoot(page, "hub-not-booked");
+    await page.keyboard.press("Escape");
+    await page.reload({ timeout: 180_000 });
+    await expect(page.getByRole("button", { name: "Book a time" })).toBeVisible({ timeout: 120_000 });
+    await shoot(page, "card-not-booked");
   });
 
   test("no free time → the no-times line", async () => {
     const block = { starts_at: new Date().toISOString(), ends_at: new Date(Date.now() + 10 * 24 * 60 * MINUTE).toISOString(), reason: `b04b walk ${RUN}` };
     await db.from("call_blocks").insert(block);
-    await page.goto(`${BASE_URL}/parent/call`, { timeout: 180_000 });
+    await page.goto(`${BASE_URL}/matchmaking/call`, { timeout: 180_000 });
     await expect(page.getByText("No times free right now — we'll still call you for your Complimentary matchmaker call.")).toBeVisible();
     await shoot(page, "no-times");
     await db.from("call_blocks").delete().eq("reason", block.reason);
   });
 
-  test("advanced sign-up lands on /parent/call with next = today's matches target", async ({ browser }) => {
+  test("quick sign-up lands on the slide (next = her Childcare tab); with no position a pick holds nothing (W11)", async ({ browser }) => {
     const fresh = await sydneyPage(browser);
-    await signUp(fresh, `/matchmaking/signup?lead=${LEAD_ID}`, ADVANCED_EMAIL);
-    await fresh.waitForURL(`${BASE_URL}/parent/call?next=${encodeURIComponent(MATCHES)}`, { timeout: 180_000 });
-    await expect(fresh.getByRole("link", { name: "Go to my matches" })).toHaveAttribute("href", MATCHES);
-    advancedId = await userIdOf(db, ADVANCED_EMAIL);
-    readback.advancedLanding = fresh.url();
-    const { count } = await db.from("email_logs").select("id", { count: "exact", head: true }).eq("recipient_email", ADVANCED_EMAIL).eq("email_type", "welcome_adv_parent");
-    readback.advancedWelcomeLogged = count; // by address: today's lead-conversion sends it without recipientUserId
+    await signUp(fresh, "/signup?src=std", QUICK_EMAIL);
+    await fresh.waitForURL(`${BASE_URL}/matchmaking/call?next=${encodeURIComponent(CHILDCARE)}`, { timeout: 180_000 });
+    quickId = await userIdOf(db, QUICK_EMAIL);
+    const startsAt = await pickSlot(fresh);
+    await expect(fresh.getByText("Complete your childcare position so that we can confirm your call with your matchmaker.")).toBeVisible();
+    await expect(fresh.getByRole("link", { name: "Complete my childcare position" })).toHaveAttribute("href", `/parent/request?callAt=${encodeURIComponent(startsAt)}`);
+    const { count } = await db.from("call_bookings").select("id", { count: "exact", head: true }).eq("parent_user_id", quickId);
+    expect(count).toBe(0);
+    readback.quickLanding = fresh.url();
     await fresh.context().close();
   });
 
   test("the emails: confirmation (with the caller number), admin booked, changed, cancelled — dry run", async () => {
     const { data } = await db.from("email_logs").select("email_type, subject, body_html, recipient_user_id").in("email_type", ["call_booking_confirmation", "call_booking_changed", "call_booking_cancelled", "admin_call_booked"]).order("created_at", { ascending: true });
     const rows = (data ?? []) as Array<{ email_type: string; subject: string; body_html: string; recipient_user_id: string | null }>;
-    const hers = rows.filter((r) => r.recipient_user_id === quickId);
+    const hers = rows.filter((r) => r.recipient_user_id === advancedId);
     expect(hers.map((r) => r.email_type)).toEqual(["call_booking_confirmation", "call_booking_changed", "call_booking_cancelled"]);
     expect(hers[0].body_html).toContain("+44 (0) 7700 900 999");
+    expect(hers[0].body_html).toContain("/matchmaking/call");
     const adminBooked = rows.filter((r) => r.email_type === "admin_call_booked" && r.subject.includes("Jane Walk"));
     expect(adminBooked.length).toBeGreaterThanOrEqual(1);
     readback.emails = [...hers, ...adminBooked].map((r) => ({ type: r.email_type, subject: r.subject }));
@@ -256,8 +278,8 @@ test.describe.serial("call booking — flag on (local stack)", () => {
     expect(statuses).toEqual([200, 200, 200, 200, 200, 200]);
     const count = async (id: string) =>
       (await db.from("email_logs").select("id", { count: "exact", head: true }).eq("recipient_user_id", id).eq("email_type", "call_not_booked")).count;
-    expect(await count(advancedId)).toBe(1);
-    expect(await count(quickId)).toBe(0);
+    expect(await count(quickId)).toBe(1);
+    expect(await count(advancedId)).toBe(0);
     const { count: walkWide } = await db.from("email_logs").select("id", { count: "exact", head: true }).eq("email_type", "call_not_booked").gte("created_at", cronStart);
     expect(walkWide).toBe(1);
     const unauthorised = await request.get(`${BASE_URL}/api/cron/call-reminders`, { headers: { authorization: "Bearer wrong" } });
@@ -267,15 +289,13 @@ test.describe.serial("call booking — flag on (local stack)", () => {
 
   test("plan §8 row 7: the 24 h parent reminder and the 15 min admin reminder, each once (clock advanced on the fixture)", async ({ request }) => {
     const cron = async () => (await request.get(`${BASE_URL}/api/cron/call-reminders`, { headers: { authorization: `Bearer ${CRON_SECRET}` } })).status();
-    await page.goto(`${BASE_URL}/parent/call`, { timeout: 180_000 });
-    const values = await page.getByRole("radio").evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
-    const index = values.findIndex((v) => Date.parse(v) >= Date.now() + 25 * 60 * MINUTE);
-    expect(index).toBeGreaterThanOrEqual(0);
-    await pickSlot(page, index);
-    await page.getByRole("button", { name: "Choose this time" }).click();
-    await page.getByRole("button", { name: "Confirm this time" }).click();
-    await expect(page.getByRole("button", { name: "Change time" })).toBeVisible();
-    const { data } = await db.from("call_bookings").select("id, starts_at, ends_at, booked_at").eq("parent_user_id", quickId).eq("status", "booked").single();
+    await page.goto(`${BASE_URL}/matchmaking/call`, { timeout: 180_000 });
+    // The third day row is at least a day and a half ahead: a time there is ≥ 25 h away.
+    const startsAt = await pickSlot(page, 0, 2);
+    expect(Date.parse(startsAt)).toBeGreaterThanOrEqual(Date.now() + 25 * 60 * MINUTE);
+    await page.getByRole("button", { name: "Confirm time" }).click();
+    await expect(page.getByRole("heading", { name: "You're booked" })).toBeVisible();
+    const { data } = await db.from("call_bookings").select("id, starts_at, ends_at, booked_at").eq("parent_user_id", advancedId).eq("status", "booked").single();
     const original = data as { id: string; starts_at: string; ends_at: string; booked_at: string };
     const since = new Date().toISOString();
     const sent = async (type: string) =>
@@ -303,17 +323,22 @@ test.describe.serial("call booking — flag on (local stack)", () => {
     mkdirSync(PROOF_DIR, { recursive: true });
     writeFileSync(join(PROOF_DIR, "walk-row7-readback.json"), `${JSON.stringify({ run: RUN, bookingId: original.id, steps, stamps, emailLogs: rows }, null, 2)}\n`);
     // Tidy: cancel the fixture booking (its start is still ahead).
-    await page.goto(`${BASE_URL}/parent/call`, { timeout: 180_000 });
+    await page.goto(`${BASE_URL}/matchmaking/call`, { timeout: 180_000 });
     await page.getByRole("button", { name: "Cancel" }).click();
     await page.getByRole("button", { name: "Yes, cancel it" }).click();
-    await expect(page.getByRole("button", { name: "Choose this time" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Confirm time" })).toBeVisible();
   });
 
-  test("the sign-up subtitle names the call", async ({ browser }) => {
+  test("the subtitles: /matchmaking/signup and the quick match name the call; a cold /signup keeps today's (W7, W11)", async ({ browser }) => {
     const fresh = await sydneyPage(browser);
-    await fresh.goto(`${BASE_URL}/signup?src=std`, { timeout: 180_000 });
-    await expect(fresh.getByText("Next: your Complimentary matchmaker call, to introduce you to your top nannies.")).toBeVisible();
+    const callLine = "Next: your Complimentary matchmaker call, to introduce you to your top nannies.";
+    await fresh.goto(`${BASE_URL}/matchmaking/signup?lead=${LEAD_ID}`, { timeout: 180_000 });
+    await expect(fresh.getByText(callLine)).toBeVisible();
     await fresh.screenshot({ path: join(PROOF_DIR, "signup-subtitle-on-1440.png") });
+    await fresh.goto(`${BASE_URL}/signup?src=std`, { timeout: 180_000 });
+    await expect(fresh.getByText(callLine)).toBeVisible();
+    await fresh.goto(`${BASE_URL}/signup`, { timeout: 180_000 });
+    await expect(fresh.getByText("Sign up to find the best childcare for your family")).toBeVisible();
     await fresh.context().close();
   });
 });
@@ -322,26 +347,28 @@ test.describe.serial("call booking — flag off (local stack)", () => {
   test.skip(MODE !== "off" || !IS_LOCAL, "set CALL_BOOKING_E2E=off with the local stack's env");
   test.setTimeout(240_000);
 
-  test("signed out: /parent/call → 307 to /login (R8); the cron → 404 even with the bearer", async ({ request }) => {
-    const signedOut = await request.get(`${BASE_URL}/parent/call`, { maxRedirects: 0 });
-    expect(signedOut.status()).toBe(307);
-    expect(signedOut.headers().location).toContain("/login?redirect=%2Fparent%2Fcall");
+  test("signed out: /matchmaking/call → 404 before any read; the cron → 404 even with the bearer", async ({ request }) => {
+    const signedOut = await request.get(`${BASE_URL}/matchmaking/call`, { maxRedirects: 0 });
+    expect(signedOut.status()).toBe(404);
     const cron = await request.get(`${BASE_URL}/api/cron/call-reminders`, { headers: { authorization: `Bearer ${CRON_SECRET}` } });
     expect(cron.status()).toBe(404);
     mkdirSync(PROOF_DIR, { recursive: true });
-    writeFileSync(join(PROOF_DIR, "flag-off-http.json"), `${JSON.stringify({ signedOutParentCall: signedOut.status(), location: signedOut.headers().location, cron: cron.status() }, null, 2)}\n`);
+    writeFileSync(join(PROOF_DIR, "flag-off-http.json"), `${JSON.stringify({ signedOutMatchmakingCall: signedOut.status(), cron: cron.status() }, null, 2)}\n`);
   });
 
-  test("today's sign-up: lands on /parent, no card; /parent/call is a 404 for a parent", async ({ browser }) => {
+  test("today's sign-up: lands on /parent, no card, ?call=open ignored; /matchmaking/call is a 404 for a parent", async ({ browser }) => {
     const page = await sydneyPage(browser);
     await page.goto(`${BASE_URL}/signup?src=std`, { timeout: 180_000 });
     await expect(page.getByText("Sign up to find the best childcare for your family")).toBeVisible({ timeout: 120_000 });
     await page.screenshot({ path: join(PROOF_DIR, "signup-subtitle-off-1440.png") });
     await signUp(page, "/signup?src=std", OFF_EMAIL);
     await page.waitForURL(`${BASE_URL}/parent`, { timeout: 180_000 });
-    await expect(page.getByText("Pick a time for your Complimentary matchmaker call")).toHaveCount(0);
+    await page.goto(`${BASE_URL}${CHILDCARE}&call=open`, { timeout: 180_000 });
+    await expect(page.getByRole("button", { name: "My childcare" })).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByRole("heading", { name: "Your Complimentary matchmaker call" })).toHaveCount(0);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     await page.screenshot({ path: join(PROOF_DIR, "hub-flag-off-1440.png"), fullPage: true });
-    const response = await page.goto(`${BASE_URL}/parent/call`, { timeout: 180_000 });
+    const response = await page.goto(`${BASE_URL}/matchmaking/call`, { timeout: 180_000 });
     expect(response?.status()).toBe(404);
     await shoot(page, "flag-off-404");
   });
