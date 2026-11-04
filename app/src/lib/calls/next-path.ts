@@ -43,9 +43,9 @@ export function safeNextPath(raw: string | readonly string[] | null | undefined)
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
-/** `/matchmaking/call?next=<target, encoded>` — the call slide, then on to `next`. */
-export function callPagePath(next: string): string {
-  return `${CALL_PAGE_PATH}?next=${encodeURIComponent(next)}`;
+/** `/matchmaking/call?next=<target, encoded>` — the call slide, then on to `next`; `change` opens it changing her time. */
+export function callPagePath(next: string, options: { readonly change?: boolean } = {}): string {
+  return `${CALL_PAGE_PATH}?${options.change ? "change=1&" : ""}next=${encodeURIComponent(next)}`;
 }
 
 export interface Onward {

@@ -343,33 +343,30 @@ describe("ParentHubClient — babysitting tab while BABYSITTING_ENABLED is off (
   });
 });
 
-// ── Brief 04b (review F4): the call card slot, right after the no-position banner. Add-only. ──
-describe("the call card slot (brief 04b)", () => {
+// ── Brief 04 §0a.4 (04b rework W9): the call card sits at the top of the "My childcare" sub-tab. The B7 top-of-hub
+//    slot and its `pt-16 xl:pt-0` are gone. Add-only otherwise. ──
+describe("the call card on the Childcare tab (04b rework W9)", () => {
   const follows = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  const card = <p data-testid="call-card">CARD</p>;
 
-  it("no position: the banner, then the card, then the hub", () => {
-    const { container } = render(<ParentHubClient position={null} callCard={<p data-testid="call-card">CARD</p>} />);
+  it("inside the Childcare tab's panel, after the hub's hero and sub-tabs — not above the hub", () => {
+    const { container } = render(<ParentHubClient position={POSITION} callCard={card} />);
+    const hero = container.querySelector(".rounded-2xl") as Node;
+    const subTab = screen.getByRole("button", { name: "My childcare" });
+    expect(follows(hero, screen.getByTestId("call-card"))).toBe(true);
+    expect(follows(subTab, screen.getByTestId("call-card"))).toBe(true);
+  });
+
+  it("no top-of-hub slot and no 64px offset, with or without the banner", () => {
+    render(<ParentHubClient position={null} callCard={card} />);
+    expect(screen.getByTestId("call-card").closest(".pt-16")).toBeNull();
     const banner = screen.getByRole("region", { name: "Position incomplete notice" });
-    const card = screen.getByTestId("call-card");
-    const hero = container.querySelector(".rounded-2xl");
-    expect(hero).not.toBeNull();
-    expect(follows(banner, card)).toBe(true);
-    expect(follows(card, hero as Node)).toBe(true);
+    expect(banner.nextElementSibling?.contains(screen.getByTestId("call-card"))).toBe(false);
   });
 
-  it("with a position (no banner): the card comes first", () => {
-    const { container } = render(<ParentHubClient position={POSITION} callCard={<p data-testid="call-card">CARD</p>} />);
-    expect(container.firstElementChild?.contains(screen.getByTestId("call-card"))).toBe(true);
-  });
-
-  it("under the banner, the card clears the banner's 64px sticky offset below xl (measured: it drew over the card at 320–1024)", () => {
-    render(<ParentHubClient position={null} callCard={<p data-testid="call-card">CARD</p>} />);
-    expect(screen.getByTestId("call-card").parentElement?.className).toBe("pt-16 xl:pt-0");
-  });
-
-  it("with a position (no banner) the card needs no offset", () => {
-    render(<ParentHubClient position={POSITION} callCard={<p data-testid="call-card">CARD</p>} />);
-    expect(screen.getByTestId("call-card").parentElement?.className ?? "").not.toContain("pt-16");
+  it("only on the My childcare sub-tab", async () => {
+    render(<ParentHubClient position={POSITION} callCard={card} initialSub="connections" />);
+    expect(screen.queryByTestId("call-card")).toBeNull();
   });
 
   it("no card: nothing extra — the banner is still the first thing", () => {

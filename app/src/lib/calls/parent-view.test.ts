@@ -170,25 +170,26 @@ describe("refusalOf", () => {
   });
 });
 
-describe("hubCardFor (plan B7; brief §0.5)", () => {
+describe("hubCardFor (plan B7; the Childcare tab card since 04b rework W9, brief §0a.4)", () => {
   const SWITCH_ON = "2027-02-01T09:00:00.000Z";
   const inScope = { userId: HER, signupSource: "advanced_match", signedUpAt: "2027-02-03T10:00:00.000Z" };
   const base = { bookings: [], entries: [], parent: inScope, enabledSince: SWITCH_ON, now: NOW };
 
-  it("booked → her short London time, changeable before the start", () => {
+  it("booked → '<Day d Mon>, <HH:MM> (London time)', changeable before the start (W9)", () => {
     expect(hubCardFor({ ...base, bookings: [bookingRow({ parentUserId: HER, startsAt: TUE_14 })] })).toEqual({
       kind: "booked",
-      line: "Your Complimentary matchmaker call: Tue 9 Feb, 14:00 (London time)",
+      line: "Tue 9 Feb, 14:00 (London time)",
       changeable: true,
     });
     expect(hubCardFor({ ...base, now: new Date(TUE_14), bookings: [bookingRow({ parentUserId: HER, startsAt: TUE_14 })] })).toMatchObject({ changeable: false });
   });
 
-  it("not booked, in scope → 'Pick a time for your Complimentary matchmaker call' (a NULL source counts)", () => {
-    expect(hubCardFor(base)).toEqual({ kind: "not_booked", line: "Pick a time for your Complimentary matchmaker call" });
+  it("not booked, in scope → not_booked (a NULL source counts); after a no-answer it says so (W9)", () => {
+    expect(hubCardFor(base)).toEqual({ kind: "not_booked", afterNoAnswer: false });
     expect(hubCardFor({ ...base, parent: { ...inScope, signupSource: null } })).toMatchObject({ kind: "not_booked" });
-    expect(hubCardFor({ ...base, entries: [entryRow({ parentUserId: HER, occurredAt: "2027-02-03T12:00:00.000Z", result: "no_answer" })] })).toMatchObject({
+    expect(hubCardFor({ ...base, entries: [entryRow({ parentUserId: HER, occurredAt: "2027-02-03T12:00:00.000Z", result: "no_answer" })] })).toEqual({
       kind: "not_booked",
+      afterNoAnswer: true,
     });
   });
 

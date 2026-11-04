@@ -86,7 +86,7 @@ describe("loadHubCallCard (plan B7)", () => {
 
   it("reads her settings, scope row, bookings and attempts → the card", async () => {
     const { fake, deps } = setup({ settings: STARTED, scope: [SCOPE] });
-    expect(await loadHubCallCard(HER, deps)).toEqual({ kind: "not_booked", line: "Pick a time for your Complimentary matchmaker call" });
+    expect(await loadHubCallCard(HER, deps)).toEqual({ kind: "not_booked", afterNoAnswer: false });
     expect(callsTo(fake, "readScopeParent")[0].args).toEqual([HER]);
     expect(callsTo(fake, "readBookingsForParents")[0].args).toEqual([[HER]]);
   });

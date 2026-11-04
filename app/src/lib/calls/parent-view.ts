@@ -7,7 +7,7 @@
  */
 
 import { isUkMobile, normaliseUkMobile } from "@/lib/uk-contact";
-import { bookedLine, heldLine, hubBookedLine, PARENT_COPY, slotAtLine, yourCallLine } from "./copy";
+import { bookedLine, heldLine, shortTimeLine, slotAtLine, yourCallLine } from "./copy";
 import { groupSlotGridByDay, type SlotDay } from "./group-slots-by-day";
 import type { SlotGrid } from "./slot-grid";
 import { slotWords } from "./slot-words";
@@ -142,10 +142,13 @@ export function callViewOf(reads: {
   return { kind: "pick", afterNoAnswer, days, mobile: reads.mobile };
 }
 
-/** The one card at the top of `/parent` (brief §0.5; plan B7). */
+/**
+ * The call card on her Childcare tab (brief §0a.4; plan B7 → 04b rework W9): booked → "Tue 9 Feb, 14:00 (London
+ * time)" (changeable before the start); not booked → Book a time, saying so after a no-answer.
+ */
 export type HubCallCard =
   | { readonly kind: "booked"; readonly line: string; readonly changeable: boolean }
-  | { readonly kind: "not_booked"; readonly line: string };
+  | { readonly kind: "not_booked"; readonly afterNoAnswer: boolean };
 
 const INVITE_SOURCES: ReadonlySet<string> = new Set(["nanny_invite", "parent_invite"]);
 
@@ -157,8 +160,9 @@ function inScope(parent: ScopeParent | null, enabledSince: string | null): boole
 }
 
 /**
- * Booked → her short London time ("· Change" while it's ahead). Not booked → "Pick a time…", but only in scope, and
- * never after an answered call or Stop calling (the call has happened, or BAI has stopped). Otherwise no card.
+ * Booked → her short London time (Change time while it's ahead). Not booked → Book a time (after a no-answer, "We tried
+ * to call you"), but only in scope, and never after an answered call or Stop calling (the call has happened, or BAI has
+ * stopped). Otherwise no card. Whether a nanny is hired or connected is the page's to decide (W9).
  */
 export function hubCardFor(facts: {
   readonly bookings: readonly CallBooking[];
@@ -169,9 +173,9 @@ export function hubCardFor(facts: {
 }): HubCallCard | null {
   const booked = myBookedCall(facts.bookings);
   if (booked !== null) {
-    return { kind: "booked", line: hubBookedLine(slotWords(booked.startsAt)), changeable: Date.parse(booked.startsAt) > facts.now.getTime() };
+    return { kind: "booked", line: shortTimeLine(slotWords(booked.startsAt)), changeable: Date.parse(booked.startsAt) > facts.now.getTime() };
   }
   if (!inScope(facts.parent, facts.enabledSince)) return null;
   if (facts.entries.some((e) => e.result === "answered" || e.outcome === "stop_calling")) return null;
-  return { kind: "not_booked", line: PARENT_COPY.hubNotBooked };
+  return { kind: "not_booked", afterNoAnswer: isAfterNoAnswer(facts.bookings, facts.entries) };
 }

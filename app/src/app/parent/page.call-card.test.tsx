@@ -7,12 +7,12 @@ import { render } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ card: vi.fn() }));
+const h = vi.hoisted(() => ({ card: vi.fn(), placement: vi.fn(), connections: vi.fn() }));
 const empty = { data: [], error: null };
-vi.mock("@/lib/actions/parent", () => ({ getPosition: vi.fn(async () => ({ data: null, error: null })) }));
+vi.mock("@/lib/actions/parent", () => ({ getPosition: vi.fn(async () => ({ data: { id: "pos-1" }, error: null })) }));
 vi.mock("@/lib/actions/position-funnel", () => ({
-  getParentPlacement: vi.fn(async () => ({ data: null })),
-  getConfirmedConnections: vi.fn(async () => empty),
+  getParentPlacement: h.placement,
+  getConfirmedConnections: h.connections,
   getParentUpcomingIntros: vi.fn(async () => empty),
 }));
 vi.mock("@/lib/actions/matching", () => ({ getDfyStatus: vi.fn(async () => ({ tier: null, expiresAt: null, activated: false })) }));
@@ -41,7 +41,11 @@ async function markup(): Promise<string> {
 
 beforeEach(() => {
   h.card.mockReset();
-  h.card.mockResolvedValue({ kind: "not_booked", line: "Pick a time for your Complimentary matchmaker call" });
+  h.card.mockResolvedValue({ kind: "not_booked", afterNoAnswer: false });
+  h.placement.mockReset();
+  h.placement.mockResolvedValue({ data: null });
+  h.connections.mockReset();
+  h.connections.mockResolvedValue(empty);
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -76,12 +80,12 @@ describe("/parent and the call card", () => {
     expect("callCard" in out.props.children.props).toBe(false);
   });
 
-  it("flag on → her card, for her session id, handed to ParentHubClient's call-card slot (review F4)", async () => {
+  it("flag on → her card, for her session id, handed to ParentHubClient's call-card slot (review F4; W9: on the Childcare tab)", async () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "true");
     const html = await markup();
     expect(h.card).toHaveBeenCalledWith("u-1");
-    expect(html).toContain('<div data-testid="hub"><div');
-    expect(html).toContain("Pick a time for your Complimentary matchmaker call");
+    expect(html).toContain('<div data-testid="hub"><section');
+    expect(html).toContain("Book a time");
     const out = (await ParentHubPage({ searchParams: {} })) as ReactElement<{ children: ReactElement<Record<string, unknown>> }>;
     expect(out.props.children.props.callCard).toBeDefined();
   });
@@ -90,5 +94,27 @@ describe("/parent and the call card", () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "true");
     h.card.mockResolvedValueOnce(null);
     expect(await markup()).toBe(TODAY);
+  });
+});
+
+// ── 04b rework W9 (brief §0a.4): the card shows only while no nanny is hired or connected. ──
+describe("/parent and the call card — only with no hired or connected nanny (W9)", () => {
+  beforeEach(() => vi.stubEnv("CALL_BOOKING_ENABLED", "true"));
+
+  const props = async () =>
+    ((await ParentHubPage({ searchParams: {} })) as ReactElement<{ children: ReactElement<Record<string, unknown>> }>).props.children.props;
+
+  it("a hired nanny (a placement) → no callCard prop", async () => {
+    h.placement.mockResolvedValue({ data: { id: "pl-1", nannyName: "Amy" } });
+    expect("callCard" in (await props())).toBe(false);
+  });
+
+  it("a confirmed connection → no callCard prop", async () => {
+    h.connections.mockResolvedValue({ data: [{ connectionId: "c-1" }], error: null });
+    expect("callCard" in (await props())).toBe(false);
+  });
+
+  it("neither → the card", async () => {
+    expect((await props()).callCard).toBeDefined();
   });
 });

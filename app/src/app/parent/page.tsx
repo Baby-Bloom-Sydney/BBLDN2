@@ -87,6 +87,8 @@ export default async function ParentHubPage({
   const dfyExpiresAt = dfyStatusResult.expiresAt;
   const dfyActivated = dfyStatusResult.activated;
   const babysittingRequests = bsrResult.data ?? [];
+  // Brief 04 §0a.4 (04b rework W9): the call card only while no nanny is hired or connected.
+  const showCallCard = callCard !== null && !placement && confirmedNannies.length === 0;
   const showFillButton =
     position &&
     !placement &&
@@ -124,8 +126,8 @@ export default async function ParentHubPage({
         initialView={searchParams.v}
         educationChildren={(educationChildrenRes.data ?? []) as ChildClient[]}
         pendingInvites={pendingInvitesResult.data ?? []}
-        // Brief 04 (B7): only with a card — while CALL_BOOKING_ENABLED is off the props are exactly today's.
-        {...(callCard === null ? {} : { callCard: <CallHubCard card={callCard} /> })}
+        // Brief 04 (B7, W9): only with a card — while CALL_BOOKING_ENABLED is off the props are exactly today's.
+        {...(showCallCard ? { callCard: <CallHubCard card={callCard} /> } : {})}
       />
     </div>
   );

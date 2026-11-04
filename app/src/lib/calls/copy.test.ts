@@ -14,6 +14,7 @@ import {
   hubBookedLine,
   noFreeTimesLine,
   prebookFullLine,
+  shortTimeLine,
   slotAtLine,
   takenNoticeLine,
   yourCallLine,
@@ -64,6 +65,11 @@ describe("parent copy, word for word", () => {
     });
     expect(callOnLine("07700 900123")).toBe("We'll call you on 07700 900123.");
     expect(yourCallLine("Thursday 5 November at 10:00")).toBe("Your call: Thursday 5 November at 10:00 (London time)");
+  });
+
+  it("the Childcare tab card's words (04b rework W9)", () => {
+    expect(PARENT_COPY.bookATime).toBe("Book a time");
+    expect(shortTimeLine({ short: "Thu 5 Nov, 10:00" })).toBe("Thu 5 Nov, 10:00 (London time)");
   });
 
   it("builds the booked lines from London words", () => {

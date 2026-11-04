@@ -46,6 +46,10 @@ describe("callPagePath", () => {
     expect(callPagePath("/parent")).toBe("/matchmaking/call?next=%2Fparent");
   });
 
+  it("with change: straight into changing her time (W9's card)", () => {
+    expect(callPagePath("/parent?t=childcare", { change: true })).toBe("/matchmaking/call?change=1&next=%2Fparent%3Ft%3Dchildcare");
+  });
+
   it("round-trips through safeNextPath", () => {
     const next = new URL(callPagePath(MATCHES), "https://x.test").searchParams.get("next");
     expect(safeNextPath(next)).toBe(MATCHES);

@@ -55,6 +55,8 @@ export const PARENT_COPY = Object.freeze({
   youreBooked: "You're booked",
   goToChildcare: "Go to my childcare",
   goToDashboard: "Go to my dashboard",
+  // 04b rework W9: the Childcare tab card (BB-wave1-041126/04b-rework)
+  bookATime: "Book a time",
 });
 
 export const ADMIN_COPY = Object.freeze({
@@ -98,6 +100,11 @@ export function slotAtLine(words: Pick<SlotWords, "day" | "time">): string {
 /** The taken notice (04b rework W4, BAI 2026-11-05): "Someone else booked Tuesday 9 February at 14:00 a moment ago. …" */
 export function takenNoticeLine(when: string): string {
   return `Someone else booked ${when} a moment ago. Please pick another time.`;
+}
+
+/** The Childcare tab card's booked line (04b rework W9): "Thu 5 Nov, 10:00 (London time)". */
+export function shortTimeLine(words: Pick<SlotWords, "short">): string {
+  return `${words.short} ${LONDON_TIME_SUFFIX}`;
 }
 
 /** The booked slide (04b rework W5): "We'll call you on 07700 900123." */
