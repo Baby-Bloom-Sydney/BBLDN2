@@ -458,3 +458,13 @@ describe("SlotPicker — review fixes (react review HIGH 1–2, MEDIUM, LOW)", (
     }
   });
 });
+
+describe("SlotPicker — the header wraps as one line of text at 320px (walk finding)", () => {
+  it("the heading's words and its '(London time)' are one text run beside the icon, not two flex columns", () => {
+    render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />);
+    const heading = screen.getByRole("heading", { name: "Your matchmaker's availability (London time)" });
+    const runs = [...heading.children].filter((el) => el.tagName !== "svg");
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toHaveTextContent("Your matchmaker's availability (London time)");
+  });
+});

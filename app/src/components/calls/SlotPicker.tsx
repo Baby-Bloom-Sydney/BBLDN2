@@ -219,8 +219,10 @@ export function SlotPicker<T>({ days, actions, onConfirmed, onKeepTime, skipHref
   return (
     <section aria-labelledby={`${uid}-heading`} className="space-y-4">
       <h2 ref={headingRef} id={`${uid}-heading`} tabIndex={-1} className="text-sm font-medium text-slate-700 flex items-center gap-1.5 focus:outline-none">
-        <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
-        {words.heading} <span className="font-normal text-slate-400">{LONDON_TIME_SUFFIX}</span>
+        <Calendar className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span>
+          {words.heading} <span className="font-normal text-slate-400">{LONDON_TIME_SUFFIX}</span>
+        </span>
       </h2>
       {picker.message !== null && (
         <p
