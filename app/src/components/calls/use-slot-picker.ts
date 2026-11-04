@@ -146,6 +146,10 @@ type ListReload = ReturnType<typeof useListReload>;
 /**
  * A refusal, as she sees it: taken (or a held time that ran out and was taken) → the notice, with the list refreshed
  * once under it; ran out but still free, invalid, failed → 04b's inline line, refreshing as 04b did.
+ *
+ * `keep` is the hold that still stands (React re-review HIGH 1): after a refused tap on B, her hold on A (the database
+ * keeps it when B is refused); after a confirm that failed for any reason but taken or ran out, the very hold she was
+ * confirming — so Confirm stays and a retry reuses its id. Taken or ran out clears what was refused.
  */
 function useRefusal<T>(s: PickerState, list: ListReload, o: UsePickerOptions<T>) {
   const notice = (startsAt: string) => {
@@ -153,19 +157,25 @@ function useRefusal<T>(s: PickerState, list: ListReload, o: UsePickerOptions<T>)
     s.setMessage(null);
     s.setNotice(findSlot(o.days, startsAt)?.when ?? PARENT_COPY.thatTime);
   };
-  return async (error: string, startsAt: string, reloadAnyway = false) => {
-    s.setHold(null);
-    s.setSelected(null);
+  const settle = (hold: PickerHold | null) => {
+    s.setHold(hold);
+    s.setSelected(hold?.startsAt ?? null);
+  };
+  return async (error: string, startsAt: string, keep: PickerHold | null, reloadAnyway = false) => {
+    const survivor = keep !== null && keep.startsAt !== startsAt ? keep : null;
     if (TAKEN.has(error)) {
+      settle(survivor);
       notice(startsAt);
       await list.reload();
       return;
     }
     if (RAN_OUT.has(error)) {
+      settle(survivor);
       const fresh = await list.reload();
       if (fresh && findSlot(fresh, startsAt)?.free !== true) return notice(startsAt);
       return s.setMessage(pickerMessage(error));
     }
+    settle(keep);
     s.setMessage(pickerMessage(error));
     if (reloadAnyway || REFRESHES.has(error)) await list.reload();
   };
@@ -196,6 +206,7 @@ export function useSlotPicker<T>(o: UsePickerOptions<T>) {
     if (busy) return;
     // A tile is a selector she can unselect (W14): a second tap clears it in the page; a hold just runs out.
     if (s.selected === startsAt) return clearTime(s);
+    const previous = s.hold;
     s.setSelected(startsAt);
     s.setHold(null);
     s.setMessage(null);
@@ -203,7 +214,7 @@ export function useSlotPicker<T>(o: UsePickerOptions<T>) {
     await inPhase(s, "holding", async () => {
       const held = await settled(() => o.actions.hold(startsAt));
       if (held.ok) s.setHold(held.value);
-      else await refuse(held.error, startsAt);
+      else await refuse(held.error, startsAt, previous);
     });
   };
   const confirm = async () => {
@@ -213,7 +224,7 @@ export function useSlotPicker<T>(o: UsePickerOptions<T>) {
       const confirmed = await settled(() => o.actions.confirm(hold));
       if (confirmed.ok) o.onConfirmed(confirmed.value);
       // A confirm that failed may still have been written (a lost reply): the reload shows her booking if so.
-      else await refuse(confirmed.error, hold.startsAt, true);
+      else await refuse(confirmed.error, hold.startsAt, hold, true);
     });
   };
   /** Day, then time of day (W14): a second tap unselects; any change clears and hides the later steps. */

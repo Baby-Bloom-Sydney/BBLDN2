@@ -108,3 +108,25 @@ describe("loadSlotGrid / parentSlotGrid", () => {
     expect(fake.calls.length).toBe(before);
   });
 });
+
+// ── React re-review HIGH 1 (a): her own live hold is hers to confirm — her view shows it free; anyone else's isn't. ──
+describe("parentSlotGrid — her own live hold", () => {
+  it("her live first-call hold is free for her; another parent's live hold is not", async () => {
+    const { deps } = setup({
+      bookings: [
+        bookingRow({ parentUserId: SESSION, startsAt: "2027-02-06T14:00:00.000Z", status: "held", holdExpiresAt: "2027-02-04T10:04:00.000Z" }),
+        bookingRow({ parentUserId: OTHER, startsAt: "2027-02-06T15:00:00.000Z", status: "held", holdExpiresAt: "2027-02-04T10:04:00.000Z" }),
+      ],
+    });
+    const grid = await parentSlotGrid(SESSION, deps);
+    const free = (startsAt: string) => grid.ok && grid.value.slots.find((s) => s.startsAt === startsAt)?.free;
+    expect(free("2027-02-06T14:00:00.000Z")).toBe(true);
+    expect(free("2027-02-06T15:00:00.000Z")).toBe(false);
+  });
+
+  it("her booked call still occupies its slot (only a live hold is hers to take)", async () => {
+    const { deps } = setup({ bookings: [bookingRow({ parentUserId: SESSION, startsAt: "2027-02-06T14:00:00.000Z" })] });
+    const grid = await parentSlotGrid(SESSION, deps);
+    expect(grid.ok && grid.value.slots.find((s) => s.startsAt === "2027-02-06T14:00:00.000Z")?.free).toBe(false);
+  });
+});

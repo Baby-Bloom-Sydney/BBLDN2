@@ -24,7 +24,7 @@
  */
 
 import Link from "next/link";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -165,11 +165,19 @@ function useFocusOnBooked(showBooked: boolean) {
   return root;
 }
 
+/** The taken notice is shown once: the first picker gets it, a later one (after booking, Change time) doesn't. */
+function useNoticeOnce(notice: string | null): string | null {
+  const [pending, setPending] = useState(notice);
+  useEffect(() => setPending(null), []);
+  return pending;
+}
+
 export function CallBookingPanel({ initial, startChanging = false, onward, inPopup = false, notice = null }: CallBookingPanelProps) {
   const call = useCallBooking(initial, startChanging);
+  const pendingNotice = useNoticeOnce(notice);
   const showBooked = call.view.kind === "booked" && !call.changing;
   const root = useFocusOnBooked(showBooked);
-  const props = { call, inPopup, onward, notice };
+  const props = { call, inPopup, onward, notice: pendingNotice };
   // One status region for the panel's life, so booking and cancelling are announced into it (code review MEDIUM).
   return (
     <div ref={root}>

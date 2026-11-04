@@ -86,7 +86,7 @@ function Empty({ line, busy, onRetry }: { readonly line: string; readonly busy: 
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
       <p className="text-sm text-slate-700">{line}</p>
-      <Button type="button" variant="link" onClick={onRetry} disabled={busy} className="mt-1 h-auto px-0 text-violet-700">
+      <Button type="button" variant="link" data-retry onClick={onRetry} disabled={busy} className="mt-1 h-auto px-0 text-violet-700">
         {PARENT_COPY.retry}
       </Button>
     </div>
@@ -227,6 +227,36 @@ function useScrollActionsIntoView(trigger: string | null) {
   return area;
 }
 
+function lastOf(root: HTMLElement | null, selector: string): HTMLElement | null {
+  const all = root?.querySelectorAll<HTMLElement>(selector);
+  return all && all.length > 0 ? all[all.length - 1] : null;
+}
+
+/**
+ * Where focus goes back to (after the notice closes, or a reload): her chosen tile in the deepest step, else that
+ * step's tab stop, else Retry, else the heading — never the page body (React re-review LOW).
+ */
+function focusBack(section: HTMLElement | null, steps: HTMLElement | null, heading: HTMLElement | null) {
+  const target =
+    lastOf(steps, '[aria-checked="true"]:not([disabled])') ??
+    lastOf(steps, '[tabindex="0"]:not([disabled])') ??
+    section?.querySelector<HTMLElement>("[data-retry]") ??
+    heading;
+  target?.focus();
+}
+
+/** A reload swaps the steps for a skeleton; if that dropped focus to the page, put it back once the list is in. */
+function useFocusAfterReload(loading: boolean, back: () => void) {
+  const was = useRef(loading);
+  const backRef = useRef(back);
+  backRef.current = back;
+  useEffect(() => {
+    const lost = document.activeElement === null || document.activeElement === document.body;
+    if (was.current && !loading && lost) backRef.current();
+    was.current = loading;
+  }, [loading]);
+}
+
 export function SlotPicker<T>({ days, actions, onConfirmed, onKeepTime, skipHref, current = null, initialNotice = null, gate, copy }: SlotPickerProps<T>) {
   const words = { ...DEFAULT_COPY, ...copy };
   const picker = useSlotPicker({ days, actions, onConfirmed, current, initialNotice, gated: gate !== undefined });
@@ -237,14 +267,16 @@ export function SlotPicker<T>({ days, actions, onConfirmed, onKeepTime, skipHref
   useEffect(() => {
     if (picker.message !== null) alertRef.current?.focus();
   }, [picker.message]);
-  const backToGrid = () => (gridRef.current?.querySelector<HTMLElement>('[tabindex="0"]:not([disabled])') ?? headingRef.current)?.focus();
+  const sectionRef = useRef<HTMLElement>(null);
+  const backToGrid = () => focusBack(sectionRef.current, gridRef.current, headingRef.current);
+  useFocusAfterReload(picker.loading, backToGrid);
   const gated = gate !== undefined;
   const shown = picker.reloadFailed ? null : days;
   const panel = shown && !picker.loading ? panelOf(picker, shown, gated) : null;
   const actionArea = useScrollActionsIntoView(gated ? picker.selected : picker.hold?.holdId ?? null);
 
   return (
-    <section aria-labelledby={`${uid}-heading`} className="space-y-4">
+    <section ref={sectionRef} aria-labelledby={`${uid}-heading`} className="space-y-4">
       <h2 ref={headingRef} id={`${uid}-heading`} tabIndex={-1} className="text-sm font-medium text-slate-700 flex items-center gap-1.5 focus:outline-none">
         <Calendar className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         <span>{words.heading}</span>

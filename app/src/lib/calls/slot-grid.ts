@@ -16,7 +16,7 @@ import { londonDateOf } from "@/lib/timezone";
 import { CALL_BOOKING_DISABLED, defaultCallsDeps, type CallsDeps } from "./deps";
 import { computeFreeSlots, slotBounds, spanOf, type FreeSlotsInput } from "./free-slots";
 import { datesBetween, generateSlots } from "./generate-slots";
-import type { CallPurpose, CallsResult, Slot } from "./types";
+import type { CallBooking, CallPurpose, CallsResult, Slot } from "./types";
 
 export interface GridSlot extends Slot {
   readonly free: boolean;
@@ -45,9 +45,13 @@ export function slotGridOf(input: FreeSlotsInput): SlotGrid {
   return { dates, slots: all.map((slot) => Object.freeze({ ...slot, free: free.has(slot.startsAt) })) };
 }
 
-/** The grid for a request (the 7-day window, or one London date for the cohort pre-book). */
+/**
+ * The grid for a request (the 7-day window, or one London date for the cohort pre-book). With `parentUserId`, her own
+ * live hold for this purpose is hers to confirm, so it doesn't make its slot look taken to her (React re-review HIGH 1;
+ * `call_hold_slot` replaces it, and `booking.ts` treats it the same way).
+ */
 export async function loadSlotGrid(
-  request: { readonly londonDate?: string; readonly purpose: CallPurpose },
+  request: { readonly londonDate?: string; readonly purpose: CallPurpose; readonly parentUserId?: string },
   deps: CallsDeps = defaultCallsDeps(),
 ): Promise<CallsResult<SlotGrid>> {
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
@@ -63,5 +67,7 @@ export async function loadSlotGrid(
   const [blocks, bookings] = await Promise.all([deps.repo.readBlocks(span), deps.repo.readOccupyingBookings(span)]);
   if (!blocks.ok) return blocks;
   if (!bookings.ok) return bookings;
-  return { ok: true, value: slotGridOf({ ...input, blocks: blocks.value, bookings: bookings.value }) };
+  const hers = (b: CallBooking) => b.parentUserId === request.parentUserId && b.status === "held" && b.purpose === request.purpose;
+  const others = request.parentUserId === undefined ? bookings.value : bookings.value.filter((b) => !hers(b));
+  return { ok: true, value: slotGridOf({ ...input, blocks: blocks.value, bookings: others }) };
 }

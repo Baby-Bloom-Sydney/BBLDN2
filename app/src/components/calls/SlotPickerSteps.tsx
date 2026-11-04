@@ -84,6 +84,8 @@ export interface Tile {
   readonly open: boolean;
   readonly chosen: boolean;
   readonly struck?: boolean;
+  /** Her own booked time while she changes it: shown chosen though it isn't open to pick. */
+  readonly hers?: boolean;
 }
 
 interface RadioTilesProps {
@@ -96,6 +98,12 @@ interface RadioTilesProps {
   readonly labelledBy: string;
   readonly busy: boolean;
   readonly onPick: (key: string) => void;
+}
+
+/** Chosen and still open (or hers) → violet; a chosen tile that has since closed greys out like any closed one. */
+function lookOf(tile: Tile, style: (typeof LOOK)[keyof typeof LOOK]): string {
+  if (tile.chosen && (tile.open || tile.hers)) return style.chosen;
+  return tile.open ? style.open : style.closed;
 }
 
 /** One step's radiogroup: one tab stop (the chosen tile while it is open, else the first open one). */
@@ -126,7 +134,7 @@ function RadioTiles({ tiles, look, gridClass, tileClass, columns, labelledBy, bu
           disabled={!tile.open || busy}
           onClick={() => onPick(tile.key)}
           onKeyDown={(event) => onKey(event, index)}
-          className={cn(style.base, FOCUS, tileClass, tile.chosen ? style.chosen : tile.open ? style.open : style.closed, tile.struck && "line-through")}
+          className={cn(style.base, FOCUS, tileClass, lookOf(tile, style), tile.struck && "line-through")}
         >
           {tile.content}
         </button>
@@ -190,6 +198,7 @@ export function TimeStep({ uid, slots, chosen, gone, current, busy, onTap }: Ste
     open: isOpenSlot(slot, gone),
     chosen: slot.startsAt === chosen,
     struck: gone.has(slot.startsAt),
+    hers: slot.startsAt === current,
     name: timeName(slot, gone, current),
     content: <time dateTime={slot.startsAt}>{slot.time}</time>,
   }));

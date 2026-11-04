@@ -62,7 +62,10 @@ export function CallPopup({ open, onClose, startChanging, notice }: CallPopupPro
   const view = useViewWhenOpen(open);
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
-      <DialogContent hideClose className="max-w-md max-h-[90dvh] overflow-y-auto overflow-x-hidden rounded-2xl p-5 sm:p-6">
+      <DialogContent
+        hideClose
+        className="max-w-md max-h-[90dvh] overflow-y-auto overflow-x-hidden rounded-2xl p-5 sm:p-6 motion-reduce:animate-none motion-reduce:transition-none"
+      >
         {view === null ? <Loading /> : <CallBookingPanel initial={view} inPopup startChanging={startChanging} notice={notice} />}
       </DialogContent>
     </Dialog>

@@ -34,7 +34,7 @@ export async function parentFreeSlots(sessionUserId: string, deps: CallsDeps = d
 export async function parentSlotGrid(sessionUserId: string, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<SlotGrid>> {
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
   if (herself(sessionUserId) === null) return CALLS_INVALID;
-  return loadSlotGrid({ purpose: "first_call" }, deps);
+  return loadSlotGrid({ purpose: "first_call", parentUserId: sessionUserId }, deps);
 }
 
 /** A tap on a time: hold it for her (the server rechecks it is a free slot). */

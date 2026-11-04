@@ -11,6 +11,7 @@
  */
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { actionsWith, DAYS, gridDays, HOLD, TUE_09, TUE_14, TUE_1430, TUE_15, WED_09 } from "./slot-picker.fixtures.test-util";
 import { SlotPicker } from "./SlotPicker";
@@ -532,5 +533,79 @@ describe("SlotPicker — scrolling: each new step, then the panel and the button
     await holdTue14(user);
     await waitFor(() => expect(scrolled).toHaveBeenLastCalledWith({ block: "end", behavior: "auto" }));
     expect(scrolled.mock.calls.every(([options]) => (options as ScrollIntoViewOptions).behavior === "auto")).toBe(true);
+  });
+});
+
+describe("SlotPicker — React re-review fixes", () => {
+  it("HIGH 1 (b): a confirm that throws keeps her hold and Confirm; a retry succeeds with the same hold id", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.fn().mockRejectedValueOnce(new Error("network")).mockResolvedValueOnce({ ok: true, value: "booked" });
+    const onConfirmed = vi.fn();
+    render(<SlotPicker days={DAYS} actions={actionsWith({ confirm })} onConfirmed={onConfirmed} />);
+    await holdTue14(user);
+    await user.click(await screen.findByRole("button", { name: "Confirm time" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't do that — try again");
+    expect(screen.getByText(HOLD.line)).toBeInTheDocument();
+    expect(tue14()).toHaveAttribute("aria-checked", "true");
+    expect(confirmButton()).toBeEnabled();
+    await user.click(confirmButton());
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(confirm.mock.calls[0][0].holdId).toBe(confirm.mock.calls[1][0].holdId);
+    expect(onConfirmed).toHaveBeenCalledWith("booked");
+  });
+
+  it.each([["error"], ["rate_limited"], ["invalid"]])("HIGH 1 (b): a refused confirm (%s) keeps her hold and Confirm enabled", async (error) => {
+    const user = userEvent.setup();
+    render(<SlotPicker days={DAYS} actions={actionsWith({ confirm: vi.fn(async () => ({ ok: false as const, error })) })} onConfirmed={vi.fn()} />);
+    await holdTue14(user);
+    await user.click(await screen.findByRole("button", { name: "Confirm time" }));
+    await screen.findByRole("alert");
+    expect(screen.getByText(HOLD.line)).toBeInTheDocument();
+    expect(confirmButton()).toBeEnabled();
+  });
+
+  it("HIGH 1: hold A, tap B, B refused → A is still hers, chosen and held (the database kept A's hold)", async () => {
+    const user = userEvent.setup();
+    const hold = vi.fn(async (startsAt: string) =>
+      startsAt === TUE_14 ? { ok: true as const, value: { ...HOLD, startsAt } } : { ok: false as const, error: "taken" },
+    );
+    render(<SlotPicker days={DAYS} actions={actionsWith({ hold })} onConfirmed={vi.fn()} />);
+    await holdTue14(user);
+    await screen.findByText(HOLD.line);
+    await user.click(time("Tuesday 9 February, 14:30"));
+    const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
+    await user.click(within(notice).getByRole("button", { name: "Pick another time" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(tue14()).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText(HOLD.line)).toBeInTheDocument();
+    expect(confirmButton()).toBeEnabled();
+    await waitFor(() => expect(tue14()).toHaveFocus());
+  });
+
+  it("LOW: a chosen time of day that has since closed renders greyed and disabled, not violet", async () => {
+    const user = userEvent.setup();
+    render(<SlotPicker days={gridDays({ [TUE_1430]: false })} actions={actionsWith({ hold: vi.fn(async () => ({ ok: false as const, error: "taken" })) })} onConfirmed={vi.fn()} />);
+    await holdTue14(user);
+    const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
+    await user.click(within(notice).getByRole("button", { name: "Pick another time" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(bracket("Afternoon")).toBeDisabled();
+    expect(bracket("Afternoon").className).toContain("bg-slate-50 text-slate-200 border-slate-100");
+    expect(bracket("Afternoon").className).not.toContain("bg-violet-600");
+  });
+
+  it("LOW: after Retry reloads the list, focus returns to the steps (not the page body)", async () => {
+    const user = userEvent.setup();
+    /** The owner, as the page is: its reload sets fresh days. */
+    function Owner() {
+      const [days, setDays] = useState<ReturnType<typeof gridDays> | null>(null);
+      const reload = async () => {
+        setDays(gridDays());
+      };
+      return <SlotPicker days={days} actions={actionsWith({ reload })} onConfirmed={vi.fn()} />;
+    }
+    render(<Owner />);
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(tue()).toHaveFocus());
   });
 });

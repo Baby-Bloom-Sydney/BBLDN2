@@ -12,6 +12,7 @@
  * BB-wave1-041126/04b-rework, 2026-11-05.
  */
 
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PARENT_COPY, takenNoticeLine } from "@/lib/calls/copy";
@@ -25,11 +26,14 @@ export interface TakenNoticeProps {
 }
 
 export function TakenNotice({ when, onClose, onClosed }: TakenNoticeProps) {
+  // The last line stays while the dialog animates out, never a blank time (React re-review LOW).
+  const last = useRef(when);
+  if (when !== null) last.current = when;
   return (
     <Dialog open={when !== null} onOpenChange={(open) => (open ? undefined : onClose())}>
       <DialogContent
         hideClose
-        className="max-w-sm rounded-2xl"
+        className="max-w-sm rounded-2xl motion-reduce:animate-none motion-reduce:transition-none"
         onCloseAutoFocus={(event) => {
           event.preventDefault();
           onClosed();
@@ -37,7 +41,7 @@ export function TakenNotice({ when, onClose, onClosed }: TakenNoticeProps) {
       >
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold text-slate-900">{PARENT_COPY.takenTitle}</DialogTitle>
-          <DialogDescription className="text-sm text-slate-600">{takenNoticeLine(when ?? "")}</DialogDescription>
+          <DialogDescription className="text-sm text-slate-600">{takenNoticeLine(last.current ?? PARENT_COPY.thatTime)}</DialogDescription>
         </DialogHeader>
         <Button type="button" onClick={onClose} className="w-full h-11 bg-violet-500 hover:bg-violet-600 text-white rounded-lg font-medium text-sm">
           {PARENT_COPY.pickAnother}

@@ -203,3 +203,34 @@ describe("no 'London time' in the popup or on the card (W14)", () => {
     expect(document.body.innerHTML).not.toMatch(/London/);
   });
 });
+
+describe("React re-review fixes (the popup)", () => {
+  it("MEDIUM: the taken notice shows once — not again after she books and then changes her time", async () => {
+    const user = userEvent.setup();
+    h.confirm.mockResolvedValue({ ok: true, value: { bookingId: "b-1", moved: false, replay: false, booking: MOVED } });
+    render(<ChildcareCall card={null} openWith="gone" goneWhen="Tuesday 9 February at 14:00" />);
+    const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
+    await user.click(within(notice).getByRole("button", { name: "Pick another time" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "This time has just been booked" })).not.toBeInTheDocument());
+    const dialog = await popup();
+    await user.click(await within(dialog).findByRole("radio", { name: "Tue 9 Feb" }));
+    await user.click(within(dialog).getByRole("radio", { name: /^Afternoon / }));
+    await user.click(within(dialog).getByRole("radio", { name: "Tuesday 9 February, 14:00" }));
+    await user.click(await within(dialog).findByRole("button", { name: "Confirm time" }));
+    const booked = await screen.findByRole("dialog", { name: "You're booked" });
+    h.reload.mockResolvedValue({ ok: true, value: { ...BOOKED_VIEW, booking: MOVED } });
+    await user.click(within(booked).getByRole("button", { name: "Change time" }));
+    await popup();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole("dialog", { name: "This time has just been booked" })).not.toBeInTheDocument();
+  });
+
+  it("LOW: the popup and the notice stop animating under reduced motion (only these two dialogs)", async () => {
+    render(<ChildcareCall card={null} openWith="gone" goneWhen="Tuesday 9 February at 14:00" />);
+    const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
+    expect(notice.className).toContain("motion-reduce:animate-none");
+    // The popup sits under the open notice (hidden from the accessibility tree meanwhile): both dialogs, by role.
+    await waitFor(() => expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(2));
+    for (const dialog of document.querySelectorAll('[role="dialog"]')) expect(dialog.className).toContain("motion-reduce:animate-none");
+  });
+});
