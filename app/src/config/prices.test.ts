@@ -36,6 +36,11 @@ describe("PRICES — the shared contract with 4f (BUILD-PLAN/README.md)", () => 
     for (const amount of amounts) expect(isPositiveInteger(amount)).toBe(true);
   });
 
+  it("charges the 4 November offer: fee 1,500 pounds, deposit 150 pounds (OPEN §5d, 2026-11-04)", () => {
+    expect(PRICES.dfy.feePence).toBe(150_000);
+    expect(PRICES.dfy.depositPence).toBe(15_000);
+  });
+
   it("keeps the done-for-you fee above the deposit credited against it (ADR-097)", () => {
     expect(PRICES.dfy.feePence).toBeGreaterThan(PRICES.dfy.depositPence);
   });

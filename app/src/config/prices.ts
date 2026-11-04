@@ -13,8 +13,8 @@
 
 export const PRICES = Object.freeze({
   dfy: Object.freeze({
-    feePence: 150_000, // ADR-096 — test value, offer §9
-    depositPence: 15_000, // ADR-097 — credited against the bill; test value, offer §9
+    feePence: 150_000, // OPEN §5d — the done-for-you fee, ratified 2026-11-04 (was ADR-096)
+    depositPence: 15_000, // OPEN §5c, §5d — part of the fee, comes off the bill; ratified 2026-11-04 (was ADR-097)
   } as const),
   selfServe: Object.freeze({
     upfrontToAge3Pence: 200_000, // ADR-091 — app to the child's 3rd birthday (ADR-083)
