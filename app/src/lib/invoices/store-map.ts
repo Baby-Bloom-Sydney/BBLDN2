@@ -9,7 +9,7 @@
 import { z } from "zod";
 import type { DetailMasks } from "./masking";
 import { invoiceNumber } from "./numbering";
-import { CANCEL_REASONS, INVOICE_KINDS, type CancelReason, type InvoiceKind, type InvoiceStatus } from "./types";
+import { CANCEL_REASONS, INVOICE_KINDS, INVOICE_STATUSES, type CancelReason, type InvoiceKind, type InvoiceStatus } from "./types";
 import { isLondonDate } from "./week";
 
 /** What a screen may read of her details: the generated masks, never the full numbers (brief §0.2). */
@@ -22,7 +22,6 @@ export const WEEK_COLUMNS = "id, invoice_seq, nanny_id, nanny_name, hours, statu
 export const FAMILY_COLUMNS =
   "id, invoice_seq, nanny_id, nanny_name, kind, period_start, hours, rate_pence, total_pence, status, pdf_path, sent_at, cancelled_at, cancel_reason, replaces_invoice_id";
 
-const STATUSES = ["sending", "sent", "failed", "cancelled"] as const;
 const id = z.string().min(1);
 const instant = z.string().refine((v) => !Number.isNaN(Date.parse(v))).transform((v) => new Date(v).toISOString());
 const londonDate = z.string().refine(isLondonDate);
@@ -60,7 +59,6 @@ export interface CreatedInvoice {
   readonly seq: number;
   readonly number: string;
   readonly status: InvoiceStatus;
-  readonly replay: boolean;
   readonly kind: InvoiceKind;
   readonly placementId: string | null;
   readonly connectionRequestId: string | null;
@@ -153,10 +151,9 @@ export const savedReply = z
 export const createdReply = z
   .object({
     status: z.literal("created"),
-    replay: z.boolean(),
     invoice_id: id,
     invoice_seq: seq,
-    invoice_status: z.enum(STATUSES),
+    invoice_status: z.enum(INVOICE_STATUSES),
     kind: z.enum(INVOICE_KINDS),
     placement_id: id.nullable(),
     connection_request_id: id.nullable(),
@@ -180,7 +177,6 @@ export const createdReply = z
     seq: r.invoice_seq,
     number: invoiceNumber(r.invoice_seq),
     status: r.invoice_status,
-    replay: r.replay,
     kind: r.kind,
     placementId: r.placement_id,
     connectionRequestId: r.connection_request_id,
@@ -200,9 +196,12 @@ export const createdReply = z
     createdAt: r.created_at,
   }));
 
-/** A refusal from `nanny_invoice_create` / `nanny_invoice_finish` (status codes only). */
+/** A refusal from amendment 21's functions (status codes only; a retry of an id answers in_progress / already_done). */
 export const refusalReply = z.object({
-  status: z.enum(["invalid", "future", "not_hers", "no_trial", "no_details", "bad_replaces", "already_replaced", "no_contact", "not_found", "not_sending"]),
+  status: z.enum([
+    "invalid", "future", "not_hers", "no_trial", "wrong_date", "no_details", "bad_replaces", "already_replaced", "no_contact",
+    "nanny_inactive", "cap", "busy", "in_progress", "already_done", "not_found", "not_sending", "no_pdf",
+  ]),
 });
 
 export const finishedReply = z.object({ status: z.enum(["sent", "failed"]) });
@@ -214,10 +213,13 @@ export const weekRow = z.object({
   nanny_id: id,
   nanny_name: z.string(),
   hours,
-  status: z.enum(STATUSES),
+  status: z.enum(INVOICE_STATUSES),
   pdf_path: z.string().nullable(),
   sent_at: instant.nullable(),
 });
+
+/** The daily-cap count's rows (security M2: the database's own rule, re-told for 06b's screen). */
+export const capRow = z.object({ id, status: z.enum(INVOICE_STATUSES), created_at: instant });
 
 export const familyRow = z.object({
   id,
@@ -229,7 +231,7 @@ export const familyRow = z.object({
   hours,
   rate_pence: pence,
   total_pence: pence,
-  status: z.enum(STATUSES),
+  status: z.enum(INVOICE_STATUSES),
   pdf_path: z.string().nullable(),
   sent_at: instant.nullable(),
   cancelled_at: instant.nullable(),

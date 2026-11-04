@@ -8,8 +8,9 @@
 export const INVOICE_KINDS = ["regular_week", "trial_shift"] as const;
 export type InvoiceKind = (typeof INVOICE_KINDS)[number];
 
-/** A row's lifecycle (plan R1): sending → sent | failed; sent → cancelled. Never deleted. */
-export type InvoiceStatus = "sending" | "sent" | "failed" | "cancelled";
+/** A row's lifecycle (plan R1): sending → sent | failed; sent → cancelled (a database trigger enforces it). */
+export const INVOICE_STATUSES = ["sending", "sent", "failed", "cancelled"] as const;
+export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 /** What the readers return: an invoice that went out (cancelled ones included, marked). */
 export type IssuedStatus = "sent" | "cancelled";
 
@@ -25,6 +26,13 @@ export type InvoiceError =
   | "future" // a week or date after London's today
   | "not_hers" // not her placement or trial connection (or a dismissed placement)
   | "no_trial" // a connection with no trial date (plan R3)
+  | "wrong_date" // a Trial Shift on a day that isn't the connection's trial date
+  | "nanny_inactive" // her nanny account is suspended or deactivated
+  | "cap" // the daily send cap is reached (counted in the database, under her lock)
+  | "busy" // her lock is held by another write of hers: try again
+  | "in_progress" // this invoice id is being sent right now: never a second send
+  | "already_done" // this invoice id already went out (or failed): start a new invoice
+  | "no_pdf" // finishing as sent before its PDF is stored
   | "no_details" // no payment details, or not the account she reviewed
   | "bad_replaces" // a correction for an invoice that isn't hers, cancelled and to the same family (plan R4)
   | "already_replaced" // that invoice already has a correction
@@ -41,6 +49,8 @@ export const invoiceOk = <T>(value: T): InvoiceResult<T> => ({ ok: true, value }
 export const refused = (error: InvoiceError): { readonly ok: false; readonly error: InvoiceError } =>
   Object.freeze({ ok: false, error } as const);
 export const INVOICES_DISABLED = refused("invoices_disabled");
+export const INVALID = refused("invalid");
+export const FAILED = refused("error");
 
 /** A reader's read failed. Thrown, never a silent null, so 07 can't mistake an outage for "no invoice" (plan step 9). */
 export class InvoiceReadError extends Error {

@@ -39,13 +39,19 @@ export const VALIDATION_MESSAGES = Object.freeze({
 } as const);
 const M = VALIDATION_MESSAGES;
 
-/** Control characters: none in a one-line field; an address keeps only its line breaks. */
-const ONE_LINE_BAD = /[\u0000-\u001f\u007f]/;
-const ADDRESS_BAD = /[\u0000-\u0009\u000b-\u001f\u007f]/;
+/**
+ * Control characters and invisible format characters (zero-width, bidi overrides, soft hyphen — `\p{Cf}`): none
+ * in a one-line field; an address keeps only its line breaks. These print on a BabyBloom-sent PDF (review L8).
+ */
+const ONE_LINE_BAD = /[\u0000-\u001f\u007f\p{Cf}]/u;
+const ADDRESS_BAD = /[\u0000-\u0009\u000b-\u001f\u007f\p{Cf}]/u;
 const BABY_BLOOM = /baby\s*bloom/i;
 
-const isNotBabyBloom = (value: string): boolean =>
-  !BABY_BLOOM.test(value) && !value.toLowerCase().includes(SITE_NAME.toLowerCase());
+/** Tested after NFKC, which folds full-width and other look-alike letters to plain ones. */
+const isNotBabyBloom = (value: string): boolean => {
+  const folded = value.normalize("NFKC");
+  return !BABY_BLOOM.test(folded) && !folded.toLowerCase().includes(SITE_NAME.toLowerCase());
+};
 
 /** UK bank digits: spaces and hyphens stripped, then exactly `count` digits. */
 const bankDigits = (count: number, message: string) =>

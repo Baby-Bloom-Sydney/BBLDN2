@@ -4,7 +4,8 @@
  *
  * - **An admin proof first** (`proveAdmin()`, `src/lib/calls/admin-proof.ts` — the 04a/02 review lesson): 07 reads
  *   on BAI's bill panel. A missing proof is a programming error and throws a TypeError, as a non-Monday week does.
- * - **Switch off:** `null` / `[]` before any check or read; 07 then asks BAI for the hours by hand.
+ * - **Switch off:** `null` (week hours), `[]` (R18) or an all-zero summary (R21 types it non-null), before any
+ *   check or read; 07 then asks BAI for the hours by hand.
  * - **What counts** (R1): only invoices that went out with a PDF. Cancelled ones are listed (marked) but never
  *   counted; failed and still-sending ones never appear.
  * - **Never returned:** bank details, emails, PDF paths or links. Hours and rates are not capped here: 07 applies
@@ -30,7 +31,11 @@ export interface WeekHoursInvoice {
   readonly hours: number; // 0.5 steps
 }
 
-/** R21's `{ hours, invoiceId, number }` — the latest invoice — plus every invoice summed (07 lists both, brief §11 Q9). */
+/**
+ * R21's `{ hours, invoiceId, number }` plus `invoices`. `hours` is the sum of every live invoice for the week (brief
+ * §11 Q9); `invoiceId` / `number` name the LATEST of them only — when `invoices` has more than one, 07 must show
+ * them all (brief 07 §5: "the panel lists both"), never "N h from <latest>".
+ */
 export interface PlacementWeekHours {
   readonly hours: number;
   readonly invoiceId: string;
@@ -142,8 +147,8 @@ export function formatFamilySummary(s: FamilyInvoiceSummary): string {
   return `${invoices} · ${s.cancelledCount} cancelled · ${formatHours(s.hours)} h · ${formatInvoiceMoney(s.totalPence)}`;
 }
 
-/** One family's summary; null with the switch off. */
-export async function getFamilyInvoiceSummary(proof: AdminProof, parentUserId: string): Promise<FamilyInvoiceSummary | null> {
-  if (!nannyInvoicesEnabled()) return null;
+/** One family's summary (R21: never null); all zeros with the switch off, with nothing read. */
+export async function getFamilyInvoiceSummary(proof: AdminProof, parentUserId: string): Promise<FamilyInvoiceSummary> {
+  if (!nannyInvoicesEnabled()) return summarise([]);
   return summarise(await listFamilyInvoices(proof, parentUserId));
 }

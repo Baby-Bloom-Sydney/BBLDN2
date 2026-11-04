@@ -60,13 +60,23 @@ describe("paymentDetailsSchema", () => {
     if (typed !== "") for (const m of messages) expect(m).not.toContain(typed);
   });
 
-  it.each(["BabyBloom", "Baby Bloom Ltd", "BABYBLOOM childcare", "baby  bloom"])(
+  it.each(["BabyBloom", "Baby Bloom Ltd", "BABYBLOOM childcare", "baby  bloom", "ＢａｂｙＢｌｏｏｍ"])(
     "never lets BabyBloom be the party paid: %s (plan R8, brief D7)",
     (name) => {
       expect(messagesOf(paymentDetailsSchema.safeParse({ ...details, accountName: name }))).toContain(M.ownName);
       expect(messagesOf(paymentDetailsSchema.safeParse({ ...details, tradingName: name }))).toContain(M.ownName);
     },
   );
+
+  it.each([
+    ["a zero-width space", "Baby\u200bBloom"],
+    ["a right-to-left override", "Sophie \u202eTaylor"],
+    ["a soft hyphen", "Sophie\u00adTaylor"],
+  ])("refuses invisible format characters in a name: %s (review L8)", (_label, name) => {
+    expect(messagesOf(paymentDetailsSchema.safeParse({ ...details, accountName: name }))).toContain(M.oneLine);
+    expect(messagesOf(paymentDetailsSchema.safeParse({ ...details, tradingName: name }))).toContain(M.oneLine);
+    expect(messagesOf(paymentDetailsSchema.safeParse({ ...details, invoiceAddress: name }))).toContain(M.oneLine);
+  });
 
   it("never echoes a rejected number in any message, even when everything is wrong", () => {
     const result = paymentDetailsSchema.safeParse({ accountName: 7, sortCode: "998877665", accountNumber: "123", tradingName: 5 });

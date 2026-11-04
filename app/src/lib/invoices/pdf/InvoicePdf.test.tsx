@@ -63,6 +63,8 @@ describe("InvoicePdf", () => {
   it("a correction prints 'Replaces INV-0001' and her trading name above her name", () => {
     const correction = linesOf(InvoicePdf(CORRECTION_INVOICE));
     expect(correction).toContain("Replaces INV-0001");
+    expect(correction).toContain("Zoë Ó Briain Childcare");
+    expect(correction).toContain("Łucja Wiśniewska");
     expect(correction.indexOf("Zoë Ó Briain Childcare")).toBeLessThan(correction.indexOf("Łucja Wiśniewska"));
     expect(correction).toEqual(expect.arrayContaining(["28", "£504.00", "Kateřina Dvořák"]));
   });

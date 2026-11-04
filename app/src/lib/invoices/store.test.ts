@@ -24,7 +24,7 @@ import { proveAdmin, type AdminProof } from "@/lib/calls/admin-proof";
 import { fakeAdmin, type FakeAdmin } from "@/lib/payments/fake-admin.test-util";
 import { proveNanny, type NannyProof } from "./nanny-proof";
 import {
-  countSentToday,
+  countTowardsDailyCap,
   createInvoice,
   finishInvoice,
   readFamilyRows,
@@ -54,7 +54,7 @@ const DRAFT = {
   replacesInvoiceId: null,
 };
 const CREATED = {
-  status: "created", replay: false, invoice_id: INVOICE, invoice_seq: 1, invoice_status: "sending", kind: "regular_week",
+  status: "created", invoice_id: INVOICE, invoice_seq: 1, invoice_status: "sending", kind: "regular_week",
   placement_id: PLACEMENT, connection_request_id: null, period_start: "2027-02-08", hours: 30, rate_pence: 1800,
   total_pence: 54000, parent_user_id: PARENT_USER, family_name: "Olivia Hartley", family_email: "admin+b06-11@babybloomnannies.co.uk",
   nanny_name: "Sophie Taylor", nanny_email: "admin+b06-1@babybloomnannies.co.uk", account_last4: "4321",
@@ -111,7 +111,7 @@ describe("with the switch off", () => {
       saveDetails(nanny, DETAILS_IN),
       createInvoice(nanny, DRAFT, "4321", NOW),
       finishInvoice(nanny, INVOICE, { kind: "failed" }),
-      countSentToday(nanny, NOW),
+      countTowardsDailyCap(nanny, NOW),
       readPlacementWeekRows(admin, PLACEMENT, "2027-02-08"),
       readFamilyRows(admin, PARENT_USER),
     ]);
@@ -131,7 +131,7 @@ describe("without a real proof", () => {
       saveDetails(lookAlike, DETAILS_IN),
       createInvoice(lookAlike, DRAFT, "4321", NOW),
       finishInvoice(lookAlike, INVOICE, { kind: "failed" }),
-      countSentToday(lookAlike, NOW),
+      countTowardsDailyCap(lookAlike, NOW),
       readPlacementWeekRows(nanny as unknown as AdminProof, PLACEMENT, "2027-02-08"),
       readFamilyRows({ kind: "admin_proof", userId: ADMIN_USER } as unknown as AdminProof, PARENT_USER),
     ]);
@@ -145,7 +145,7 @@ describe("when the service client can't be made or a read throws", () => {
   it("answers error, logged by name only", async () => {
     createAdminClient.mockImplementation(() => { throw new Error("Missing Supabase admin credentials"); });
     for (const r of await Promise.all([readMaskedDetails(nanny), saveDetails(nanny, DETAILS_IN), createInvoice(nanny, DRAFT, "4321", NOW),
-      finishInvoice(nanny, INVOICE, { kind: "failed" }), countSentToday(nanny, NOW), readFamilyRows(admin, PARENT_USER)])) {
+      finishInvoice(nanny, INVOICE, { kind: "failed" }), countTowardsDailyCap(nanny, NOW), readFamilyRows(admin, PARENT_USER)])) {
       expect(r).toEqual({ ok: false, error: "error" });
     }
     expect(console.error).toHaveBeenCalledWith("[invoices] createAdminClient failed", { code: "Error" });
@@ -153,7 +153,7 @@ describe("when the service client can't be made or a read throws", () => {
     f.reads.nanny_payment_details = () => { throw new TypeError("network"); };
     f.reads.nanny_invoices = () => { throw new TypeError("network"); };
     expect(await readMaskedDetails(nanny)).toEqual({ ok: false, error: "error" });
-    expect(await countSentToday(nanny, NOW)).toEqual({ ok: false, error: "error" });
+    expect(await countTowardsDailyCap(nanny, NOW)).toEqual({ ok: false, error: "error" });
   });
 });
 
@@ -244,13 +244,13 @@ describe("createInvoice", () => {
       fn: "nanny_invoice_create",
       args: {
         p_id: INVOICE, p_nanny: NANNY_ID, p_kind: "regular_week", p_target: PLACEMENT, p_period_start: "2027-02-08",
-        p_hours: 30, p_rate_pence: 1800, p_replaces: null, p_account_last4: "4321",
+        p_hours: 30, p_rate_pence: 1800, p_replaces: null, p_account_last4: "4321", p_daily_cap: 10,
       },
     }]);
     expect(r).toEqual({
       ok: true,
       value: {
-        invoiceId: INVOICE, seq: 1, number: "INV-0001", status: "sending", replay: false, kind: "regular_week",
+        invoiceId: INVOICE, seq: 1, number: "INV-0001", status: "sending", kind: "regular_week",
         placementId: PLACEMENT, connectionRequestId: null, periodStart: "2027-02-08", hours: 30, ratePence: 1800,
         totalPence: 54000, parentUserId: PARENT_USER, familyName: "Olivia Hartley", familyEmail: "admin+b06-11@babybloomnannies.co.uk",
         nannyName: "Sophie Taylor", nannyEmail: "admin+b06-1@babybloomnannies.co.uk", accountLast4: "4321",
@@ -268,7 +268,8 @@ describe("createInvoice", () => {
     expect(r.ok && [r.value.number, r.value.replacesNumber, r.value.hours]).toEqual(["INV-0003", "INV-0001", 28]);
   });
 
-  it.each(["future", "not_hers", "no_trial", "no_details", "bad_replaces", "already_replaced", "no_contact", "invalid"] as const)(
+  it.each(["future", "not_hers", "no_trial", "wrong_date", "no_details", "bad_replaces", "already_replaced", "no_contact",
+    "nanny_inactive", "cap", "busy", "invalid", "in_progress", "already_done"] as const)(
     "passes the database's %s refusal through",
     async (status) => {
       f.rpcResults.nanny_invoice_create = { data: { status }, error: null };
@@ -282,6 +283,20 @@ describe("createInvoice", () => {
     expect(await createInvoice(nanny, { ...DRAFT, ratePence: 999 }, "4321", NOW)).toEqual({ ok: false, error: "invalid" });
     expect(await createInvoice(nanny, DRAFT, "87654321", NOW)).toEqual({ ok: false, error: "invalid" });
     expect(f.rpcCalls).toEqual([]);
+  });
+
+  it("a retry of the same id is never a second send: in_progress while it's sending, already_done after (security M5)", async () => {
+    f.rpcResults.nanny_invoice_create = { data: { status: "in_progress", invoice_id: INVOICE, invoice_status: "sending" }, error: null };
+    expect(await createInvoice(nanny, DRAFT, "4321", NOW)).toEqual({ ok: false, error: "in_progress" });
+    f.rpcResults.nanny_invoice_create = { data: { status: "already_done", invoice_id: INVOICE, invoice_status: "sent" }, error: null };
+    expect(await createInvoice(nanny, DRAFT, "4321", NOW)).toEqual({ ok: false, error: "already_done" });
+  });
+
+  it("a lock that times out (55P03) is busy, so the nanny can simply try again", async () => {
+    f.rpcResults.nanny_invoice_create = { data: null, error: { message: "canceling statement due to lock timeout", code: "55P03" } };
+    expect(await createInvoice(nanny, DRAFT, "4321", NOW)).toEqual({ ok: false, error: "busy" });
+    f.rpcResults.nanny_payment_details_save = { data: null, error: { message: "canceling statement due to lock timeout", code: "55P03" } };
+    expect(await saveDetails(nanny, DETAILS_IN)).toEqual({ ok: false, error: "busy" });
   });
 
   it("an unknown or malformed reply, or a failure, is an error", async () => {
@@ -306,7 +321,7 @@ describe("finishInvoice", () => {
     ]);
   });
 
-  it.each(["not_found", "not_sending", "invalid"] as const)("passes %s through", async (status) => {
+  it.each(["not_found", "not_sending", "no_pdf", "invalid"] as const)("passes %s through", async (status) => {
     f.rpcResults.nanny_invoice_finish = { data: { status }, error: null };
     expect(await finishInvoice(nanny, INVOICE, { kind: "failed" })).toEqual({ ok: false, error: status });
   });
@@ -321,20 +336,27 @@ describe("finishInvoice", () => {
   });
 });
 
-describe("countSentToday (the daily cap, plan R1)", () => {
-  it("counts her sent invoices with a PDF in London's day, reading no more than the cap + 1", async () => {
-    f.reads.nanny_invoices = [{ id: "a" }, { id: "b" }];
-    expect(await countSentToday(nanny, NOW)).toEqual({ ok: true, value: 2 });
+describe("countTowardsDailyCap (the database's own count, for 06b to say so before a send)", () => {
+  it("counts what she created in London's day that isn't failed — sending, sent and cancelled (security M2)", async () => {
+    f.reads.nanny_invoices = [
+      { id: "a", status: "sent", created_at: "2027-02-15T09:00:00+00:00" },
+      { id: "b", status: "cancelled", created_at: "2027-02-15T08:00:00+00:00" },
+      { id: "c", status: "sending", created_at: "2027-02-15T09:55:00+00:00" },
+      { id: "d", status: "sending", created_at: "2027-02-15T09:40:00+00:00" },
+    ];
+    expect(await countTowardsDailyCap(nanny, NOW)).toEqual({ ok: true, value: 3 });
     expect(filtersOf("nanny_invoices")).toEqual([
       ["eq", "nanny_id", NANNY_ID],
-      ["eq", "status", "sent"],
-      ["not", "pdf_path", "is"],
-      ["gte", "sent_at", "2027-02-15T00:00:00.000Z"],
-      ["lt", "sent_at", "2027-02-16T00:00:00.000Z"],
+      ["in", "status", ["sending", "sent", "cancelled"]],
+      ["gte", "created_at", "2027-02-15T00:00:00.000Z"],
+      ["lt", "created_at", "2027-02-16T00:00:00.000Z"],
+      ["order", "created_at", { ascending: false }],
       ["limit", 11, undefined],
     ]);
+    f.reads.nanny_invoices = [{ id: "a", status: "sent", created_at: "garbage" }];
+    expect(await countTowardsDailyCap(nanny, NOW)).toEqual({ ok: false, error: "error" });
     f.readErrors.nanny_invoices = { message: "x", code: "57014" };
-    expect(await countSentToday(nanny, NOW)).toEqual({ ok: false, error: "error" });
+    expect(await countTowardsDailyCap(nanny, NOW)).toEqual({ ok: false, error: "error" });
   });
 });
 

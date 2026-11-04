@@ -15,12 +15,11 @@
  */
 
 import { z } from "zod";
-import { nannyInvoicesEnabled } from "@/lib/features/flags";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { allPages, allPagesByIds, logFailure, type AdminClient, type DbResult } from "./db";
+import { allPages, allPagesByIds, parseRows, readOne, serviceClient, type AdminClient } from "./db";
+import { nannyGate } from "./gate";
 import { poundsToPence } from "./money";
-import { isNannyProof, type NannyProof } from "./nanny-proof";
-import { INVOICE_KINDS, INVOICES_DISABLED, invoiceOk, refused, type InvoiceKind, type InvoiceResult } from "./types";
+import type { NannyProof } from "./nanny-proof";
+import { FAILED, INVALID, INVOICE_KINDS, invoiceOk, refused, type InvoiceKind, type InvoiceResult } from "./types";
 import { isLondonDate } from "./week";
 
 export interface FamilyPlacement {
@@ -45,13 +44,16 @@ export interface InvoiceableFamily {
   readonly trials: readonly FamilyTrial[];
 }
 
-/** One target, resolved for the review screen and the send (brief §0.4: the recipient's name and email). */
+/**
+ * One target, resolved for the review screen (brief §0.4: "This invoice goes to Olivia Hartley (olivia@…)"). The
+ * email is a hint only — the address an invoice goes to is the database's snapshot on the created row (security L3).
+ */
 export interface InvoiceTarget {
   readonly kind: InvoiceKind;
   readonly targetId: string;
   readonly parentUserId: string;
   readonly familyName: string;
-  readonly familyEmail: string;
+  readonly familyEmailHint: string;
   readonly area: string | null;
   readonly prefill: { readonly hours: number | null; readonly ratePence: number | null; readonly date: string | null };
 }
@@ -60,8 +62,6 @@ const DISMISSED = "[NANNY_DISMISSED]";
 const STATUS_ORDER = ["active", "paused", "ended"] as const;
 const PLACEMENT_COLUMNS = "id, nanny_id, parent_id, position_id, status, start_date, weekly_hours, hourly_rate, end_notes";
 const CONNECTION_COLUMNS = "id, nanny_id, parent_id, position_id, trial_date";
-const ERROR = refused("error");
-const INVALID = refused("invalid");
 
 const id = z.string().min(1);
 const numeric = z.union([z.number(), z.string()]).nullable();
@@ -84,26 +84,10 @@ interface People {
   readonly positions: ReadonlyMap<string, PositionRow>;
 }
 
-function gate(proof: unknown): InvoiceResult<never> | null {
-  if (!nannyInvoicesEnabled()) return INVOICES_DISABLED;
-  return isNannyProof(proof) ? null : INVALID;
-}
-
-function client(): AdminClient | null {
-  try {
-    return createAdminClient();
-  } catch (thrown) {
-    logFailure("createAdminClient", thrown);
-    return null;
-  }
-}
-
-function parseAll<S extends z.ZodType>(label: string, rows: DbResult<readonly unknown[]>, schema: S): InvoiceResult<readonly z.output<S>[]> {
-  if (!rows.ok) return ERROR;
-  const parsed = z.array(schema).safeParse(rows.value);
-  if (parsed.success) return invoiceOk(parsed.data);
-  logFailure(label, { code: "unexpected_row" });
-  return ERROR;
+/** "olivia@…": the address's local part, never its domain (brief §0.4). */
+export function emailHint(email: string): string {
+  const at = email.indexOf("@");
+  return at > 0 ? `${email.slice(0, at)}@…` : "…";
 }
 
 const fullName = (p: { readonly first_name: string; readonly last_name: string }): string => `${p.first_name} ${p.last_name}`.trim();
@@ -123,8 +107,8 @@ async function readMine(admin: AdminClient, nannyId: string): Promise<InvoiceRes
       admin.from("connection_requests").select(CONNECTION_COLUMNS).eq("nanny_id", nannyId).not("trial_date", "is", null)
         .order("id", { ascending: true }).range(from, to)),
   ]);
-  const p = parseAll("families.placements", placements, placementRow);
-  const c = parseAll("families.trials", connections, connectionRow);
+  const p = parseRows("families.placements", placements, placementRow);
+  const c = parseRows("families.trials", connections, connectionRow);
   if (!p.ok) return p;
   if (!c.ok) return c;
   return invoiceOk({
@@ -135,7 +119,7 @@ async function readMine(admin: AdminClient, nannyId: string): Promise<InvoiceRes
 
 /** The families' user ids and names, and the positions' areas and rates. */
 async function readPeople(admin: AdminClient, parentIds: readonly string[], positionIds: readonly string[]): Promise<InvoiceResult<People>> {
-  const parents = parseAll("families.parents", await allPagesByIds("families.parents", parentIds, (chunk) => (from, to) =>
+  const parents = parseRows("families.parents", await allPagesByIds("families.parents", parentIds, (chunk) => (from, to) =>
     admin.from("parents").select("id, user_id").in("id", [...chunk]).order("id", { ascending: true }).range(from, to)), parentRow);
   if (!parents.ok) return parents;
   const userIds = unique(parents.value.map((p) => p.user_id));
@@ -145,8 +129,8 @@ async function readPeople(admin: AdminClient, parentIds: readonly string[], posi
     allPagesByIds("families.positions", positionIds, (chunk) => (from, to) =>
       admin.from("nanny_positions").select("id, suburb, hourly_rate").in("id", [...chunk]).order("id", { ascending: true }).range(from, to)),
   ]);
-  const names = parseAll("families.profiles", profiles, profileRow);
-  const places = parseAll("families.positions", positions, positionRow);
+  const names = parseRows("families.profiles", profiles, profileRow);
+  const places = parseRows("families.positions", positions, positionRow);
   if (!names.ok) return names;
   if (!places.ok) return places;
   return invoiceOk({
@@ -186,10 +170,10 @@ function groupFamilies(placements: readonly PlacementRow[], trials: readonly Con
 
 /** Every family she can invoice (plan step 7). */
 export async function listInvoiceableFamilies(proof: NannyProof): Promise<InvoiceResult<readonly InvoiceableFamily[]>> {
-  const refusal = gate(proof);
+  const refusal = nannyGate(proof);
   if (refusal) return refusal;
-  const admin = client();
-  if (!admin) return ERROR;
+  const admin = serviceClient();
+  if (!admin) return FAILED;
   const mine = await readMine(admin, proof.nannyId);
   if (!mine.ok) return mine;
   const { placements, trials } = mine.value;
@@ -197,29 +181,6 @@ export async function listInvoiceableFamilies(proof: NannyProof): Promise<Invoic
   const rows = [...placements, ...trials];
   const people = await readPeople(admin, unique(rows.map((r) => r.parent_id)), unique(rows.map((r) => r.position_id)));
   return people.ok ? invoiceOk(groupFamilies(placements, trials, people.value)) : people;
-}
-
-/** One row by its filters (`maybeSingle`): null when there's none, `error` when the read fails or doesn't fit. */
-async function readOne<S extends z.ZodType>(
-  label: string,
-  query: () => PromiseLike<{ readonly data: unknown; readonly error: { readonly message: string; readonly code?: string } | null }>,
-  schema: S,
-): Promise<InvoiceResult<z.output<S> | null>> {
-  try {
-    const { data, error } = await query();
-    if (error) {
-      logFailure(label, error);
-      return ERROR;
-    }
-    if (data === null) return invoiceOk(null);
-    const row = schema.safeParse(data);
-    if (row.success) return invoiceOk(row.data);
-    logFailure(label, { code: "unexpected_row" });
-    return ERROR;
-  } catch (thrown) {
-    logFailure(label, thrown);
-    return ERROR;
-  }
 }
 
 /** Her placement (not dismissed) or her trial connection (with a date): its family and position. */
@@ -240,15 +201,16 @@ async function readLink(admin: AdminClient, kind: InvoiceKind, targetId: string,
 }
 
 /**
- * Check one target is hers and resolve its family (plan step 7's `assertFamilyIsHers`): every write checks this on
- * the server first, and the database checks ownership again when it creates the invoice.
+ * Check one target is hers and resolve its family (plan step 7's `assertFamilyIsHers`) for the review screen. The
+ * database applies the same rules again, under her lock, when it creates the invoice (ownership, a dismissed
+ * placement, a trial's date), so a caller that skipped this can't get past them.
  */
 export async function resolveInvoiceTarget(proof: NannyProof, kind: InvoiceKind, targetId: string): Promise<InvoiceResult<InvoiceTarget>> {
-  const refusal = gate(proof);
+  const refusal = nannyGate(proof);
   if (refusal) return refusal;
   if (!INVOICE_KINDS.includes(kind) || !z.guid().safeParse(targetId).success) return INVALID;
-  const admin = client();
-  if (!admin) return ERROR;
+  const admin = serviceClient();
+  if (!admin) return FAILED;
   const link = await readLink(admin, kind, targetId, proof.nannyId);
   if (!link.ok) return link;
   const parent = await readOne("families.parent", () => admin.from("parents").select("id, user_id").eq("id", link.value.parentId).maybeSingle(), parentRow);
@@ -270,7 +232,7 @@ export async function resolveInvoiceTarget(proof: NannyProof, kind: InvoiceKind,
     targetId,
     parentUserId: userId,
     familyName: fullName(contact.value),
-    familyEmail: contact.value.email,
+    familyEmailHint: emailHint(contact.value.email),
     area: position.value?.suburb ?? null,
     prefill: placement
       ? { hours: hoursOf(placement.weekly_hours), ratePence: poundsToPence(placement.hourly_rate), date: null }

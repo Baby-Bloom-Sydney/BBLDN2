@@ -53,6 +53,21 @@ describe("proveNanny", () => {
 });
 
 describe("isNannyProof", () => {
+  it("lasts one request: refused 120 seconds after it was made (security L2)", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2027-02-15T10:00:00Z"));
+      getNannyId.mockResolvedValueOnce(NANNY);
+      const proof = await proveNanny();
+      vi.setSystemTime(new Date("2027-02-15T10:01:59Z"));
+      expect(isNannyProof(proof)).toBe(true);
+      vi.setSystemTime(new Date("2027-02-15T10:02:00Z"));
+      expect(isNannyProof(proof)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("refuses a look-alike, a copy and a cast", async () => {
     getNannyId.mockResolvedValueOnce(NANNY);
     const real = await proveNanny();

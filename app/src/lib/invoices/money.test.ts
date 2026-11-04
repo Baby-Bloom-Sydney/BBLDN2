@@ -18,8 +18,8 @@ describe("invoiceTotalPence", () => {
     expect(invoiceTotalPence(37.5, 1999)).toBe(74963);
   });
 
-  it("refuses hours or a rate that can't make an invoice", () => {
-    for (const [h, r] of [[0, 1800], [-1, 1800], [Number.NaN, 1800], [30, 0], [30, 18.5], [Number.POSITIVE_INFINITY, 1800]]) {
+  it("refuses hours or a rate that can't make an invoice (hours only in half steps, as the database's round() assumes)", () => {
+    for (const [h, r] of [[0, 1800], [-1, 1800], [Number.NaN, 1800], [30, 0], [30, 18.5], [Number.POSITIVE_INFINITY, 1800], [0.25, 1800], [30.1, 1800]]) {
       expect(() => invoiceTotalPence(h, r)).toThrow(RangeError);
     }
   });

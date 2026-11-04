@@ -3,7 +3,7 @@
  * `nanny_invoices`** (amendment 21). Server-only, and deliberately NOT a `"use server"` file: every async export of
  * one becomes a browser-callable action, and this module reads bank details with the service role.
  *
- * - Every operation checks the switch first (`invoices_disabled`, before a client is even made), then its proof:
+ * - Every operation passes `gate.ts` first: the switch (`invoices_disabled`, before a client is even made), then its proof:
  *   a `NannyProof` for her own details and invoices — the nanny id always comes from the proof, never from input —
  *   or an `AdminProof` for the readers' rows. Anything else answers `invalid` before a read.
  * - Screens read the masks only (`readMaskedDetails`); the full numbers come back from one named read,
@@ -18,13 +18,13 @@
 
 import { z } from "zod";
 import { INVOICE_RULES } from "@/config/invoices";
-import { isAdminProof, type AdminProof } from "@/lib/calls/admin-proof";
-import { nannyInvoicesEnabled } from "@/lib/features/flags";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { allPages, callRpc, logFailure, type AdminClient, type DbResult } from "./db";
-import { isNannyProof, type NannyProof } from "./nanny-proof";
-import { countsAsIssued, countsAsSent } from "./status";
+import type { AdminProof } from "@/lib/calls/admin-proof";
+import { allPages, callRpc, logFailure, parseRows, readOne, serviceClient, type DbResult } from "./db";
+import { adminGate, nannyGate } from "./gate";
+import type { NannyProof } from "./nanny-proof";
+import { countsAsIssued, countsAsSent, shownStatus } from "./status";
 import {
+  capRow,
   createdReply,
   FAMILY_COLUMNS,
   familyRow,
@@ -46,7 +46,7 @@ import {
   type StoredPaymentDetails,
   type WeekRow,
 } from "./store-map";
-import { INVOICES_DISABLED, invoiceOk, refused, type EmailDelivery, type InvoiceResult } from "./types";
+import { FAILED, INVALID, invoiceOk, refused, type EmailDelivery, type InvoiceResult } from "./types";
 import { invoiceDraftSchema, paymentDetailsSchema, VALIDATION_MESSAGES } from "./validation";
 import { isLondonMonday, londonDayRange } from "./week";
 
@@ -56,8 +56,7 @@ export type FinishOutcome =
   | { readonly kind: "sent"; readonly family: EmailDelivery; readonly nanny: EmailDelivery }
   | { readonly kind: "failed" };
 
-const ERROR = refused("error");
-const INVALID = refused("invalid");
+const LOCK_TIMEOUT = "55P03";
 const guid = z.guid();
 const delivery = z.enum(["sent", "failed"]);
 const finishOutcome = z.union([
@@ -65,61 +64,21 @@ const finishOutcome = z.union([
   z.object({ kind: z.literal("failed") }),
 ]);
 
-/** The switch, then the proof: a refusal, or null to go on. Neither reads anything. */
-function nannyGate(proof: unknown): InvoiceResult<never> | null {
-  if (!nannyInvoicesEnabled()) return INVOICES_DISABLED;
-  return isNannyProof(proof) ? null : INVALID;
-}
-
-function adminGate(proof: unknown): InvoiceResult<never> | null {
-  if (!nannyInvoicesEnabled()) return INVOICES_DISABLED;
-  return isAdminProof(proof) ? null : INVALID;
-}
-
-/** The service-role client, made only after the gate (a missing key is logged, not thrown). */
-function client(): AdminClient | null {
-  try {
-    return createAdminClient();
-  } catch (thrown) {
-    logFailure("createAdminClient", thrown);
-    return null;
-  }
-}
-
-/** A function's reply: the success shape, one of its refusal codes, or `error` for anything else. */
+/** A function's reply: the success shape, one of its refusal codes, `busy` for a lock timeout, else `error`. */
 function mapReply<S extends z.ZodType>(label: string, reply: DbResult<unknown>, success: S): InvoiceResult<z.output<S>> {
-  if (!reply.ok) return ERROR;
+  if (!reply.ok) return reply.code === LOCK_TIMEOUT ? refused("busy") : FAILED;
   const ok = success.safeParse(reply.value);
   if (ok.success) return invoiceOk(ok.data);
   const no = refusalReply.safeParse(reply.value);
   if (no.success) return refused(no.data.status);
   logFailure(label, { code: "unexpected_reply" });
-  return ERROR;
+  return FAILED;
 }
 
-async function readDetails<S extends z.ZodType>(
-  label: string,
-  proof: NannyProof,
-  columns: string,
-  schema: S,
-): Promise<InvoiceResult<z.output<S> | null>> {
-  const admin = client();
-  if (!admin) return ERROR;
-  try {
-    const { data, error } = await admin.from("nanny_payment_details").select(columns).eq("nanny_id", proof.nannyId).maybeSingle();
-    if (error) {
-      logFailure(label, error);
-      return ERROR;
-    }
-    if (data === null) return invoiceOk(null);
-    const row = schema.safeParse(data);
-    if (row.success) return invoiceOk(row.data);
-    logFailure(label, { code: "unexpected_row" });
-    return ERROR;
-  } catch (thrown) {
-    logFailure(label, thrown);
-    return ERROR;
-  }
+async function readDetails<S extends z.ZodType>(label: string, proof: NannyProof, columns: string, schema: S): Promise<InvoiceResult<z.output<S> | null>> {
+  const admin = serviceClient();
+  if (!admin) return FAILED;
+  return readOne(label, () => admin.from("nanny_payment_details").select(columns).eq("nanny_id", proof.nannyId).maybeSingle(), schema);
 }
 
 /** Her details as any screen may show them: masks only (brief §0.2). null = none saved yet. */
@@ -138,8 +97,8 @@ export async function saveDetails(proof: NannyProof, input: unknown): Promise<In
   if (gate) return gate;
   const parsed = paymentDetailsSchema.safeParse(input);
   if (!parsed.success) return INVALID;
-  const admin = client();
-  if (!admin) return ERROR;
+  const admin = serviceClient();
+  if (!admin) return FAILED;
   const d = parsed.data;
   const reply = await callRpc(admin, "nanny_payment_details_save", {
     p_nanny: proof.nannyId,
@@ -154,8 +113,11 @@ export async function saveDetails(proof: NannyProof, input: unknown): Promise<In
 
 /**
  * Create an invoice (status `sending`, the next per-nanny number) from a draft and the last 4 of the account her PDF
- * will print. The draft's `invoiceId` is the caller's: the same id again returns the same row (`replay`).
- * The family, its name and email come from her own placement or trial connection, in the database.
+ * will print. The database decides, under her lock: the family and its name and email (from her own placement — not
+ * dismissed — or her trial connection, on its trial date), the daily cap (config's, counted there), her account
+ * status, and the correction rules. The draft's `invoiceId` is the caller's: sending the same id again never makes a
+ * second invoice or a second send — it answers `in_progress` or `already_done`. Only a fresh `ok` may be rendered,
+ * uploaded, emailed and finished. 06b shows the review screen from `resolveInvoiceTarget` (families.ts) first.
  */
 export async function createInvoice(proof: NannyProof, draft: unknown, accountLast4: string, now: Date = new Date()): Promise<InvoiceResult<CreatedInvoice>> {
   const gate = nannyGate(proof);
@@ -165,8 +127,8 @@ export async function createInvoice(proof: NannyProof, draft: unknown, accountLa
     return refused(parsed.error.issues.some((i) => i.message === VALIDATION_MESSAGES.future) ? "future" : "invalid");
   }
   if (!/^\d{4}$/.test(accountLast4)) return INVALID;
-  const admin = client();
-  if (!admin) return ERROR;
+  const admin = serviceClient();
+  if (!admin) return FAILED;
   const d = parsed.data;
   const reply = await callRpc(admin, "nanny_invoice_create", {
     p_id: d.invoiceId,
@@ -178,18 +140,22 @@ export async function createInvoice(proof: NannyProof, draft: unknown, accountLa
     p_rate_pence: d.ratePence,
     p_replaces: d.replacesInvoiceId,
     p_account_last4: accountLast4,
+    p_daily_cap: INVOICE_RULES.dailySendCap,
   });
   return mapReply("nanny_invoice_create", reply, createdReply);
 }
 
-/** sending → sent (both deliveries recorded) or failed (the PDF wasn't made or stored). Never deletes (R1). */
+/**
+ * sending → sent, with both deliveries, once its PDF is uploaded (the database answers `no_pdf` before that), or
+ * failed (the PDF wasn't made or stored, so nothing was emailed). Never deletes (R1).
+ */
 export async function finishInvoice(proof: NannyProof, invoiceId: string, outcome: FinishOutcome): Promise<InvoiceResult<"sent" | "failed">> {
   const gate = nannyGate(proof);
   if (gate) return gate;
   const checked = finishOutcome.safeParse(outcome);
   if (!guid.safeParse(invoiceId).success || !checked.success) return INVALID;
-  const admin = client();
-  if (!admin) return ERROR;
+  const admin = serviceClient();
+  if (!admin) return FAILED;
   const o = checked.data;
   const reply = await callRpc(admin, "nanny_invoice_finish", {
     p_id: invoiceId,
@@ -202,46 +168,37 @@ export async function finishInvoice(proof: NannyProof, invoiceId: string, outcom
   if (!result.ok) return result;
   if (result.value.status !== o.kind) {
     logFailure("nanny_invoice_finish", { code: "unexpected_reply" });
-    return ERROR;
+    return FAILED;
   }
   return invoiceOk(result.value.status);
 }
 
-/** Her invoices sent in London's day, for the daily cap (R1: sent with a PDF). Reads at most cap + 1 ids. */
-export async function countSentToday(proof: NannyProof, now: Date = new Date()): Promise<InvoiceResult<number>> {
+/**
+ * What counts towards her daily cap today (security M2) — the database's own rule, told here so 06b can say so
+ * before a send: invoices created since London's midnight that aren't failed (sending, sent, cancelled; a send
+ * stuck over `staleSendingMinutes` counts as failed). The database counts again, under her lock, when it creates.
+ */
+export async function countTowardsDailyCap(proof: NannyProof, now: Date = new Date()): Promise<InvoiceResult<number>> {
   const gate = nannyGate(proof);
   if (gate) return gate;
-  const admin = client();
-  if (!admin) return ERROR;
+  const admin = serviceClient();
+  if (!admin) return FAILED;
   const day = londonDayRange(now);
   try {
-    const { data, error } = await admin
-      .from("nanny_invoices")
-      .select("id")
-      .eq("nanny_id", proof.nannyId)
-      .eq("status", "sent")
-      .not("pdf_path", "is", null)
-      .gte("sent_at", day.fromUtc)
-      .lt("sent_at", day.toUtc)
-      .limit(INVOICE_RULES.dailySendCap + 1);
-    if (error || !Array.isArray(data)) {
-      logFailure("countSentToday", error ?? { code: "unexpected_rows" });
-      return ERROR;
+    const { data, error } = await admin.from("nanny_invoices").select("id, status, created_at").eq("nanny_id", proof.nannyId)
+      .in("status", ["sending", "sent", "cancelled"]).gte("created_at", day.fromUtc).lt("created_at", day.toUtc)
+      .order("created_at", { ascending: false }).limit(INVOICE_RULES.dailySendCap + 1);
+    if (error) {
+      logFailure("countTowardsDailyCap", error);
+      return FAILED;
     }
-    return invoiceOk(data.length);
+    const rows = parseRows("countTowardsDailyCap", { ok: true, value: Array.isArray(data) ? data : [null] }, capRow);
+    if (!rows.ok) return rows;
+    return invoiceOk(rows.value.filter((r) => shownStatus({ status: r.status, createdAt: r.created_at }, now) !== "failed").length);
   } catch (thrown) {
-    logFailure("countSentToday", thrown);
-    return ERROR;
+    logFailure("countTowardsDailyCap", thrown);
+    return FAILED;
   }
-}
-
-/** Parse every row or fail the read: a row that doesn't fit is never silently dropped (the 02 rule). */
-function parseRows<S extends z.ZodType>(label: string, rows: DbResult<readonly unknown[]>, schema: S): InvoiceResult<readonly z.output<S>[]> {
-  if (!rows.ok) return ERROR;
-  const parsed = z.array(schema).safeParse(rows.value);
-  if (parsed.success) return invoiceOk(parsed.data);
-  logFailure(label, { code: "unexpected_row" });
-  return ERROR;
 }
 
 /** 07's rows: one placement's sent Regular-week invoices for a London week, oldest number first. */
@@ -249,8 +206,8 @@ export async function readPlacementWeekRows(proof: AdminProof, placementId: stri
   const gate = adminGate(proof);
   if (gate) return gate;
   if (!guid.safeParse(placementId).success || !isLondonMonday(weekStart)) return INVALID;
-  const admin = client();
-  if (!admin) return ERROR;
+  const admin = serviceClient();
+  if (!admin) return FAILED;
   const rows = await allPages("readPlacementWeekRows", (from, to) =>
     admin.from("nanny_invoices").select(WEEK_COLUMNS).eq("placement_id", placementId).eq("period_start", weekStart)
       .eq("kind", "regular_week").eq("status", "sent").not("pdf_path", "is", null)
@@ -267,8 +224,8 @@ export async function readFamilyRows(proof: AdminProof, parentUserId: string): P
   const gate = adminGate(proof);
   if (gate) return gate;
   if (!guid.safeParse(parentUserId).success) return INVALID;
-  const admin = client();
-  if (!admin) return ERROR;
+  const admin = serviceClient();
+  if (!admin) return FAILED;
   const rows = await allPages("readFamilyRows", (from, to) =>
     admin.from("nanny_invoices").select(FAMILY_COLUMNS).eq("parent_user_id", parentUserId).in("status", ["sent", "cancelled"])
       .not("pdf_path", "is", null).order("created_at", { ascending: true }).order("id", { ascending: true }).range(from, to),

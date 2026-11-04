@@ -6,12 +6,16 @@
  */
 
 import type { CreatedInvoice, StoredPaymentDetails } from "../store-map";
+import { invoiceOk, refused, type InvoiceResult } from "../types";
 import type { InvoicePdfData } from "./InvoicePdf";
 
-/** Throws a RangeError if her details now name a different account than the invoice recorded (changed in between). */
-export function invoicePdfData(created: CreatedInvoice, details: StoredPaymentDetails): InvoicePdfData {
-  if (details.accountLast4 !== created.accountLast4) throw new RangeError("payment details changed since the invoice was created");
-  return {
+/**
+ * `no_details` when her details now name a different account than the invoice recorded (changed in between): a
+ * result, not a throw, so the send path can always finish the row as failed (06a code review 9).
+ */
+export function invoicePdfData(created: CreatedInvoice, details: StoredPaymentDetails): InvoiceResult<InvoicePdfData> {
+  if (details.accountLast4 !== created.accountLast4) return refused("no_details");
+  return invoiceOk({
     number: created.number,
     issuedAt: created.createdAt,
     issuer: { name: created.nannyName, tradingName: details.tradingName, address: details.invoiceAddress },
@@ -25,5 +29,5 @@ export function invoicePdfData(created: CreatedInvoice, details: StoredPaymentDe
     },
     payTo: { accountName: details.accountName, sortCode: details.sortCode, accountNumber: details.accountNumber },
     replacesNumber: created.replacesNumber,
-  };
+  });
 }

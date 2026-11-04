@@ -172,9 +172,10 @@ describe("getFamilyInvoiceSummary and summarise (the admin summary uses the same
     expect(formatFamilySummary({ invoiceCount: 1, activeCount: 1, cancelledCount: 0, hours: 4, totalPence: 7200 })).toBe("1 invoice · 0 cancelled · 4 h · £72.00");
   });
 
-  it("switch off → null; a failed read throws", async () => {
+  it("switch off → an all-zero summary, never null (R21 types it non-null), with nothing read; a failed read throws", async () => {
     vi.stubEnv("NANNY_INVOICES_ENABLED", "");
-    expect(await getFamilyInvoiceSummary(admin, HARTLEY)).toBeNull();
+    expect(await getFamilyInvoiceSummary(admin, HARTLEY)).toEqual({ invoiceCount: 0, activeCount: 0, cancelledCount: 0, hours: 0, totalPence: 0 });
+    expect(createAdminClient).not.toHaveBeenCalled();
     vi.stubEnv("NANNY_INVOICES_ENABLED", "true");
     f.readErrors.nanny_invoices = { message: "x", code: "XX000" };
     await expect(getFamilyInvoiceSummary(admin, HARTLEY)).rejects.toThrow(InvoiceReadError);

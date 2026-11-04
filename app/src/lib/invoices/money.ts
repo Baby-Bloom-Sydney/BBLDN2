@@ -5,6 +5,7 @@
  * BB-wave1-041126/06a-build, 2026-11-04.
  */
 
+import { INVOICE_RULES } from "@/config/invoices";
 import { formatPence } from "@/app/admin/guarantees/format";
 
 const PENCE_PER_POUND = 100;
@@ -19,8 +20,9 @@ export const formatInvoiceMoney = formatPence;
  * half penny; a half rounds up, as Postgres `round()` does in amendment 21's total CHECK (0.5 h × 1801 p = 901 p).
  */
 export function invoiceTotalPence(hours: number, ratePence: number): number {
-  if (!Number.isFinite(hours) || hours <= 0 || !Number.isInteger(ratePence) || ratePence <= 0) {
-    throw new RangeError("hours and rate must be positive");
+  if (!Number.isFinite(hours) || hours <= 0 || !Number.isInteger(hours / INVOICE_RULES.hourStep)
+      || !Number.isInteger(ratePence) || ratePence <= 0) {
+    throw new RangeError("hours in half steps and a whole-pence rate, both positive");
   }
   return Math.round(hours * ratePence);
 }

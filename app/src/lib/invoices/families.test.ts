@@ -124,10 +124,7 @@ describe("listInvoiceableFamilies", () => {
   });
 
   it("drops what a query should never have returned: another nanny's row, a connection with no trial date", async () => {
-    load(
-      [placement(13, 13, "active", { nanny_id: OTHER_NANNY })],
-      [connection(15, 15, null), connection(12, 12, "2027-02-03", { nanny_id: OTHER_NANNY })],
-    );
+    load([], []);
     f.reads.nanny_placements = [placement(13, 13, "active", { nanny_id: OTHER_NANNY })];
     f.reads.connection_requests = [connection(15, 15, null), connection(12, 12, "2027-02-03", { nanny_id: OTHER_NANNY })];
     expect(await listInvoiceableFamilies(proof)).toEqual({ ok: true, value: [] });
@@ -188,12 +185,12 @@ describe("resolveInvoiceTarget (checked on the server before every write; the da
     );
   });
 
-  it("her Regular week: the family, its email for the review screen, and the placement's pre-fill", async () => {
+  it("her Regular week: the family, a hint of its email for the review screen (brief §0.4 'olivia@…'), the pre-fill", async () => {
     expect(await resolveInvoiceTarget(proof, "regular_week", u(412))).toEqual({
       ok: true,
       value: {
         kind: "regular_week", targetId: u(412), parentUserId: u(11), familyName: "Olivia Hartley",
-        familyEmail: "admin+b06-11@babybloomnannies.co.uk", area: "Islington",
+        familyEmailHint: "admin+b06-11@…", area: "Islington",
         prefill: { hours: 30, ratePence: 1800, date: null },
       },
     });

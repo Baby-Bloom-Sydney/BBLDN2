@@ -5,6 +5,7 @@
  * - `callRpc`: one amendment 21 function; a PostgREST error or a throw becomes `DB_FAILED`, logged.
  * - `allPages` / `allPagesByIds`: every list read pages with `.range()` (500 a page), at most 100 ids per `.in()`,
  *   and fails closed at the row cap rather than loading without bound or showing a short list (04a review 7).
+ * - `serviceClient`, `parseRows`, `readOne`: the shared halves of every store and family read (06a code review 5).
  * - **Failures are logged by error code or name only** — never a message or `details`: a Postgres CHECK failure
  *   says "Failing row contains (…)" with the row's digits and emails (plan 06 step 6, §9 surface 2).
  *
@@ -14,11 +15,14 @@
  * BB-wave1-041126/06a-build, 2026-11-04.
  */
 
-import type { createAdminClient } from "@/lib/supabase/admin";
+import type { z } from "zod";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { FAILED, invoiceOk, type InvoiceResult } from "./types";
 
 export type AdminClient = ReturnType<typeof createAdminClient>;
 
-export type DbResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false };
+/** A failure keeps the database's error code (never its message), so a lock timeout (55P03) can read as `busy`. */
+export type DbResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly code?: string };
 
 export const DB_FAILED = Object.freeze({ ok: false } as const);
 export const dbOk = <T>(value: T): DbResult<T> => ({ ok: true, value });
@@ -53,7 +57,7 @@ export async function callRpc(admin: AdminClient, fn: string, args: Readonly<Rec
     const { data, error } = (await admin.rpc(fn, args)) as DbReply;
     if (error) {
       logFailure(fn, error);
-      return DB_FAILED;
+      return error.code ? { ok: false, code: error.code } : DB_FAILED;
     }
     return dbOk(data);
   } catch (thrown) {
@@ -103,4 +107,44 @@ export async function allPagesByIds(
     collected.push(...chunk.value);
   }
   return dbOk(collected);
+}
+
+/** The service-role client, made only after a caller's gate (a missing key is logged, not thrown). */
+export function serviceClient(): AdminClient | null {
+  try {
+    return createAdminClient();
+  } catch (thrown) {
+    logFailure("createAdminClient", thrown);
+    return null;
+  }
+}
+
+/** Parse every row or fail the read: a row that doesn't fit is never silently dropped (the 02 rule). */
+export function parseRows<S extends z.ZodType>(label: string, rows: DbResult<readonly unknown[]>, schema: S): InvoiceResult<readonly z.output<S>[]> {
+  if (!rows.ok) return FAILED;
+  const parsed = schema.array().safeParse(rows.value);
+  if (parsed.success) return invoiceOk(parsed.data);
+  logFailure(label, { code: "unexpected_row" });
+  return FAILED;
+}
+
+type SingleQuery = () => PromiseLike<DbReply>;
+
+/** One row by its filters (`maybeSingle`): null when there's none, `error` when the read fails or doesn't fit. */
+export async function readOne<S extends z.ZodType>(label: string, query: SingleQuery, schema: S): Promise<InvoiceResult<z.output<S> | null>> {
+  try {
+    const { data, error } = await query();
+    if (error) {
+      logFailure(label, error);
+      return FAILED;
+    }
+    if (data === null) return invoiceOk(null);
+    const row = schema.safeParse(data);
+    if (row.success) return invoiceOk(row.data);
+    logFailure(label, { code: "unexpected_row" });
+    return FAILED;
+  } catch (thrown) {
+    logFailure(label, thrown);
+    return FAILED;
+  }
 }

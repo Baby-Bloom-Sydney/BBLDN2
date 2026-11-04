@@ -63,6 +63,8 @@ describe("callRpc and logFailure", () => {
     f.rpcResults.fn = { data: { status: "x" }, error: null };
     expect(await callRpc(f.client, "fn", { a: 1 })).toEqual({ ok: true, value: { status: "x" } });
     f.rpcResults.fn = { data: null, error: { message: "m", code: "42501" } };
+    expect(await callRpc(f.client, "fn", {})).toEqual({ ok: false, code: "42501" });
+    f.rpcResults.fn = { data: null, error: { message: "m" } };
     expect(await callRpc(f.client, "fn", {})).toEqual({ ok: false });
     const throwing = { rpc: () => { throw new TypeError("network"); } } as unknown as typeof f.client;
     expect(await callRpc(throwing, "fn", {})).toEqual({ ok: false });
