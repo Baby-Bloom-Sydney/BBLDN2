@@ -4,7 +4,8 @@
  * The call picker's state (04b rework W4; brief §3 parent 2–3; plan B6 + review F1, F2, re-review). Pure React state
  * over the owner's actions — the component (`SlotPicker.tsx`) only draws it.
  *
- * - A cell (a day × time of day) is chosen first; then a time in it. Tapping a free time holds it at once (the
+ * - A day, then a time of day, then a time (W14); each a selector she can unselect, which hides the later steps.
+ *   Tapping a free time holds it at once (the
  *   separate "Choose this time" step is gone, BAI 2026-11-05). Tapping another time holds that one (amendment 19's
  *   `call_hold_slot` replaces her own live hold, so nothing is released first).
  * - A refusal never sticks: throws settle as `error`; a taken time (or a held time that ran out and was taken) opens
@@ -40,6 +41,7 @@ export interface SlotPickerActions<T> {
   reload(): Promise<readonly SlotDay[] | null | void>;
 }
 
+/** Where a time sits: its day and its time of day. */
 export interface PickerCell {
   readonly londonDate: string;
   readonly bracket: BracketKey;
@@ -122,7 +124,9 @@ export interface UsePickerOptions<T> {
 type Phase = "idle" | "holding" | "confirming";
 
 function usePickerState<T>(o: UsePickerOptions<T>) {
-  const [cell, setCell] = useState<PickerCell | null>(() => cellOf(o.days, o.current));
+  // While she changes her booking, its day and time of day open pre-chosen (W14).
+  const [day, setDay] = useState<string | null>(() => cellOf(o.days, o.current)?.londonDate ?? null);
+  const [bracket, setBracket] = useState<BracketKey | null>(() => cellOf(o.days, o.current)?.bracket ?? null);
   const [selected, setSelected] = useState<string | null>(null);
   const [hold, setHold] = useState<PickerHold | null>(null);
   const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set());
@@ -133,7 +137,7 @@ function usePickerState<T>(o: UsePickerOptions<T>) {
   /** A time seen taken that a fresh list says is free again is free again (react review HIGH 2). */
   const reconcileGone = (fresh: readonly SlotDay[]) =>
     setGone((previous) => new Set([...previous].filter((startsAt) => findSlot(fresh, startsAt)?.free !== true)));
-  return { cell, setCell, selected, setSelected, hold, setHold, gone, markGone, reconcileGone, message, setMessage, notice, setNotice, phase, setPhase };
+  return { day, setDay, bracket, setBracket, selected, setSelected, hold, setHold, gone, markGone, reconcileGone, message, setMessage, notice, setNotice, phase, setPhase };
 }
 
 type PickerState = ReturnType<typeof usePickerState>;
@@ -167,6 +171,12 @@ function useRefusal<T>(s: PickerState, list: ListReload, o: UsePickerOptions<T>)
   };
 }
 
+/** No time chosen (and no hold shown): Confirm is disabled again. */
+function clearTime(s: PickerState) {
+  s.setSelected(null);
+  s.setHold(null);
+}
+
 /** Busy in `phase` while `step` runs, whatever it does. */
 async function inPhase(s: PickerState, phase: Phase, step: () => Promise<void>) {
   s.setPhase(phase);
@@ -183,7 +193,9 @@ export function useSlotPicker<T>(o: UsePickerOptions<T>) {
   const refuse = useRefusal(s, list, o);
   const busy = s.phase !== "idle";
   const tapTime = async (startsAt: string) => {
-    if (busy || s.hold?.startsAt === startsAt) return;
+    if (busy) return;
+    // A tile is a selector she can unselect (W14): a second tap clears it in the page; a hold just runs out.
+    if (s.selected === startsAt) return clearTime(s);
     s.setSelected(startsAt);
     s.setHold(null);
     s.setMessage(null);
@@ -204,14 +216,19 @@ export function useSlotPicker<T>(o: UsePickerOptions<T>) {
       else await refuse(confirmed.error, hold.startsAt, true);
     });
   };
-  /** A cell is a radio: tapping the chosen one again keeps it (and her hold), react review MEDIUM. */
-  const pickCell = (next: PickerCell) => {
-    if (s.cell?.londonDate === next.londonDate && s.cell.bracket === next.bracket) return;
-    s.setCell(next);
-    s.setSelected(null);
-    s.setHold(null);
+  /** Day, then time of day (W14): a second tap unselects; any change clears and hides the later steps. */
+  const pickDay = (londonDate: string) => {
+    if (busy) return;
+    s.setDay(s.day === londonDate ? null : londonDate);
+    s.setBracket(null);
+    clearTime(s);
   };
-  return { ...s, busy, confirming: s.phase === "confirming", loading: list.loading, reloadFailed: list.failed, reload: list.reload, tapTime, confirm, pickCell, closeNotice: () => s.setNotice(null) };
+  const pickBracket = (next: BracketKey) => {
+    if (busy) return;
+    s.setBracket(s.bracket === next ? null : next);
+    clearTime(s);
+  };
+  return { ...s, busy, confirming: s.phase === "confirming", loading: list.loading, reloadFailed: list.failed, reload: list.reload, tapTime, confirm, pickDay, pickBracket, closeNotice: () => s.setNotice(null) };
 }
 
 export type SlotPickerState = ReturnType<typeof useSlotPicker>;

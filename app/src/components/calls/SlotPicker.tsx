@@ -29,7 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PARENT_COPY } from "@/lib/calls/copy";
 import type { SlotDay } from "@/lib/calls/group-slots-by-day";
-import { AvailabilityGrid, isOpenSlot, slotsIn, TimeBox } from "./SlotPickerGrid";
+import { BracketStep, DayStep, isOpenSlot, prefersReducedMotion, Reveal, slotsIn, TimeStep } from "./SlotPickerSteps";
 import { TakenNotice } from "./TakenNotice";
 import { findSlot, useSlotPicker, type SlotPickerActions, type SlotPickerState } from "./use-slot-picker";
 
@@ -185,21 +185,31 @@ function panelOf(picker: SlotPickerState, days: readonly SlotDay[], gated: boole
   return picker.hold && held ? { when: held.when, line: picker.hold.line } : null;
 }
 
-/** Loading, failed, no free time, or the grid with its time box and green panel. */
+/**
+ * Loading, failed, no free time, or the steps (W14): the days; once a day is chosen, its times of day; once a time of
+ * day is chosen, its times. Each later step appears under the last, and goes again when an earlier one is unselected.
+ */
 function PickerBody({ uid, picker, days, current, words, gridRef }: BodyProps) {
   if (picker.loading) return <Loading />;
   if (days === null) return <Empty line={words.loadFailed} busy={picker.busy} onRetry={picker.reload} />;
   const anyOpen = days.some((d) => d.slots.some((s) => isOpenSlot(s, picker.gone)));
   if (!anyOpen && current === null) return <Empty line={words.noTimes} busy={picker.busy} onRetry={picker.reload} />;
-  const day = picker.cell ? days.find((d) => d.londonDate === picker.cell?.londonDate) : undefined;
-  const cellSlots = day && picker.cell ? slotsIn(day, picker.cell.bracket) : [];
+  const day = picker.day ? days.find((d) => d.londonDate === picker.day) : undefined;
+  const step = { uid, gone: picker.gone, current, busy: picker.busy };
   return (
-    <>
-      <AvailabilityGrid days={days} cell={day ? picker.cell : null} gone={picker.gone} current={current} busy={picker.busy} onPick={picker.pickCell} gridRef={gridRef} />
-      {cellSlots.length > 0 && (
-        <TimeBox uid={uid} slots={cellSlots} chosen={picker.selected ?? current} gone={picker.gone} busy={picker.busy} onTap={picker.tapTime} />
+    <div ref={gridRef} className="space-y-4">
+      <DayStep {...step} days={days} chosen={day?.londonDate ?? null} onPick={picker.pickDay} />
+      {day && (
+        <Reveal key={day.londonDate}>
+          <BracketStep {...step} day={day} chosen={picker.bracket} onPick={picker.pickBracket} />
+        </Reveal>
       )}
-    </>
+      {day && picker.bracket && (
+        <Reveal key={`${day.londonDate}-${picker.bracket}`}>
+          <TimeStep {...step} slots={slotsIn(day, picker.bracket)} chosen={picker.selected ?? current} onTap={picker.tapTime} />
+        </Reveal>
+      )}
+    </div>
   );
 }
 
@@ -212,8 +222,7 @@ function useScrollActionsIntoView(trigger: string | null) {
   const area = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (trigger === null) return;
-    const reduce = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    area.current?.scrollIntoView?.({ block: "end", behavior: reduce ? "auto" : "smooth" });
+    area.current?.scrollIntoView?.({ block: "end", behavior: prefersReducedMotion() ? "auto" : "smooth" });
   }, [trigger]);
   return area;
 }

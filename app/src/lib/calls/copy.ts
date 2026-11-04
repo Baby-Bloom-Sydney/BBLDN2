@@ -63,6 +63,9 @@ export const PARENT_COPY = Object.freeze({
   completePosition: "Complete my childcare position",
   // 04b rework W12: the taken notice when the time that went isn't known
   thatTime: "that time",
+  // 04b rework W14: the step-by-step picker
+  timeOfDay: "Time of day",
+  yourCurrentTime: "your current time",
 });
 
 export const ADMIN_COPY = Object.freeze({

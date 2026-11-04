@@ -60,7 +60,7 @@ describe("ChildcareCall — opening", () => {
     const dialog = await popup();
     expect(dialog.className).toContain("rounded-2xl");
     expect(dialog.className).toContain("max-h-[90dvh]");
-    expect(await within(dialog).findByRole("radiogroup", { name: "Tuesday 9 February" })).toBeInTheDocument();
+    expect(await within(dialog).findByRole("radio", { name: "Tue 9 Feb" })).toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("link", { name: "Skip for now" })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Keep my time" })).not.toBeInTheDocument();
@@ -93,7 +93,7 @@ describe("ChildcareCall — opening", () => {
     render(<ChildcareCall card={{ kind: "not_booked", afterNoAnswer: false }} openWith={null} goneWhen={null} />);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Book a time" }));
-    expect(await within(await popup()).findByRole("radiogroup", { name: "Tuesday 9 February" })).toBeInTheDocument();
+    expect(await within(await popup()).findByRole("radio", { name: "Tue 9 Feb" })).toBeInTheDocument();
     expect(h.replace).not.toHaveBeenCalled();
   });
 
@@ -104,7 +104,7 @@ describe("ChildcareCall — opening", () => {
     await user.click(screen.getByRole("button", { name: "Change time" }));
     const dialog = await popup();
     expect(await within(dialog).findByText(BOOKED.yourCall)).toBeInTheDocument();
-    expect(within(dialog).getByRole("radio", { name: "Tuesday 9 February, 15:00" })).toHaveAttribute("aria-checked", "true");
+    expect(within(dialog).getByRole("radio", { name: "Tuesday 9 February, 15:00 — your current time" })).toHaveAttribute("aria-checked", "true");
   });
 
   it("no param and no card → nothing at all", () => {
@@ -179,7 +179,8 @@ describe("ChildcareCall — her booking, for changes (BAI 2026-11-05)", () => {
     h.reload.mockResolvedValue({ ok: true, value: { ...PICK, needsPosition: true } });
     render(<ChildcareCall card={null} openWith="open" goneWhen={null} />);
     const dialog = await popup();
-    await user.click(await within(dialog).findByRole("radio", { name: "Tuesday 9 February, Afternoon" }));
+    await user.click(await within(dialog).findByRole("radio", { name: "Tue 9 Feb" }));
+    await user.click(within(dialog).getByRole("radio", { name: /^Afternoon / }));
     await user.click(within(dialog).getByRole("radio", { name: "Tuesday 9 February, 14:00" }));
     expect(h.hold).not.toHaveBeenCalled();
     expect(within(dialog).getByText("Complete your childcare position so that we can confirm your call with your matchmaker.")).toBeInTheDocument();

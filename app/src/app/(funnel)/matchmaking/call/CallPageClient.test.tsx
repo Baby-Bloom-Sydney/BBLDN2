@@ -40,7 +40,8 @@ const page = (initial: MyCallView, next = NEXT, startChanging = false) =>
   render(<CallPageClient initial={initial} nextHref={next} startChanging={startChanging} />);
 /** W4: a time-of-day cell, then a time in it (a tap holds at once). */
 async function pickTue14(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole("radio", { name: "Tuesday 9 February, Afternoon" }));
+  await user.click(await screen.findByRole("radio", { name: "Tue 9 Feb" }));
+  await user.click(screen.getByRole("radio", { name: /^Afternoon / }));
   await user.click(screen.getByRole("radio", { name: "Tuesday 9 February, 14:00" }));
 }
 const youreBooked = () => screen.findByRole("heading", { level: 1, name: "You're booked" });
@@ -65,7 +66,7 @@ describe("the funnel slide (04b rework W3)", () => {
 describe("the seven states", () => {
   it("times shown: the picker, and Skip for now → next", () => {
     page(PICK);
-    expect(screen.getByRole("radiogroup", { name: "Tuesday 9 February" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Tue 9 Feb" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Skip for now" })).toHaveAttribute("href", NEXT);
   });
 
@@ -111,7 +112,7 @@ describe("the seven states", () => {
   it("after a no-answer: 'We tried to call you — pick another time', with the picker", () => {
     page({ kind: "pick", afterNoAnswer: true, days: DAYS, mobile: null, needsPosition: false });
     expect(screen.getByText("We tried to call you — pick another time")).toBeInTheDocument();
-    expect(screen.getByRole("radiogroup", { name: "Tuesday 9 February" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Tue 9 Feb" })).toBeInTheDocument();
   });
 
   it("no times: the §0.13 line, and Skip for now", () => {
@@ -129,7 +130,7 @@ describe("the seven states", () => {
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(screen.getByTestId("slot-picker-loading")).toBeInTheDocument();
     finish({ ok: true, value: PICK });
-    expect(await screen.findByRole("radiogroup", { name: "Tuesday 9 February" })).toBeInTheDocument();
+    expect(await screen.findByRole("radio", { name: "Tue 9 Feb" })).toBeInTheDocument();
   });
 
   it("a reload that finds her booked (another tab) shows the booking", async () => {
@@ -167,7 +168,7 @@ describe("change and cancel", () => {
     h.reload.mockResolvedValueOnce({ ok: true, value: BOOKED_VIEW });
     page({ ...BOOKED_VIEW, days: null });
     await user.click(screen.getByRole("button", { name: "Change time" }));
-    expect(await screen.findByRole("radiogroup", { name: "Tuesday 9 February" })).toBeInTheDocument();
+    expect(await screen.findByRole("radio", { name: "Tue 9 Feb" })).toBeInTheDocument();
     expect(screen.getByText(BOOKED.yourCall)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Keep my time" }));
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
@@ -177,7 +178,8 @@ describe("change and cancel", () => {
   it("?change=1 opens straight into picking a new time for her booking, her slot chosen", async () => {
     page(BOOKED_VIEW, NEXT, true);
     expect(screen.getByText(BOOKED.yourCall)).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Tuesday 9 February, Afternoon" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Tue 9 Feb" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: /^Afternoon / })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("button", { name: "Keep my time" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Skip for now" })).not.toBeInTheDocument();
     expect(h.reload).not.toHaveBeenCalled();
@@ -198,7 +200,7 @@ describe("change and cancel", () => {
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     await user.click(screen.getByRole("button", { name: "Yes, cancel it" }));
     expect(h.cancel).toHaveBeenCalledWith("b-1");
-    expect(await screen.findByRole("radiogroup", { name: "Tuesday 9 February" })).toBeInTheDocument();
+    expect(await screen.findByRole("radio", { name: "Tue 9 Feb" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Your call is cancelled");
   });
 

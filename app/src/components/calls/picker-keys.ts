@@ -1,11 +1,7 @@
 /**
- * Arrow-key movement for the call picker's two radio grids (brief 04 §2 picker semantics; 04b rework W4). Pure.
- *
- * - The availability grid (`moveInGrid`): one radiogroup per day row. Left/Right step between that row's open cells
- *   (wrapping), Home/End go to its first/last, Up/Down go to the same column in the nearest row above/below where it
- *   is open. Tab moves between rows, as 04b's days did.
- * - The time box (`moveInList`): one radiogroup, four columns. Left/Right step through the open times (wrapping),
- *   Up/Down move a row (four) to the nearest open time in that column, Home/End go to the first/last.
+ * Arrow-key movement within one step of the call picker (brief 04 §2 picker semantics; 04b rework W4, W14). Pure.
+ * Each step (days, times of day, times) is one radiogroup laid out in `columns`: Left/Right step through the open
+ * tiles (wrapping), Up/Down move `columns` on to the nearest open tile in that column, Home/End go to the first/last.
  *
  * Arrows only move focus; choosing is Space/Enter or a tap, so arrowing never takes a hold (plan R17's intent).
  *
@@ -48,25 +44,7 @@ function moveInRow(key: MoveKey, col: number, open: readonly boolean[]): number 
   return null;
 }
 
-export interface GridSpot {
-  readonly row: number;
-  readonly col: number;
-}
-
-/** The availability grid: rows of cells, `open[row][col]`. Null = stay. */
-export function moveInGrid(key: MoveKey, at: GridSpot, open: readonly (readonly boolean[])[]): GridSpot | null {
-  if (key === "ArrowUp" || key === "ArrowDown") {
-    const step = key === "ArrowDown" ? 1 : -1;
-    for (let row = at.row + step; row >= 0 && row < open.length; row += step) {
-      if (open[row][at.col]) return { row, col: at.col };
-    }
-    return null;
-  }
-  const col = moveInRow(key, at.col, open[at.row] ?? []);
-  return col === null || col === at.col ? null : { row: at.row, col };
-}
-
-/** The time box: a list laid out in `columns`. Null = stay. */
+/** One step's tiles, laid out in `columns`. Null = stay. */
 export function moveInList(key: MoveKey, at: number, open: readonly boolean[], columns: number): number | null {
   let next: number | null = null;
   if (key === "ArrowUp" || key === "ArrowDown") {
