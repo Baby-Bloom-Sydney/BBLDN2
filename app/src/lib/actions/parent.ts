@@ -717,14 +717,15 @@ export async function deactivateParentAccount(): Promise<{
   // (immediate, not period-end), anonymise child records, end nanny
   // placements. Best-effort: failures here are logged but do not
   // abort the deactivation — the user has already chosen to leave.
-  await cascadePaymentsOnAccountClose(user.id, admin).catch((err) => {
+  await cascadePaymentsOnAccountClose(user.id, parent?.id ?? null, admin).catch((err) => {
     console.error("[deactivateParentAccount] payments cascade error", err);
   });
 
+  // FIXES F-2: the real columns and an action type the CHECK allows (shown on the lead timeline).
   await admin.from("activity_logs").insert({
     user_id: user.id,
-    action: "account_deactivated",
-    details: { deactivated_by: "user", role: "parent" },
+    action_type: "profile_deactivated",
+    action_details: { deactivated_by: "user", role: "parent" },
   });
 
   await supabase.auth.signOut();
@@ -758,6 +759,7 @@ export async function deactivateParentAccount(): Promise<{
  */
 async function cascadePaymentsOnAccountClose(
   parentUserId: string,
+  parentRowId: string | null,
   admin: ReturnType<typeof createAdminClient>,
 ): Promise<void> {
   // 1. Stripe subscription cancel (best-effort, non-blocking).
@@ -838,21 +840,24 @@ async function cascadePaymentsOnAccountClose(
 
   // 3. End nanny_placements for this parent. 'ended' is the live
   //    status; matches the placement-lifecycle constants used
-  //    elsewhere in the codebase.
-  const placementsResult = await admin
-    .from("nanny_placements")
-    .update({
-      status: "ended",
-      ended_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("parent_user_id", parentUserId)
-    .eq("status", "active");
-  if (placementsResult.error) {
-    console.error(
-      "[cascadePaymentsOnAccountClose] nanny_placements end failed",
-      placementsResult.error,
-    );
+  //    elsewhere in the codebase. FIXES F-1: the table keys the parent by
+  //    `parent_id` (the parents row), not the auth user id.
+  if (parentRowId) {
+    const placementsResult = await admin
+      .from("nanny_placements")
+      .update({
+        status: "ended",
+        ended_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("parent_id", parentRowId)
+      .eq("status", "active");
+    if (placementsResult.error) {
+      console.error(
+        "[cascadePaymentsOnAccountClose] nanny_placements end failed",
+        placementsResult.error,
+      );
+    }
   }
 }
 
