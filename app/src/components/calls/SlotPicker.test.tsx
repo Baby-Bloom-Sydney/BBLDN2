@@ -12,7 +12,7 @@
  */
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { actionsWith, DAYS, gridDays, HOLD, TUE_09, TUE_14, TUE_1430, TUE_15, WED_09 } from "./slot-picker.fixtures.test-util";
 import { SlotPicker } from "./SlotPicker";
 
@@ -466,5 +466,55 @@ describe("SlotPicker — the header wraps as one line of text at 320px (walk fin
     const runs = [...heading.children].filter((el) => el.tagName !== "svg");
     expect(runs).toHaveLength(1);
     expect(runs[0]).toHaveTextContent("Your matchmaker's availability (London time)");
+  });
+});
+
+describe("SlotPicker — after a pick, the panel and the button row come into view (coordinator review, strip C)", () => {
+  const scrolled = vi.fn();
+  // jsdom has no matchMedia: stand one in for the reader's motion setting.
+  const reduced = (matches: boolean) => {
+    window.matchMedia = vi.fn(
+      (query: string) => ({ matches: query.includes("reduce") && matches, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }) as unknown as MediaQueryList,
+    );
+  };
+
+  beforeEach(() => {
+    scrolled.mockReset();
+    Element.prototype.scrollIntoView = scrolled;
+  });
+
+  it("a held time: the action area scrolls into view, smoothly", async () => {
+    const user = userEvent.setup();
+    reduced(false);
+    render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />);
+    await holdTue14(user);
+    await screen.findByText(HOLD.line);
+    await waitFor(() => expect(scrolled).toHaveBeenCalledWith({ block: "end", behavior: "smooth" }));
+    expect(scrolled.mock.contexts.at(-1)).toBe(screen.getByTestId("slot-picker-actions"));
+  });
+
+  it("under prefers-reduced-motion it jumps (no smooth scroll)", async () => {
+    const user = userEvent.setup();
+    reduced(true);
+    render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />);
+    await holdTue14(user);
+    await waitFor(() => expect(scrolled).toHaveBeenCalledWith({ block: "end", behavior: "auto" }));
+  });
+
+  it("no position yet: picking a time brings 'Complete my childcare position' into view too", async () => {
+    const user = userEvent.setup();
+    reduced(false);
+    render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} gate={{ href: (at) => `/parent/request?callAt=${at}` }} skipHref="/parent" />);
+    await holdTue14(user);
+    await waitFor(() => expect(scrolled).toHaveBeenCalledTimes(1));
+  });
+
+  it("the button row wraps rather than clipping a long label", () => {
+    render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} gate={{ href: (at) => at }} skipHref="/parent" />);
+    const row = screen.getByRole("link", { name: "Skip for now" }).parentElement as HTMLElement;
+    expect(row.className).toContain("flex-wrap");
+    const complete = screen.getByRole("button", { name: "Complete my childcare position" });
+    expect(complete.className).toContain("whitespace-normal");
+    expect(complete.className).toContain("h-auto");
   });
 });

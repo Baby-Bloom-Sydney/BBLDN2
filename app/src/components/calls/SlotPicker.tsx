@@ -105,18 +105,20 @@ function HeldPanel({ when, line }: { readonly when: string; readonly line: strin
   );
 }
 
-const PRIMARY = "flex-1 bg-violet-500 hover:bg-violet-600";
+const PRIMARY = "flex-1 min-w-[7rem] bg-violet-500 hover:bg-violet-600";
+/** The long label wraps inside its button, and the row wraps before it would squeeze it (coordinator review, 320px). */
+const GATE = "flex-1 min-w-[12rem] h-auto min-h-9 whitespace-normal py-2 bg-violet-500 hover:bg-violet-600";
 
 function GateButton({ gate, selected }: { readonly gate: PickerGate; readonly selected: string | null }) {
   if (selected === null) {
     return (
-      <Button type="button" className={PRIMARY} disabled>
+      <Button type="button" className={GATE} disabled>
         {PARENT_COPY.completePosition}
       </Button>
     );
   }
   return (
-    <Button asChild className={`${PRIMARY} h-auto min-h-9 whitespace-normal`}>
+    <Button asChild className={GATE}>
       <Link href={gate.href(selected)}>{PARENT_COPY.completePosition}</Link>
     </Button>
   );
@@ -131,18 +133,18 @@ interface ButtonRowProps {
 
 function ButtonRow({ picker, onKeepTime, skipHref, gate }: ButtonRowProps) {
   const confirmRef = useRef<HTMLButtonElement>(null);
-  // Focus Confirm once a hold is in and nothing is in flight (never while busy).
+  // Focus Confirm once a hold is in and nothing is in flight (never while busy); the action area scrolls itself.
   useEffect(() => {
-    if (picker.hold !== null && !picker.busy) confirmRef.current?.focus();
+    if (picker.hold !== null && !picker.busy) confirmRef.current?.focus({ preventScroll: true });
   }, [picker.hold, picker.busy]);
   return (
-    <div className="flex gap-3">
+    <div className="flex flex-wrap gap-3">
       {onKeepTime ? (
-        <Button type="button" variant="outline" className="flex-1" onClick={onKeepTime} disabled={picker.busy}>
+        <Button type="button" variant="outline" className="flex-1 min-w-[7rem]" onClick={onKeepTime} disabled={picker.busy}>
           {PARENT_COPY.keepTime}
         </Button>
       ) : skipHref ? (
-        <Button asChild variant="outline" className="flex-1">
+        <Button asChild variant="outline" className="flex-1 min-w-[7rem]">
           <Link href={skipHref}>{PARENT_COPY.skipForNow}</Link>
         </Button>
       ) : null}
@@ -171,7 +173,6 @@ interface BodyProps {
   readonly current: string | null;
   readonly words: SlotPickerCopy;
   readonly gridRef: RefObject<HTMLDivElement>;
-  readonly gated: boolean;
 }
 
 /** The green panel's two lines, or null: a hold's, or (no position yet) the chosen time with BAI's line. */
@@ -185,23 +186,36 @@ function panelOf(picker: SlotPickerState, days: readonly SlotDay[], gated: boole
 }
 
 /** Loading, failed, no free time, or the grid with its time box and green panel. */
-function PickerBody({ uid, picker, days, current, words, gridRef, gated }: BodyProps) {
+function PickerBody({ uid, picker, days, current, words, gridRef }: BodyProps) {
   if (picker.loading) return <Loading />;
   if (days === null) return <Empty line={words.loadFailed} busy={picker.busy} onRetry={picker.reload} />;
   const anyOpen = days.some((d) => d.slots.some((s) => isOpenSlot(s, picker.gone)));
   if (!anyOpen && current === null) return <Empty line={words.noTimes} busy={picker.busy} onRetry={picker.reload} />;
   const day = picker.cell ? days.find((d) => d.londonDate === picker.cell?.londonDate) : undefined;
   const cellSlots = day && picker.cell ? slotsIn(day, picker.cell.bracket) : [];
-  const panel = panelOf(picker, days, gated);
   return (
     <>
       <AvailabilityGrid days={days} cell={day ? picker.cell : null} gone={picker.gone} current={current} busy={picker.busy} onPick={picker.pickCell} gridRef={gridRef} />
       {cellSlots.length > 0 && (
         <TimeBox uid={uid} slots={cellSlots} chosen={picker.selected ?? current} gone={picker.gone} busy={picker.busy} onTap={picker.tapTime} />
       )}
-      {panel && <HeldPanel when={panel.when} line={panel.line} />}
     </>
   );
+}
+
+/**
+ * Once a time is picked (held, or chosen with no position yet), bring the green panel and the button row into view
+ * — smoothly, or at once under prefers-reduced-motion (coordinator review: on a 390×844 phone they were below the
+ * fold). Works in the page and inside the popup's own scroll area (the nearest scrolling ancestor).
+ */
+function useScrollActionsIntoView(trigger: string | null) {
+  const area = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (trigger === null) return;
+    const reduce = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    area.current?.scrollIntoView?.({ block: "end", behavior: reduce ? "auto" : "smooth" });
+  }, [trigger]);
+  return area;
 }
 
 export function SlotPicker<T>({ days, actions, onConfirmed, onKeepTime, skipHref, current = null, initialNotice = null, gate, copy }: SlotPickerProps<T>) {
@@ -215,6 +229,10 @@ export function SlotPicker<T>({ days, actions, onConfirmed, onKeepTime, skipHref
     if (picker.message !== null) alertRef.current?.focus();
   }, [picker.message]);
   const backToGrid = () => (gridRef.current?.querySelector<HTMLElement>('[tabindex="0"]:not([disabled])') ?? headingRef.current)?.focus();
+  const gated = gate !== undefined;
+  const shown = picker.reloadFailed ? null : days;
+  const panel = shown && !picker.loading ? panelOf(picker, shown, gated) : null;
+  const actionArea = useScrollActionsIntoView(gated ? picker.selected : picker.hold?.holdId ?? null);
 
   return (
     <section aria-labelledby={`${uid}-heading`} className="space-y-4">
@@ -236,9 +254,12 @@ export function SlotPicker<T>({ days, actions, onConfirmed, onKeepTime, skipHref
       )}
       {/* aria-busy on the grid only, so the alert and status lines are never held back (react review MEDIUM). */}
       <div data-testid="slot-picker-body" aria-busy={picker.busy || picker.loading} className="space-y-4">
-        <PickerBody uid={uid} picker={picker} days={picker.reloadFailed ? null : days} current={current} words={words} gridRef={gridRef} gated={gate !== undefined} />
+        <PickerBody uid={uid} picker={picker} days={shown} current={current} words={words} gridRef={gridRef} />
       </div>
-      <ButtonRow picker={picker} onKeepTime={onKeepTime} skipHref={skipHref} gate={gate} />
+      <div ref={actionArea} data-testid="slot-picker-actions" className="space-y-4">
+        {panel && <HeldPanel when={panel.when} line={panel.line} />}
+        <ButtonRow picker={picker} onKeepTime={onKeepTime} skipHref={skipHref} gate={gate} />
+      </div>
       <TakenNotice when={picker.notice} onClose={picker.closeNotice} onClosed={backToGrid} />
     </section>
   );
