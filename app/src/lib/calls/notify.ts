@@ -33,9 +33,12 @@ export async function notifyCall(notice: CallNotice, send: CallNoticeSender): Pr
   try {
     await send(notice);
   } catch (thrown) {
+    // The name and code only: a mail provider's message can echo the recipient's address.
+    const code = typeof thrown === "object" && thrown !== null ? (thrown as { readonly code?: unknown }).code : undefined;
     console.error(`[calls/notify] ${notice.kind} notice failed`, {
       bookingId: notice.bookingId,
-      message: thrown instanceof Error ? thrown.message : String(thrown),
+      name: thrown instanceof Error ? thrown.name : typeof thrown,
+      code: typeof code === "string" || typeof code === "number" ? String(code) : undefined,
     });
   }
 }

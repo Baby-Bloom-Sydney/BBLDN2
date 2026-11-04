@@ -4,7 +4,7 @@
  * the placement is free, and audience-facing text never says "tracking".
  */
 import { describe, expect, it } from "vitest";
-import { ADMIN_COPY, PARENT_COPY, bookedLine, callsToMakeLine, hubBookedLine, prebookFullLine } from "./copy";
+import { ADMIN_COPY, PARENT_COPY, bookedLine, callsToMakeLine, fewFreeTimesLine, hubBookedLine, noFreeTimesLine, prebookFullLine } from "./copy";
 
 const allStrings = (copy: Readonly<Record<string, string>>) => Object.values(copy);
 
@@ -43,7 +43,11 @@ describe("parent copy, word for word", () => {
 describe("admin copy", () => {
   it("says matchmaker call, never Complimentary", () => {
     expect(ADMIN_COPY.stopCallingWhileBooked).toBe("Cancel the booked time first");
-    expect(ADMIN_COPY.noFreeTimes).toBe("No free call times in the next 7 days.");
+    expect(noFreeTimesLine(7)).toBe("No free call times in the next 7 days.");
+    expect(noFreeTimesLine(14)).toBe("No free call times in the next 14 days.");
+    expect(noFreeTimesLine(1)).toBe("No free call times in the next 1 day.");
+    expect(fewFreeTimesLine(7)).toBe("Free call times are running low in the next 7 days.");
+    expect(JSON.stringify(ADMIN_COPY)).not.toMatch(/next \d+ days?/);
     for (const text of allStrings(ADMIN_COPY)) expect(text).not.toMatch(/Complimentary/);
     expect(allStrings(ADMIN_COPY).some((t) => /matchmaker call/.test(t))).toBe(true);
   });

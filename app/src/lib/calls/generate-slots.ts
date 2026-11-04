@@ -47,19 +47,22 @@ function slotsInRange(date: string, range: WeeklyHoursRange, slotMinutes: number
 /** Sorted, with every slot starting at or after the end of the one before. */
 function withoutOverlaps(slots: readonly Slot[]): readonly Slot[] {
   const sorted = [...slots].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
-  return sorted.reduce<readonly Slot[]>((kept, slot) => {
+  const kept: Slot[] = [];
+  for (const slot of sorted) {
     const last = kept.at(-1);
-    return last !== undefined && slot.startsAt < last.endsAt ? kept : [...kept, slot];
-  }, []);
+    if (last === undefined || slot.startsAt >= last.endsAt) kept.push(slot);
+  }
+  return kept;
 }
 
 export function generateSlots(input: GenerateSlotsInput): readonly Slot[] {
   if (input.slotMinutes <= 0) return [];
-  const all = datesBetween(input.fromDate, input.toDate).flatMap((date) => {
+  const all: Slot[] = [];
+  for (const date of datesBetween(input.fromDate, input.toDate)) {
     const weekday = isoWeekdayOf(date);
-    return input.hours
-      .filter((range) => range.weekday === weekday)
-      .flatMap((range) => slotsInRange(date, range, input.slotMinutes));
-  });
+    for (const range of input.hours) {
+      if (range.weekday === weekday) all.push(...slotsInRange(date, range, input.slotMinutes));
+    }
+  }
   return withoutOverlaps(all);
 }

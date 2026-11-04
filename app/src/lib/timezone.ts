@@ -57,8 +57,8 @@ const WALL_CLOCK = new Intl.DateTimeFormat('en-CA', {
 });
 
 function wallClockOf(at: Date): { date: string; hour: number; minute: number; second: number } {
-  const part = (type: Intl.DateTimeFormatPartTypes): string =>
-    WALL_CLOCK.formatToParts(at).find((p) => p.type === type)?.value ?? '00';
+  const parts = new Map(WALL_CLOCK.formatToParts(at).map((p) => [p.type, p.value]));
+  const part = (type: Intl.DateTimeFormatPartTypes): string => parts.get(type) ?? '00';
   return {
     date: `${part('year')}-${part('month')}-${part('day')}`,
     hour: Number(part('hour')),

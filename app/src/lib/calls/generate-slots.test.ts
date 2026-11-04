@@ -116,7 +116,8 @@ describe("generateSlots", () => {
       process.env.TZ = "America/New_York";
       expect(run()).toEqual(utc);
     } finally {
-      process.env.TZ = previous;
+      if (previous === undefined) delete process.env.TZ;
+      else process.env.TZ = previous;
     }
   });
 });

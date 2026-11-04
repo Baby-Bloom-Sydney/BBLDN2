@@ -22,17 +22,28 @@ describe("notifyCall", () => {
     expect(send).toHaveBeenCalledWith(NOTICE);
   });
 
-  it("logs and swallows a sender that throws", async () => {
+  it("logs and swallows a sender that throws — the error's name and code only, never its message", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const failure = Object.assign(new Error("invalid to address jane@example.com"), { name: "ResendError", code: "validation_error" });
     await expect(
       notifyCall(NOTICE, async () => {
-        throw new Error("resend down");
+        throw failure;
       }),
     ).resolves.toBeUndefined();
     expect(log).toHaveBeenCalledWith("[calls/notify] booked notice failed", {
       bookingId: NOTICE.bookingId,
-      message: "resend down",
+      name: "ResendError",
+      code: "validation_error",
     });
+    expect(JSON.stringify(log.mock.calls)).not.toContain("jane@example.com");
+  });
+
+  it("logs a thrown non-error by its type", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    await notifyCall(NOTICE, async () => {
+      throw "jane@example.com bounced";
+    });
+    expect(log).toHaveBeenCalledWith("[calls/notify] booked notice failed", { bookingId: NOTICE.bookingId, name: "string", code: undefined });
   });
 
   it("the default sender sends nothing yet (04b adds the templates)", async () => {

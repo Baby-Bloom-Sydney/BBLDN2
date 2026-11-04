@@ -8,7 +8,7 @@
  * BB-wave1-041126, 2026-11-04.
  */
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   addLondonDays,
   localToUTC,
@@ -38,6 +38,7 @@ describe.each(HOST_ZONES)("London clock with the host in %s", (zone) => {
       ["summer (BST)", "2027-06-15", 14, 0, "2027-06-15T13:00:00.000Z"],
       ["30 June 23:30 BST — the instant is still 30 June", "2027-06-30", 23, 30, "2027-06-30T22:30:00.000Z"],
       ["31 March 23:30 BST — a month boundary", "2027-03-31", 23, 30, "2027-03-31T22:30:00.000Z"],
+      ["23 April 23:00 BST — late on a BST day mid-month", "2026-04-23", 23, 0, "2026-04-23T22:00:00.000Z"],
       ["the morning the clocks go forward, before the gap", "2027-03-28", 0, 30, "2027-03-28T00:30:00.000Z"],
       ["the morning the clocks go forward, after the gap", "2027-03-28", 2, 0, "2027-03-28T01:00:00.000Z"],
       ["the night the clocks go back, after the repeat", "2027-10-31", 2, 0, "2027-10-31T02:00:00.000Z"],
@@ -116,5 +117,17 @@ describe.each(HOST_ZONES)("London clock with the host in %s", (zone) => {
     it("Sunday 23:30 London in summer is still the week before", () => {
       expect(londonWeekRange(new Date("2027-07-18T22:30:00.000Z")).fromUtc).toBe("2027-07-11T23:00:00.000Z");
     });
+  });
+});
+
+describe("wallClockOf reads the clock once per call (review L6)", () => {
+  it("londonDateOf formats an instant with one formatToParts call", () => {
+    const spy = vi.spyOn(Intl.DateTimeFormat.prototype, "formatToParts");
+    try {
+      londonDateOf("2027-07-14T23:30:00.000Z");
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

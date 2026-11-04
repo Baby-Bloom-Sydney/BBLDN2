@@ -40,8 +40,6 @@ export const ADMIN_COPY = Object.freeze({
   sectionOverdue: "Overdue",
   sectionNotBooked: "Not booked — to call",
   sectionHistory: "History",
-  noFreeTimes: "No free call times in the next 7 days.",
-  fewFreeTimes: "Free call times are running low in the next 7 days.",
   tagBlockedOver: "Blocked over — move or cancel",
   tagOverdue: "Overdue",
   tagCohortPrebook: "Cohort pre-book",
@@ -72,4 +70,16 @@ export function prebookFullLine(day: string): string {
 export function callsToMakeLine(counts: { readonly booked: number; readonly notBooked: number }): string {
   const total = counts.booked + counts.notBooked;
   return `Calls still to make this week: ${total} (${counts.booked} booked · ${counts.notBooked} not booked)`;
+}
+
+const days = (n: number): string => `${n} day${n === 1 ? "" : "s"}`;
+
+/** The red banner (brief §0.13): "No free call times in the next 7 days." — the window is a setting. */
+export function noFreeTimesLine(windowDays: number): string {
+  return `No free call times in the next ${days(windowDays)}.`;
+}
+
+/** The amber banner (threshold is 04c's placeholder; OPEN §5a.4 leaves "slots running out" TBD). */
+export function fewFreeTimesLine(windowDays: number): string {
+  return `Free call times are running low in the next ${days(windowDays)}.`;
 }

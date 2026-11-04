@@ -14,7 +14,8 @@ describe.each(HOST_ZONES)("slotWords with the host in %s", (zone) => {
     try {
       return fn();
     } finally {
-      process.env.TZ = previous;
+      if (previous === undefined) delete process.env.TZ;
+      else process.env.TZ = previous;
     }
   };
 

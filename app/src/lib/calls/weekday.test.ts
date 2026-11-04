@@ -23,7 +23,8 @@ describe("isoWeekdayOf — a London date's ISO weekday", () => {
         expect(isoWeekdayOf("2027-02-08")).toBe(1);
       }
     } finally {
-      process.env.TZ = previous;
+      if (previous === undefined) delete process.env.TZ;
+      else process.env.TZ = previous;
     }
   });
 });
