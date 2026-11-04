@@ -31,7 +31,8 @@ export type InvoiceError =
   | "cap" // the daily send cap is reached (counted in the database, under her lock)
   | "busy" // her lock is held by another write of hers: try again
   | "in_progress" // this invoice id is being sent right now: never a second send
-  | "already_done" // this invoice id already went out (or failed): start a new invoice
+  | "already_done" // this invoice id already went out
+  | "already_failed" // this invoice id failed: start again with a new invoice
   | "no_pdf" // finishing as sent before its PDF is stored
   | "no_details" // no payment details, or not the account she reviewed
   | "bad_replaces" // a correction for an invoice that isn't hers, cancelled and to the same family (plan R4)

@@ -22,7 +22,7 @@ import type { AdminProof } from "@/lib/calls/admin-proof";
 import { allPages, callRpc, logFailure, parseRows, readOne, serviceClient, type DbResult } from "./db";
 import { adminGate, nannyGate } from "./gate";
 import type { NannyProof } from "./nanny-proof";
-import { countsAsIssued, countsAsSent, shownStatus } from "./status";
+import { countsAsIssued, countsAsSent } from "./status";
 import {
   capRow,
   createdReply,
@@ -57,6 +57,7 @@ export type FinishOutcome =
   | { readonly kind: "failed" };
 
 const LOCK_TIMEOUT = "55P03";
+const MINUTE_MS = 60_000;
 const guid = z.guid();
 const delivery = z.enum(["sent", "failed"]);
 const finishOutcome = z.union([
@@ -141,6 +142,7 @@ export async function createInvoice(proof: NannyProof, draft: unknown, accountLa
     p_replaces: d.replacesInvoiceId,
     p_account_last4: accountLast4,
     p_daily_cap: INVOICE_RULES.dailySendCap,
+    p_stale_minutes: INVOICE_RULES.staleSendingMinutes,
   });
   return mapReply("nanny_invoice_create", reply, createdReply);
 }
@@ -176,7 +178,8 @@ export async function finishInvoice(proof: NannyProof, invoiceId: string, outcom
 /**
  * What counts towards her daily cap today (security M2) — the database's own rule, told here so 06b can say so
  * before a send: invoices created since London's midnight that aren't failed (sending, sent, cancelled; a send
- * stuck over `staleSendingMinutes` counts as failed). The database counts again, under her lock, when it creates.
+ * stuck over `staleSendingMinutes` counts as failed, as the database's sweep makes it). The database counts again,
+ * under her lock, when it creates; this count is advisory.
  */
 export async function countTowardsDailyCap(proof: NannyProof, now: Date = new Date()): Promise<InvoiceResult<number>> {
   const gate = nannyGate(proof);
@@ -184,17 +187,18 @@ export async function countTowardsDailyCap(proof: NannyProof, now: Date = new Da
   const admin = serviceClient();
   if (!admin) return FAILED;
   const day = londonDayRange(now);
+  const staleBefore = new Date(now.getTime() - INVOICE_RULES.staleSendingMinutes * MINUTE_MS).toISOString();
   try {
+    // stale sends are dropped in the query, so the limit counts live rows only
     const { data, error } = await admin.from("nanny_invoices").select("id, status, created_at").eq("nanny_id", proof.nannyId)
-      .in("status", ["sending", "sent", "cancelled"]).gte("created_at", day.fromUtc).lt("created_at", day.toUtc)
-      .order("created_at", { ascending: false }).limit(INVOICE_RULES.dailySendCap + 1);
-    if (error) {
-      logFailure("countTowardsDailyCap", error);
+      .in("status", ["sending", "sent", "cancelled"]).or(`status.neq.sending,created_at.gte.${staleBefore}`)
+      .gte("created_at", day.fromUtc).lt("created_at", day.toUtc).limit(INVOICE_RULES.dailySendCap + 1);
+    if (error || !Array.isArray(data)) {
+      logFailure("countTowardsDailyCap", error ?? { code: "unexpected_rows" });
       return FAILED;
     }
-    const rows = parseRows("countTowardsDailyCap", { ok: true, value: Array.isArray(data) ? data : [null] }, capRow);
-    if (!rows.ok) return rows;
-    return invoiceOk(rows.value.filter((r) => shownStatus({ status: r.status, createdAt: r.created_at }, now) !== "failed").length);
+    const rows = parseRows("countTowardsDailyCap", { ok: true, value: data }, capRow);
+    return rows.ok ? invoiceOk(rows.value.length) : rows;
   } catch (thrown) {
     logFailure("countTowardsDailyCap", thrown);
     return FAILED;

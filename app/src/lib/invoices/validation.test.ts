@@ -72,6 +72,9 @@ describe("paymentDetailsSchema", () => {
     ["a zero-width space", "Baby\u200bBloom"],
     ["a right-to-left override", "Sophie \u202eTaylor"],
     ["a soft hyphen", "Sophie\u00adTaylor"],
+    ["a bidi isolate", "Sophie \u2066Taylor"],
+    ["a line separator", "Sophie\u2028Taylor"],
+    ["a C1 next-line", "Sophie\u0085Taylor"],
   ])("refuses invisible format characters in a name: %s (review L8)", (_label, name) => {
     expect(messagesOf(paymentDetailsSchema.safeParse({ ...details, accountName: name }))).toContain(M.oneLine);
     expect(messagesOf(paymentDetailsSchema.safeParse({ ...details, tradingName: name }))).toContain(M.oneLine);

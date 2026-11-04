@@ -153,7 +153,7 @@ export const createdReply = z
     status: z.literal("created"),
     invoice_id: id,
     invoice_seq: seq,
-    invoice_status: z.enum(INVOICE_STATUSES),
+    invoice_status: z.literal("sending"), // a fresh create is always sending: anything else fails closed
     kind: z.enum(INVOICE_KINDS),
     placement_id: id.nullable(),
     connection_request_id: id.nullable(),
@@ -200,7 +200,7 @@ export const createdReply = z
 export const refusalReply = z.object({
   status: z.enum([
     "invalid", "future", "not_hers", "no_trial", "wrong_date", "no_details", "bad_replaces", "already_replaced", "no_contact",
-    "nanny_inactive", "cap", "busy", "in_progress", "already_done", "not_found", "not_sending", "no_pdf",
+    "nanny_inactive", "cap", "busy", "in_progress", "already_done", "already_failed", "not_found", "not_sending", "no_pdf",
   ]),
 });
 

@@ -17,11 +17,11 @@ import { describe, expect, it } from "vitest";
 
 const SRC = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const SERVER_MODULES = ["store", "families", "nanny-proof", "db", "gate", "readers", "index", "pdf/render", "pdf/font"];
-const SERVER_PATH = "lib/invoices(?:/(?:store|families|nanny-proof|db|gate|readers|index|pdf/render|pdf/font))?";
-/** An import (alias or relative) of a server module. */
-const SERVER_IMPORT = new RegExp(`from\\s+["'](?:@/|(?:\\.\\./)+)${SERVER_PATH}["']`);
-/** A deep import of the invoice code, or of its config — allowed only inside the feature. */
-const DEEP_IMPORT = /from\s+["'](?:@\/|(?:\.\.\/)+)(?:lib\/invoices\/[^"']+|config\/invoices)["']/;
+const SERVER_MODULE = "(?:/(?:store|families|nanny-proof|db|gate|readers|index|pdf/render|pdf/font))?";
+/** An import of a server module: by alias, or by any relative path ending in `invoices` (a sibling in src/lib too). */
+const SERVER_IMPORT = new RegExp(`from\\s+["'](?:@/lib/invoices|(?:\\.\\.?/)+(?:lib/)?invoices)${SERVER_MODULE}["']`);
+/** A deep import of the invoice code or its config, or any relative import of them — allowed only inside the feature. */
+const DEEP_IMPORT = /from\s+["'](?:@\/(?:lib\/invoices\/[^"']+|config\/invoices)|(?:\.\.?\/)+(?:[\w-]+\/)*invoices(?:\/[^"']+)?)["']/;
 const USE_CLIENT = /^["']use client["'];?\s*$/m;
 const FEATURE_FOLDERS = ["lib/invoices/", "app/nanny/invoices/", "app/admin/invoices/", "config/invoices"];
 
@@ -56,6 +56,11 @@ describe("src/lib/invoices boundaries", () => {
     expect(DEEP_IMPORT.test('import { x } from "@/lib/invoices/store";')).toBe(true);
     expect(DEEP_IMPORT.test('import { INVOICE_RULES } from "@/config/invoices";')).toBe(true);
     expect(DEEP_IMPORT.test('import { getPlacementWeekHours } from "@/lib/invoices";')).toBe(false);
+    // a sibling inside src/lib, or a file beside the config (code review verification 1)
+    expect(DEEP_IMPORT.test('import { saveDetails } from "../invoices/store";')).toBe(true);
+    expect(DEEP_IMPORT.test('import { INVOICE_RULES } from "./invoices";')).toBe(true);
+    const sibling = '"use client";\nimport { saveDetails } from "../invoices/store";';
+    expect(USE_CLIENT.test(sibling) && SERVER_IMPORT.test(sibling)).toBe(true);
   });
 
   it("outside the feature, nothing deep-imports the invoice code or its config", () => {

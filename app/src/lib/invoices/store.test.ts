@@ -244,7 +244,7 @@ describe("createInvoice", () => {
       fn: "nanny_invoice_create",
       args: {
         p_id: INVOICE, p_nanny: NANNY_ID, p_kind: "regular_week", p_target: PLACEMENT, p_period_start: "2027-02-08",
-        p_hours: 30, p_rate_pence: 1800, p_replaces: null, p_account_last4: "4321", p_daily_cap: 10,
+        p_hours: 30, p_rate_pence: 1800, p_replaces: null, p_account_last4: "4321", p_daily_cap: 10, p_stale_minutes: 10,
       },
     }]);
     expect(r).toEqual({
@@ -269,7 +269,7 @@ describe("createInvoice", () => {
   });
 
   it.each(["future", "not_hers", "no_trial", "wrong_date", "no_details", "bad_replaces", "already_replaced", "no_contact",
-    "nanny_inactive", "cap", "busy", "invalid", "in_progress", "already_done"] as const)(
+    "nanny_inactive", "cap", "busy", "invalid", "in_progress", "already_done", "already_failed"] as const)(
     "passes the database's %s refusal through",
     async (status) => {
       f.rpcResults.nanny_invoice_create = { data: { status }, error: null };
@@ -303,6 +303,8 @@ describe("createInvoice", () => {
     f.rpcResults.nanny_invoice_create = { data: { status: "made" }, error: null };
     expect(await createInvoice(nanny, DRAFT, "4321", NOW)).toEqual({ ok: false, error: "error" });
     f.rpcResults.nanny_invoice_create = { data: { ...CREATED, invoice_seq: 0 }, error: null };
+    expect(await createInvoice(nanny, DRAFT, "4321", NOW)).toEqual({ ok: false, error: "error" });
+    f.rpcResults.nanny_invoice_create = { data: { ...CREATED, invoice_status: "sent" }, error: null };
     expect(await createInvoice(nanny, DRAFT, "4321", NOW)).toEqual({ ok: false, error: "error" });
     f.rpcResults.nanny_invoice_create = { data: null, error: { message: "Failing row contains (admin+b06-11@babybloomnannies.co.uk)", code: "XX000" } };
     expect(await createInvoice(nanny, DRAFT, "4321", NOW)).toEqual({ ok: false, error: "error" });
@@ -342,18 +344,20 @@ describe("countTowardsDailyCap (the database's own count, for 06b to say so befo
       { id: "a", status: "sent", created_at: "2027-02-15T09:00:00+00:00" },
       { id: "b", status: "cancelled", created_at: "2027-02-15T08:00:00+00:00" },
       { id: "c", status: "sending", created_at: "2027-02-15T09:55:00+00:00" },
-      { id: "d", status: "sending", created_at: "2027-02-15T09:40:00+00:00" },
     ];
     expect(await countTowardsDailyCap(nanny, NOW)).toEqual({ ok: true, value: 3 });
+    // stale sends are dropped in the query, before the limit (code review: the limit must count only live rows)
     expect(filtersOf("nanny_invoices")).toEqual([
       ["eq", "nanny_id", NANNY_ID],
       ["in", "status", ["sending", "sent", "cancelled"]],
+      ["or", "status.neq.sending,created_at.gte.2027-02-15T09:50:00.000Z", undefined],
       ["gte", "created_at", "2027-02-15T00:00:00.000Z"],
       ["lt", "created_at", "2027-02-16T00:00:00.000Z"],
-      ["order", "created_at", { ascending: false }],
       ["limit", 11, undefined],
     ]);
     f.reads.nanny_invoices = [{ id: "a", status: "sent", created_at: "garbage" }];
+    expect(await countTowardsDailyCap(nanny, NOW)).toEqual({ ok: false, error: "error" });
+    f.reads.nanny_invoices = { not: "a list" };
     expect(await countTowardsDailyCap(nanny, NOW)).toEqual({ ok: false, error: "error" });
     f.readErrors.nanny_invoices = { message: "x", code: "57014" };
     expect(await countTowardsDailyCap(nanny, NOW)).toEqual({ ok: false, error: "error" });

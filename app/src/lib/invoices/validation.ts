@@ -40,11 +40,13 @@ export const VALIDATION_MESSAGES = Object.freeze({
 const M = VALIDATION_MESSAGES;
 
 /**
- * Control characters and invisible format characters (zero-width, bidi overrides, soft hyphen — `\p{Cf}`): none
- * in a one-line field; an address keeps only its line breaks. These print on a BabyBloom-sent PDF (review L8).
+ * Control, format (zero-width, bidi overrides and isolates, soft hyphen), private-use and unassigned characters and
+ * the line/paragraph separators — `\p{C}`, `\p{Zl}`, `\p{Zp}`: none in a one-line field; an address keeps only its
+ * line breaks (\n). These print on a BabyBloom-sent PDF (security review L8, N1). Known limit: ZWNJ / ZWJ, which
+ * some scripts use in names, are refused too (the database refuses the same).
  */
-const ONE_LINE_BAD = /[\u0000-\u001f\u007f\p{Cf}]/u;
-const ADDRESS_BAD = /[\u0000-\u0009\u000b-\u001f\u007f\p{Cf}]/u;
+const ONE_LINE_BAD = /[\p{C}\p{Zl}\p{Zp}]/u;
+const ADDRESS_BAD = /(?!\n)[\p{C}\p{Zl}\p{Zp}]/u;
 const BABY_BLOOM = /baby\s*bloom/i;
 
 /** Tested after NFKC, which folds full-width and other look-alike letters to plain ones. */
