@@ -102,6 +102,11 @@ export type CohortWarning =
   | { readonly kind: "paid_without_place"; readonly parentUserId: string; readonly name: string }
   | { readonly kind: "over_capacity"; readonly cohortStartDate: string; readonly overBy: number };
 
+/** The warnings box's list; a failed read is flagged, never shown as an empty box. */
+export type WarningsFigure =
+  | { readonly kind: "ok"; readonly list: readonly CohortWarning[]; readonly truncated: boolean }
+  | { readonly kind: "unavailable" };
+
 /** Everything /admin/cohorts renders, read once on the server. */
 export interface CohortBoard {
   readonly today: string;
@@ -111,8 +116,7 @@ export interface CohortBoard {
   readonly next: CohortEntry | null;
   readonly upcoming: readonly CohortEntry[];
   readonly past: readonly CohortEntry[];
-  readonly warnings: readonly CohortWarning[];
-  readonly warningsTruncated: boolean;
+  readonly warnings: WarningsFigure;
   readonly calls: CallsFigure;
   readonly preBooked: PreBookedFigure;
 }
