@@ -188,3 +188,21 @@ describe("SlotPicker — no times, failed, loading", () => {
     expect(choose()).toBeDisabled();
   });
 });
+
+describe("SlotPicker — reuse (04c on-behalf, 03 pre-book)", () => {
+  it("two pickers on one page share no element ids or radio-group names", () => {
+    render(
+      <>
+        <SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />
+        <SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />
+      </>,
+    );
+    const radios = screen.getAllByRole("radio");
+    const ids = radios.map((r) => r.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    const names = (picker: number) => new Set(radios.slice(picker * 3, picker * 3 + 3).map((r) => r.getAttribute("name")));
+    expect([...names(0)].some((n) => names(1).has(n))).toBe(false);
+    const headings = screen.getAllByRole("region").map((r) => r.getAttribute("aria-labelledby"));
+    expect(new Set(headings).size).toBe(2);
+  });
+});

@@ -18,7 +18,7 @@
  * BB-wave1-041126/04b-build, 2026-11-04.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LONDON_TIME_SUFFIX, PARENT_COPY } from "@/lib/calls/copy";
@@ -84,6 +84,8 @@ export function pickerMessage(error: string): string {
 }
 
 interface DayGroupProps {
+  /** This picker's own id prefix, so two pickers on one page never share ids or radio names. */
+  readonly uid: string;
   readonly day: SlotDay;
   readonly selected: string | null;
   readonly gone: ReadonlySet<string>;
@@ -91,20 +93,20 @@ interface DayGroupProps {
   readonly onSelect: (startsAt: string) => void;
 }
 
-function DayGroup({ day, selected, gone, disabled, onSelect }: DayGroupProps) {
+function DayGroup({ uid, day, selected, gone, disabled, onSelect }: DayGroupProps) {
   return (
     <fieldset className="min-w-0">
       <legend className="text-sm font-semibold text-slate-900">{day.legend}</legend>
       <div role="radiogroup" aria-label={`${day.legend} ${LONDON_TIME_SUFFIX}`} className="mt-3 flex flex-wrap gap-2">
         {day.slots.map((slot) => {
           const isGone = gone.has(slot.startsAt);
-          const id = `slot-${slot.startsAt}`;
+          const id = `${uid}-slot-${slot.startsAt}`;
           return (
             <span key={slot.startsAt} className="inline-flex">
               <input
                 type="radio"
                 id={id}
-                name={`day-${day.londonDate}`}
+                name={`${uid}-day-${day.londonDate}`}
                 value={slot.startsAt}
                 className="peer sr-only"
                 checked={selected === slot.startsAt}
@@ -211,7 +213,7 @@ function usePicker<T>({ days, actions, onConfirmed }: Pick<SlotPickerProps<T>, "
 type Picker = ReturnType<typeof usePicker>;
 
 /** Held, loading, empty or failed, or the days and "Choose this time". */
-function PickerBody({ picker, days, words }: { readonly picker: Picker; readonly days: readonly SlotDay[] | null; readonly words: SlotPickerCopy }) {
+function PickerBody({ uid, picker, days, words }: { readonly uid: string; readonly picker: Picker; readonly days: readonly SlotDay[] | null; readonly words: SlotPickerCopy }) {
   if (picker.hold !== null) {
     return <HeldPanel hold={picker.hold} busy={picker.busy} onConfirm={picker.confirmTime} onPickAnother={() => picker.setHold(null)} />;
   }
@@ -223,7 +225,7 @@ function PickerBody({ picker, days, words }: { readonly picker: Picker; readonly
     <>
       <div className="mt-6 space-y-6">
         {days.map((day) => (
-          <DayGroup key={day.londonDate} day={day} selected={picker.choice} gone={picker.gone} disabled={picker.busy} onSelect={picker.setSelected} />
+          <DayGroup key={day.londonDate} uid={uid} day={day} selected={picker.choice} gone={picker.gone} disabled={picker.busy} onSelect={picker.setSelected} />
         ))}
       </div>
       <div className="mt-8">
@@ -238,14 +240,15 @@ function PickerBody({ picker, days, words }: { readonly picker: Picker; readonly
 export function SlotPicker<T>({ days, actions, onConfirmed, onKeepTime, copy }: SlotPickerProps<T>) {
   const words = { ...DEFAULT_COPY, ...copy };
   const picker = usePicker({ days, actions, onConfirmed });
+  const uid = useId();
   const alertRef = useRef<HTMLParagraphElement>(null);
   useEffect(() => {
     if (picker.message !== null) alertRef.current?.focus();
   }, [picker.message]);
 
   return (
-    <section aria-labelledby="slot-picker-heading" aria-busy={picker.busy || picker.loading}>
-      <h2 id="slot-picker-heading" className="text-lg font-semibold text-slate-900">
+    <section aria-labelledby={`${uid}-heading`} aria-busy={picker.busy || picker.loading}>
+      <h2 id={`${uid}-heading`} className="text-lg font-semibold text-slate-900">
         {words.heading}
       </h2>
       <p className="mt-1 text-sm text-slate-600">{words.hint}</p>
@@ -259,7 +262,7 @@ export function SlotPicker<T>({ days, actions, onConfirmed, onKeepTime, copy }: 
           {picker.message}
         </p>
       )}
-      <PickerBody picker={picker} days={days} words={words} />
+      <PickerBody uid={uid} picker={picker} days={days} words={words} />
       {onKeepTime && (
         <Button type="button" variant="link" onClick={onKeepTime} className="mt-4 h-auto px-0 text-violet-700">
           {PARENT_COPY.keepTime}
