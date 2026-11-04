@@ -11,7 +11,7 @@ const PENCE_PER_POUND = 100;
 /** Enough places to undo binary drift (20.555 × 100 = 2055.4999…) before rounding to a penny. */
 const DRIFT_PLACES = 6;
 
-/** "£540.00" — `Intl.NumberFormat(APP_LOCALE, PRICES.currency)`, through `formatPence`. */
+/** Pence as pounds and pence in the configured currency — `Intl.NumberFormat(APP_LOCALE, PRICES.currency)`, through `formatPence`. */
 export const formatInvoiceMoney = formatPence;
 
 /**

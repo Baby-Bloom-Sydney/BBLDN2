@@ -136,7 +136,7 @@ export function summarise(invoices: readonly FamilyInvoice[]): FamilyInvoiceSumm
   };
 }
 
-/** "2 invoices · 1 cancelled · 28 h · £504.00" (brief §0.11). */
+/** "2 invoices · 1 cancelled · 28 h · <live total>" — the summary line of brief §0.11 (worked example in the test). */
 export function formatFamilySummary(s: FamilyInvoiceSummary): string {
   const invoices = `${s.invoiceCount} ${s.invoiceCount === 1 ? "invoice" : "invoices"}`;
   return `${invoices} · ${s.cancelledCount} cancelled · ${formatHours(s.hours)} h · ${formatInvoiceMoney(s.totalPence)}`;
