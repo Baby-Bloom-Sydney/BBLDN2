@@ -79,10 +79,11 @@ export interface CallsRepo {
     span: TimeSpan,
     filter: { readonly statuses: readonly BookingStatus[]; readonly purpose?: CallPurpose },
   ): Promise<CallsResult<readonly CallBooking[]>>;
-  /** Every booked call, by start time. */
+  /** Every booked call, by start time. Every list read pages with `.range()` and fails closed at the row cap. */
   readBookedCalls(): Promise<CallsResult<readonly CallBooking[]>>;
   readBookingsForParents(parentUserIds: readonly string[]): Promise<CallsResult<readonly CallBooking[]>>;
   readLogEntriesForParents(parentUserIds: readonly string[]): Promise<CallsResult<readonly CallLogEntry[]>>;
+  /** The newest entries; `limit` is clamped to 1–200. */
   readRecentLogEntries(limit: number): Promise<CallsResult<readonly CallLogEntry[]>>;
   /** Parents not from an invite (NULL source included, plan D7) who signed up at or after `enabledSince`. */
   readScopeParents(enabledSince: string): Promise<CallsResult<readonly ScopeParent[]>>;
@@ -147,6 +148,68 @@ async function rows<T>(label: string, query: PromiseLike<DbReply>, map: (data: u
   return ok(value);
 }
 
+/** Rows per request — below PostgREST's 1,000-row cap, so a full page always means "ask for the next one". */
+const PAGE_ROWS = 500;
+/** 40 pages = 20,000 rows: past that a read fails closed rather than loading without bound. */
+const MAX_PAGES = 40;
+/** Ids per `.in()` request, so no request URL grows without bound. */
+const ID_CHUNK = 100;
+const RECENT_LIMIT_MAX = 200;
+
+type Page = (from: number, to: number) => PromiseLike<DbReply>;
+
+/**
+ * Every row of a query, page by page with `.range()`. A page longer than asked — e.g. exactly PostgREST's 1,000-row
+ * cap, when a range was ignored — may have been cut short, so the whole read fails closed (review M1, M3).
+ */
+async function allPages(label: string, page: Page): Promise<CallsResult<readonly unknown[]>> {
+  const collected: unknown[] = [];
+  for (let n = 0; n < MAX_PAGES; n += 1) {
+    const from = n * PAGE_ROWS;
+    const { data, error } = await page(from, from + PAGE_ROWS - 1);
+    if (error) {
+      logFailure(label, error);
+      return FAILED;
+    }
+    if (!Array.isArray(data) || data.length > PAGE_ROWS) {
+      logFailure(label, { message: Array.isArray(data) ? `a page came back with ${data.length} rows` : "unexpected row shape" });
+      return FAILED;
+    }
+    collected.push(...data);
+    if (data.length < PAGE_ROWS) return ok(collected);
+  }
+  logFailure(label, { message: `more than ${MAX_PAGES * PAGE_ROWS} rows` });
+  return FAILED;
+}
+
+/** `allPages` for an id list, at most `ID_CHUNK` ids to a request. */
+async function allPagesByIds(label: string, ids: readonly string[], page: (chunk: string[]) => Page): Promise<CallsResult<readonly unknown[]>> {
+  const collected: unknown[] = [];
+  for (let i = 0; i < ids.length; i += ID_CHUNK) {
+    const chunk = await allPages(label, page(ids.slice(i, i + ID_CHUNK)));
+    if (!chunk.ok) return chunk;
+    collected.push(...chunk.value);
+  }
+  return ok(collected);
+}
+
+/** Map the rows a paged read collected; a row that doesn't fit fails the read. */
+function mapped<T>(label: string, read: CallsResult<readonly unknown[]>, map: (data: unknown) => T | null): CallsResult<T> {
+  if (!read.ok) return read;
+  const value = map(read.value);
+  if (value === null) {
+    logFailure(label, { message: "unexpected row shape" });
+    return FAILED;
+  }
+  return ok(value);
+}
+
+const newestFirst = <T>(key: (row: T) => string) => (rows: readonly T[]): readonly T[] =>
+  Object.freeze([...rows].sort((a, b) => key(b).localeCompare(key(a))));
+
+const clampLimit = (limit: number): number =>
+  Number.isFinite(limit) ? Math.min(RECENT_LIMIT_MAX, Math.max(1, Math.trunc(limit))) : 1;
+
 async function rpc<T>(db: Db, fn: string, args: Readonly<Record<string, unknown>>, schema: z.ZodType<T>): Promise<CallsResult<T>> {
   const { data, error } = (await db().rpc(fn, args)) as DbReply;
   if (error) {
@@ -170,34 +233,35 @@ function bookingQueries(db: Db): Pick<
   "readOccupyingBookings" | "readBookingsStartingIn" | "readBookedCalls" | "readBookingsForParents"
 > {
   const table = () => db().from("call_bookings").select(BOOKING_COLUMNS);
+  const read = async (label: string, page: Page) => mapped(label, await allPages(label, page), bookingsFromRows);
   return {
     readOccupyingBookings: (span) =>
       guarded("readOccupyingBookings", () =>
-        rows(
-          "readOccupyingBookings",
-          table().in("status", ["held", "booked"]).lt("starts_at", span.endsAt).gt("ends_at", span.startsAt),
-          bookingsFromRows,
+        read("readOccupyingBookings", (from, to) =>
+          table().in("status", ["held", "booked"]).lt("starts_at", span.endsAt).gt("ends_at", span.startsAt).order("id", { ascending: true }).range(from, to),
         ),
       ),
     readBookingsStartingIn: (span, filter) =>
-      guarded("readBookingsStartingIn", () => {
-        const query = table().in("status", [...filter.statuses]).gte("starts_at", span.startsAt).lt("starts_at", span.endsAt);
-        return rows("readBookingsStartingIn", filter.purpose ? query.eq("purpose", filter.purpose) : query, bookingsFromRows);
-      }),
+      guarded("readBookingsStartingIn", () =>
+        read("readBookingsStartingIn", (from, to) => {
+          const query = table().in("status", [...filter.statuses]).gte("starts_at", span.startsAt).lt("starts_at", span.endsAt);
+          return (filter.purpose ? query.eq("purpose", filter.purpose) : query).order("id", { ascending: true }).range(from, to);
+        }),
+      ),
     readBookedCalls: () =>
       guarded("readBookedCalls", () =>
-        rows("readBookedCalls", table().eq("status", "booked").order("starts_at", { ascending: true }), bookingsFromRows),
+        read("readBookedCalls", (from, to) =>
+          table().eq("status", "booked").order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to),
+        ),
       ),
     readBookingsForParents: (ids) =>
-      ids.length === 0
-        ? Promise.resolve(ok([]))
-        : guarded("readBookingsForParents", () =>
-            rows(
-              "readBookingsForParents",
-              table().in("parent_user_id", [...ids]).order("created_at", { ascending: false }),
-              bookingsFromRows,
-            ),
-          ),
+      guarded("readBookingsForParents", async () => {
+        const collected = await allPagesByIds("readBookingsForParents", ids, (chunk) => (from, to) =>
+          table().in("parent_user_id", chunk).order("id", { ascending: true }).range(from, to),
+        );
+        const bookings = mapped("readBookingsForParents", collected, bookingsFromRows);
+        return bookings.ok ? ok(newestFirst((b: CallBooking) => b.createdAt)(bookings.value)) : bookings;
+      }),
   };
 }
 
@@ -205,21 +269,22 @@ function calendarQueries(db: Db): Pick<CallsRepo, "readSettings" | "readWeeklyHo
   return {
     readSettings: () => guarded("readSettings", () => readSettings(db)),
     readWeeklyHours: () =>
-      guarded("readWeeklyHours", () =>
-        rows("readWeeklyHours", db().from("call_weekly_hours").select(HOURS_COLUMNS).order("weekday", { ascending: true }), (data) =>
-          weeklyHoursFromRows(data ?? []),
+      guarded("readWeeklyHours", async () =>
+        mapped(
+          "readWeeklyHours",
+          await allPages("readWeeklyHours", (from, to) =>
+            db().from("call_weekly_hours").select(HOURS_COLUMNS).order("weekday", { ascending: true }).order("start_minute", { ascending: true }).range(from, to),
+          ),
+          weeklyHoursFromRows,
         ),
       ),
     readBlocks: (span) =>
-      guarded("readBlocks", () =>
-        rows(
+      guarded("readBlocks", async () =>
+        mapped(
           "readBlocks",
-          db()
-            .from("call_blocks")
-            .select(BLOCK_COLUMNS)
-            .lt("starts_at", span.endsAt)
-            .gt("ends_at", span.startsAt)
-            .order("starts_at", { ascending: true }),
+          await allPages("readBlocks", (from, to) =>
+            db().from("call_blocks").select(BLOCK_COLUMNS).lt("starts_at", span.endsAt).gt("ends_at", span.startsAt).order("id", { ascending: true }).range(from, to),
+          ),
           blocksFromRows,
         ),
       ),
@@ -230,18 +295,16 @@ function logQueries(db: Db): Pick<CallsRepo, "readLogEntriesForParents" | "readR
   const table = () => db().from("call_log_entries").select(ENTRY_COLUMNS);
   return {
     readLogEntriesForParents: (ids) =>
-      ids.length === 0
-        ? Promise.resolve(ok([]))
-        : guarded("readLogEntriesForParents", () =>
-            rows(
-              "readLogEntriesForParents",
-              table().in("parent_user_id", [...ids]).order("occurred_at", { ascending: false }),
-              entriesFromRows,
-            ),
-          ),
+      guarded("readLogEntriesForParents", async () => {
+        const collected = await allPagesByIds("readLogEntriesForParents", ids, (chunk) => (from, to) =>
+          table().in("parent_user_id", chunk).order("id", { ascending: true }).range(from, to),
+        );
+        const entries = mapped("readLogEntriesForParents", collected, entriesFromRows);
+        return entries.ok ? ok(newestFirst((e: CallLogEntry) => e.occurredAt)(entries.value)) : entries;
+      }),
     readRecentLogEntries: (limit) =>
       guarded("readRecentLogEntries", () =>
-        rows("readRecentLogEntries", table().order("occurred_at", { ascending: false }).limit(limit), entriesFromRows),
+        rows("readRecentLogEntries", table().order("occurred_at", { ascending: false }).limit(clampLimit(limit)), entriesFromRows),
       ),
   };
 }
@@ -267,24 +330,32 @@ async function latestPositionId(db: Db, parentUserId: string): Promise<CallsResu
 function familyQueries(db: Db): Pick<CallsRepo, "readScopeParents" | "readContacts" | "readLatestPositionId"> {
   return {
     readScopeParents: (enabledSince) =>
-      guarded("readScopeParents", () =>
-        rows(
+      guarded("readScopeParents", async () =>
+        mapped(
           "readScopeParents",
-          db()
-            .from("parents")
-            .select(SCOPE_COLUMNS)
-            .or(NOT_FROM_AN_INVITE)
-            .gte("created_at", enabledSince)
-            .order("created_at", { ascending: true }),
+          await allPages("readScopeParents", (from, to) =>
+            db()
+              .from("parents")
+              .select(SCOPE_COLUMNS)
+              .or(NOT_FROM_AN_INVITE)
+              .gte("created_at", enabledSince)
+              .order("created_at", { ascending: true })
+              .order("user_id", { ascending: true })
+              .range(from, to),
+          ),
           scopeParentsFromRows,
         ),
       ),
     readContacts: (ids) =>
-      ids.length === 0
-        ? Promise.resolve(ok([]))
-        : guarded("readContacts", () =>
-            rows("readContacts", db().from("user_profiles").select(CONTACT_COLUMNS).in("user_id", [...ids]), contactsFromRows),
+      guarded("readContacts", async () =>
+        mapped(
+          "readContacts",
+          await allPagesByIds("readContacts", ids, (chunk) => (from, to) =>
+            db().from("user_profiles").select(CONTACT_COLUMNS).in("user_id", chunk).order("user_id", { ascending: true }).range(from, to),
           ),
+          contactsFromRows,
+        ),
+      ),
     readLatestPositionId: (parentUserId) => guarded("readLatestPositionId", () => latestPositionId(db, parentUserId)),
   };
 }

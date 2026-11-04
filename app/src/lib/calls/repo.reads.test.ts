@@ -90,7 +90,7 @@ describe("readSettings", () => {
 describe("a database that fails", () => {
   const failing = (message: string): SupabaseClient => {
     const builder: Record<string, unknown> = {};
-    for (const f of ["select", "eq", "in", "or", "gte", "lt", "gt", "order", "limit"]) builder[f] = () => builder;
+    for (const f of ["select", "eq", "in", "or", "gte", "lt", "gt", "order", "limit", "range"]) builder[f] = () => builder;
     builder.maybeSingle = async () => ({ data: null, error: { message, code: "57014" } });
     builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve({ data: null, error: { message, code: "57014" } }).then(resolve);
     return { from: () => builder } as unknown as SupabaseClient;
@@ -302,7 +302,8 @@ describe("the to-call scope (brief §3 'who appears'; plan D7)", () => {
       ok: true,
       value: [{ userId: PARENT, firstName: "Jane", lastName: "Smith", email: "jane@example.com", mobile: "+447700900123", isTestUser: true }],
     });
-    expect(f.ops[0]).toMatchObject({ table: "user_profiles", filters: [["in", "user_id", [PARENT]]] });
+    expect(f.ops[0].table).toBe("user_profiles");
+    expect(f.ops[0].filters).toEqual(expect.arrayContaining([["in", "user_id", [PARENT]]]));
   });
 
   it("readLatestPositionId: the parent's newest position, or null", async () => {

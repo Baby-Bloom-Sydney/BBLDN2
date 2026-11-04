@@ -5,7 +5,7 @@
  * (select) or `{ error: writeErrors[table] ?? null }` (writes). Enough of the PostgREST builder for
  * `.select().eq().maybeSingle()`, `.select().eq().lte().is()…`, `.update().eq().is()`, `.insert()`.
  *
- * `rpc` (added for brief 04, BB-wave1-041126/04a-core, per BUILD/README § Wave 1 alignment item 4): every
+ * `rpc` and the `or` / `gt` / `range` filters (added for brief 04, BB-wave1-041126/04a-core, per BUILD/README § Wave 1 alignment item 4): every
  * `.rpc(fn, args)` is recorded in `rpcCalls` and resolves from `rpcResults[fn]` (default `{ data: null, error: null }`).
  * Added add-only: the existing builder, ops and results are unchanged.
  */
@@ -58,7 +58,7 @@ export function fakeAdmin(reads: Record<string, unknown> = {}): FakeAdmin {
         return builder;
       };
     }
-    for (const f of ["or", "gt"]) {
+    for (const f of ["or", "gt", "range"]) {
       builder[f] = (col: string, val: unknown) => {
         op.filters.push([f, col, val]);
         return builder;
