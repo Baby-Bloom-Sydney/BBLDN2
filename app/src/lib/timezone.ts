@@ -39,9 +39,52 @@ export function formatLondonDate(isoString: string): string {
   });
 }
 
+// ── The one London clock (BUILD/README § Wave 1 alignment, item 2) ──
+//
+// Every date and time rule in the app (cohort weeks, call slots, invoice weeks, the first week off the bill)
+// reads these helpers, so they can never disagree about which Monday a week starts on. Each answer depends
+// only on `APP_TZ`, never on the host's zone: CI runs UTC and a developer's machine may not.
+
+const MINUTE_MS = 60_000;
+const DAY_MS = 86_400_000;
+
+/** `APP_TZ` wall-clock parts of an instant, on a 24-hour clock. */
+const WALL_CLOCK = new Intl.DateTimeFormat('en-CA', {
+  timeZone: APP_TZ,
+  year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', second: '2-digit',
+  hourCycle: 'h23',
+});
+
+function wallClockOf(at: Date): { date: string; hour: number; minute: number; second: number } {
+  const parts = new Map(WALL_CLOCK.formatToParts(at).map((p) => [p.type, p.value]));
+  const part = (type: Intl.DateTimeFormatPartTypes): string => parts.get(type) ?? '00';
+  return {
+    date: `${part('year')}-${part('month')}-${part('day')}`,
+    hour: Number(part('hour')),
+    minute: Number(part('minute')),
+    second: Number(part('second')),
+  };
+}
+
+/** Minutes `APP_TZ` is ahead of UTC at an instant (London: 0 in GMT, 60 in BST). */
+function zoneOffsetMinutes(at: Date): number {
+  const wall = wallClockOf(at);
+  const [year, month, day] = wall.date.split('-').map(Number);
+  const wallAsUtc = Date.UTC(year, month - 1, day, wall.hour, wall.minute, wall.second);
+  const wholeSeconds = Math.floor(at.getTime() / 1000) * 1000;
+  return Math.round((wallAsUtc - wholeSeconds) / MINUTE_MS);
+}
+
 /**
  * Convert a local (`APP_TZ`) date + time to a UTC ISO string.
  * This is the core timezone conversion — all other conversions go through here.
+ *
+ * Two passes, because the offset that applies is the one *at* the instant, not at the naive guess: the second
+ * pass catches a guess that landed on the far side of a clock change. A wall time the clocks skip (01:00–01:59
+ * on the spring change) comes out an hour later, so check it with `wallClockExists` first. A repeated wall time
+ * (the autumn change) gives the later of its two instants. Hardened 2026-11-04 (brief 04, LEDGER/B04): the
+ * old version compared months as a fixed number of minutes and was hours out across a month end in BST.
  *
  * @param date - local date string "YYYY-MM-DD"
  * @param hour - local hour (0-23)
@@ -49,53 +92,57 @@ export function formatLondonDate(isoString: string): string {
  * @returns UTC ISO string e.g. "2026-03-04T06:45:00.000Z"
  */
 export function localToUTC(date: string, hour: number, minute: number): string {
-  // Parse the date parts
   const [year, month, day] = date.split('-').map(Number);
+  const naive = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+  const firstGuess = naive - zoneOffsetMinutes(new Date(naive)) * MINUTE_MS;
+  const instant = naive - zoneOffsetMinutes(new Date(firstGuess)) * MINUTE_MS;
+  return new Date(instant).toISOString();
+}
 
-  // Create a UTC date with the local time values (as if they were UTC)
-  const asUtc = new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));
+/** Does this London wall-clock time happen at all? False only inside the hour the clocks skip in spring. */
+export function wallClockExists(date: string, hour: number, minute: number): boolean {
+  const back = wallClockOf(new Date(localToUTC(date, hour, minute)));
+  return back.date === date && back.hour === hour && back.minute === minute;
+}
 
-  // Get the home zone's UTC offset at roughly this time by comparing formatted outputs
-  const utcParts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'UTC',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit',
-    hour12: false,
-  }).formatToParts(asUtc);
+/** The London calendar date ("YYYY-MM-DD") of an instant. */
+export function londonDateOf(instant: Date | string): string {
+  return wallClockOf(typeof instant === 'string' ? new Date(instant) : instant).date;
+}
 
-  const localParts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: APP_TZ,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit',
-    hour12: false,
-  }).formatToParts(asUtc);
+/** The London wall clock of an instant: its date and 24-hour time (seconds included). */
+export function londonWallClockOf(instant: Date | string): { date: string; hour: number; minute: number; second: number } {
+  return wallClockOf(typeof instant === 'string' ? new Date(instant) : instant);
+}
 
-  const get = (parts: Intl.DateTimeFormatPart[], type: string) => {
-    const val = parts.find(p => p.type === type)?.value || '0';
-    return parseInt(val === '24' ? '0' : val, 10);
-  };
+/** Today's London date. */
+export function londonToday(now: Date = new Date()): string {
+  return londonDateOf(now);
+}
 
-  // Calculate the difference in minutes between local and UTC formatted values
-  const utcTotalMins =
-    get(utcParts, 'year') * 525960 +
-    get(utcParts, 'month') * 43800 +
-    get(utcParts, 'day') * 1440 +
-    get(utcParts, 'hour') * 60 +
-    get(utcParts, 'minute');
+/** A London calendar date `days` later (negative for earlier). Calendar arithmetic, so clock changes don't matter. */
+export function addLondonDays(date: string, days: number): string {
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day, 12) + days * DAY_MS).toISOString().slice(0, 10);
+}
 
-  const localTotalMins =
-    get(localParts, 'year') * 525960 +
-    get(localParts, 'month') * 43800 +
-    get(localParts, 'day') * 1440 +
-    get(localParts, 'hour') * 60 +
-    get(localParts, 'minute');
+/** The Monday on or before a London date: every week in the app starts on it. */
+export function londonMondayOf(date: string): string {
+  const [year, month, day] = date.split('-').map(Number);
+  const daysSinceMonday = (new Date(Date.UTC(year, month - 1, day, 12)).getUTCDay() + 6) % 7;
+  return addLondonDays(date, -daysSinceMonday);
+}
 
-  const offsetMinutes = localTotalMins - utcTotalMins;
+/** A half-open UTC range `[fromUtc, toUtc)`. */
+export interface UtcRange {
+  readonly fromUtc: string;
+  readonly toUtc: string;
+}
 
-  // The user meant this time locally, so subtract the local offset to get UTC
-  const utcMs = asUtc.getTime() - (offsetMinutes * 60 * 1000);
-
-  return new Date(utcMs).toISOString();
+/** The London week holding `now`: Monday 00:00 to the next Monday 00:00, London time. */
+export function londonWeekRange(now: Date = new Date()): UtcRange {
+  const monday = londonMondayOf(londonDateOf(now));
+  return { fromUtc: localToUTC(monday, 0, 0), toUtc: localToUTC(addLondonDays(monday, 7), 0, 0) };
 }
 
 /**
