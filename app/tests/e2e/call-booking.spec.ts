@@ -265,6 +265,50 @@ test.describe.serial("call booking — flag on (local stack)", () => {
     readback.cron = { statuses, notBookedForNeverBooked: 1, notBookedForBookedThenCancelled: 0, notBookedAcrossTheStack: walkWide, wrongBearer: unauthorised.status() };
   });
 
+  test("plan §8 row 7: the 24 h parent reminder and the 15 min admin reminder, each once (clock advanced on the fixture)", async ({ request }) => {
+    const cron = async () => (await request.get(`${BASE_URL}/api/cron/call-reminders`, { headers: { authorization: `Bearer ${CRON_SECRET}` } })).status();
+    await page.goto(`${BASE_URL}/parent/call`, { timeout: 180_000 });
+    const values = await page.getByRole("radio").evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
+    const index = values.findIndex((v) => Date.parse(v) >= Date.now() + 25 * 60 * MINUTE);
+    expect(index).toBeGreaterThanOrEqual(0);
+    await pickSlot(page, index);
+    await page.getByRole("button", { name: "Choose this time" }).click();
+    await page.getByRole("button", { name: "Confirm this time" }).click();
+    await expect(page.getByRole("button", { name: "Change time" })).toBeVisible();
+    const { data } = await db.from("call_bookings").select("id, starts_at, ends_at, booked_at").eq("parent_user_id", quickId).eq("status", "booked").single();
+    const original = data as { id: string; starts_at: string; ends_at: string; booked_at: string };
+    const since = new Date().toISOString();
+    const sent = async (type: string) =>
+      (await db.from("email_logs").select("id", { count: "exact", head: true }).eq("email_type", type).gte("created_at", since)).count ?? 0;
+    const counts = async () => ({ call_reminder: await sent("call_reminder"), admin_call_reminder: await sent("admin_call_reminder") });
+    /** Advance the clock: shift the fixture's start, end and booked_at back together, so the start is `fromNow` away. */
+    const startIn = async (fromNow: number) => {
+      const delta = Date.parse(original.starts_at) - (Date.now() + fromNow);
+      const back = (at: string) => new Date(Date.parse(at) - delta).toISOString();
+      await db.from("call_bookings").update({ starts_at: back(original.starts_at), ends_at: back(original.ends_at), booked_at: back(original.booked_at) }).eq("id", original.id);
+      return { starts_at: back(original.starts_at), booked_at: back(original.booked_at) };
+    };
+    const steps: Array<Record<string, unknown>> = [];
+    steps.push({ step: "booked, start ≥ 25 h ahead", startsAt: original.starts_at, bookedAt: original.booked_at, cron: await cron(), ...(await counts()) });
+    steps.push({ step: "clock advanced: start in 23 h", ...(await startIn(23 * 60 * MINUTE)), cron: await cron(), ...(await counts()) });
+    steps.push({ step: "re-run", cron: await cron(), ...(await counts()) });
+    steps.push({ step: "clock advanced: start in 10 min", ...(await startIn(10 * MINUTE)), cron: await cron(), ...(await counts()) });
+    steps.push({ step: "re-run", cron: await cron(), ...(await counts()) });
+    const { data: stamps } = await db.from("call_bookings").select("id, status, starts_at, booked_at, parent_reminder_sent_at, admin_reminder_sent_at").eq("id", original.id).single();
+    const { data: rows } = await db.from("email_logs").select("email_type, subject, status, provider_message_id, created_at").in("email_type", ["call_reminder", "admin_call_reminder"]).gte("created_at", since).order("created_at", { ascending: true });
+    expect(steps.map((st) => [st.call_reminder, st.admin_call_reminder])).toEqual([[0, 0], [1, 0], [1, 0], [1, 1], [1, 1]]);
+    expect(steps.every((st) => st.cron === 200)).toBe(true);
+    expect((stamps as { parent_reminder_sent_at: string | null }).parent_reminder_sent_at).not.toBeNull();
+    expect((stamps as { admin_reminder_sent_at: string | null }).admin_reminder_sent_at).not.toBeNull();
+    mkdirSync(PROOF_DIR, { recursive: true });
+    writeFileSync(join(PROOF_DIR, "walk-row7-readback.json"), `${JSON.stringify({ run: RUN, bookingId: original.id, steps, stamps, emailLogs: rows }, null, 2)}\n`);
+    // Tidy: cancel the fixture booking (its start is still ahead).
+    await page.goto(`${BASE_URL}/parent/call`, { timeout: 180_000 });
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await page.getByRole("button", { name: "Yes, cancel it" }).click();
+    await expect(page.getByRole("button", { name: "Choose this time" })).toBeVisible();
+  });
+
   test("the sign-up subtitle names the call", async ({ browser }) => {
     const fresh = await sydneyPage(browser);
     await fresh.goto(`${BASE_URL}/signup?src=std`, { timeout: 180_000 });
