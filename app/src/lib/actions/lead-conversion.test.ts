@@ -3,7 +3,7 @@
  * return site: the call order — sign-up → lead → position → children → schedule → lead converted → **autofire**
  * (the nanny blast) → **welcome** — is the same in both flag states, and only the redirect differs:
  *   off → /parent?t=childcare&s=nannies&v=matches (today)
- *   on  → /parent/call?next=<that, encoded>
+ *   on  → /matchmaking/call?next=<that, encoded> (the call slide; 04b rework W1/W6)
  * The early returns hand back signUp's own result (its redirect is flag-guarded in signUp itself).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -24,7 +24,7 @@ vi.mock("@/lib/email/resend", () => ({ sendEmail: h.send }));
 import { signUpAndConvertLead } from "./lead-conversion";
 
 const MATCHES = "/parent?t=childcare&s=nannies&v=matches";
-const VIA_CALL_PAGE = "/parent/call?next=%2Fparent%3Ft%3Dchildcare%26s%3Dnannies%26v%3Dmatches";
+const VIA_CALL_PAGE = "/matchmaking/call?next=%2Fparent%3Ft%3Dchildcare%26s%3Dnannies%26v%3Dmatches";
 const FULL_ORDER = ["signUp", "lead", "profile", "parent", "position", "children", "schedule", "converted", "autofire", "welcome"];
 
 const LEAD_FORM = {

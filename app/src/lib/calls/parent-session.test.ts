@@ -15,7 +15,7 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 
-import { sessionParentId } from "./parent-session";
+import { sessionCaller, sessionParentId } from "./parent-session";
 
 const HER = "b0400000-0000-4000-8000-000000000001";
 
@@ -76,5 +76,42 @@ describe("sessionParentId — a role read error is logged (review F7)", () => {
     h.single.mockResolvedValue({ data: null, error: { name: "PostgrestError", code: "PGRST116", message: "0 rows" } });
     expect(await sessionParentId()).toBeNull();
     expect(log).not.toHaveBeenCalled();
+  });
+});
+
+// ── 04b rework (W1): the call slide lives at /matchmaking/call, which the middleware doesn't guard, so the page tells
+//    "signed out" (→ /login?redirect=…) from "signed in but not a parent" (→ 404) itself. ──
+describe("sessionCaller", () => {
+  it("a signed-in parent → parent, with her id", async () => {
+    h.getUser.mockResolvedValue({ data: { user: { id: HER } }, error: null });
+    h.single.mockResolvedValue({ data: { role: "parent" }, error: null });
+    expect(await sessionCaller()).toEqual({ kind: "parent", parentId: HER });
+  });
+
+  it("no user, or an auth error → signed_out, and no role read", async () => {
+    h.getUser.mockResolvedValue({ data: { user: null }, error: null });
+    expect(await sessionCaller()).toEqual({ kind: "signed_out" });
+    h.getUser.mockResolvedValue({ data: { user: { id: HER } }, error: { message: "jwt expired" } });
+    expect(await sessionCaller()).toEqual({ kind: "signed_out" });
+    expect(h.from).not.toHaveBeenCalled();
+  });
+
+  it.each(["nanny", "admin", "super_admin"])("a signed-in %s → not_a_parent", async (role) => {
+    h.getUser.mockResolvedValue({ data: { user: { id: HER } }, error: null });
+    h.single.mockResolvedValue({ data: { role }, error: null });
+    expect(await sessionCaller()).toEqual({ kind: "not_a_parent" });
+  });
+
+  it("signed in with no role row → not_a_parent", async () => {
+    h.getUser.mockResolvedValue({ data: { user: { id: HER } }, error: null });
+    h.single.mockResolvedValue({ data: null, error: { code: "PGRST116", message: "0 rows" } });
+    expect(await sessionCaller()).toEqual({ kind: "not_a_parent" });
+  });
+
+  it("a throw → not_a_parent (404, never a login loop), logged by name only", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    h.getUser.mockRejectedValue(new TypeError("fetch failed"));
+    expect(await sessionCaller()).toEqual({ kind: "not_a_parent" });
+    expect(log).toHaveBeenCalledWith("[calls/parent-session] the session check failed", { name: "TypeError" });
   });
 });

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-04T13:04:55.145Z",
+  "generated_at": "2026-11-04T22:17:41.959Z",
   "summary": {
     "route_count": 65,
     "page_count": 114,
@@ -497,6 +497,10 @@
       "file": "src/app/(funnel)/apply/page.tsx"
     },
     {
+      "path": "/matchmaking/call",
+      "file": "src/app/(funnel)/matchmaking/call/page.tsx"
+    },
+    {
       "path": "/matchmaking/results",
       "file": "src/app/(funnel)/matchmaking/results/page.tsx"
     },
@@ -807,10 +811,6 @@
     {
       "path": "/parent/browse",
       "file": "src/app/parent/browse/page.tsx"
-    },
-    {
-      "path": "/parent/call",
-      "file": "src/app/parent/call/page.tsx"
     },
     {
       "path": "/parent/connections",

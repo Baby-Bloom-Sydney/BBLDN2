@@ -54,7 +54,7 @@ describe("the email types and links", () => {
   });
 
   it("link to the call page and the admin calls page on the site", () => {
-    expect(CALL_PAGE_URL).toMatch(/^https?:\/\/[^/]+\/parent\/call$/);
+    expect(CALL_PAGE_URL).toMatch(/^https?:\/\/[^/]+\/matchmaking\/call$/);
     expect(ADMIN_CALLS_URL).toMatch(/^https?:\/\/[^/]+\/admin\/calls$/);
   });
 });

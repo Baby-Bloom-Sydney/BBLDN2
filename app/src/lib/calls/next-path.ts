@@ -7,13 +7,16 @@
  * stays on this site, is `/parent` or below it (`=== "/parent"`, `"/parent/…"`, `"/parent?…"`) and isn't the call
  * page itself (a loop). Anything else → `/parent`.
  *
- * Pure; used by the sign-up redirects (B4) and `/parent/call` (B6). BB-wave1-041126/04b-build, 2026-11-04.
+ * The call page is a funnel slide at `/matchmaking/call` (04b rework W1, brief §0a.1), outside the app.
+ *
+ * Pure; used by the sign-up redirects (B4) and the call page (B6). BB-wave1-041126/04b-build, 2026-11-04;
+ * BB-wave1-041126/04b-rework, 2026-11-05.
  */
 
 import { isSafeInternalPath } from "@/lib/invite/redirect";
 
 export const PARENT_HOME = "/parent";
-export const CALL_PAGE_PATH = "/parent/call";
+export const CALL_PAGE_PATH = "/matchmaking/call";
 
 /** Longer than any real target; past this it falls back. */
 const MAX_NEXT_LENGTH = 512;
@@ -35,7 +38,7 @@ export function safeNextPath(raw: string | readonly string[] | null | undefined)
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
-/** `/parent/call?next=<target, encoded>` — where a parent lands after sign-up while call booking is on. */
+/** `/matchmaking/call?next=<target, encoded>` — the call slide, then on to `next`. */
 export function callPagePath(next: string): string {
   return `${CALL_PAGE_PATH}?next=${encodeURIComponent(next)}`;
 }

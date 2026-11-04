@@ -206,7 +206,7 @@ describe("signUp() — parent mobile validation (T-021)", () => {
 
 // ── Brief 04b (plan B4; brief §6 row 2, §9.1): the redirects in both CALL_BOOKING_ENABLED states. Add-only. ──
 // Off is today: nanny → /nanny, invite → /invite/<token>?auto=1, parent → /parent. On, only a parent with no invite
-// changes: /parent/call?next=%2Fparent.
+// changes: /matchmaking/call?next=%2Fparent (W7 of the 04b rework sends a cold sign-up back to today's).
 
 const INVITE_TOKEN = "ABCD-EFGH";
 
@@ -235,7 +235,7 @@ function withPendingInvite() {
 
 describe.each([
   ["off", "", "/parent"],
-  ["on", "true", "/parent/call?next=%2Fparent"],
+  ["on", "true", "/matchmaking/call?next=%2Fparent"],
 ])("signUp() redirects with CALL_BOOKING_ENABLED %s (brief 04b)", (_state, flag, parentTarget) => {
   beforeEach(() => vi.stubEnv("CALL_BOOKING_ENABLED", flag));
   afterEach(() => vi.unstubAllEnvs());

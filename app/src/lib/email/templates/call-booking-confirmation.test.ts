@@ -16,7 +16,7 @@ describe("buildCallBookingConfirmationEmail", () => {
   it("body says the London time in full and links to change or cancel", () => {
     const { html } = buildCallBookingConfirmationEmail(base);
     expect(html).toContain("Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)");
-    expect(html).toMatch(/href="https?:\/\/[^"]+\/parent\/call"/);
+    expect(html).toMatch(/href="https?:\/\/[^"]+\/matchmaking\/call"/);
   });
 
   it("names the caller number only when the setting is set", () => {

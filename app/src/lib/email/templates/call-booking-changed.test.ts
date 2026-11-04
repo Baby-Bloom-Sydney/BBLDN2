@@ -21,7 +21,7 @@ describe("buildCallBookingChangedEmail", () => {
     const { html } = buildCallBookingChangedEmail(base);
     expect(html).toContain("Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)");
     expect(html).toContain("It was Monday 8 February at 10:30.");
-    expect(html).toMatch(/href="https?:\/\/[^"]+\/parent\/call"/);
+    expect(html).toMatch(/href="https?:\/\/[^"]+\/matchmaking\/call"/);
   });
 
   it("names the caller number only when set; escapes her name; never says free", () => {

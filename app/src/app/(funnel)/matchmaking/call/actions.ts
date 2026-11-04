@@ -1,7 +1,8 @@
 "use server";
 
 /**
- * `/parent/call` server actions (brief 04 §3 parent 2–4, 8, §9.15; plan B6 + §12 R9, R23).
+ * The call slide's server actions (`/matchmaking/call`, was `/parent/call`; brief 04 §3 parent 2–4, 8, §9.15; plan B6 +
+ * §12 R9, R23).
  *
  * Contract, for each: `callBookingEnabled()` first (off → `call_booking_disabled`), then zod on every input
  * (`invalid`), then the parent **from the session** (`sessionParentId`; anyone else → `not_a_parent`) — each before

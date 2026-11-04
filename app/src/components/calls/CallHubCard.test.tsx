@@ -11,7 +11,7 @@ describe("CallHubCard", () => {
   it("booked: the line and a Change link to the call page", () => {
     const { container } = render(<CallHubCard card={{ kind: "booked", line: "Your Complimentary matchmaker call: Tue 9 Feb, 14:00 (London time)", changeable: true }} />);
     expect(container).toHaveTextContent("Your Complimentary matchmaker call: Tue 9 Feb, 14:00 (London time) · Change");
-    expect(screen.getByRole("link", { name: "Change" })).toHaveAttribute("href", "/parent/call");
+    expect(screen.getByRole("link", { name: "Change" })).toHaveAttribute("href", "/matchmaking/call");
   });
 
   it("booked, at or after the start: the line, no Change", () => {
@@ -22,7 +22,7 @@ describe("CallHubCard", () => {
 
   it("not booked: 'Pick a time…' links to the call page", () => {
     render(<CallHubCard card={{ kind: "not_booked", line: "Pick a time for your Complimentary matchmaker call" }} />);
-    expect(screen.getByRole("link", { name: "Pick a time for your Complimentary matchmaker call" })).toHaveAttribute("href", "/parent/call");
+    expect(screen.getByRole("link", { name: "Pick a time for your Complimentary matchmaker call" })).toHaveAttribute("href", "/matchmaking/call");
   });
 
   it("no card → renders nothing", () => {

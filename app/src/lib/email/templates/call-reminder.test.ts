@@ -15,7 +15,7 @@ describe("buildCallReminderEmail", () => {
   it("body gives the London time and the change link", () => {
     const { html } = buildCallReminderEmail(base);
     expect(html).toContain("Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)");
-    expect(html).toMatch(/href="https?:\/\/[^"]+\/parent\/call"/);
+    expect(html).toMatch(/href="https?:\/\/[^"]+\/matchmaking\/call"/);
   });
 
   it("names the caller number only when set; escapes her name; never says free", () => {

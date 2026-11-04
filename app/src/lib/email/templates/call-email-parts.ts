@@ -13,6 +13,7 @@
  */
 
 import { SITE_URL } from "@/lib/constants";
+import { CALL_PAGE_PATH } from "@/lib/calls/next-path";
 import { emailFooter, emailHeader } from "@/lib/email/brand";
 import { formatUkMobile } from "@/lib/uk-contact";
 
@@ -27,7 +28,8 @@ export const CALL_EMAIL_TYPES = Object.freeze({
   adminReminder: "admin_call_reminder",
 } as const);
 
-export const CALL_PAGE_URL = `${SITE_URL}/parent/call`;
+/** The call slide (04b rework W1: `/matchmaking/call`); every parent email links here. */
+export const CALL_PAGE_URL = `${SITE_URL}${CALL_PAGE_PATH}`;
 export const ADMIN_CALLS_URL = `${SITE_URL}/admin/calls`;
 
 const ATTRIBUTE_ESCAPES: Readonly<Record<string, string>> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
