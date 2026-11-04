@@ -3,7 +3,7 @@
  * env var is the literal "true" (trimmed); while off, everything the share loop gated counts as unlocked.
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { shareLoopEnabled, isShareUnlocked, babysittingEnabled } from "./flags";
+import { shareLoopEnabled, isShareUnlocked, babysittingEnabled, callBookingEnabled } from "./flags";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -75,5 +75,32 @@ describe("babysittingEnabled()", () => {
     vi.stubEnv("SHARE_LOOP_ENABLED", "true");
     vi.stubEnv("BABYSITTING_ENABLED", "");
     expect(babysittingEnabled()).toBe(false);
+  });
+});
+
+describe("callBookingEnabled() — brief 04 (CALL_BOOKING_ENABLED)", () => {
+  it.each([
+    ["unset", undefined],
+    ["empty", ""],
+    ["false", "false"],
+    ["TRUE (case matters)", "TRUE"],
+    ["1", "1"],
+    ["a typo", "ture"],
+  ])("off when %s", (_label, value) => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", value as string);
+    expect(callBookingEnabled()).toBe(false);
+  });
+
+  it("on only for the literal \"true\" (trimmed), read at call time", () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "");
+    expect(callBookingEnabled()).toBe(false);
+    vi.stubEnv("CALL_BOOKING_ENABLED", " true\n");
+    expect(callBookingEnabled()).toBe(true);
+  });
+
+  it("is independent of the other switches", () => {
+    vi.stubEnv("BABYSITTING_ENABLED", "true");
+    vi.stubEnv("CALL_BOOKING_ENABLED", "");
+    expect(callBookingEnabled()).toBe(false);
   });
 });

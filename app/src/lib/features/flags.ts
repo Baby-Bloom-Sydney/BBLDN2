@@ -70,3 +70,16 @@ export function babysittingEnabled(): boolean {
 export function legacyTierCheckoutEnabled(): boolean {
   return isOn(process.env.LEGACY_TIER_CHECKOUT_ENABLED);
 }
+
+/**
+ * Booking the parent's Complimentary matchmaker call, and BAI's call list (brief 04; plan `BUILD/plans/04-plan.md`).
+ *
+ * While off:
+ * - Every `src/lib/calls` operation refuses with `"call_booking_disabled"` before any read, and every cross-brief
+ *   contract (`calls/contracts.ts`) returns `null`.
+ * - Later PRs gate the rest on the same switch: sign-up redirects and subtitles keep today's text, `/parent/call`
+ *   and `/admin/calls` → `notFound()`, the call-reminders cron → 404, no nav entry, no hub card, no email.
+ */
+export function callBookingEnabled(): boolean {
+  return isOn(process.env.CALL_BOOKING_ENABLED);
+}

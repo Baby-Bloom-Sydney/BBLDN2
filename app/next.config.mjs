@@ -12,6 +12,8 @@ const nextConfig = {
     BABYSITTING_ENABLED: process.env.BABYSITTING_ENABLED ?? "",
     // 5g (P-23): the old tier checkout is hidden unless LEGACY_TIER_CHECKOUT_ENABLED is "true"; client link sites read it.
     LEGACY_TIER_CHECKOUT_ENABLED: process.env.LEGACY_TIER_CHECKOUT_ENABLED ?? "",
+    // Brief 04: call booking is off unless CALL_BOOKING_ENABLED is "true"; the sign-up subtitles and nav read it.
+    CALL_BOOKING_ENABLED: process.env.CALL_BOOKING_ENABLED ?? "",
   },
   typescript: {
     // strict: build fails on TS errors
