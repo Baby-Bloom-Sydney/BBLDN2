@@ -5,7 +5,6 @@ import {
   ArrowRight,
   ShieldCheck,
   Clock,
-  GraduationCap,
   Heart,
   FileText,
   BadgeCheck,
@@ -14,6 +13,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { BRAND, OG_LOCALE, SITE_NAME } from "@/lib/constants";
+import { whyCards, whyCardsGridClass } from "./why-cards";
 
 const PRO_TITLE = `Work as a Nanny in ${BRAND.city}`;
 const PRO_DESCRIPTION = `Join ${SITE_NAME} as a childcare professional in ${BRAND.city}. Get matched with local families who value quality early childhood education and care.`;
@@ -28,37 +28,6 @@ export const metadata: Metadata = {
     description: PRO_DESCRIPTION,
   },
 };
-
-const WHY_CARDS = [
-  {
-    icon: ShieldCheck,
-    title: "Families who get it",
-    description:
-      "The families on Baby Bloom care about quality childcare and child development. Engaged, respectful, and ready to invest in the right person.",
-    accent: "from-violet-500 to-violet-600",
-  },
-  {
-    icon: Clock,
-    title: "Your terms, always",
-    description:
-      "Set your own rates. Choose your own schedule. Baby Bloom never takes a cut of what you earn — what you agree with the family is yours.",
-    accent: "from-rose-400 to-rose-500",
-  },
-  {
-    icon: Sparkles,
-    title: "Babysitting requests",
-    description:
-      "Babysitting requests sent to verified nannies in the area. Extra income on your terms, with families who are already vetted.",
-    accent: "from-amber-400 to-amber-500",
-  },
-  {
-    icon: GraduationCap,
-    title: "Professional development",
-    description:
-      "Resources and tools being built to support nannies on the platform — activity planning, developmental tracking, and more. Coming soon.",
-    accent: "from-emerald-400 to-emerald-500",
-  },
-];
 
 const CHECKLIST = [
   "You understand that play is learning and structure builds confidence",
@@ -176,8 +145,8 @@ export default function ForNanniesPage() {
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {WHY_CARDS.map((item) => (
+          <div className={whyCardsGridClass(whyCards().length)}>
+            {whyCards().map((item) => (
               <div
                 key={item.title}
                 className="relative bg-white rounded-2xl p-6 border border-slate-200/80 overflow-hidden hover:shadow-lg hover:shadow-slate-100 transition-all duration-300"

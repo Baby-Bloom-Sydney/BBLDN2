@@ -13,7 +13,8 @@ import {
   Palette,
   Handshake,
 } from "lucide-react";
-import { BRAND, HOURLY_RATE_BOUNDS, OG_LOCALE, SITE_NAME } from "@/lib/constants";
+import { BRAND, OG_LOCALE, SITE_NAME } from "@/lib/constants";
+import { faqJsonLd } from "./faq-json-ld";
 
 const PRICING_DESCRIPTION = `Personalised nanny matching for ${BRAND.city} families. Choose from DIY search or done-for-you matching with verified, background-checked nannies.`;
 
@@ -60,7 +61,7 @@ const CHECKLIST = [
   "Best matches contacted directly — no cold messages, no browsing",
   // [LEGAL] marketing claim (3g, LEDGER/3g.md legal section)
   "Every nanny enhanced-DBS checked and expertly vetted",
-  "No subscription, no commission, no placement fees",
+  "No subscription, no commission, no matchmaking fees",
 ];
 
 const HOW_IT_WORKS = [
@@ -98,56 +99,13 @@ const NANNY_BENEFITS = [
   "No commission taken",
 ];
 
-const faqJsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'FAQPage',
-  mainEntity: [
-    {
-      '@type': 'Question',
-      name: `How much does a nanny cost in ${BRAND.city}?`,
-      acceptedAnswer: {
-        '@type': 'Answer',
-        // The one rate bound, read from config (Q-1 / Q-7). The old copy
-        // carried a second, separately-invented casual range; it is not
-        // reproduced because nothing sources it.
-        text: `Nanny rates in ${BRAND.city} typically range from £${HOURLY_RATE_BOUNDS.min} to £${HOURLY_RATE_BOUNDS.max} per hour. Rates vary by experience, qualifications, and location.`,
-      },
-    },
-    {
-      '@type': 'Question',
-      // [LEGAL] marketing claim (3g, LEDGER/3g.md legal section)
-      name: 'Are Baby Bloom nannies DBS checked?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: `Yes. Every nanny on ${SITE_NAME} holds an enhanced DBS certificate, checked with the DBS Update Service, and completes identity verification before families can book her.`,
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'How does the nanny matching process work?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: "Create a position describing your family's needs, and Baby Bloom matches you with verified nannies based on availability, location, experience, and qualifications. You can then request a meet and greet with your top matches.",
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'Can I find a babysitter for a one-off job?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: "Yes. Baby Bloom's babysitting request feature lets you post a one-off job and get matched with available, verified babysitters in your area within minutes.",
-      },
-    },
-  ],
-};
-
 export default function ServicesPage() {
   return (
     <div className="min-h-screen">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(faqJsonLd).replace(/</g, '\\u003c'),
+          __html: JSON.stringify(faqJsonLd()).replace(/</g, '\\u003c'),
         }}
       />
       {/* ═══ HERO ═══ */}
@@ -165,8 +123,8 @@ export default function ServicesPage() {
             </h1>
             <p className="mt-6 text-lg md:text-xl text-slate-500 leading-relaxed max-w-2xl mx-auto">
               An area. A schedule. What matters most. Nannies matched across
-              location, experience, and approach to childcare. No fees for
-              families.
+              location, experience, and approach to childcare. No matchmaking
+              fees for families.
             </p>
           </div>
         </div>

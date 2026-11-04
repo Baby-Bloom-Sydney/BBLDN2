@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllEnvs();
+});
 
 import { VerificationRequiredModal } from "./VerificationRequiredModal";
 
@@ -10,6 +13,21 @@ describe("VerificationRequiredModal", () => {
     render(<VerificationRequiredModal open onOpenChange={() => {}} />);
     expect(screen.getByText("Verify your account")).toBeTruthy();
     expect(screen.getByText("Verify Now")).toBeTruthy();
+  });
+
+  it("default message names the nannying dashboard only while babysitting is off (brief 12 B7)", () => {
+    vi.stubEnv("BABYSITTING_ENABLED", "");
+    render(<VerificationRequiredModal open onOpenChange={() => {}} />);
+    expect(screen.getByText("Complete verification to access your nannying dashboard.")).toBeTruthy();
+    expect(screen.queryByText(/babysitting/i)).toBeNull();
+  });
+
+  it("default message keeps babysitting while it is on", () => {
+    vi.stubEnv("BABYSITTING_ENABLED", "true");
+    render(<VerificationRequiredModal open onOpenChange={() => {}} />);
+    expect(
+      screen.getByText("Complete verification to access your nannying and babysitting dashboard."),
+    ).toBeTruthy();
   });
 
   it("uses custom title + message + CTA label", () => {

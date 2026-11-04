@@ -9,6 +9,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { babysittingEnabled } from "@/lib/features/flags";
 
 // Why: this modal was previously inlined at three+ sites (NannyHubClient
 // tab-locked Dialog, /position/[id] Apply button error states). Lifting it
@@ -29,8 +30,11 @@ interface VerificationRequiredModalProps {
 }
 
 const DEFAULT_TITLE = "Verify your account";
-const DEFAULT_MESSAGE =
-  "Complete verification to access your nannying and babysitting dashboard.";
+/** Brief 12 B7: the default names babysitting only while it is live (P-23); read at render. */
+const defaultMessage = (): string =>
+  babysittingEnabled()
+    ? "Complete verification to access your nannying and babysitting dashboard."
+    : "Complete verification to access your nannying dashboard.";
 const DEFAULT_CTA = "Verify Now";
 const DEFAULT_HREF = "/nanny/verification";
 
@@ -38,7 +42,7 @@ export function VerificationRequiredModal({
   open,
   onOpenChange,
   title = DEFAULT_TITLE,
-  message = DEFAULT_MESSAGE,
+  message = defaultMessage(),
   ctaLabel = DEFAULT_CTA,
   ctaHref = DEFAULT_HREF,
 }: VerificationRequiredModalProps) {
