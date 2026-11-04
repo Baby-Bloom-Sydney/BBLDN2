@@ -16,7 +16,8 @@
  */
 
 import { callBookingEnabled } from "@/lib/features/flags";
-import { CALL_BOOKING_DISABLED, defaultCallsDeps, type CallsDeps } from "./deps";
+import { isAdminProof, type AdminProof } from "./admin-proof";
+import { CALL_BOOKING_DISABLED, CALLS_INVALID, defaultCallsDeps, type CallsDeps } from "./deps";
 import { removesFromList } from "./outcomes";
 import type { PrebookRequest } from "./prebook-requests";
 import { everBooked } from "./status";
@@ -156,9 +157,10 @@ export async function loadToCall(deps: CallsDeps, enabledSince: string | null): 
   return facts.ok ? ok(selectToCall(scope.value, facts.value)) : facts;
 }
 
-/** "Not booked — to call", for 04c's dashboard. */
-export async function getToCallList(deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<readonly ToCallFamily[]>> {
+/** "Not booked — to call", for 04c's dashboard. Returns contact details, so it needs an admin proof (review H2e). */
+export async function getToCallList(proof: AdminProof, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<readonly ToCallFamily[]>> {
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
+  if (!isAdminProof(proof)) return CALLS_INVALID;
   const settings = await deps.repo.readSettings();
   if (!settings.ok) return settings;
   return loadToCall(deps, settings.value.enabledSince);

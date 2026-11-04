@@ -5,7 +5,12 @@
  * Pre-booked next cohort / Stop calling) — unless 03 has a pending pre-book request for her, or she has booked
  * since that attempt (R10). Oldest sign-up first; a call-back waits until its time (R13).
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { requireAdmin } = vi.hoisted(() => ({ requireAdmin: vi.fn() }));
+vi.mock("@/lib/admin/require-admin", () => ({ requireAdmin }));
+
+import { proveAdmin, type AdminProof } from "./admin-proof";
 import type { CallsDeps } from "./deps";
 import { bookingRow, callsTo, entryRow, fakeCallsRepo, type FakeCallsState } from "./fake-calls-repo.test-util";
 import { CALL_SETTINGS_DEFAULTS } from "./settings";
@@ -37,10 +42,18 @@ function setup(seed: Partial<FakeCallsState>, prebook: ReadonlyMap<string, { lon
 }
 
 const listed = async (deps: CallsDeps) => {
-  const list = await getToCallList(deps);
+  const list = await getToCallList(PROOF, deps);
   if (!list.ok) throw new Error(list.error);
   return list.value.map((f) => f.parentUserId);
 };
+
+let PROOF: AdminProof;
+beforeAll(async () => {
+  requireAdmin.mockResolvedValue({ userId: "a0400000-0000-4000-8000-000000000001", error: null });
+  const proof = await proveAdmin();
+  if (proof === null) throw new Error("no proof");
+  PROOF = proof;
+});
 
 beforeEach(() => {
   vi.stubEnv("CALL_BOOKING_ENABLED", "true");
@@ -68,13 +81,13 @@ describe("who is in scope", () => {
 
   it("before Start call booking (enabled_since unset) no one is listed and nothing else is read", async () => {
     const { fake, deps } = setup({ settings: CALL_SETTINGS_DEFAULTS, scope: [parent(1, "2027-02-02T10:00:00.000Z")] });
-    expect(await getToCallList(deps)).toEqual({ ok: true, value: [] });
+    expect(await getToCallList(PROOF, deps)).toEqual({ ok: true, value: [] });
     expect(callsTo(fake, "readScopeParents")).toEqual([]);
   });
 
   it("carries the contact facts, the Test tag and her sign-up time", async () => {
     const { deps } = setup({ scope: [parent(1, "2027-02-02T10:00:00.000Z")], contacts: [contact(1, true)] });
-    const list = await getToCallList(deps);
+    const list = await getToCallList(PROOF, deps);
     expect(list.ok && list.value[0]).toMatchObject({
       parentUserId: id(1),
       contact: { firstName: "Parent1", isTestUser: true },
@@ -135,7 +148,7 @@ describe("what takes her out, and what keeps her in", () => {
       entryRow({ parentUserId: id(1), occurredAt: "2027-02-03T10:05:00.000Z", result: "answered", outcome: "prebooked_next_cohort" }),
     ];
     const { deps } = one({ entries }, new Map([[id(1), { londonDate: "2027-02-08" }]]));
-    const list = await getToCallList(deps);
+    const list = await getToCallList(PROOF, deps);
     expect(list.ok && list.value.map((f) => [f.parentUserId, f.prebookRequest])).toEqual([[id(1), { londonDate: "2027-02-08" }]]);
   });
 
@@ -178,7 +191,7 @@ describe("order and the facts 05 needs (R13, R22)", () => {
         }),
       ],
     });
-    const list = await getToCallList(deps);
+    const list = await getToCallList(PROOF, deps);
     expect(list.ok && list.value.map((f) => f.parentUserId)).toEqual([id(2), id(3), id(1)]);
     expect(list.ok && list.value[2]).toMatchObject({
       lastAttemptAt: "2027-02-03T11:00:00.000Z",
@@ -189,10 +202,17 @@ describe("order and the facts 05 needs (R13, R22)", () => {
 });
 
 describe("failures and the switch", () => {
+  it("needs a real admin proof (it returns parent contact details) — a look-alike → invalid, zero reads", async () => {
+    const { fake, deps } = setup({});
+    const forged = { kind: "admin_proof", userId: "a0400000-0000-4000-8000-000000000001" } as unknown as AdminProof;
+    expect(await getToCallList(forged, deps)).toEqual({ ok: false, error: "invalid" });
+    expect(fake.calls).toEqual([]);
+  });
+
   it("off → call_booking_disabled with zero reads", async () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "");
     const { fake, deps } = setup({});
-    expect(await getToCallList(deps)).toEqual({ ok: false, error: "call_booking_disabled" });
+    expect(await getToCallList(PROOF, deps)).toEqual({ ok: false, error: "call_booking_disabled" });
     expect(fake.calls).toEqual([]);
   });
 
@@ -200,7 +220,7 @@ describe("failures and the switch", () => {
     "a failed %s → error",
     async (method) => {
       const { deps } = setup({ scope: [parent(1, "2027-02-02T10:00:00.000Z")], failing: [method] });
-      expect(await getToCallList(deps)).toEqual({ ok: false, error: "error" });
+      expect(await getToCallList(PROOF, deps)).toEqual({ ok: false, error: "error" });
     },
   );
 
@@ -212,7 +232,7 @@ describe("failures and the switch", () => {
         throw new Error("03 down");
       },
     };
-    expect(await getToCallList(throwing)).toEqual({ ok: false, error: "error" });
+    expect(await getToCallList(PROOF, throwing)).toEqual({ ok: false, error: "error" });
     expect(console.error).toHaveBeenCalled();
   });
 });

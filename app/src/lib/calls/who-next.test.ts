@@ -2,7 +2,12 @@
  * Who's next (plan A8; brief §8 contract 5; §12 R22): overdue → due now → next booked → not booked, oldest first.
  * Rows expose `lastAttemptAt` and `callBackAt` for 05's 2-hour skip and call-backs.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { requireAdmin } = vi.hoisted(() => ({ requireAdmin: vi.fn() }));
+vi.mock("@/lib/admin/require-admin", () => ({ requireAdmin }));
+
+import { proveAdmin, type AdminProof } from "./admin-proof";
 import type { CallsDeps } from "./deps";
 import { bookingRow, entryRow, fakeCallsRepo, type FakeCallsState } from "./fake-calls-repo.test-util";
 import { CALL_SETTINGS_DEFAULTS } from "./settings";
@@ -16,6 +21,14 @@ function setup(seed: Partial<FakeCallsState>) {
   const deps: CallsDeps = { repo: fake.repo, now: () => NOW, notify: async () => {}, prebookRequests: async () => new Map() };
   return { fake, deps };
 }
+
+let PROOF: AdminProof;
+beforeAll(async () => {
+  requireAdmin.mockResolvedValue({ userId: "a0400000-0000-4000-8000-000000000001", error: null });
+  const proof = await proveAdmin();
+  if (proof === null) throw new Error("no proof");
+  PROOF = proof;
+});
 
 beforeEach(() => {
   vi.stubEnv("CALL_BOOKING_ENABLED", "true");
@@ -47,7 +60,7 @@ describe("getWhoIsNext", () => {
         entryRow({ parentUserId: id(8), occurredAt: "2027-02-04T08:30:00.000Z", result: "no_answer" }),
       ],
     });
-    const next = await getWhoIsNext(deps);
+    const next = await getWhoIsNext(PROOF, deps);
     expect(next.ok).toBe(true);
     const rows = next.ok ? next.value : [];
     expect(rows.map((r) => [r.group, r.parentUserId])).toEqual([
@@ -72,7 +85,7 @@ describe("getWhoIsNext", () => {
       entries: [entryRow({ parentUserId: id(1), occurredAt: "2027-02-04T09:00:00.000Z", result: "no_answer" })],
       contacts: [{ userId: id(1), firstName: "Jane", lastName: "Smith", email: "jane@example.com", mobile: "+447700900123", isTestUser: false }],
     });
-    const next = await getWhoIsNext(deps);
+    const next = await getWhoIsNext(PROOF, deps);
     expect(next.ok && next.value[0]).toMatchObject({
       group: "next_booked",
       lastAttemptAt: "2027-02-04T09:00:00.000Z",
@@ -87,7 +100,7 @@ describe("getWhoIsNext", () => {
         bookingRow({ parentUserId: id(1), startsAt: "2027-02-08T10:00:00.000Z", purpose: "cohort_prebook" }),
       ],
     });
-    const next = await getWhoIsNext(deps);
+    const next = await getWhoIsNext(PROOF, deps);
     expect(next.ok && next.value.map((r) => r.booking?.purpose)).toEqual(["first_call", "cohort_prebook"]);
   });
 
@@ -99,19 +112,26 @@ describe("getWhoIsNext", () => {
       ],
       entries: [entryRow({ parentUserId: id(1), occurredAt: "2027-02-03T10:00:00.000Z", result: "answered", outcome: "deposit_taken" })],
     });
-    const next = await getWhoIsNext(deps);
+    const next = await getWhoIsNext(PROOF, deps);
     expect(next.ok && next.value.map((r) => r.parentUserId)).toEqual([id(2)]);
+  });
+
+  it("needs a real admin proof (it returns parent contact details) — a look-alike → invalid, zero reads", async () => {
+    const { fake, deps } = setup({});
+    const forged = { kind: "admin_proof", userId: "a0400000-0000-4000-8000-000000000001" } as unknown as AdminProof;
+    expect(await getWhoIsNext(forged, deps)).toEqual({ ok: false, error: "invalid" });
+    expect(fake.calls).toEqual([]);
   });
 
   it("is call_booking_disabled with the switch off, reading nothing", async () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "");
     const { fake, deps } = setup({});
-    expect(await getWhoIsNext(deps)).toEqual({ ok: false, error: "call_booking_disabled" });
+    expect(await getWhoIsNext(PROOF, deps)).toEqual({ ok: false, error: "call_booking_disabled" });
     expect(fake.calls).toEqual([]);
   });
 
   it.each(["readBookedCalls", "readSettings", "readContacts", "readLogEntriesForParents"] as const)("a failed %s → error", async (method) => {
     const { deps } = setup({ bookings: [bookingRow({ parentUserId: id(1), startsAt: "2027-02-04T13:00:00.000Z" })], failing: [method] });
-    expect(await getWhoIsNext(deps)).toEqual({ ok: false, error: "error" });
+    expect(await getWhoIsNext(PROOF, deps)).toEqual({ ok: false, error: "error" });
   });
 });

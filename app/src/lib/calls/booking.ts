@@ -2,8 +2,12 @@
  * Booking the Complimentary matchmaker call (plan A7; names per §12 R15; brief §0.3, §0.6, §0.11, §8 contracts).
  *
  * Server-only, and deliberately NOT a `"use server"` file (rule at `src/lib/invite/mint.ts:1-9`): these take a
- * parent id and act with the service role, so only server code that has already proved who the parent is may call
- * them — 04b's actions (the id from the session), 04c's admin actions (`requireAdmin`), 03 (its `/deposit` token).
+ * parent id and act with the service role, so only server code that has already proved who is acting may call
+ * them. 04b's actions call `parent-booking.ts` instead (the session id only); 04c acts through `admin-calls.ts`
+ * with an `AdminProof`; brief 03 calls these after its own `/deposit` token check.
+ *
+ * Who may act (04a security review H2b, H2e): a parent actor must be the parent the request is for; an admin
+ * actor must carry a real `AdminProof`, and acts as that admin. Anything else is `invalid` before any read.
  *
  * Every operation, in order:
  *   1. the switch — off → `call_booking_disabled`, before any read;
@@ -19,7 +23,8 @@
 import { z } from "zod";
 import { callBookingEnabled } from "@/lib/features/flags";
 import { londonDateOf } from "@/lib/timezone";
-import { CALL_BOOKING_DISABLED, defaultCallsDeps, type CallsDeps } from "./deps";
+import { actingAdmin, isAdminProof, type AdminProof } from "./admin-proof";
+import { CALL_BOOKING_DISABLED, CALLS_INVALID, defaultCallsDeps, type CallsDeps } from "./deps";
 import { candidateSlots, slotBounds, spanOf, withoutTaken } from "./free-slots";
 import { generateSlots } from "./generate-slots";
 import { notifyCall, type CallNotice } from "./notify";
@@ -34,9 +39,7 @@ import type {
   CallResultCode,
   CallSource,
   CallsResult,
-  CancelInput,
   CancelledBooking,
-  ConfirmInput,
   ConfirmedBooking,
   RecordedOutcome,
   Slot,
@@ -56,11 +59,29 @@ export interface HoldRequest {
   readonly purpose?: CallPurpose;
   /** Omitted → her latest position, if any; null → none. */
   readonly positionId?: string | null;
-  readonly actor: CallActor;
+  readonly actor: BookingActor;
 }
 
 export interface BookRequest extends HoldRequest {
   readonly idempotencyKey: string;
+}
+
+/** A parent acting for herself, or an admin proven by `proveAdmin()`. */
+export type BookingActor =
+  | { readonly kind: "parent"; readonly userId: string }
+  | { readonly kind: "admin"; readonly proof: AdminProof };
+
+export interface ConfirmRequest {
+  readonly parentUserId: string;
+  readonly holdId: string;
+  readonly idempotencyKey: string;
+  readonly actor: BookingActor;
+}
+
+export interface CancelRequest {
+  readonly parentUserId: string;
+  readonly bookingId: string;
+  readonly actor: BookingActor;
 }
 
 export interface OutcomeRequest {
@@ -72,7 +93,6 @@ export interface OutcomeRequest {
   readonly callBackAt?: string | null;
   readonly method?: CallMethod;
   readonly source?: CallSource;
-  readonly actor: Pick<CallActor, "userId">;
   /** Brief 05's JustCall id; a repeat returns the first entry (plan R22). */
   readonly justcallCallId?: string | null;
 }
@@ -83,20 +103,28 @@ export interface HeldTime extends Slot {
 }
 
 const purpose = z.enum(["first_call", "cohort_prebook"]);
-const actor = z.strictObject({ userId: uuid.nullable(), kind: z.enum(["parent", "admin"]) });
+const actor = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("parent"), userId: uuid }),
+  z.strictObject({ kind: z.literal("admin"), proof: z.custom<AdminProof>(isAdminProof) }),
+]);
 const idempotencyKey = z.string().min(1).max(200);
 
+/** A parent acts only for herself (review H2b). */
+const actsForHerself = (r: { readonly parentUserId: string; readonly actor: BookingActor }): boolean =>
+  r.actor.kind !== "parent" || r.actor.userId === r.parentUserId;
+
 const freeSlotsSchema = z.strictObject({ londonDate: londonDate.optional(), purpose: purpose.default("first_call") });
-const holdSchema = z.strictObject({
+const holdBase = z.strictObject({
   parentUserId: uuid,
   startsAt: isoInstantInput,
   purpose: purpose.default("first_call"),
   positionId: uuid.nullable().optional(),
   actor,
 });
-const bookSchema = holdSchema.extend({ idempotencyKey });
-const confirmSchema = z.strictObject({ parentUserId: uuid, holdId: uuid, idempotencyKey, actor });
-const cancelSchema = z.strictObject({ parentUserId: uuid, bookingId: uuid, actor });
+const holdSchema = holdBase.refine(actsForHerself);
+const bookSchema = holdBase.extend({ idempotencyKey }).refine(actsForHerself);
+const confirmSchema = z.strictObject({ parentUserId: uuid, holdId: uuid, idempotencyKey, actor }).refine(actsForHerself);
+const cancelSchema = z.strictObject({ parentUserId: uuid, bookingId: uuid, actor }).refine(actsForHerself);
 const outcomeSchema = z
   .strictObject({
     parentUserId: uuid,
@@ -110,13 +138,15 @@ const outcomeSchema = z
     callBackAt: isoInstantInput.nullable().default(null),
     method: z.enum(["phone", "justcall", "other"]).default("phone"),
     source: z.enum(["manual", "justcall"]).default("manual"),
-    actor: z.strictObject({ userId: uuid.nullable() }),
     justcallCallId: z.string().min(1).max(200).nullable().default(null),
   })
   .refine(checkOutcome);
 
-const INVALID = Object.freeze({ ok: false, error: "invalid" } as const);
+const INVALID = CALLS_INVALID;
 const ok = <T>(value: T): CallsResult<T> => ({ ok: true, value });
+
+/** The repository's actor: the parent herself, or the proven admin. */
+const repoActor = (a: BookingActor): CallActor => (a.kind === "parent" ? { userId: a.userId, kind: "parent" } : actingAdmin(a.proof));
 
 function parse<T>(schema: z.ZodType<T>, input: unknown): T | null {
   const parsed = schema.safeParse(input);
@@ -212,16 +242,23 @@ export async function holdSlotForParent(request: HoldRequest, deps: CallsDeps = 
   const slot = await currentFreeSlot(parsed.startsAt, parsed.purpose, parsed.parentUserId, deps);
   if (!slot.ok) return slot;
   const positionId = await positionFor(parsed.parentUserId, parsed.positionId, deps);
-  const held = await deps.repo.holdSlot({ ...slot.value, parentUserId: parsed.parentUserId, purpose: parsed.purpose, positionId, actor: parsed.actor });
+  const held = await deps.repo.holdSlot({
+    ...slot.value,
+    parentUserId: parsed.parentUserId,
+    purpose: parsed.purpose,
+    positionId,
+    actor: repoActor(parsed.actor),
+  });
   return held.ok ? ok({ ...held.value, startsAt: slot.value.startsAt, endsAt: slot.value.endsAt }) : held;
 }
 
 /** Confirm her hold: a new booking, or her existing one moved there (the same row). Brief 10 hooks 04b's caller. */
-export async function confirmHoldForParent(request: ConfirmInput, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<ConfirmedBooking>> {
+export async function confirmHoldForParent(request: ConfirmRequest, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<ConfirmedBooking>> {
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
   const parsed = parse(confirmSchema, request);
   if (parsed === null) return INVALID;
-  return afterConfirm(await deps.repo.confirmHold(parsed), parsed.parentUserId, parsed.actor.kind, deps);
+  const confirmed = await deps.repo.confirmHold({ ...parsed, actor: repoActor(parsed.actor) });
+  return afterConfirm(confirmed, parsed.parentUserId, parsed.actor.kind, deps);
 }
 
 /** Hold and confirm in one (admin on a family's behalf; brief 03's pre-book, after its own parent check). */
@@ -238,26 +275,31 @@ export async function bookSlotForParent(request: BookRequest, deps: CallsDeps = 
     purpose: parsed.purpose,
     positionId,
     idempotencyKey: parsed.idempotencyKey,
-    actor: parsed.actor,
+    actor: repoActor(parsed.actor),
   });
   return afterConfirm(booked, parsed.parentUserId, parsed.actor.kind, deps);
 }
 
 /** Cancel a booked call before it starts; she returns to Not booked. */
-export async function cancelBooking(request: CancelInput, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<CancelledBooking>> {
+export async function cancelBooking(request: CancelRequest, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<CancelledBooking>> {
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
   const parsed = parse(cancelSchema, request);
   if (parsed === null) return INVALID;
-  const cancelled = await deps.repo.cancelBooking(parsed);
+  const cancelled = await deps.repo.cancelBooking({ ...parsed, actor: repoActor(parsed.actor) });
   if (!cancelled.ok) return cancelled;
   await notifyCall({ kind: "cancelled", parentUserId: parsed.parentUserId, ...cancelled.value, actorKind: parsed.actor.kind }, deps.notify);
   return cancelled;
 }
 
-/** Record a call attempt (BAI's form; brief 05's JustCall log). Sends no email. */
-export async function recordCallOutcome(request: OutcomeRequest, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<RecordedOutcome>> {
+/** Record a call attempt as the proven admin (BAI's form; brief 05's JustCall log). Sends no email. */
+export async function recordCallOutcome(
+  proof: AdminProof,
+  request: OutcomeRequest,
+  deps: CallsDeps = defaultCallsDeps(),
+): Promise<CallsResult<RecordedOutcome>> {
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
+  if (!isAdminProof(proof)) return INVALID;
   const parsed = parse(outcomeSchema, request);
   if (parsed === null) return INVALID;
-  return deps.repo.recordOutcome(parsed);
+  return deps.repo.recordOutcome({ ...parsed, actor: { userId: proof.userId } });
 }

@@ -26,3 +26,4 @@ export function defaultCallsDeps(): CallsDeps {
 }
 
 export const CALL_BOOKING_DISABLED = Object.freeze({ ok: false, error: "call_booking_disabled" } as const);
+export const CALLS_INVALID = Object.freeze({ ok: false, error: "invalid" } as const);

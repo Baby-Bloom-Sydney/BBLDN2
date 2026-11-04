@@ -10,16 +10,18 @@ const { createAdminClient } = vi.hoisted(() => ({
   }),
 }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient }));
+const { requireAdmin } = vi.hoisted(() => ({ requireAdmin: vi.fn(async () => ({ userId: "a0400000-0000-4000-8000-000000000001", error: null })) }));
+vi.mock("@/lib/admin/require-admin", () => ({ requireAdmin }));
 
+import * as adminProof from "./admin-proof";
 import * as booking from "./booking";
 import * as contracts from "./contracts";
-import type { CallsToMake, UtcRange } from "./contracts";
+import type { AdminProof, CallsToMake, UtcRange } from "./contracts";
 import * as counts from "./counts";
 import * as timezone from "@/lib/timezone";
 import * as whoNext from "./who-next";
 
 const PARENT = "b0400000-0000-4000-8000-000000000001";
-const ADMIN = "a0400000-0000-4000-8000-000000000001";
 const DISABLED = { ok: false, error: "call_booking_disabled" };
 
 beforeEach(() => {
@@ -39,6 +41,7 @@ describe("contracts.ts — the names other briefs import", () => {
         "getWhoIsNext",
         "holdSlotForParent",
         "londonWeekRange",
+        "proveAdmin",
         "recordCallOutcome",
       ].sort(),
     );
@@ -54,6 +57,7 @@ describe("contracts.ts — the names other briefs import", () => {
     expect(contracts.bookSlotForParent).toBe(booking.bookSlotForParent);
     expect(contracts.recordCallOutcome).toBe(booking.recordCallOutcome);
     expect(contracts.getWhoIsNext).toBe(whoNext.getWhoIsNext);
+    expect(contracts.proveAdmin).toBe(adminProof.proveAdmin);
   });
 
   it("pins the shapes 02 relies on (plan §7)", () => {
@@ -63,6 +67,8 @@ describe("contracts.ts — the names other briefs import", () => {
     expectTypeOf(contracts.getCallsToMake).returns.resolves.toEqualTypeOf<CallsToMake | null>();
     expectTypeOf(contracts.getPrebookedCallCount).returns.resolves.toEqualTypeOf<number | null>();
     expectTypeOf(contracts.londonWeekRange).returns.toEqualTypeOf<UtcRange>();
+    expectTypeOf(contracts.getWhoIsNext).parameter(0).toEqualTypeOf<AdminProof>();
+    expectTypeOf(contracts.recordCallOutcome).parameter(0).toEqualTypeOf<AdminProof>();
     expect(contracts.londonWeekRange(new Date("2027-02-04T10:00:00.000Z"))).toEqual({
       fromUtc: "2027-02-01T00:00:00.000Z",
       toUtc: "2027-02-08T00:00:00.000Z",
@@ -86,13 +92,16 @@ describe.each(["", "false", "TRUE"])("with CALL_BOOKING_ENABLED = %j", (value) =
     expect(await contracts.bookSlotForParent({ parentUserId: PARENT, startsAt: "2027-02-08T10:00:00.000Z", idempotencyKey: "k", actor })).toEqual(
       DISABLED,
     );
-    expect(await contracts.recordCallOutcome({ parentUserId: PARENT, result: "no_answer", actor: { userId: ADMIN } })).toEqual(DISABLED);
-    expect(await contracts.getWhoIsNext()).toEqual(DISABLED);
+    const proof = await contracts.proveAdmin();
+    if (proof === null) throw new Error("no proof");
+    expect(await contracts.recordCallOutcome(proof, { parentUserId: PARENT, result: "no_answer" })).toEqual(DISABLED);
+    expect(await contracts.getWhoIsNext(proof)).toEqual(DISABLED);
   });
 
   it("no database client is created", async () => {
+    const proof = await contracts.proveAdmin();
     await contracts.getCallsToMake(contracts.londonWeekRange());
-    await contracts.getWhoIsNext();
+    if (proof !== null) await contracts.getWhoIsNext(proof);
     expect(createAdminClient).not.toHaveBeenCalled();
   });
 });

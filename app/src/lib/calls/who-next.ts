@@ -14,7 +14,8 @@
  */
 
 import { callBookingEnabled } from "@/lib/features/flags";
-import { CALL_BOOKING_DISABLED, defaultCallsDeps, type CallsDeps } from "./deps";
+import { isAdminProof, type AdminProof } from "./admin-proof";
+import { CALL_BOOKING_DISABLED, CALLS_INVALID, defaultCallsDeps, type CallsDeps } from "./deps";
 import type { PrebookRequest } from "./prebook-requests";
 import { bookedCallsToMake, latestEntryOf, loadToCall, type ToCallFamily } from "./to-call";
 import type { CallBooking, CallLogEntry, CallsResult, ParentContact } from "./types";
@@ -84,8 +85,10 @@ function inOrder(booked: readonly WhoIsNextRow[], notBooked: readonly WhoIsNextR
   return Object.freeze([...sorted, ...notBooked]);
 }
 
-export async function getWhoIsNext(deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<readonly WhoIsNextRow[]>> {
+/** The call order with contact details — admin only (review H2e). */
+export async function getWhoIsNext(proof: AdminProof, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<readonly WhoIsNextRow[]>> {
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
+  if (!isAdminProof(proof)) return CALLS_INVALID;
   const settings = await deps.repo.readSettings();
   if (!settings.ok) return settings;
   const [booked, toCall] = await Promise.all([bookedRows(deps, settings.value.overdueGraceMinutes), loadToCall(deps, settings.value.enabledSince)]);

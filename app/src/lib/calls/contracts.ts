@@ -9,14 +9,17 @@
  *   4 not booked)". The pre-booked count in 02's line is 03's to wire (plan §12 R1); `getPrebookedCallCount` is
  *   04's own dashboard tag.
  * - 03 (deposit): `getFreeSlots({ londonDate, purpose: "cohort_prebook" })`, then `holdSlotForParent` /
- *   `confirmHoldForParent` or `bookSlotForParent`, after 03 has verified the parent itself.
- * - 05 (JustCall): `getWhoIsNext()` and `recordCallOutcome({ …, method: "justcall", source: "justcall",
- *   justcallCallId })`.
+ *   `confirmHoldForParent` or `bookSlotForParent` with a parent actor that is the parent herself, after 03 has
+ *   verified her with its token.
+ * - 05 (JustCall): `getWhoIsNext(proof)` and `recordCallOutcome(proof, { …, method: "justcall", source: "justcall",
+ *   justcallCallId })` — both return or write parent data, so both take an `AdminProof` from `proveAdmin()` first
+ *   (04a security review H2e).
  *
  * BB-wave1-041126/04a-core, 2026-11-04.
  */
 
 export { londonWeekRange, type UtcRange } from "@/lib/timezone";
+export { proveAdmin, type AdminProof } from "./admin-proof";
 export { getCallsToMake, getPrebookedCallCount, type CallsToMake } from "./counts";
 export {
   bookSlotForParent,
@@ -24,11 +27,13 @@ export {
   getFreeSlots,
   holdSlotForParent,
   recordCallOutcome,
+  type BookingActor,
   type BookRequest,
+  type ConfirmRequest,
   type FreeSlotsRequest,
   type HeldTime,
   type HoldRequest,
   type OutcomeRequest,
 } from "./booking";
 export { getWhoIsNext, type WhoIsNextGroup, type WhoIsNextRow } from "./who-next";
-export type { CallError, CallRefusal, CallsResult, ConfirmedBooking, ConfirmInput, RecordedOutcome, Slot } from "./types";
+export type { CallError, CallRefusal, CallsResult, ConfirmedBooking, RecordedOutcome, Slot } from "./types";

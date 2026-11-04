@@ -3,7 +3,12 @@
  * calls), then zod, then — where a time comes from the client — the server recomputes that it is a current free
  * slot, then the repository, then a notice (logged, never thrown).
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { requireAdmin } = vi.hoisted(() => ({ requireAdmin: vi.fn() }));
+vi.mock("@/lib/admin/require-admin", () => ({ requireAdmin }));
+
+import { proveAdmin, type AdminProof } from "./admin-proof";
 import {
   bookSlotForParent,
   cancelBooking,
@@ -22,7 +27,17 @@ const ADMIN = "a0400000-0000-4000-8000-000000000001";
 const HOLD = "c0400000-0000-4000-8000-0000000000aa";
 const NOW = new Date("2027-02-04T10:00:00.000Z"); // Thu 4 Feb 2027 10:00 London
 const PARENT_ACTOR = { userId: PARENT, kind: "parent" } as const;
-const ADMIN_ACTOR = { userId: ADMIN, kind: "admin" } as const;
+let PROOF: AdminProof;
+let ADMIN_ACTOR: { readonly kind: "admin"; readonly proof: AdminProof };
+const FORGED = { kind: "admin_proof", userId: ADMIN } as unknown as AdminProof;
+
+beforeAll(async () => {
+  requireAdmin.mockResolvedValue({ userId: ADMIN, error: null });
+  const proof = await proveAdmin();
+  if (proof === null) throw new Error("no proof");
+  PROOF = proof;
+  ADMIN_ACTOR = { kind: "admin", proof };
+});
 const TUE_14 = "2027-02-09T14:00:00.000Z";
 
 function setup(seed: Partial<FakeCallsState> = {}) {
@@ -59,7 +74,7 @@ describe("with CALL_BOOKING_ENABLED off", () => {
       confirmHoldForParent({ parentUserId: PARENT, holdId: HOLD, idempotencyKey: "k", actor: PARENT_ACTOR }, deps),
       bookSlotForParent({ parentUserId: PARENT, startsAt: TUE_14, idempotencyKey: "k", actor: ADMIN_ACTOR }, deps),
       cancelBooking({ parentUserId: PARENT, bookingId: HOLD, actor: PARENT_ACTOR }, deps),
-      recordCallOutcome({ parentUserId: PARENT, result: "answered", actor: { userId: ADMIN } }, deps),
+      recordCallOutcome(PROOF, { parentUserId: PARENT, result: "answered" }, deps),
     ]);
     expect(answers).toEqual(Array(6).fill({ ok: false, error: "call_booking_disabled" }));
     expect(fake.calls).toEqual([]);
@@ -239,6 +254,46 @@ describe("holdSlotForParent — the server recomputes the slot", () => {
   });
 });
 
+describe("who may act (review H2b, H2c, H2e)", () => {
+  const OTHER_ACTOR = { userId: OTHER_PARENT, kind: "parent" } as const;
+
+  it("a parent acting for another parent → invalid on hold, book, confirm and cancel, zero repo calls", async () => {
+    const { fake, deps } = setup();
+    const answers = await Promise.all([
+      holdSlotForParent({ parentUserId: PARENT, startsAt: TUE_14, actor: OTHER_ACTOR }, deps),
+      bookSlotForParent({ parentUserId: PARENT, startsAt: TUE_14, idempotencyKey: "k", actor: OTHER_ACTOR }, deps),
+      confirmHoldForParent({ parentUserId: PARENT, holdId: HOLD, idempotencyKey: "k", actor: OTHER_ACTOR }, deps),
+      cancelBooking({ parentUserId: PARENT, bookingId: HOLD, actor: OTHER_ACTOR }, deps),
+    ]);
+    expect(answers).toEqual(Array(4).fill({ ok: false, error: "invalid" }));
+    expect(fake.calls).toEqual([]);
+  });
+
+  it("an admin actor needs a real proof (a look-alike → invalid, zero repo calls)", async () => {
+    const { fake, deps } = setup();
+    const forged = { kind: "admin", proof: FORGED } as const;
+    const answers = await Promise.all([
+      holdSlotForParent({ parentUserId: PARENT, startsAt: TUE_14, actor: forged }, deps),
+      bookSlotForParent({ parentUserId: PARENT, startsAt: TUE_14, idempotencyKey: "k", actor: forged }, deps),
+      cancelBooking({ parentUserId: PARENT, bookingId: HOLD, actor: { userId: ADMIN, kind: "admin" } as never }, deps),
+    ]);
+    expect(answers).toEqual(Array(3).fill({ ok: false, error: "invalid" }));
+    expect(fake.calls).toEqual([]);
+  });
+
+  it("a real proof acts as that admin", async () => {
+    const { fake, deps } = setup();
+    await cancelBooking({ parentUserId: PARENT, bookingId: HOLD, actor: ADMIN_ACTOR }, deps);
+    expect(callsTo(fake, "cancelBooking")[0].args[0]).toEqual({ parentUserId: PARENT, bookingId: HOLD, actor: { userId: ADMIN, kind: "admin" } });
+  });
+
+  it("a position that isn't hers: the database's invalid passes through", async () => {
+    const { deps } = setup({ results: { holdSlot: { ok: false, error: "invalid" } } });
+    const held = await holdSlotForParent({ parentUserId: PARENT, startsAt: TUE_14, positionId: OTHER_PARENT, actor: PARENT_ACTOR }, deps);
+    expect(held).toEqual({ ok: false, error: "invalid" });
+  });
+});
+
 describe("holdSlotForParent across the spring clock change (review M3)", () => {
   const ALL_DAY = ([1, 2, 3, 4, 5, 6, 7] as const).map((weekday) => ({ weekday, startMinute: 0, endMinute: 1440 }));
   const at = (iso: string, seed: Partial<FakeCallsState> = {}) => {
@@ -368,10 +423,10 @@ describe("cancelBooking", () => {
   });
 });
 
-describe("recordCallOutcome (05 passes justcallCallId, plan R22)", () => {
-  it("records with defaults: method phone, source manual, no note", async () => {
+describe("recordCallOutcome — admin proof first (review H2e); 05 passes justcallCallId (R22)", () => {
+  it("records as the proven admin, with defaults: method phone, source manual, no note", async () => {
     const { fake, deps, notices } = setup();
-    const done = await recordCallOutcome({ parentUserId: PARENT, bookingId: HOLD, result: "no_answer", actor: { userId: ADMIN } }, deps);
+    const done = await recordCallOutcome(PROOF, { parentUserId: PARENT, bookingId: HOLD, result: "no_answer" }, deps);
     expect(done).toEqual({ ok: true, value: { entryId: "entry-1", replay: false } });
     expect(callsTo(fake, "recordOutcome")[0].args[0]).toEqual({
       parentUserId: PARENT,
@@ -391,6 +446,7 @@ describe("recordCallOutcome (05 passes justcallCallId, plan R22)", () => {
   it("passes a JustCall entry through whole", async () => {
     const { fake, deps } = setup();
     await recordCallOutcome(
+      PROOF,
       {
         parentUserId: PARENT,
         result: "answered",
@@ -399,7 +455,6 @@ describe("recordCallOutcome (05 passes justcallCallId, plan R22)", () => {
         callBackAt: "2027-02-10T16:00:00+00:00",
         method: "justcall",
         source: "justcall",
-        actor: { userId: null },
         justcallCallId: "jc-123",
       },
       deps,
@@ -409,19 +464,25 @@ describe("recordCallOutcome (05 passes justcallCallId, plan R22)", () => {
       callBackAt: "2027-02-10T16:00:00.000Z",
       method: "justcall",
       source: "justcall",
-      actor: { userId: null },
+      actor: { userId: ADMIN },
       justcallCallId: "jc-123",
     });
   });
 
+  it("a forged proof → invalid, nothing recorded", async () => {
+    const { fake, deps } = setup();
+    expect(await recordCallOutcome(FORGED, { parentUserId: PARENT, result: "no_answer" }, deps)).toEqual({ ok: false, error: "invalid" });
+    expect(fake.calls).toEqual([]);
+  });
+
   it("Stop calling needs no result", async () => {
     const { deps } = setup();
-    expect((await recordCallOutcome({ parentUserId: PARENT, outcome: "stop_calling", actor: { userId: ADMIN } }, deps)).ok).toBe(true);
+    expect((await recordCallOutcome(PROOF, { parentUserId: PARENT, outcome: "stop_calling" }, deps)).ok).toBe(true);
   });
 
   it("Stop calling while booked → booked_call_exists passes through", async () => {
     const { deps } = setup({ results: { recordOutcome: { ok: false, error: "booked_call_exists" } } });
-    expect(await recordCallOutcome({ parentUserId: PARENT, outcome: "stop_calling", actor: { userId: ADMIN } }, deps)).toEqual({
+    expect(await recordCallOutcome(PROOF, { parentUserId: PARENT, outcome: "stop_calling" }, deps)).toEqual({
       ok: false,
       error: "booked_call_exists",
     });
@@ -433,9 +494,10 @@ describe("recordCallOutcome (05 passes justcallCallId, plan R22)", () => {
     ["a note over 2,000 characters", { result: "answered", note: "x".repeat(2001) }],
     ["an unknown result", { result: "busy" }],
     ["a call-back time that isn't one", { result: "answered", outcome: "call_back_later", callBackAt: "tomorrow" }],
+    ["a caller-supplied actor", { result: "answered", actor: { userId: ADMIN } }],
   ])("%s → invalid, nothing recorded", async (_label, fields) => {
     const { fake, deps } = setup();
-    expect(await recordCallOutcome({ parentUserId: PARENT, actor: { userId: ADMIN }, ...fields } as never, deps)).toEqual({
+    expect(await recordCallOutcome(PROOF, { parentUserId: PARENT, ...fields } as never, deps)).toEqual({
       ok: false,
       error: "invalid",
     });
