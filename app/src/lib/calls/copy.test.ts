@@ -8,6 +8,7 @@ import {
   ADMIN_COPY,
   PARENT_COPY,
   bookedLine,
+  callOnLine,
   callsToMakeLine,
   fewFreeTimesLine,
   hubBookedLine,
@@ -15,6 +16,7 @@ import {
   prebookFullLine,
   slotAtLine,
   takenNoticeLine,
+  yourCallLine,
 } from "./copy";
 
 const allStrings = (copy: Readonly<Record<string, string>>) => Object.values(copy);
@@ -51,6 +53,17 @@ describe("parent copy, word for word", () => {
     expect(takenNoticeLine("Thursday 5 November at 10:00")).toBe(
       "Someone else booked Thursday 5 November at 10:00 a moment ago. Please pick another time.",
     );
+  });
+
+  it("the booked slide's words (04b rework W5)", () => {
+    expect(PARENT_COPY).toMatchObject({
+      youreBooked: "You're booked",
+      goToMatches: "Go to my matches",
+      goToChildcare: "Go to my childcare",
+      goToDashboard: "Go to my dashboard",
+    });
+    expect(callOnLine("07700 900123")).toBe("We'll call you on 07700 900123.");
+    expect(yourCallLine("Thursday 5 November at 10:00")).toBe("Your call: Thursday 5 November at 10:00 (London time)");
   });
 
   it("builds the booked lines from London words", () => {

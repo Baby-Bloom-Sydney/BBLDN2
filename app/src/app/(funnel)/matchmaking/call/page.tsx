@@ -13,7 +13,7 @@ import { CallPageClient } from "./CallPageClient";
  * `/matchmaking`, so the page does: signed out → `/login?redirect=` this path with its query (the login page honours
  * safe internal paths, `src/app/(auth)/login/page.tsx:87`); signed in but not a parent → 404. Her view is loaded here,
  * on the server, with every time already in London words, so the device's zone can't matter (§3 parent 6). `next` is
- * checked (`next-path.ts`): onward never leaves `/parent`.
+ * checked (`next-path.ts`): onward never leaves `/parent`. `?change=1` opens straight into changing her time (W5).
  *
  * BB-wave1-041126/04b-build, 2026-11-04; BB-wave1-041126/04b-rework, 2026-11-05.
  */
@@ -39,5 +39,11 @@ export default async function MatchmakingCallPage({ searchParams }: { searchPara
   const view = await loadMyCallView(caller.parentId);
 
   // The slide draws its own funnel shell (W3): no app wrapper here.
-  return <CallPageClient initial={view.ok ? view.value : { kind: "load_failed" }} nextHref={safeNextPath(searchParams.next)} />;
+  return (
+    <CallPageClient
+      initial={view.ok ? view.value : { kind: "load_failed" }}
+      nextHref={safeNextPath(searchParams.next)}
+      startChanging={searchParams.change === "1"}
+    />
+  );
 }

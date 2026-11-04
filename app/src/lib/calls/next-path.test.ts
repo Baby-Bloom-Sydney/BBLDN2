@@ -4,7 +4,7 @@
  * `/matchmaking/call` since the 04b rework W1) — anything else falls back to /parent. `callPagePath` builds the redirect.
  */
 import { describe, expect, it } from "vitest";
-import { CALL_PAGE_PATH, PARENT_HOME, callPagePath, safeNextPath } from "./next-path";
+import { CALL_PAGE_PATH, CHILDCARE_TAB, MATCHES_VIEW, PARENT_HOME, callPagePath, onwardFor, safeNextPath } from "./next-path";
 
 const MATCHES = "/parent?t=childcare&s=nannies&v=matches";
 
@@ -53,5 +53,22 @@ describe("callPagePath", () => {
 
   it("the call page path is /matchmaking/call (04b rework W1: a funnel slide, not an app page)", () => {
     expect(CALL_PAGE_PATH).toBe("/matchmaking/call");
+  });
+});
+
+describe("onwardFor (04b rework W5: the one button onward, labelled by where it goes)", () => {
+  it.each([
+    [MATCHES, "Go to my matches"],
+    ["/parent?t=childcare", "Go to my childcare"],
+    ["/parent?t=childcare&s=connections", "Go to my childcare"],
+    ["/parent", "Go to my dashboard"],
+    ["/parent/position", "Go to my dashboard"],
+  ])("%s → '%s'", (next, label) => {
+    expect(onwardFor(next)).toEqual({ href: next, label });
+  });
+
+  it("names the two targets the sign-ups and the in-app flow use", () => {
+    expect(MATCHES_VIEW).toBe(MATCHES);
+    expect(CHILDCARE_TAB).toBe("/parent?t=childcare");
   });
 });

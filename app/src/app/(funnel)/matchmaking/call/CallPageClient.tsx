@@ -1,174 +1,25 @@
 "use client";
 
 /**
- * The call slide, the client (`/matchmaking/call`; brief 04 §0a.1, §3 parent 2–4; plan B6; 04b rework W3). Drawn in
- * the funnel's own shell (`FunnelSlide`). Seven states: loading (a skeleton), times shown, held, booked, after a
- * no-answer, no times, load failed — and onward, always, to the checked `next`. Every line arrives preformatted from
- * the server; nothing here formats a time. Actions: `./actions.ts`.
+ * The call slide, the client (`/matchmaking/call`; brief 04 §0a.1, §3 parent 2–4; plan B6; 04b rework W3, W5): her
+ * booking panel in the funnel's shell, onward to the checked `next` (labelled by where it goes), and straight into
+ * changing her time with `?change=1`. Every line arrives preformatted from the server; nothing here formats a time.
+ * Actions: `./actions.ts`.
  *
  * BB-wave1-041126/04b-build, 2026-11-04; BB-wave1-041126/04b-rework, 2026-11-05.
  */
 
-import Link from "next/link";
-import { useState } from "react";
-import { BookedCall } from "@/components/calls/BookedCall";
-import { FunnelSlide } from "@/components/calls/FunnelSlide";
-import {
-  SlotPicker,
-  type SlotPickerActions,
-} from "@/components/calls/SlotPicker";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { doneLine, PARENT_COPY } from "@/lib/calls/copy";
-import type {
-  ConfirmedCallView,
-  MyCallResult,
-  MyCallView,
-} from "@/lib/calls/parent-view";
-import {
-  cancelMyCall,
-  confirmMyCallHold,
-  holdMyCallSlot,
-  reloadMyCallSlots,
-} from "./actions";
+import { CallBookingPanel } from "@/components/calls/CallBookingPanel";
+import { onwardFor } from "@/lib/calls/next-path";
+import type { MyCallView } from "@/lib/calls/parent-view";
 
 export interface CallPageClientProps {
   readonly initial: MyCallView;
   readonly nextHref: string;
+  /** `?change=1`: straight into picking a new time for her booking. */
+  readonly startChanging?: boolean;
 }
 
-/** A throw or a rejection is a refusal (review F1): never an unhandled rejection, never stuck pending. */
-async function attempt<T>(
-  run: () => Promise<MyCallResult<T>>,
-): Promise<MyCallResult<T>> {
-  try {
-    return await run();
-  } catch {
-    return { ok: false, error: "error" };
-  }
-}
-
-/** Her view when the free times couldn't be read (review F2): picking → load failed; booked → kept, no days. */
-function withoutDays(view: MyCallView): MyCallView {
-  if (view.kind === "pick") return { kind: "load_failed" };
-  if (view.kind === "booked") return { ...view, days: null };
-  return view;
-}
-
-function useCallPage(initial: MyCallView) {
-  const [view, setView] = useState<MyCallView>(initial);
-  const [changing, setChanging] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [status, setStatus] = useState("");
-  const [cancelMessage, setCancelMessage] = useState<string | null>(null);
-
-  /** Her view again; hands the picker the fresh days too, so a run-out hold can be told from a taken one (W4). */
-  const refresh = async () => {
-    const next = await attempt(() => reloadMyCallSlots());
-    setView((current) => (next.ok ? next.value : withoutDays(current)));
-    return next.ok && next.value.kind !== "load_failed" ? next.value.days : null;
-  };
-  const actions: SlotPickerActions<ConfirmedCallView> = {
-    hold: (startsAt) => holdMyCallSlot(startsAt),
-    // The hold id is the idempotency key: a double press of Confirm replays the first answer.
-    confirm: (hold) => confirmMyCallHold(hold.holdId, hold.holdId),
-    reload: refresh,
-  };
-  const onConfirmed = (confirmed: ConfirmedCallView) => {
-    setView({ kind: "booked", booking: confirmed.booking, days: null });
-    setChanging(false);
-    setStatus(doneLine(confirmed.booking.line));
-  };
-  const whilePending = async <R,>(step: () => Promise<R>): Promise<R> => {
-    setPending(true);
-    try {
-      return await step();
-    } finally {
-      setPending(false);
-    }
-  };
-  const startChange = async () => {
-    setChanging(true);
-    await whilePending(refresh);
-  };
-  const cancel = async (bookingId: string) => {
-    const result = await whilePending(() =>
-      attempt(() => cancelMyCall(bookingId)),
-    );
-    if (!result.ok)
-      return setCancelMessage(
-        result.error === "rate_limited"
-          ? PARENT_COPY.rateLimited
-          : PARENT_COPY.notSet,
-      );
-    setCancelMessage(null);
-    setChanging(false);
-    setView(result.value);
-    setStatus(PARENT_COPY.cancelledStatus);
-  };
-  return {
-    view,
-    changing,
-    pending,
-    status,
-    cancelMessage,
-    actions,
-    onConfirmed,
-    startChange,
-    cancel,
-    keepTime: () => setChanging(false),
-  };
-}
-
-export function CallPageClient({ initial, nextHref }: CallPageClientProps) {
-  const page = useCallPage(initial);
-  const { view } = page;
-  const days = view.kind === "load_failed" ? null : view.days;
-  const picking = view.kind !== "booked" || page.changing;
-
-  return (
-    <FunnelSlide
-      heading={PARENT_COPY.pageHeading}
-      subtitle={PARENT_COPY.pageIntro}
-    >
-      <div className="space-y-6">
-        <p role="status" className="sr-only">
-          {page.status}
-        </p>
-        {view.kind === "booked" && (
-          <BookedCall
-            booking={view.booking}
-            busy={page.pending}
-            message={page.cancelMessage}
-            changing={page.changing}
-            onChange={page.startChange}
-            onCancel={() => page.cancel(view.booking.bookingId)}
-          />
-        )}
-        {view.kind === "pick" && view.afterNoAnswer && (
-          <p className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm font-medium text-violet-900">
-            {PARENT_COPY.afterNoAnswer}
-          </p>
-        )}
-        {picking && page.pending && (
-          <Skeleton
-            data-testid="call-page-loading"
-            className="h-40 w-full motion-reduce:animate-none"
-          />
-        )}
-        {picking && !page.pending && (
-          <SlotPicker
-            days={days}
-            actions={page.actions}
-            onConfirmed={page.onConfirmed}
-            onKeepTime={view.kind === "booked" ? page.keepTime : undefined}
-            current={view.kind === "booked" ? view.booking.startsAt : null}
-          />
-        )}
-        <Button asChild variant="outline">
-          <Link href={nextHref}>{PARENT_COPY.goToMatches}</Link>
-        </Button>
-      </div>
-    </FunnelSlide>
-  );
+export function CallPageClient({ initial, nextHref, startChanging = false }: CallPageClientProps) {
+  return <CallBookingPanel initial={initial} onward={onwardFor(nextHref)} startChanging={startChanging} />;
 }

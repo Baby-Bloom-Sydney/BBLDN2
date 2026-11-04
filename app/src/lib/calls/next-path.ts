@@ -14,8 +14,13 @@
  */
 
 import { isSafeInternalPath } from "@/lib/invite/redirect";
+import { PARENT_COPY } from "./copy";
 
 export const PARENT_HOME = "/parent";
+/** Her matches (where the advanced sign-up went before the call; brief §3 parent 2). */
+export const MATCHES_VIEW = "/parent?t=childcare&s=nannies&v=matches";
+/** Her Childcare tab (where the quick-match sign-up and the in-app flow go after the call; brief §0a.3, §0a.6). */
+export const CHILDCARE_TAB = "/parent?t=childcare";
 export const CALL_PAGE_PATH = "/matchmaking/call";
 
 /** Longer than any real target; past this it falls back. */
@@ -41,4 +46,20 @@ export function safeNextPath(raw: string | readonly string[] | null | undefined)
 /** `/matchmaking/call?next=<target, encoded>` — the call slide, then on to `next`. */
 export function callPagePath(next: string): string {
   return `${CALL_PAGE_PATH}?next=${encodeURIComponent(next)}`;
+}
+
+export interface Onward {
+  readonly href: string;
+  readonly label: string;
+}
+
+/**
+ * The one button onward from the call slide (04b rework W5), labelled by where it goes: her matches → "Go to my
+ * matches"; her Childcare tab → "Go to my childcare"; anywhere else → "Go to my dashboard". `next` is already checked.
+ */
+export function onwardFor(next: string): Onward {
+  const params = new URL(next, BASE).searchParams;
+  if (params.get("v") === "matches") return { href: next, label: PARENT_COPY.goToMatches };
+  if (params.get("t") === "childcare") return { href: next, label: PARENT_COPY.goToChildcare };
+  return { href: next, label: PARENT_COPY.goToDashboard };
 }

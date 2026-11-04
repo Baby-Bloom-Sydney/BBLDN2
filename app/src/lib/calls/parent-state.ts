@@ -10,20 +10,23 @@
 import { callBookingEnabled } from "@/lib/features/flags";
 import { CALL_BOOKING_DISABLED, CALLS_INVALID, defaultCallsDeps, type CallsDeps } from "./deps";
 import { parentSlotGrid } from "./parent-booking";
-import { callViewOf, hubCardFor, type HubCallCard, type MyCallView } from "./parent-view";
+import { callViewOf, hubCardFor, nationalMobile, type HubCallCard, type MyCallView } from "./parent-view";
 import type { CallsResult } from "./types";
 import { uuid } from "./zod-parts";
 
-/** Her call page: her bookings and attempts, and the first-call grid (free or greyed), read together. */
+/** Her call page: her bookings and attempts, the first-call grid (free or greyed) and her number, read together. */
 export async function loadMyCallView(sessionUserId: string, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<MyCallView>> {
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
   if (!uuid.safeParse(sessionUserId).success) return CALLS_INVALID;
-  const [bookings, entries, grid] = await Promise.all([
+  const [bookings, entries, grid, contacts] = await Promise.all([
     deps.repo.readBookingsForParents([sessionUserId]),
     deps.repo.readLogEntriesForParents([sessionUserId]),
     parentSlotGrid(sessionUserId, deps),
+    deps.repo.readContacts([sessionUserId]),
   ]);
-  return { ok: true, value: callViewOf({ bookings, entries, grid, now: deps.now() }) };
+  // Her number for "We'll call you on …" (W5); unreadable → no line, never a failed page.
+  const mobile = contacts.ok ? nationalMobile(contacts.value.find((c) => c.userId === sessionUserId)?.mobile ?? null) : null;
+  return { ok: true, value: callViewOf({ bookings, entries, grid, now: deps.now(), mobile }) };
 }
 
 /**

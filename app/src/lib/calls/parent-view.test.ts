@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { bookingRow, entryRow } from "./fake-calls-repo.test-util";
-import { REFUSAL_FOR, bookedViewOf, callViewOf, heldViewOf, hubCardFor, isAfterNoAnswer, myBookedCall, refusalOf } from "./parent-view";
+import { REFUSAL_FOR, bookedViewOf, callViewOf, heldViewOf, hubCardFor, isAfterNoAnswer, myBookedCall, nationalMobile, refusalOf } from "./parent-view";
 import type { SlotGrid } from "./slot-grid";
 import type { CallsResult } from "./types";
 
@@ -33,6 +33,8 @@ describe("bookedViewOf / heldViewOf", () => {
       bookingId: "b-1",
       startsAt: TUE_14,
       line: "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)",
+      when: "Tuesday 9 February, 14:00",
+      yourCall: "Your call: Tuesday 9 February at 14:00 (London time)",
       changeable: true,
     });
     expect(bookedViewOf({ id: "b-1", startsAt: TUE_14 }, new Date(TUE_14)).changeable).toBe(false);
@@ -72,13 +74,34 @@ describe("isAfterNoAnswer (brief §0.10)", () => {
   });
 });
 
+describe("nationalMobile (04b rework W5: \"We'll call you on <her mobile, UK national format>\")", () => {
+  it.each([
+    ["+447700900123", "07700 900123"],
+    ["07700900123", "07700 900123"],
+    ["+44 (0) 7700 900 123", "07700 900123"],
+  ])("%s → %s", (raw, national) => {
+    expect(nationalMobile(raw)).toBe(national);
+  });
+
+  it.each([null, "", "12345", "+33 6 12 34 56 78"])("%s → null (no line)", (raw) => {
+    expect(nationalMobile(raw)).toBeNull();
+  });
+});
+
 describe("callViewOf", () => {
+  it("carries her mobile, in national form, on the picking and booked views (W5)", () => {
+    const pick = callViewOf({ bookings: ok([]), entries: ok([]), grid: ok(SLOTS), now: NOW, mobile: "07700 900123" });
+    expect(pick.kind === "pick" && pick.mobile).toBe("07700 900123");
+    const booked = callViewOf({ bookings: ok([bookingRow({ parentUserId: HER, startsAt: TUE_14 })]), entries: ok([]), grid: ok(SLOTS), now: NOW, mobile: null });
+    expect(booked.kind === "booked" && booked.mobile).toBeNull();
+  });
+
   it("the picker's days are the whole grid: every date, every slot, free or not (04b rework W4)", () => {
     const grid: SlotGrid = {
       dates: ["2027-02-09", "2027-02-10"],
       slots: [{ startsAt: TUE_14, endsAt: "2027-02-09T14:30:00.000Z", free: false }],
     };
-    const view = callViewOf({ bookings: ok([]), entries: ok([]), grid: ok(grid), now: NOW });
+    const view = callViewOf({ bookings: ok([]), entries: ok([]), grid: ok(grid), now: NOW, mobile: null });
     expect(view.kind === "pick" && view.days.map((d) => [d.legend, d.slots.map((x) => x.free)])).toEqual([
       ["Tuesday 9 February", [false]],
       ["Wednesday 10 February", []],
@@ -86,33 +109,34 @@ describe("callViewOf", () => {
   });
 
   it("booked → her booking, and the free days for Change time", () => {
-    const view = callViewOf({ bookings: ok([bookingRow({ id: "b-1", parentUserId: HER, startsAt: TUE_14 })]), entries: ok([]), grid: ok(SLOTS), now: NOW });
+    const view = callViewOf({ bookings: ok([bookingRow({ id: "b-1", parentUserId: HER, startsAt: TUE_14 })]), entries: ok([]), grid: ok(SLOTS), now: NOW, mobile: null });
     expect(view.kind).toBe("booked");
     expect(view.kind === "booked" && [view.booking.bookingId, view.days?.[0].legend]).toEqual(["b-1", "Tuesday 9 February"]);
   });
 
   it("booked with the slots unreadable → still booked, no days", () => {
-    const view = callViewOf({ bookings: ok([bookingRow({ parentUserId: HER, startsAt: TUE_14 })]), entries: ok([]), grid: FAILED, now: NOW });
+    const view = callViewOf({ bookings: ok([bookingRow({ parentUserId: HER, startsAt: TUE_14 })]), entries: ok([]), grid: FAILED, now: NOW, mobile: null });
     expect(view.kind === "booked" && view.days).toBeNull();
   });
 
   it("not booked → the days, grouped, with the after-no-answer flag", () => {
     const entries = ok([entryRow({ parentUserId: HER, occurredAt: "2027-02-03T14:05:00.000Z", result: "no_answer" })]);
-    const view = callViewOf({ bookings: ok([]), entries, grid: ok(SLOTS), now: NOW });
-    expect(view).toEqual({ kind: "pick", afterNoAnswer: true, days: [expect.objectContaining({ legend: "Tuesday 9 February" })] });
-    expect(callViewOf({ bookings: ok([]), entries: ok([]), grid: ok(NONE), now: NOW })).toEqual({ kind: "pick", afterNoAnswer: false, days: [] });
+    const view = callViewOf({ bookings: ok([]), entries, grid: ok(SLOTS), now: NOW, mobile: null });
+    expect(view).toEqual({ kind: "pick", afterNoAnswer: true, days: [expect.objectContaining({ legend: "Tuesday 9 February" })], mobile: null });
+    expect(callViewOf({ bookings: ok([]), entries: ok([]), grid: ok(NONE), now: NOW, mobile: null })).toEqual({ kind: "pick", afterNoAnswer: false, days: [], mobile: null });
   });
 
   it("the bookings or the slots unreadable (without a known booking) → load_failed", () => {
-    expect(callViewOf({ bookings: FAILED, entries: ok([]), grid: ok(SLOTS), now: NOW })).toEqual({ kind: "load_failed" });
-    expect(callViewOf({ bookings: ok([]), entries: ok([]), grid: FAILED, now: NOW })).toEqual({ kind: "load_failed" });
+    expect(callViewOf({ bookings: FAILED, entries: ok([]), grid: ok(SLOTS), now: NOW, mobile: null })).toEqual({ kind: "load_failed" });
+    expect(callViewOf({ bookings: ok([]), entries: ok([]), grid: FAILED, now: NOW, mobile: null })).toEqual({ kind: "load_failed" });
   });
 
   it("the attempts unreadable → she can still pick; just no after-no-answer line (review F6)", () => {
-    expect(callViewOf({ bookings: ok([]), entries: FAILED, grid: ok(SLOTS), now: NOW })).toEqual({
+    expect(callViewOf({ bookings: ok([]), entries: FAILED, grid: ok(SLOTS), now: NOW, mobile: null })).toEqual({
       kind: "pick",
       afterNoAnswer: false,
       days: [expect.objectContaining({ legend: "Tuesday 9 February" })],
+      mobile: null,
     });
   });
 });

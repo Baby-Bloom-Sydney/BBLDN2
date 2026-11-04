@@ -1,7 +1,8 @@
 /**
- * /parent/call, the client (plan B6; brief §3 parent 2–4, §0.3, §0.10, §0.13). The seven states — loading, times
- * shown, held, booked, after a no-answer, no times, load failed — plus change, cancel, and "Go to my matches" always
- * going to the checked `next`. Every label arrives preformatted from the server (London time).
+ * The call slide, the client (`/matchmaking/call`; plan B6; brief §0a.1, §3 parent 2–4, §0.3, §0.10, §0.13; 04b rework
+ * W3–W5). The seven states — loading, times shown, held, booked, after a no-answer, no times, load failed — in the
+ * funnel's shell; change (her booking on top, `?change=1` straight in) and cancel; onward always to the checked
+ * `next`, labelled by where it goes. Every label arrives preformatted from the server (London time).
  */
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -22,22 +23,27 @@ import { CallPageClient } from "./CallPageClient";
 const TUE_14 = "2027-02-09T14:00:00.000Z";
 const DAYS = groupSlotsByDay([{ startsAt: TUE_14, endsAt: TUE_14 }]);
 const NEXT = "/parent?t=childcare&s=nannies&v=matches";
+const MOBILE = "07700 900123";
 const BOOKED: BookedCallView = {
   bookingId: "b-1",
   startsAt: TUE_14,
   line: "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)",
+  when: "Tuesday 9 February, 14:00",
+  yourCall: "Your call: Tuesday 9 February at 14:00 (London time)",
   changeable: true,
 };
-const PICK: MyCallView = { kind: "pick", afterNoAnswer: false, days: DAYS };
+const PICK: MyCallView = { kind: "pick", afterNoAnswer: false, days: DAYS, mobile: MOBILE };
+const BOOKED_VIEW: MyCallView = { kind: "booked", booking: BOOKED, days: DAYS, mobile: MOBILE };
 const HOLD = { holdId: "h-1", startsAt: TUE_14, line: "We're holding Tuesday 9 February, 14:00 (London time) for you until 10:05." };
 
-const page = (initial: MyCallView) => render(<CallPageClient initial={initial} nextHref={NEXT} />);
+const page = (initial: MyCallView, next = NEXT, startChanging = false) =>
+  render(<CallPageClient initial={initial} nextHref={next} startChanging={startChanging} />);
 /** W4: a time-of-day cell, then a time in it (a tap holds at once). */
 async function pickTue14(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole("radio", { name: "Tuesday 9 February, Afternoon (London time)" }));
   await user.click(screen.getByRole("radio", { name: "Tuesday 9 February, 14:00 (London time)" }));
 }
-const matchesLink = () => screen.getByRole("link", { name: "Go to my matches" });
+const youreBooked = () => screen.findByRole("heading", { level: 1, name: "You're booked" });
 
 beforeEach(() => {
   for (const fn of Object.values(h)) fn.mockReset();
@@ -57,50 +63,61 @@ describe("the funnel slide (04b rework W3)", () => {
 });
 
 describe("the seven states", () => {
-  it("times shown: the picker, and Go to my matches → next", () => {
+  it("times shown: the picker, and Skip for now → next", () => {
     page(PICK);
     expect(screen.getByRole("radiogroup", { name: "Tuesday 9 February" })).toBeInTheDocument();
-    expect(matchesLink()).toHaveAttribute("href", NEXT);
+    expect(screen.getByRole("link", { name: "Skip for now" })).toHaveAttribute("href", NEXT);
   });
 
-  it("held, then booked: confirm uses the hold id as its idempotency key; the booked line and an announcement", async () => {
+  it("held, then booked: confirm uses the hold id as its idempotency key; You're booked, the time, her number, onward", async () => {
     const user = userEvent.setup();
     page(PICK);
     await pickTue14(user);
     expect(await screen.findByText(HOLD.line)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Confirm time" }));
     expect(h.confirm).toHaveBeenCalledWith("h-1", "h-1");
-    expect(await screen.findByText(BOOKED.line)).toBeInTheDocument();
+    expect(await youreBooked()).toBeInTheDocument();
+    expect(screen.getByText("Tuesday 9 February, 14:00")).toBeInTheDocument();
+    expect(screen.getByText("(London time)")).toBeInTheDocument();
+    expect(screen.getByText(`We'll call you on ${MOBILE}.`)).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(`Done — ${BOOKED.line}.`);
-    expect(matchesLink()).toHaveAttribute("href", NEXT);
+    expect(screen.getByRole("link", { name: "Go to my matches" })).toHaveAttribute("href", NEXT);
   });
 
-  it("booked: the line, Change time and Cancel", () => {
-    page({ kind: "booked", booking: BOOKED, days: DAYS });
-    expect(screen.getByText(BOOKED.line)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Change time" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+  it("booked: the tick, You're booked, one primary button onward, Change time and Cancel as text links", async () => {
+    page(BOOKED_VIEW);
+    expect(await youreBooked()).toBeInTheDocument();
+    const onward = screen.getByRole("link", { name: "Go to my matches" });
+    expect(onward.className).toContain("bg-violet-500");
+    expect(screen.getByRole("button", { name: "Change time" }).className).toContain("text-slate-500");
+    expect(screen.getByRole("button", { name: "Cancel" }).className).toContain("text-slate-500");
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
   });
 
-  it("booked, at or after the start: the booking and no buttons", () => {
-    page({ kind: "booked", booking: { ...BOOKED, changeable: false }, days: DAYS });
-    expect(screen.getByText(BOOKED.line)).toBeInTheDocument();
+  it("booked with no number on file: no 'We'll call you on' line", async () => {
+    page({ ...BOOKED_VIEW, mobile: null });
+    await youreBooked();
+    expect(screen.queryByText(/We'll call you on/)).not.toBeInTheDocument();
+  });
+
+  it("booked, at or after the start: the booking and no buttons but onward", async () => {
+    page({ kind: "booked", booking: { ...BOOKED, changeable: false }, days: DAYS, mobile: MOBILE });
+    expect(await youreBooked()).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Change time" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
-    expect(matchesLink()).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Go to my matches" })).toBeInTheDocument();
   });
 
   it("after a no-answer: 'We tried to call you — pick another time', with the picker", () => {
-    page({ kind: "pick", afterNoAnswer: true, days: DAYS });
+    page({ kind: "pick", afterNoAnswer: true, days: DAYS, mobile: null });
     expect(screen.getByText("We tried to call you — pick another time")).toBeInTheDocument();
     expect(screen.getByRole("radiogroup", { name: "Tuesday 9 February" })).toBeInTheDocument();
   });
 
-  it("no times: the §0.13 line", () => {
-    page({ kind: "pick", afterNoAnswer: false, days: [] });
+  it("no times: the §0.13 line, and Skip for now", () => {
+    page({ kind: "pick", afterNoAnswer: false, days: [], mobile: null });
     expect(screen.getByText("No times free right now — we'll still call you for your Complimentary matchmaker call.")).toBeInTheDocument();
-    expect(matchesLink()).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Skip for now" })).toBeInTheDocument();
   });
 
   it("load failed → Retry reloads; loading shows a skeleton until the view arrives", async () => {
@@ -117,10 +134,10 @@ describe("the seven states", () => {
 
   it("a reload that finds her booked (another tab) shows the booking", async () => {
     const user = userEvent.setup();
-    h.reload.mockResolvedValueOnce({ ok: true, value: { kind: "booked", booking: BOOKED, days: DAYS } });
+    h.reload.mockResolvedValueOnce({ ok: true, value: BOOKED_VIEW });
     page({ kind: "load_failed" });
     await user.click(screen.getByRole("button", { name: "Retry" }));
-    expect(await screen.findByText(BOOKED.line)).toBeInTheDocument();
+    expect(await youreBooked()).toBeInTheDocument();
   });
 
   it("a reload refused stays on load failed", async () => {
@@ -133,23 +150,48 @@ describe("the seven states", () => {
   });
 });
 
+describe("onward, labelled by where it goes (W5)", () => {
+  it.each([
+    [NEXT, "Go to my matches"],
+    ["/parent?t=childcare", "Go to my childcare"],
+    ["/parent", "Go to my dashboard"],
+  ])("next %s → '%s'", async (next, label) => {
+    page(BOOKED_VIEW, next);
+    expect(await screen.findByRole("link", { name: label })).toHaveAttribute("href", next);
+  });
+});
+
 describe("change and cancel", () => {
-  it("Change time: reloads, shows the picker beside her current time; Keep my time goes back", async () => {
+  it("Change time: her booking stays on top, the picker underneath; Keep my time goes back", async () => {
     const user = userEvent.setup();
-    h.reload.mockResolvedValueOnce({ ok: true, value: { kind: "booked", booking: BOOKED, days: DAYS } });
-    page({ kind: "booked", booking: BOOKED, days: null });
+    h.reload.mockResolvedValueOnce({ ok: true, value: BOOKED_VIEW });
+    page({ ...BOOKED_VIEW, days: null });
     await user.click(screen.getByRole("button", { name: "Change time" }));
     expect(await screen.findByRole("radiogroup", { name: "Tuesday 9 February" })).toBeInTheDocument();
-    expect(screen.getByText(BOOKED.line)).toBeInTheDocument();
+    expect(screen.getByText(BOOKED.yourCall)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Keep my time" }));
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Change time" })).toBeInTheDocument();
+    expect(await youreBooked()).toBeInTheDocument();
+  });
+
+  it("?change=1 opens straight into picking a new time for her booking, her slot chosen", async () => {
+    page(BOOKED_VIEW, NEXT, true);
+    expect(screen.getByText(BOOKED.yourCall)).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Tuesday 9 February, Afternoon (London time)" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("button", { name: "Keep my time" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Skip for now" })).not.toBeInTheDocument();
+    expect(h.reload).not.toHaveBeenCalled();
+  });
+
+  it("?change=1 with no booking: just picking", () => {
+    page(PICK, NEXT, true);
+    expect(screen.getByRole("link", { name: "Skip for now" })).toBeInTheDocument();
   });
 
   it("Cancel asks first; Keep it keeps it; Yes, cancel it cancels and shows the fresh view", async () => {
     const user = userEvent.setup();
     h.cancel.mockResolvedValueOnce({ ok: true, value: PICK });
-    page({ kind: "booked", booking: BOOKED, days: DAYS });
+    page(BOOKED_VIEW);
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     await user.click(screen.getByRole("button", { name: "Keep it" }));
     expect(h.cancel).not.toHaveBeenCalled();
@@ -166,57 +208,57 @@ describe("change and cancel", () => {
   ])("a refused cancel (%s): the booking stays, the alert takes focus", async (error, message) => {
     const user = userEvent.setup();
     h.cancel.mockResolvedValueOnce({ ok: false, error });
-    page({ kind: "booked", booking: BOOKED, days: DAYS });
+    page(BOOKED_VIEW);
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     await user.click(screen.getByRole("button", { name: "Yes, cancel it" }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(message);
     expect(alert).toHaveFocus();
-    expect(screen.getByText(BOOKED.line)).toBeInTheDocument();
+    expect(screen.getByText("Tuesday 9 February, 14:00")).toBeInTheDocument();
   });
 
-  it("a move: the confirmed booking replaces the old line", async () => {
+  it("a move: the same booking moves, and the booked slide shows the new time", async () => {
     const user = userEvent.setup();
-    const moved = { ...BOOKED, line: "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)" };
     // Her old time (16:00) is not in the list (it is hers, so not free); she moves to 14:00.
-    const OLD = { ...BOOKED, line: "old line", startsAt: "2027-02-09T16:00:00.000Z" };
-    h.reload.mockResolvedValueOnce({ ok: true, value: { kind: "booked", booking: OLD, days: DAYS } });
-    h.confirm.mockResolvedValueOnce({ ok: true, value: { bookingId: "b-1", moved: true, replay: false, booking: moved } });
-    page({ kind: "booked", booking: OLD, days: DAYS });
+    const OLD: BookedCallView = { ...BOOKED, startsAt: "2027-02-09T16:00:00.000Z", when: "Tuesday 9 February, 16:00", yourCall: "Your call: old" };
+    h.reload.mockResolvedValueOnce({ ok: true, value: { ...BOOKED_VIEW, booking: OLD } });
+    h.confirm.mockResolvedValueOnce({ ok: true, value: { bookingId: "b-1", moved: true, replay: false, booking: BOOKED } });
+    page({ ...BOOKED_VIEW, booking: OLD });
     await user.click(screen.getByRole("button", { name: "Change time" }));
     await pickTue14(user);
     await user.click(await screen.findByRole("button", { name: "Confirm time" }));
-    expect(await screen.findByText(moved.line)).toBeInTheDocument();
-    expect(screen.queryByText("old line")).not.toBeInTheDocument();
+    expect(await youreBooked()).toBeInTheDocument();
+    expect(screen.getByText("Tuesday 9 February, 14:00")).toBeInTheDocument();
+    expect(screen.queryByText("Tuesday 9 February, 16:00")).not.toBeInTheDocument();
   });
 });
 
 describe("a rejected or refused action never sticks (review F1, F2)", () => {
   const boom = () => Promise.reject(new Error("network"));
 
-  it("Change time rejecting: no skeleton, the booking stays, the picker says the times couldn't load", async () => {
+  it("Change time rejecting: no skeleton, the booking stays on top, the picker says the times couldn't load", async () => {
     const user = userEvent.setup();
     h.reload.mockImplementationOnce(boom);
-    page({ kind: "booked", booking: BOOKED, days: DAYS });
+    page(BOOKED_VIEW);
     await user.click(screen.getByRole("button", { name: "Change time" }));
     expect(await screen.findByText("We couldn't load the times — we'll still call you for your Complimentary matchmaker call")).toBeInTheDocument();
     expect(screen.queryByTestId("call-page-loading")).not.toBeInTheDocument();
-    expect(screen.getByText(BOOKED.line)).toBeInTheDocument();
+    expect(screen.getByText(BOOKED.yourCall)).toBeInTheDocument();
   });
 
   it("Change time refused: the same — the booking stays, the days are gone, Retry offered", async () => {
     const user = userEvent.setup();
     h.reload.mockResolvedValueOnce({ ok: false, error: "error" });
-    page({ kind: "booked", booking: BOOKED, days: DAYS });
+    page(BOOKED_VIEW);
     await user.click(screen.getByRole("button", { name: "Change time" }));
     expect(await screen.findByRole("button", { name: "Retry" })).toBeEnabled();
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
-    expect(screen.getByText(BOOKED.line)).toBeInTheDocument();
+    expect(screen.getByText(BOOKED.yourCall)).toBeInTheDocument();
   });
 
   it("a refused reload while picking: the load-failed line replaces the stale days", async () => {
     const user = userEvent.setup();
-    h.hold.mockResolvedValueOnce({ ok: false, error: "taken" });
+    h.hold.mockResolvedValueOnce({ ok: false, error: "invalid" });
     h.reload.mockResolvedValueOnce({ ok: false, error: "error" });
     page(PICK);
     await pickTue14(user);
@@ -224,10 +266,10 @@ describe("a rejected or refused action never sticks (review F1, F2)", () => {
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
   });
 
-  it("Cancel rejecting: the alert, the booking and its buttons stay, nothing pending", async () => {
+  it("Cancel rejecting: the alert, the booking and its links stay, nothing pending", async () => {
     const user = userEvent.setup();
     h.cancel.mockImplementationOnce(boom);
-    page({ kind: "booked", booking: BOOKED, days: DAYS });
+    page(BOOKED_VIEW);
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     await user.click(screen.getByRole("button", { name: "Yes, cancel it" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't do that — try again");

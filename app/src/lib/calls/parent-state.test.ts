@@ -46,6 +46,18 @@ describe("loadMyCallView", () => {
     expect(first?.slots.find((s) => s.free)?.name).toBe("Thursday 4 February, 12:00 (London time)");
   });
 
+  it("her mobile from her own profile row, in UK national form (W5); none → null", async () => {
+    const contact = { userId: HER, firstName: "Jane", lastName: "Smith", email: "jane@example.com", mobile: "+447700900123", isTestUser: false };
+    const { fake, deps } = setup({ contacts: [contact] });
+    const view = await loadMyCallView(HER, deps);
+    expect(callsTo(fake, "readContacts")[0].args).toEqual([[HER]]);
+    expect(view.ok && view.value.kind === "pick" && view.value.mobile).toBe("07700 900123");
+    const none = await loadMyCallView(HER, setup().deps);
+    expect(none.ok && none.value.kind === "pick" && none.value.mobile).toBeNull();
+    const failing = await loadMyCallView(HER, setup({ contacts: [contact], failing: ["readContacts"] }).deps);
+    expect(failing.ok && failing.value.kind === "pick" && failing.value.mobile).toBeNull();
+  });
+
   it("booked → her booking", async () => {
     const { deps } = setup({ bookings: [bookingRow({ parentUserId: HER, startsAt: "2027-02-09T14:00:00.000Z" })] });
     const view = await loadMyCallView(HER, deps);

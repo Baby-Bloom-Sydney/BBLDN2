@@ -6,7 +6,8 @@
  * BB-wave1-041126/04b-build, 2026-11-04.
  */
 
-import { bookedLine, heldLine, hubBookedLine, PARENT_COPY } from "./copy";
+import { isUkMobile, normaliseUkMobile } from "@/lib/uk-contact";
+import { bookedLine, heldLine, hubBookedLine, PARENT_COPY, slotAtLine, yourCallLine } from "./copy";
 import { groupSlotGridByDay, type SlotDay } from "./group-slots-by-day";
 import type { SlotGrid } from "./slot-grid";
 import { slotWords } from "./slot-words";
@@ -19,6 +20,10 @@ export interface BookedCallView {
   readonly startsAt: string;
   /** "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)" */
   readonly line: string;
+  /** "Tuesday 9 February, 14:00" — the booked slide, over "(London time)" (04b rework W5). */
+  readonly when: string;
+  /** "Your call: Tuesday 9 February at 14:00 (London time)" — at the top while she changes it (W5, W12). */
+  readonly yourCall: string;
   /** Change time and Cancel only before the start (brief §3 parent 4). */
   readonly changeable: boolean;
 }
@@ -30,10 +35,13 @@ export interface HeldCallView {
   readonly line: string;
 }
 
-/** Her page: booked (with the free days for Change time, null if they couldn't be read), picking, or failed. */
+/**
+ * Her page: booked (with the days for Change time, null if they couldn't be read), picking, or failed. `mobile` is
+ * her own number in UK national form for "We'll call you on …" (04b rework W5), or null.
+ */
 export type MyCallView =
-  | { readonly kind: "booked"; readonly booking: BookedCallView; readonly days: readonly SlotDay[] | null }
-  | { readonly kind: "pick"; readonly afterNoAnswer: boolean; readonly days: readonly SlotDay[] }
+  | { readonly kind: "booked"; readonly booking: BookedCallView; readonly days: readonly SlotDay[] | null; readonly mobile: string | null }
+  | { readonly kind: "pick"; readonly afterNoAnswer: boolean; readonly days: readonly SlotDay[]; readonly mobile: string | null }
   | { readonly kind: "load_failed" };
 
 /** What the parent's actions can answer. Never a detail: a code the page turns into one of its lines. */
@@ -86,12 +94,22 @@ export function myBookedCall(bookings: readonly CallBooking[]): CallBooking | nu
 }
 
 export function bookedViewOf(booking: Pick<CallBooking, "id" | "startsAt">, now: Date): BookedCallView {
+  const words = slotWords(booking.startsAt);
   return {
     bookingId: booking.id,
     startsAt: booking.startsAt,
-    line: bookedLine(slotWords(booking.startsAt)),
+    line: bookedLine(words),
+    when: `${words.day}, ${words.time}`,
+    yourCall: yourCallLine(slotAtLine(words)),
     changeable: Date.parse(booking.startsAt) > now.getTime(),
   };
+}
+
+/** Her mobile as she'd say it, "07700 900123" (UK national form; brief §0a.1 "the number we'll call"), or null. */
+export function nationalMobile(raw: string | null): string | null {
+  if (raw === null || !isUkMobile(raw)) return null;
+  const national = `0${normaliseUkMobile(raw).slice(3)}`;
+  return `${national.slice(0, 5)} ${national.slice(5)}`;
 }
 
 export function heldViewOf(held: { readonly bookingId: string; readonly startsAt: string; readonly holdExpiresAt: string }): HeldCallView {
@@ -111,15 +129,17 @@ export function callViewOf(reads: {
   readonly entries: CallsResult<readonly CallLogEntry[]>;
   readonly grid: CallsResult<SlotGrid>;
   readonly now: Date;
+  /** Her number, already in national form (or null). */
+  readonly mobile: string | null;
 }): MyCallView {
   if (!reads.bookings.ok) return { kind: "load_failed" };
   const days = reads.grid.ok ? groupSlotGridByDay(reads.grid.value) : null;
   const booked = myBookedCall(reads.bookings.value);
-  if (booked !== null) return { kind: "booked", booking: bookedViewOf(booked, reads.now), days };
+  if (booked !== null) return { kind: "booked", booking: bookedViewOf(booked, reads.now), days, mobile: reads.mobile };
   if (days === null) return { kind: "load_failed" };
   // Her attempts unreadable: she can still pick; there's just no "We tried to call you" line (review F6).
   const afterNoAnswer = reads.entries.ok && isAfterNoAnswer(reads.bookings.value, reads.entries.value);
-  return { kind: "pick", afterNoAnswer, days };
+  return { kind: "pick", afterNoAnswer, days, mobile: reads.mobile };
 }
 
 /** The one card at the top of `/parent` (brief §0.5; plan B7). */

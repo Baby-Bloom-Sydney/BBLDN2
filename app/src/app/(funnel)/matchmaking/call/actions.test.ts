@@ -114,7 +114,14 @@ describe("each action", () => {
         bookingId: HOLD,
         moved: false,
         replay: false,
-        booking: { bookingId: HOLD, startsAt: TUE_14, line: "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)", changeable: true },
+        booking: {
+          bookingId: HOLD,
+          startsAt: TUE_14,
+          line: "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)",
+          when: "Tuesday 9 February, 14:00",
+          yourCall: "Your call: Tuesday 9 February at 14:00 (London time)",
+          changeable: true,
+        },
       },
     });
     expect(h.revalidate).toHaveBeenCalledWith("/parent");

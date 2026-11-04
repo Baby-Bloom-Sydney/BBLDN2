@@ -51,6 +51,10 @@ export const PARENT_COPY = Object.freeze({
   confirming: "Confirming...",
   skipForNow: "Skip for now",
   takenTitle: "This time has just been booked",
+  // 04b rework W5: the booked slide (BB-wave1-041126/04b-rework)
+  youreBooked: "You're booked",
+  goToChildcare: "Go to my childcare",
+  goToDashboard: "Go to my dashboard",
 });
 
 export const ADMIN_COPY = Object.freeze({
@@ -94,6 +98,16 @@ export function slotAtLine(words: Pick<SlotWords, "day" | "time">): string {
 /** The taken notice (04b rework W4, BAI 2026-11-05): "Someone else booked Tuesday 9 February at 14:00 a moment ago. …" */
 export function takenNoticeLine(when: string): string {
   return `Someone else booked ${when} a moment ago. Please pick another time.`;
+}
+
+/** The booked slide (04b rework W5): "We'll call you on 07700 900123." */
+export function callOnLine(mobile: string): string {
+  return `We'll call you on ${mobile}.`;
+}
+
+/** Her booking, at the top while she changes it (04b rework W5, W12): "Your call: Thursday 5 November at 10:00 (London time)". */
+export function yourCallLine(at: string): string {
+  return `Your call: ${at} ${LONDON_TIME_SUFFIX}`;
 }
 
 /** Announced once she has booked (04b): "Done — Your Complimentary matchmaker call is on … (London time)." */
