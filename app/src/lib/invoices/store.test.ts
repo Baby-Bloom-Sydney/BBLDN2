@@ -141,6 +141,22 @@ describe("without a real proof", () => {
   });
 });
 
+describe("when the service client can't be made or a read throws", () => {
+  it("answers error, logged by name only", async () => {
+    createAdminClient.mockImplementation(() => { throw new Error("Missing Supabase admin credentials"); });
+    for (const r of await Promise.all([readMaskedDetails(nanny), saveDetails(nanny, DETAILS_IN), createInvoice(nanny, DRAFT, "4321", NOW),
+      finishInvoice(nanny, INVOICE, { kind: "failed" }), countSentToday(nanny, NOW), readFamilyRows(admin, PARENT_USER)])) {
+      expect(r).toEqual({ ok: false, error: "error" });
+    }
+    expect(console.error).toHaveBeenCalledWith("[invoices] createAdminClient failed", { code: "Error" });
+    createAdminClient.mockReturnValue(f.client);
+    f.reads.nanny_payment_details = () => { throw new TypeError("network"); };
+    f.reads.nanny_invoices = () => { throw new TypeError("network"); };
+    expect(await readMaskedDetails(nanny)).toEqual({ ok: false, error: "error" });
+    expect(await countSentToday(nanny, NOW)).toEqual({ ok: false, error: "error" });
+  });
+});
+
 describe("readMaskedDetails", () => {
   it("reads her row by the proof's nanny id, selecting the masks only", async () => {
     f.reads.nanny_payment_details = {

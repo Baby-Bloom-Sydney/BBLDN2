@@ -161,6 +161,25 @@ describe("listInvoiceableFamilies", () => {
   });
 });
 
+describe("failures and ordering", () => {
+  it("a missing service key, a malformed row and a throwing read are errors", async () => {
+    load([placement(12, 11, "active")], []);
+    createAdminClient.mockImplementationOnce(() => { throw new Error("Missing Supabase admin credentials"); });
+    expect(await listInvoiceableFamilies(proof)).toEqual({ ok: false, error: "error" });
+    expect(console.error).toHaveBeenLastCalledWith("[invoices] createAdminClient failed", { code: "Error" });
+    f.reads.nanny_placements = () => ({ id: u(412) });
+    expect(await resolveInvoiceTarget(proof, "regular_week", u(412))).toEqual({ ok: false, error: "error" });
+    f.reads.nanny_placements = () => { throw new TypeError("network"); };
+    expect(await resolveInvoiceTarget(proof, "regular_week", u(412))).toEqual({ ok: false, error: "error" });
+  });
+
+  it("lists a family's trials newest first", async () => {
+    load([], [connection(12, 12, "2027-01-20"), connection(14, 12, "2027-02-03")]);
+    const r = await listInvoiceableFamilies(proof);
+    expect(r.ok && r.value[0].trials.map((t) => t.trialDate)).toEqual(["2027-02-03", "2027-01-20"]);
+  });
+});
+
 describe("resolveInvoiceTarget (checked on the server before every write; the database checks again)", () => {
   beforeEach(() => {
     load(
