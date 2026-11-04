@@ -94,7 +94,15 @@ function fakeAdmin(script: Record<string, Result[]> = {}) {
     return b;
   }
 
-  return { admin: { from: builder } as unknown as AdminClient, calls };
+  // B02 (add-only): `rpc` is recorded in the same call list (op "rpc", table = the function) so the order of
+  // writes and the refund re-open can be asserted; it resolves from the `<fn>.rpc` queue like a table op.
+  const rpc = (fn: string, args: unknown) => {
+    calls.push({ table: fn, op: "rpc", payload: args, filters: [] });
+    const r = next(`${fn}.rpc`);
+    return Promise.resolve({ data: r.data ?? null, error: r.error ?? null });
+  };
+
+  return { admin: { from: builder, rpc } as unknown as AdminClient, calls };
 }
 
 const evt = <T>(object: unknown) => ({ data: { object } }) as unknown as T;
@@ -448,6 +456,48 @@ describe("handleChargeRefunded — existing stamp and London Dashboard refund", 
     });
     expect(await handleChargeRefunded(admin, charge())).toBe("applied");
     expect(console.error).toHaveBeenCalled();
+  });
+
+  // B02 (brief §0.9, §6; plan 02 step 6): a full refund re-opens the deposit's place, after the stamp; never throws.
+  const depositScript = (extra: Record<string, Result[]> = {}) => ({
+    "refund_requests.select": [{ data: null }],
+    "parent_subscriptions.select": [
+      { data: { id: "ps1", parent_user_id: "u1" } },
+      { data: { deposit_stripe_payment_intent_id: "pi_1" } },
+    ],
+    "cohort_places.select": [{ data: { id: "c0200000-0000-4000-8000-000000000001", state: "taken", parent_user_id: "u1", cohort_start_date: "2027-02-01" } }],
+    "cohort_reopen_place.rpc": [{ data: { status: "reopened", place_id: "c0200000-0000-4000-8000-000000000001" } }],
+    ...extra,
+  });
+
+  it("B02: a full refund re-opens the deposit's place, after the deposit stamp", async () => {
+    const { admin, calls } = fakeAdmin(depositScript());
+    expect(await handleChargeRefunded(admin, charge({ refunded: true }))).toBe("applied");
+    const stamp = calls.findIndex((c) => c.table === "parent_subscriptions" && c.op === "update");
+    const reopen = calls.findIndex((c) => c.table === "cohort_reopen_place" && c.op === "rpc");
+    expect(stamp).toBeGreaterThanOrEqual(0);
+    expect(reopen).toBeGreaterThan(stamp);
+    expect(calls[reopen].payload).toEqual({
+      p_place_id: "c0200000-0000-4000-8000-000000000001",
+      p_actor: null,
+      p_reason: "Deposit fully refunded in Stripe",
+    });
+  });
+
+  it("B02: a partial refund keeps the place (no re-open) and the deposit stamp still lands", async () => {
+    const { admin, calls } = fakeAdmin(depositScript());
+    expect(await handleChargeRefunded(admin, charge({ refunded: false }))).toBe("applied");
+    expect(calls.some((c) => c.op === "rpc")).toBe(false);
+    expect(calls.some((c) => c.table === "cohort_places")).toBe(false);
+    const stamp = calls.find((c) => c.table === "parent_subscriptions" && c.op === "update");
+    expect(Object.keys(stamp?.payload as object)).toEqual(["deposit_refunded_at"]);
+  });
+
+  it("B02: a failed re-open is logged, never thrown — still applied, the refund row written", async () => {
+    const { admin, calls } = fakeAdmin(depositScript({ "cohort_reopen_place.rpc": [{ error: { message: "lock timeout", code: "55P03" } }] }));
+    expect(await handleChargeRefunded(admin, charge({ refunded: true }))).toBe("applied");
+    expect(calls.some((c) => c.table === "refund_requests" && c.op === "insert")).toBe(true);
+    expect(console.error).toHaveBeenCalledWith("[cohorts/refund-hook] the place was not re-opened", { status: "error" });
   });
 
   it("throws (→ unresolved) when the refund_requests read fails", async () => {
