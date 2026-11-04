@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { bookingRow, entryRow } from "./fake-calls-repo.test-util";
-import { bookedViewOf, callViewOf, heldViewOf, hubCardFor, isAfterNoAnswer, myBookedCall, refusalOf } from "./parent-view";
+import { REFUSAL_FOR, bookedViewOf, callViewOf, heldViewOf, hubCardFor, isAfterNoAnswer, myBookedCall, refusalOf } from "./parent-view";
 import type { CallsResult, Slot } from "./types";
 
 const HER = "b0400000-0000-4000-8000-000000000001";
@@ -104,6 +104,23 @@ describe("refusalOf", () => {
     expect(refusalOf("not_found")).toBe("not_yours");
     expect(refusalOf("booked_call_exists")).toBe("error");
     expect(refusalOf("error")).toBe("error");
+  });
+
+  it("is one exhaustive table over every CallError (review F3: a new code won't compile until it is mapped)", () => {
+    expect(Object.keys(REFUSAL_FOR).sort()).toEqual([
+      "booked_call_exists",
+      "call_booking_disabled",
+      "error",
+      "hold_expired",
+      "invalid",
+      "not_found",
+      "not_yours",
+      "overlap",
+      "rate_limited",
+      "taken",
+      "too_soon",
+    ]);
+    expect(Object.isFrozen(REFUSAL_FOR)).toBe(true);
   });
 });
 

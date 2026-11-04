@@ -57,22 +57,26 @@ export interface ConfirmedCallView {
   readonly booking: BookedCallView;
 }
 
-const PASSED: ReadonlySet<CallError> = new Set<CallError>([
-  "taken",
-  "too_soon",
-  "hold_expired",
-  "not_yours",
-  "rate_limited",
-  "invalid",
-  "call_booking_disabled",
-]);
+/**
+ * Every call operation's error as the parent may see it: a hold or booking gone is "not yours"; nothing internal.
+ * Typed as a full `Record` over `CallError` (review F3), so a new code fails to compile until it is mapped here.
+ */
+export const REFUSAL_FOR: Readonly<Record<CallError, MyCallRefusal>> = Object.freeze({
+  taken: "taken",
+  too_soon: "too_soon",
+  hold_expired: "hold_expired",
+  not_yours: "not_yours",
+  rate_limited: "rate_limited",
+  invalid: "invalid",
+  call_booking_disabled: "call_booking_disabled",
+  overlap: "taken",
+  not_found: "not_yours",
+  booked_call_exists: "error",
+  error: "error",
+});
 
-/** A call operation's error as the parent may see it: a hold or booking gone is "not yours"; nothing internal. */
 export function refusalOf(error: CallError): MyCallRefusal {
-  if (PASSED.has(error)) return error as MyCallRefusal;
-  if (error === "overlap") return "taken";
-  if (error === "not_found") return "not_yours";
-  return "error";
+  return REFUSAL_FOR[error];
 }
 
 /** Her booked first call (a cohort pre-book is brief 03's; the database allows one booked row per purpose). */
