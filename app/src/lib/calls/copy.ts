@@ -31,6 +31,19 @@ export const PARENT_COPY = Object.freeze({
   change: "Change",
   goToMatches: "Go to my matches",
   retry: "Retry",
+  // 04b: the call page (BB-wave1-041126/04b-build)
+  pageIntro: "Pick a time and we'll call you then. All times are London time.",
+  pickHeading: "Pick a time",
+  pickHint: "Choose a time, then confirm it. We'll hold it for you while you do.",
+  confirmTime: "Confirm this time",
+  pickAnother: "Pick another time",
+  keepTime: "Keep my time",
+  notSet: "We couldn't do that — try again",
+  cancelQuestion: "Cancel your call?",
+  confirmCancel: "Yes, cancel it",
+  keepCall: "Keep it",
+  cancelledStatus: "Your call is cancelled — we'll still call you, or pick a new time.",
+  noLongerAvailable: "no longer available",
 });
 
 export const ADMIN_COPY = Object.freeze({
@@ -59,6 +72,16 @@ export function bookedLine(words: Pick<SlotWords, "day" | "time">): string {
 /** The hub card: "Your Complimentary matchmaker call: Tue 9 Feb, 14:00 (London time)" */
 export function hubBookedLine(words: Pick<SlotWords, "short">): string {
   return `Your ${CALL_NAME}: ${words.short} ${LONDON_TIME_SUFFIX}`;
+}
+
+/** The held time (04b): "We're holding Tuesday 9 February, 14:00 (London time) for you until 10:05." */
+export function heldLine(words: Pick<SlotWords, "full">, until: string): string {
+  return `We're holding ${words.full} for you until ${until}.`;
+}
+
+/** Announced once she has booked (04b): "Done — Your Complimentary matchmaker call is on … (London time)." */
+export function doneLine(bookedText: string): string {
+  return `Done — ${bookedText}.`;
 }
 
 /** A full cohort pre-book day (brief §11 Q9): "We'll call you on Monday 8 February" */
