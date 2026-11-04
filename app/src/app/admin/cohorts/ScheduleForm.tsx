@@ -17,6 +17,24 @@ import type { CohortSchedule } from "@/lib/cohorts/types";
 import { saveCohortSchedule } from "./actions";
 import { ACTION_BUTTON, AlertLine, NoteLine, SmallLabel } from "./parts";
 
+interface NumberFieldProps {
+  readonly id: string;
+  readonly label: string;
+  readonly min: number;
+  readonly max: number;
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+}
+
+function NumberField({ id, label, min, max, value, onChange }: NumberFieldProps) {
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id}>{label}</Label>
+      <Input id={id} type="number" inputMode="numeric" min={min} max={max} step={1} value={value} onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
+}
+
 export function ScheduleForm({ schedule, suggestedFirst }: { readonly schedule: CohortSchedule | null; readonly suggestedFirst: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -51,14 +69,8 @@ export function ScheduleForm({ schedule, suggestedFirst }: { readonly schedule: 
               <Label htmlFor="cohort-first">First cohort starts</Label>
               <Input id="cohort-first" type="date" value={first} onChange={(e) => setFirst(e.target.value)} />
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="cohort-weeks">Repeat every (weeks)</Label>
-              <Input id="cohort-weeks" type="number" inputMode="numeric" min={REPEAT_WEEKS_MIN} max={REPEAT_WEEKS_MAX} step={1} value={weeks} onChange={(e) => setWeeks(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="cohort-places">Places in each new cohort</Label>
-              <Input id="cohort-places" type="number" inputMode="numeric" min={PLACES_MIN} max={PLACES_MAX} step={1} value={places} onChange={(e) => setPlaces(e.target.value)} />
-            </div>
+            <NumberField id="cohort-weeks" label="Repeat every (weeks)" min={REPEAT_WEEKS_MIN} max={REPEAT_WEEKS_MAX} value={weeks} onChange={setWeeks} />
+            <NumberField id="cohort-places" label="Places in each new cohort" min={PLACES_MIN} max={PLACES_MAX} value={places} onChange={setPlaces} />
             <div className="sm:col-span-3">
               <button type="submit" className={ACTION_BUTTON} disabled={pending}>
                 Save schedule

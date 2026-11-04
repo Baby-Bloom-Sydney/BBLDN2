@@ -1277,7 +1277,7 @@ async function recordDashboardRefund(
     action_details: { refund_id: refund.id, source: "stripe_dashboard" },
   });
   await stampDepositRefund(admin, parent.id, intentId, nowIso);
-  await reopenPlaceAfterFullRefund(admin, charge); // B02: a full refund re-opens the deposit's place; logs, never throws
+  await reopenPlaceAfterFullRefund(admin, parent.parent_user_id, charge); // B02: a full refund re-opens the deposit's place; logs, never throws
   return "applied";
 }
 

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { proveAdmin, type AdminProof } from "@/lib/calls/admin-proof";
 import { loadCohortBoard } from "@/lib/cohorts/board";
+import { logFailure } from "@/lib/cohorts/db";
 import type { CohortBoard } from "@/lib/cohorts/types";
 import { cohortsEnabled } from "@/lib/features/flags";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -20,7 +21,7 @@ async function readBoard(proof: AdminProof): Promise<CohortBoard | null> {
     const board = await loadCohortBoard(proof, createAdminClient(), new Date());
     return board.ok ? board.value : null;
   } catch (thrown) {
-    console.error("[admin/cohorts] the board could not be read", { name: thrown instanceof Error ? thrown.name : typeof thrown });
+    logFailure("admin/cohorts board", thrown);
     return null;
   }
 }

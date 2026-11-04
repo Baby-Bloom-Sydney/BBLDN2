@@ -8,7 +8,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WARNING_REOPEN_REASON } from "@/lib/cohorts/constants";
 import { warningLine } from "@/lib/cohorts/copy";
 import { formatCohortDate } from "@/lib/cohorts/dates";
@@ -49,8 +49,10 @@ export function WarningsBox({ warnings, onOpenCohort }: { readonly warnings: War
   const [target, setTarget] = useState<Target | null>(null);
   if (warnings.kind === "ok" && warnings.list.length === 0) return null;
   return (
-    <section aria-label="Warnings" className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-4">
-      <p className="text-sm font-semibold text-amber-800">Warnings</p>
+    <section aria-labelledby="cohort-warnings" className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-4">
+      <h2 id="cohort-warnings" className="text-sm font-semibold text-amber-800">
+        Warnings
+      </h2>
       {warnings.kind === "unavailable" ? (
         <AlertLine>The warnings could not be read — reload to try again.</AlertLine>
       ) : (
@@ -68,6 +70,7 @@ export function WarningsBox({ warnings, onOpenCohort }: { readonly warnings: War
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Re-open place</DialogTitle>
+            <DialogDescription className="sr-only">{target ? `Re-open ${target.name}'s place with a reason.` : "Re-open a place."}</DialogDescription>
           </DialogHeader>
           {target && (
             <ReopenConfirm

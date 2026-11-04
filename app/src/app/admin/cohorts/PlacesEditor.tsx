@@ -3,6 +3,7 @@
 /**
  * Edit one cohort's places inline (brief §0.4, §3.5, §3.9–3.10). A whole number 0–99; below what's already taken or
  * being paid for is refused with the brief's message and the old value comes back. Last write wins, each audited.
+ * Callers key it on `${startDate}:${places}`, so new numbers from the server (a schedule change) reset the input.
  * BB-wave1-041126/02-build.
  */
 
@@ -44,7 +45,13 @@ export function PlacesEditor({ startDate, places }: { readonly startDate: string
           className="h-8 w-20"
           aria-label={`Places in the cohort starting ${formatCohortDate(startDate)}`}
         />
-        <button type="button" className={QUIET_BUTTON} disabled={pending || !changed} onClick={save}>
+        <button
+          type="button"
+          className={QUIET_BUTTON}
+          disabled={pending || !changed}
+          onClick={save}
+          aria-label={`Save places for the cohort starting ${formatCohortDate(startDate)}`}
+        >
           Save
         </button>
       </div>

@@ -58,7 +58,7 @@ describe("readCurrentCohortLine (wired by 02)", () => {
     h.throwOnCreate = true;
     vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await readCurrentCohortLine()).toBeNull();
-    expect(console.error).toHaveBeenCalledWith("[calls/cohort-line] the cohort line could not be read", { name: "Error" });
+    expect(console.error).toHaveBeenCalledWith("[cohorts] cohort-line failed", { code: "Error" });
   });
 
   it("keeps the shape plan §7 fixes", () => {

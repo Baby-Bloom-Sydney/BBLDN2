@@ -10,13 +10,15 @@
  * - **Not flag-gated** (brief §8; the `PAYMENTS_ENABLED` principle, `payments/flags.ts:38-40`): with no place for
  *   the payment it does nothing. Only reads the charge's type — it never talks to Stripe, so it can't refund.
  * - The re-open has no actor: amendment 17 logs it with source `stripe_refund`.
+ * - Only the refunded family's own place is re-opened: the handler passes the parent it resolved for the charge
+ *   (security review L2).
  *
  * BB-wave1-041126/02-build, 2026-11-04.
  */
 
 import type Stripe from "stripe";
 import { REFUND_REOPEN_REASON } from "./constants";
-import { callRpc, type AdminClient } from "./db";
+import { callRpc, logFailure, type AdminClient } from "./db";
 import { findPlaceByPaymentIntent, parseReopenResult } from "./places";
 import { isFullyRefunded } from "./rules";
 
@@ -28,7 +30,7 @@ type RefundedCharge = {
 const intentOf = (charge: RefundedCharge): string | null =>
   typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id ?? null;
 
-export async function reopenPlaceAfterFullRefund(admin: AdminClient, charge: RefundedCharge): Promise<void> {
+export async function reopenPlaceAfterFullRefund(admin: AdminClient, parentUserId: string, charge: RefundedCharge): Promise<void> {
   try {
     if (!isFullyRefunded(charge)) return;
     const intentId = intentOf(charge);
@@ -39,10 +41,14 @@ export async function reopenPlaceAfterFullRefund(admin: AdminClient, charge: Ref
       return;
     }
     if (place.value === null || place.value.state !== "taken") return;
+    if (place.value.parentUserId !== parentUserId) {
+      console.error("[cohorts/refund-hook] the payment's place belongs to another family", { status: "mismatch" });
+      return;
+    }
     const called = await callRpc(admin, "cohort_reopen_place", { p_place_id: place.value.id, p_actor: null, p_reason: REFUND_REOPEN_REASON });
     const result = called.ok ? parseReopenResult(called.value) : ({ ok: false, status: "error" } as const);
     if (!result.ok) console.error("[cohorts/refund-hook] the place was not re-opened", { status: result.status });
   } catch (thrown) {
-    console.error("[cohorts/refund-hook] failed", { name: thrown instanceof Error ? thrown.name : typeof thrown });
+    logFailure("refund-hook", thrown);
   }
 }

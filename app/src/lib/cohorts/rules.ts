@@ -11,7 +11,16 @@
  */
 
 import { addLondonDays } from "@/lib/timezone";
-import { PLACES_MAX, PLACES_MIN, REASON_MAX, REASON_MIN, REPEAT_WEEKS_MAX, REPEAT_WEEKS_MIN } from "./constants";
+import {
+  FIRST_START_YEAR_MAX,
+  FIRST_START_YEAR_MIN,
+  PLACES_MAX,
+  PLACES_MIN,
+  REASON_MAX,
+  REASON_MIN,
+  REPEAT_WEEKS_MAX,
+  REPEAT_WEEKS_MIN,
+} from "./constants";
 import { belowTakenMessage, INVALID_DATE, INVALID_PLACES, INVALID_REASON, INVALID_REPEAT } from "./copy";
 import { daysBetween, isLondonDate } from "./dates";
 import type { CohortPlace, CohortSchedule, CohortSlot, CohortView, StoredCohort } from "./types";
@@ -76,7 +85,8 @@ export interface PlaceCounts {
   readonly reopened: number;
 }
 
-const isLiveHold = (p: CohortPlace, now: Date): boolean =>
+/** A hold still being paid: lapsed holds simply stop counting (no job). */
+export const isLiveHold = (p: CohortPlace, now: Date): boolean =>
   p.state === "held" && p.holdExpiresAt !== null && Date.parse(p.holdExpiresAt) > now.getTime();
 
 /** One cohort's counts from its place rows. */
@@ -151,7 +161,10 @@ export function validateSchedule(
 ): { readonly ok: true; readonly schedule: CohortSchedule } | Refusal<"invalid_date" | "invalid_repeat" | "invalid_places"> {
   const fields = typeof input === "object" && input !== null ? (input as Record<string, unknown>) : {};
   const first = typeof fields.firstStartDate === "string" ? fields.firstStartDate.trim() : "";
-  if (!isLondonDate(first)) return { ok: false, error: "invalid_date", message: INVALID_DATE };
+  const year = Number(first.slice(0, 4));
+  if (!isLondonDate(first) || year < FIRST_START_YEAR_MIN || year > FIRST_START_YEAR_MAX) {
+    return { ok: false, error: "invalid_date", message: INVALID_DATE };
+  }
   const repeatWeeks = parseWhole(fields.repeatWeeks, REPEAT_WEEKS_MIN, REPEAT_WEEKS_MAX);
   if (repeatWeeks === null) return { ok: false, error: "invalid_repeat", message: INVALID_REPEAT };
   const defaultPlaces = parsePlaces(fields.defaultPlaces);

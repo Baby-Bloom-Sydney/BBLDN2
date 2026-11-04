@@ -34,7 +34,7 @@ export function UpcomingTable({ entries, onOpenFamilies }: { readonly entries: r
             <TableRow key={e.view.start}>
               <TableCell className="whitespace-nowrap font-medium text-slate-900">{formatCohortDate(e.view.start)}</TableCell>
               <TableCell>
-                <PlacesEditor startDate={e.view.start} places={e.view.places} />
+                <PlacesEditor key={`${e.view.start}:${e.view.places}`} startDate={e.view.start} places={e.view.places} />
               </TableCell>
               <TableCell className="text-slate-700">
                 <span className="mr-2 whitespace-nowrap">{rowLine(e.view)}</span>

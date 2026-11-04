@@ -205,6 +205,8 @@ describe("validateSchedule", () => {
   it.each([
     [{ firstStartDate: "2027-02-30", repeatWeeks: 1, defaultPlaces: 5 }, "invalid_date"],
     [{ firstStartDate: "", repeatWeeks: 1, defaultPlaces: 5 }, "invalid_date"],
+    [{ firstStartDate: "9999-12-27", repeatWeeks: 1, defaultPlaces: 5 }, "invalid_date"],
+    [{ firstStartDate: "1999-12-27", repeatWeeks: 1, defaultPlaces: 5 }, "invalid_date"],
     [{ firstStartDate: "2027-02-01", repeatWeeks: 0, defaultPlaces: 5 }, "invalid_repeat"],
     [{ firstStartDate: "2027-02-01", repeatWeeks: 13, defaultPlaces: 5 }, "invalid_repeat"],
     [{ firstStartDate: "2027-02-01", repeatWeeks: 1.5, defaultPlaces: 5 }, "invalid_repeat"],

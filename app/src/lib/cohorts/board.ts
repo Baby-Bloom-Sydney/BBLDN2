@@ -16,7 +16,7 @@ import { nextMonday } from "./dates";
 import { allPagesByIds, callRpc, dbOk, DB_FAILED, logFailure, type AdminClient, type DbResult } from "./db";
 import { callsThisWeekSource, preBookedSource } from "./links";
 import { readFrame, readShownPlaces } from "./read";
-import { countsOf, viewOf } from "./rules";
+import { countsOf, isLiveHold, viewOf } from "./rules";
 import type {
   CallsFigure,
   CohortBoard,
@@ -62,17 +62,16 @@ async function readNames(admin: AdminClient, ids: readonly string[]): Promise<Db
 
 const nameOf = (names: ReadonlyMap<string, string>, userId: string): string => names.get(userId) || `Family ${userId.slice(0, 8)}`;
 
-const isLiveHold = (p: CohortPlace, now: Date): boolean =>
-  p.state === "held" && p.holdExpiresAt !== null && Date.parse(p.holdExpiresAt) > now.getTime();
-
 function familiesOf(places: readonly CohortPlace[], start: string, names: ReadonlyMap<string, string>, now: Date): readonly FamilyRow[] {
+  const shown = (p: CohortPlace): p is CohortPlace & { readonly state: FamilyRow["state"] } =>
+    p.cohortStartDate === start && (p.state === "taken" || p.state === "reopened" || isLiveHold(p, now));
   return places
-    .filter((p) => p.cohortStartDate === start && (p.state === "taken" || p.state === "reopened" || isLiveHold(p, now)))
+    .filter(shown)
     .map((p): FamilyRow => ({
       placeId: p.id,
       parentUserId: p.parentUserId,
       name: nameOf(names, p.parentUserId),
-      state: p.state === "hold_released" ? "held" : p.state,
+      state: p.state,
       paidBy: p.paidBy,
       isGoodwill: p.isGoodwill,
       takenAt: p.takenAt,
@@ -129,7 +128,8 @@ async function readPreBooked(admin: AdminClient, nextStart: string | null): Prom
   const source = preBookedSource();
   if (source === null || nextStart === null) return { kind: "not_connected" };
   try {
-    return { kind: "count", count: await source(admin, nextStart) };
+    const count = await source(admin, nextStart);
+    return count === null ? { kind: "unavailable" } : { kind: "count", count };
   } catch (thrown) {
     logFailure("preBooked", thrown);
     return { kind: "unavailable" };

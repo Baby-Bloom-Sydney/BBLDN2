@@ -7,6 +7,7 @@
  * BB-wave1-041126/04a-core, 2026-11-04 (stub); wired by BB-wave1-041126/02-build, 2026-11-04.
  */
 
+import { logFailure } from "@/lib/cohorts/db";
 import { readCurrentCohortSummary } from "@/lib/cohorts/read";
 import { cohortsEnabled } from "@/lib/features/flags";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -22,7 +23,7 @@ export async function readCurrentCohortLine(now: Date = new Date()): Promise<Coh
     const summary = await readCurrentCohortSummary(createAdminClient(), now);
     return summary.kind === "current" ? { places: summary.view.places, left: summary.view.left } : null;
   } catch (thrown) {
-    console.error("[calls/cohort-line] the cohort line could not be read", { name: thrown instanceof Error ? thrown.name : typeof thrown });
+    logFailure("cohort-line", thrown);
     return null;
   }
 }

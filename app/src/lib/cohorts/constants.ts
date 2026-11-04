@@ -11,6 +11,9 @@ export const HOLD_MINUTES_MAX = 60;
 /** Places in one cohort: a whole number from 0 (full) to 99 (brief §3.9). */
 export const PLACES_MIN = 0;
 export const PLACES_MAX = 99;
+/** A first start date outside these years is a typo, not a schedule (security review L4). */
+export const FIRST_START_YEAR_MIN = 2000;
+export const FIRST_START_YEAR_MAX = 2099;
 /** Repeat every N weeks (amendment 17, cohort_schedule). */
 export const REPEAT_WEEKS_MIN = 1;
 export const REPEAT_WEEKS_MAX = 12;

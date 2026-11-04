@@ -104,7 +104,7 @@ describe("families in a cohort, and Re-open place (§0.5, §0.8, §3.7)", () => 
   ];
   const open = () => {
     render(<CohortsClient board={makeBoard({ schedule: SCHEDULE, current: entry("2027-02-01", { taken: 2 }, { families }) })} />);
-    fireEvent.click(screen.getByRole("button", { name: "Families in the cohort starting Mon 1 Feb 2027 (4)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Families (4) in the cohort starting Mon 1 Feb 2027" }));
     return screen.getByRole("dialog");
   };
 
@@ -155,14 +155,32 @@ describe("places, edited inline (§0.4, §3.9)", () => {
   it("5 → 7 saves; → 2 is refused with the brief's message and the old value comes back", async () => {
     render(<CohortsClient board={makeBoard({ schedule: SCHEDULE, current: entry("2027-02-01", { taken: 3 }) })} />);
     const input = screen.getByLabelText("Places in the cohort starting Mon 1 Feb 2027");
+    const save = screen.getByRole("button", { name: "Save places for the cohort starting Mon 1 Feb 2027" });
     fireEvent.change(input, { target: { value: "7" } });
-    fireEvent.click(within(input.closest("div")!.parentElement!).getByRole("button", { name: "Save" }));
+    fireEvent.click(save);
     await waitFor(() => expect(actions.setCohortPlaces).toHaveBeenCalledWith({ startDate: "2027-02-01", places: "7" }));
     actions.setCohortPlaces.mockResolvedValue({ ok: false, error: "below_taken", message: "3 places are already taken or being paid for. Set at least 3." });
     fireEvent.change(input, { target: { value: "2" } });
-    fireEvent.click(within(input.closest("div")!.parentElement!).getByRole("button", { name: "Save" }));
+    fireEvent.click(save);
     expect(await screen.findByRole("alert")).toHaveTextContent("3 places are already taken or being paid for. Set at least 3.");
     expect(input).toHaveValue(5);
+  });
+});
+
+describe("new numbers from the server reset the editor (code review M1)", () => {
+  it("a schedule change to 6 places shows 6 in the input, not the old 5", () => {
+    const board = (places: number) => makeBoard({ schedule: SCHEDULE, upcoming: [entry("2027-02-08", { places })], next: entry("2027-02-08", { places }) });
+    const { rerender } = render(<CohortsClient board={board(5)} />);
+    expect(screen.getByLabelText("Places in the cohort starting Mon 8 Feb 2027")).toHaveValue(5);
+    rerender(<CohortsClient board={board(6)} />);
+    expect(screen.getByLabelText("Places in the cohort starting Mon 8 Feb 2027")).toHaveValue(6);
+    expect(screen.getByRole("button", { name: "Save places for the cohort starting Mon 8 Feb 2027" })).toBeDisabled();
+  });
+
+  it("each Save button names its cohort (code review M3)", () => {
+    render(<CohortsClient board={makeBoard({ schedule: SCHEDULE, upcoming: weeks("2027-02-01", 8), next: weeks("2027-02-01", 1)[0] })} />);
+    const names = screen.getAllByRole("button", { name: /^Save places for the cohort starting/ }).map((b) => b.getAttribute("aria-label"));
+    expect(new Set(names).size).toBe(8);
   });
 });
 

@@ -14,7 +14,7 @@ import { revalidatePath } from "next/cache";
 import { proveAdmin, type AdminProof } from "@/lib/calls/admin-proof";
 import { actionErrorMessage, ALREADY_REOPENED, INVALID_PLACES } from "@/lib/cohorts/copy";
 import { isLondonDate } from "@/lib/cohorts/dates";
-import type { AdminClient } from "@/lib/cohorts/db";
+import { logFailure, type AdminClient } from "@/lib/cohorts/db";
 import { reopenPlace, saveSchedule, setCohortPlaces as setPlaces } from "@/lib/cohorts/places";
 import { parsePlaces, validateReason, validateSchedule } from "@/lib/cohorts/rules";
 import { cohortsEnabled } from "@/lib/features/flags";
@@ -38,7 +38,7 @@ async function gate(): Promise<{ readonly proof: AdminProof; readonly admin: Adm
   try {
     return { proof, admin: createAdminClient() };
   } catch (thrown) {
-    console.error("[admin/cohorts] no admin client", { name: thrown instanceof Error ? thrown.name : typeof thrown });
+    logFailure("admin/cohorts client", thrown);
     return refused("save_failed");
   }
 }

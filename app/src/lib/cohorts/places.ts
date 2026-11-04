@@ -7,6 +7,10 @@
  * - A parent id passed in is the subject, never proof of who acts (04a security review). Operations BAI performs
  *   take an `AdminProof` from `proveAdmin()` (imported from `@/lib/calls/admin-proof`, the module 04's
  *   `contracts.ts` re-exports; `isAdminProof` isn't re-exported there) and record its user as the actor.
+ * - Hold, attach, release and convert take a parent id that the CALLER must already have verified — brief 03's
+ *   deposit token for the parent herself, the signature-verified Stripe event for convert (brief §5 "These run only
+ *   from server code that has already checked an admin or brief 03's deposit token"). How 03 proves that (e.g. a
+ *   branded proof like `AdminProof`) is 03's contract to add here; no caller exists yet (security review M1).
  * - Results are closed unions. A refusal is its status; an RPC error, a throw or a reply that doesn't fit is
  *   `{ ok: false, status: "error" }`, logged by code. Nothing is thrown, and nothing here talks to Stripe.
  *
@@ -152,7 +156,8 @@ export type TakeRequest =
       readonly parentUserId: string;
       readonly holdId: string;
       readonly paymentIntentId: string;
-      readonly sessionId?: string | null;
+      /** The Checkout session the hold was paid in — always known to the webhook, so always required. */
+      readonly sessionId: string;
       readonly startDate?: string | null;
     }
   | {
@@ -197,10 +202,9 @@ function takeArgs(req: TakeRequest): Readonly<Record<string, unknown>> | null {
   if (!isUuid(req.parentUserId)) return null;
   if (req.kind === "convert") {
     const startOk = req.startDate === undefined || req.startDate === null || isLondonDate(req.startDate);
-    const sessionOk = req.sessionId === undefined || req.sessionId === null || isStripeId(req.sessionId);
-    if (!isUuid(req.holdId) || !isStripeId(req.paymentIntentId) || !startOk || !sessionOk) return null;
+    if (!isUuid(req.holdId) || !isStripeId(req.paymentIntentId) || !startOk || !isStripeId(req.sessionId)) return null;
     return { p_parent: req.parentUserId, p_start: req.startDate ?? null, p_hold_id: req.holdId, p_paid_by: "card",
-      p_payment_intent: req.paymentIntentId, p_goodwill: false, p_session_id: req.sessionId ?? null, p_actor: null };
+      p_payment_intent: req.paymentIntentId, p_goodwill: false, p_session_id: req.sessionId, p_actor: null };
   }
   const intent = req.paymentIntentId ?? null;
   if (!isAdminProof(req.proof) || !isLondonDate(req.startDate) || (intent !== null && !isStripeId(intent))
@@ -319,6 +323,9 @@ export interface PaymentPlace {
   readonly cohortStartDate: string;
 }
 
+/** Postgres "undefined table" and PostgREST "table not in the schema cache". */
+const MISSING_TABLE: ReadonlySet<string> = new Set(["42P01", "PGRST205"]);
+
 const paymentPlaceRow = z.object({
   id: z.string().min(1),
   state: z.enum(["held", "hold_released", "taken", "reopened"]),
@@ -335,6 +342,9 @@ export async function findPlaceByPaymentIntent(admin: AdminClient, paymentIntent
       .select("id, state, parent_user_id, cohort_start_date")
       .eq("stripe_payment_intent_id", paymentIntentId)
       .maybeSingle();
+    // before amendment 17 is applied there is no table, so no place: nothing to do and nothing to log, exactly as
+    // today (code review M2; the deposit stamp's "column not readable" pattern)
+    if (error && MISSING_TABLE.has(error.code ?? "")) return dbOk(null);
     if (error) {
       logFailure("findPlaceByPaymentIntent", error);
       return DB_FAILED;

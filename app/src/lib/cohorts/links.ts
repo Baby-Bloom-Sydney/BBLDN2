@@ -19,8 +19,8 @@ import type { CallCounts } from "./types";
 
 /** 04's "calls still to make this week". Null from the call itself = the numbers couldn't be read. */
 export type CallsThisWeek = (admin: AdminClient, now: Date) => Promise<CallCounts | null>;
-/** 03's pre-bookings for one cohort (its London start date). */
-export type PreBookedFor = (admin: AdminClient, cohortStartDate: string) => Promise<number>;
+/** 03's pre-bookings for one cohort (its London start date). Null = couldn't be read — never a stand-in 0. */
+export type PreBookedFor = (admin: AdminClient, cohortStartDate: string) => Promise<number | null>;
 
 export function callsThisWeekSource(): CallsThisWeek | null {
   return callBookingEnabled() ? (_admin, now) => getCallsToMake(londonWeekRange(now)) : null;

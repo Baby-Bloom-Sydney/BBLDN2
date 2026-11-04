@@ -8,7 +8,7 @@ const gate = vi.hoisted(() => ({ result: { userId: "a0000000-0000-4000-8000-0000
 vi.mock("@/lib/admin/require-admin", () => ({ requireAdmin: async () => gate.result }));
 const links = vi.hoisted(() => ({
   calls: null as null | ((admin: unknown, now: Date) => Promise<{ booked: number; notBooked: number } | null>),
-  preBooked: null as null | ((admin: unknown, start: string) => Promise<number>),
+  preBooked: null as null | ((admin: unknown, start: string) => Promise<number | null>),
 }));
 vi.mock("./links", () => ({ callsThisWeekSource: () => links.calls, preBookedSource: () => links.preBooked }));
 
@@ -170,6 +170,11 @@ describe("loadCohortBoard — numbers 02 doesn't own (brief §0.11, §0.12)", ()
     expect(b.calls).toEqual({ kind: "counts", counts: { booked: 8, notBooked: 4 } });
     expect(b.preBooked).toEqual({ kind: "count", count: 2 });
     expect(asked).toEqual(["2027-02-08"]);
+  });
+
+  it("03's count that couldn't be read (null) is 'unavailable', never 0 (code review L3)", async () => {
+    links.preBooked = async () => null;
+    expect((await board()).preBooked).toEqual({ kind: "unavailable" });
   });
 
   it("a source that fails or throws is 'unavailable', never 0", async () => {

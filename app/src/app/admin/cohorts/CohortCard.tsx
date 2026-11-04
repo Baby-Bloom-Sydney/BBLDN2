@@ -22,13 +22,8 @@ export function OverByBadge({ overBy }: { readonly overBy: number }) {
 export function FamiliesButton({ entry, onOpen }: { readonly entry: CohortEntry; readonly onOpen: (start: string) => void }) {
   const n = entry.families.length;
   return (
-    <button
-      type="button"
-      className={ACTION_BUTTON}
-      aria-label={`Families in the cohort starting ${formatCohortDate(entry.view.start)} (${n})`}
-      onClick={() => onOpen(entry.view.start)}
-    >
-      Families ({n})
+    <button type="button" className={ACTION_BUTTON} onClick={() => onOpen(entry.view.start)}>
+      Families ({n}) <span className="sr-only">in the cohort starting {formatCohortDate(entry.view.start)}</span>
     </button>
   );
 }
@@ -66,7 +61,7 @@ export function CohortCard(props: Props) {
             </div>
           )}
           <div className="flex flex-wrap items-end justify-between gap-3">
-            {props.kind === "current" ? <PlacesEditor startDate={v.start} places={v.places} /> : <span />}
+            {props.kind === "current" ? <PlacesEditor key={`${v.start}:${v.places}`} startDate={v.start} places={v.places} /> : <span />}
             <FamiliesButton entry={props.entry} onOpen={props.onOpenFamilies} />
           </div>
         </CardContent>

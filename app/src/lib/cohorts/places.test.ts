@@ -133,7 +133,7 @@ describe("takePlace", () => {
 
   it("a late payment comes back over by 1 (brief §0.10)", async () => {
     const f = answering("cohort_take_place", { ...taken, over_by: 1 });
-    expect(await takePlace(f.client, { kind: "convert", parentUserId: PARENT, holdId: PLACE, paymentIntentId: "pi_1" })).toMatchObject({ overBy: 1 });
+    expect(await takePlace(f.client, { kind: "convert", parentUserId: PARENT, holdId: PLACE, paymentIntentId: "pi_1", sessionId: "cs_1" })).toMatchObject({ overBy: 1 });
   });
 
   it("direct (bank-transfer mark-paid) needs a real admin proof and records who", async () => {
@@ -154,7 +154,7 @@ describe("takePlace", () => {
 
   it("the same payment again → already_recorded with the place's state (never read as 'has a place')", async () => {
     const f = answering("cohort_take_place", { status: "already_recorded", place_id: PLACE, cohort_start_date: "2027-02-01", state: "reopened" });
-    expect(await takePlace(f.client, { kind: "convert", parentUserId: PARENT, holdId: PLACE, paymentIntentId: "pi_1" })).toEqual({
+    expect(await takePlace(f.client, { kind: "convert", parentUserId: PARENT, holdId: PLACE, paymentIntentId: "pi_1", sessionId: "cs_1" })).toEqual({
       ok: true, status: "already_recorded", placeId: PLACE, cohortStartDate: "2027-02-01", state: "reopened",
     });
   });
@@ -169,12 +169,13 @@ describe("takePlace", () => {
     [{ status: "surprise" }, { ok: false, status: "error" }],
   ])("maps %o", async (data, expected) => {
     const f = answering("cohort_take_place", data);
-    expect(await takePlace(f.client, { kind: "convert", parentUserId: PARENT, holdId: PLACE, paymentIntentId: "pi_1" })).toEqual(expected);
+    expect(await takePlace(f.client, { kind: "convert", parentUserId: PARENT, holdId: PLACE, paymentIntentId: "pi_1", sessionId: "cs_1" })).toEqual(expected);
   });
 
-  it("a convert needs a payment intent", async () => {
+  it("a convert needs its payment intent and its Checkout session (security review M1)", async () => {
     const f = fakeAdmin();
-    expect(await takePlace(f.client, { kind: "convert", parentUserId: PARENT, holdId: PLACE, paymentIntentId: "" })).toEqual({ ok: false, status: "invalid" });
+    expect(await takePlace(f.client, { kind: "convert", parentUserId: PARENT, holdId: PLACE, paymentIntentId: "", sessionId: "cs_1" })).toEqual({ ok: false, status: "invalid" });
+    expect(await takePlace(f.client, { kind: "convert", parentUserId: PARENT, holdId: PLACE, paymentIntentId: "pi_1", sessionId: "" })).toEqual({ ok: false, status: "invalid" });
     expect(f.rpcCalls).toHaveLength(0);
   });
 });
@@ -236,6 +237,16 @@ describe("ensureCohort (plan R10) and findPlaceByPaymentIntent (the refund hook)
     const g = fakeAdmin();
     g.readErrors.cohort_places = { message: "down", code: "XX000" };
     expect(await findPlaceByPaymentIntent(g.client, "pi_1")).toEqual({ ok: false });
+  });
+
+  it("before amendment 17 is applied (no table) there's no place, and nothing is logged (code review M2)", async () => {
+    vi.mocked(console.error).mockClear();
+    for (const code of ["42P01", "PGRST205"]) {
+      const f = fakeAdmin();
+      f.readErrors.cohort_places = { message: "relation does not exist", code };
+      expect(await findPlaceByPaymentIntent(f.client, "pi_1")).toEqual({ ok: true, value: null });
+    }
+    expect(console.error).not.toHaveBeenCalled();
   });
 
   it("parseReopenResult reads a raw reply", () => {
