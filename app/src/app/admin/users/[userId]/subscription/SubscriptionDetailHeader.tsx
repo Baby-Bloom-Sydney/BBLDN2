@@ -16,6 +16,8 @@ import {
 import { UserDetailDrawer } from "@/app/admin/users/UserDetailDrawer";
 import type { UserData } from "@/app/admin/users/page";
 import type { ParentSubscriptionRow } from "./page";
+import { panelLine } from "@/lib/cohorts/copy";
+import type { CurrentCohortSummary } from "@/lib/cohorts/types";
 
 interface Props {
   parentUserData: UserData | null;
@@ -24,6 +26,8 @@ interface Props {
   sub: ParentSubscriptionRow | null;
   /** 4c — first week's wages from the placement snapshot, the balance preview's default. */
   placementWagesPence?: number | null;
+  /** Brief 02 — the current cohort, read only while COHORTS_ENABLED is on (absent/null = no line). */
+  cohort?: CurrentCohortSummary | null;
 }
 
 /** Top-of-page parent + nanny tiles with quick-access drawer buttons
@@ -35,6 +39,7 @@ export function SubscriptionDetailHeader({
   nannyUserData,
   sub,
   placementWagesPence = null,
+  cohort = null,
 }: Props) {
   const [drawerUser, setDrawerUser] = useState<UserData | null>(null);
 
@@ -100,6 +105,7 @@ export function SubscriptionDetailHeader({
           parentUserId={parentUserData.user_id}
           sub={sub}
           placementWagesPence={placementWagesPence}
+          cohort={cohort}
         />
       )}
 
@@ -224,10 +230,12 @@ function DfyPanel({
   parentUserId,
   sub,
   placementWagesPence,
+  cohort,
 }: {
   parentUserId: string;
   sub: ParentSubscriptionRow | null;
   placementWagesPence: number | null;
+  cohort: CurrentCohortSummary | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -296,6 +304,13 @@ function DfyPanel({
             {sub ? ` · ${sub.status.replace(/_/g, " ")}` : " · no subscription row"}
           </p>
         </div>
+
+        {/* Brief 02: "Current cohort: starts Mon 1 Feb · 2 of 5 left" — brief 03's send and mark-paid buttons sit by it. */}
+        {cohort && panelLine(cohort) && (
+          <p data-testid="dfy-cohort-line" className="text-sm text-slate-600">
+            {panelLine(cohort)}
+          </p>
+        )}
 
         {sub && (
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm md:grid-cols-4">
