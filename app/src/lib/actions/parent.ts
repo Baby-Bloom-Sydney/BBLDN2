@@ -842,21 +842,22 @@ async function cascadePaymentsOnAccountClose(
   //    status; matches the placement-lifecycle constants used
   //    elsewhere in the codebase. FIXES F-1: the table keys the parent by
   //    `parent_id` (the parents row), not the auth user id.
-  if (!parentRowId) return;
-  const placementsResult = await admin
-    .from("nanny_placements")
-    .update({
-      status: "ended",
-      ended_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("parent_id", parentRowId)
-    .eq("status", "active");
-  if (placementsResult.error) {
-    console.error(
-      "[cascadePaymentsOnAccountClose] nanny_placements end failed",
-      placementsResult.error,
-    );
+  if (parentRowId) {
+    const placementsResult = await admin
+      .from("nanny_placements")
+      .update({
+        status: "ended",
+        ended_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("parent_id", parentRowId)
+      .eq("status", "active");
+    if (placementsResult.error) {
+      console.error(
+        "[cascadePaymentsOnAccountClose] nanny_placements end failed",
+        placementsResult.error,
+      );
+    }
   }
 }
 
