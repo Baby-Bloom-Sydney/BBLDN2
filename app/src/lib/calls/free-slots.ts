@@ -36,7 +36,13 @@ export const overlaps = (a: TimeSpan, b: TimeSpan): boolean => a.startsAt < b.en
 
 type GridInput = Omit<FreeSlotsInput, "blocks" | "bookings">;
 
-function bounds(input: GridInput): { earliest: string; latest: string | null } {
+/**
+ * The earliest and latest start a parent may pick now: now + notice, and now + window (inclusive). The window is
+ * dropped (`latest: null`) only for one London date asked with `ignoreWindow` — the cohort pre-book.
+ */
+export function slotBounds(
+  input: Pick<GridInput, "settings" | "now" | "londonDate" | "ignoreWindow">,
+): { readonly earliest: string; readonly latest: string | null } {
   const earliest = new Date(input.now.getTime() + input.settings.noticeMinutes * MINUTE_MS).toISOString();
   const keepWindow = !(input.londonDate !== undefined && input.ignoreWindow === true);
   const latest = keepWindow ? new Date(input.now.getTime() + input.settings.windowDays * DAY_MS).toISOString() : null;
@@ -45,7 +51,7 @@ function bounds(input: GridInput): { earliest: string; latest: string | null } {
 
 /** The grid inside the notice and the window, before blocks and bookings are taken away. */
 export function candidateSlots(input: GridInput): readonly Slot[] {
-  const { earliest, latest } = bounds(input);
+  const { earliest, latest } = slotBounds(input);
   const fromDate = input.londonDate ?? londonDateOf(earliest);
   const toDate = input.londonDate ?? londonDateOf(latest ?? earliest);
   return generateSlots({ hours: input.hours, fromDate, toDate, slotMinutes: input.settings.slotMinutes }).filter(
