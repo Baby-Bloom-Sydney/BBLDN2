@@ -102,6 +102,16 @@ describe("AdminPositionsClient — ?openPosition", () => {
     expect(scrolled).toHaveLength(0);
   });
 
+  it("a refresh (new positions array, same link) doesn't re-open or re-scroll a row she collapsed (review)", () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    const { rerender } = render(<AdminPositionsClient positions={POSITIONS} openPositionId={B} />);
+    fireEvent.click(screen.getByText("Hartley Family"));
+    expect(expanded(B)).toBeNull();
+    rerender(<AdminPositionsClient positions={[...POSITIONS]} openPositionId={B} />);
+    expect(expanded(B)).toBeNull();
+    expect(scrolled).toHaveLength(1);
+  });
+
   it("a row opened from the link still toggles by click, as today", () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "true");
     render(<AdminPositionsClient positions={POSITIONS} openPositionId={B} />);

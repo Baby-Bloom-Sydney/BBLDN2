@@ -164,6 +164,49 @@ describe("OnBehalfPicker — booked", () => {
     expect(screen.getByRole("button", { name: "Cancel booking" })).toBeInTheDocument();
   });
 
+  it("the cancel question goes when her booking changes under it (review: 'Yes' would act on a stale booking)", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<OnBehalfPicker parentUserId={AVA} booking={PANEL.booking} days={PANEL_DAYS} onChanged={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Cancel booking" }));
+    rerender(<OnBehalfPicker parentUserId={AVA} booking={null} days={PANEL_DAYS} onChanged={vi.fn()} />);
+    expect(screen.queryByText("Cancel this matchmaker call? The family is emailed.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Book a matchmaker call" })).toBeInTheDocument();
+  });
+
+  it("focus follows the steps: Back on the picker, Keep it on the question, the status line after a write", async () => {
+    const user = userEvent.setup();
+    render(<OnBehalfPicker parentUserId={AVA} booking={PANEL.booking} days={PANEL_DAYS} onChanged={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Move" }));
+    expect(screen.getByRole("button", { name: "Back" })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    await user.click(screen.getByRole("button", { name: "Cancel booking" }));
+    expect(screen.getByRole("button", { name: "Keep it" })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Yes, cancel it" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveFocus());
+  });
+
+  it("a refused cancel's line is cleared once she leaves the question", async () => {
+    const user = userEvent.setup();
+    actions.cancelCallForFamily.mockResolvedValue({ ok: false, error: "error" });
+    render(<OnBehalfPicker parentUserId={AVA} booking={PANEL.booking} days={PANEL_DAYS} onChanged={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Cancel booking" }));
+    await user.click(screen.getByRole("button", { name: "Yes, cancel it" }));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Keep it" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("after a write, the buttons wait for the page's fresh props (code review: a stale 'Cancel' showed for a moment)", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<OnBehalfPicker parentUserId={AVA} booking={PANEL.booking} days={PANEL_DAYS} onChanged={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Cancel booking" }));
+    await user.click(screen.getByRole("button", { name: "Yes, cancel it" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Cancelled"));
+    expect(screen.getByRole("button", { name: "Cancel booking" })).toBeDisabled();
+    rerender(<OnBehalfPicker parentUserId={AVA} booking={null} days={[...PANEL_DAYS]} onChanged={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Book a matchmaker call" })).toBeEnabled();
+  });
+
   it("a call that has started: no Move, no Cancel (record the outcome instead)", () => {
     render(<OnBehalfPicker parentUserId={AVA} booking={{ ...PANEL.booking!, changeable: false }} days={PANEL_DAYS} onChanged={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Move" })).not.toBeInTheDocument();

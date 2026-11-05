@@ -25,7 +25,8 @@ interface AdminCallsPageProps {
 function openCallParam(searchParams: AdminCallsPageProps["searchParams"]): string | null {
   const raw = searchParams?.openCall;
   const value = Array.isArray(raw) ? raw[0] : raw;
-  return z.uuid().safeParse(value).success ? (value as string) : null;
+  const parsed = z.uuid().safeParse(value);
+  return parsed.success ? parsed.data : null;
 }
 
 export default async function AdminCallsPage({ searchParams }: AdminCallsPageProps) {

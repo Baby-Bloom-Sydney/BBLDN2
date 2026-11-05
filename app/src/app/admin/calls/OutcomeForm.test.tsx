@@ -102,6 +102,19 @@ describe("OutcomeForm — saving", () => {
     expect(actions.recordCallOutcomeAction.mock.calls[0][0]).toMatchObject({ result: "answered", outcome: "call_back_later", callBackDate: "2027-02-05", callBackTime: "17:30" });
   });
 
+  it("a call-back with only a date (or only a time) can't be saved, and says why (review: it was dropped silently)", async () => {
+    const user = userEvent.setup();
+    render(<OutcomeForm parentUserId={AVA} bookingId={BOOKING} />);
+    await user.click(chip("Answered"));
+    await user.click(chip("Call back later"));
+    await user.type(screen.getByLabelText("Call back date"), "2027-02-05");
+    expect(save()).toBeDisabled();
+    expect(screen.getByText("Add both a date and a time, or neither.")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Call back time"), "17:30");
+    expect(save()).toBeEnabled();
+    expect(screen.queryByText("Add both a date and a time, or neither.")).not.toBeInTheDocument();
+  });
+
   it("Stop calling while booked → 'Cancel the booked time first', in an alert; nothing cleared", async () => {
     const user = userEvent.setup();
     actions.recordCallOutcomeAction.mockResolvedValue({ ok: false, error: "booked_call_exists" });

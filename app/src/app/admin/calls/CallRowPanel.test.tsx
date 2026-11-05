@@ -91,6 +91,12 @@ describe("CallRowPanel", () => {
     expect(screen.getByRole("button", { name: "Book a matchmaker call" })).toBeInTheDocument();
   });
 
+  it("the body scrolls inside the drawer, so the header (name, links, close) stays (review: the leads drawer's model)", () => {
+    render(<CallRowPanel panel={PANEL} renderCallControl={defaultCallControl} onChanged={vi.fn()} />);
+    const body = screen.getByText("Every time on this page is London time.").parentElement!;
+    expect(body.className).toContain("min-h-0 flex-1 overflow-y-auto");
+  });
+
   it("no attempts yet says so", () => {
     render(<CallRowPanel panel={{ ...PANEL, attempts: [] }} renderCallControl={defaultCallControl} onChanged={vi.fn()} />);
     expect(within(block("Every attempt")).getByText("No attempts yet.")).toBeInTheDocument();

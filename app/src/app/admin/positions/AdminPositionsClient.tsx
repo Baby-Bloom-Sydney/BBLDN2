@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useTransition, useEffect } from 'react';
+import { useState, useMemo, useTransition, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Briefcase, Users, CheckCircle, XCircle, Search, ChevronDown, ChevronRight, ExternalLink, Ban, User } from 'lucide-react';
 import { closePositionAction, fetchUserData } from './actions';
@@ -27,9 +27,12 @@ interface Props {
  * Flag off, no id, or an id not on the page → nothing happens (today's page).
  */
 function useOpenPosition(targetId: string | null, positions: AdminPosition[], open: (id: string) => void) {
+  // Once per link: a refresh (a new positions array) must not re-open a row she has since collapsed.
+  const handled = useRef<string | null>(null);
   useEffect(() => {
-    if (!callBookingEnabled() || !targetId) return;
+    if (!callBookingEnabled() || !targetId || handled.current === targetId) return;
     if (!positions.some(p => p.id === targetId)) return;
+    handled.current = targetId;
     open(targetId);
     document.getElementById(`position-row-${targetId}`)?.scrollIntoView({ block: 'start' });
   }, [targetId, positions, open]);

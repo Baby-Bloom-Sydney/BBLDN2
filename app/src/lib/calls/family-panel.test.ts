@@ -159,6 +159,15 @@ describe("the drawer's facts (brief §3 admin 2)", () => {
     expect(got.ok && got.value.booking).toMatchObject({ bookingId: BOOKED.id, purpose: "first_call" });
   });
 
+  it("a booked call 15 minutes past its start is tagged Overdue here too, as on her row (code review)", async () => {
+    const late = bookingRow({ parentUserId: JANE, startsAt: "2027-02-04T09:30:00.000Z" });
+    const got = await loadFamilyPanel(PROOF, JANE, setup({ bookings: [late] }).deps);
+    expect(got.ok && got.value.tags).toEqual(["overdue", "test"]);
+    const justStarted = bookingRow({ parentUserId: JANE, startsAt: "2027-02-04T09:50:00.000Z" });
+    const fresh = await loadFamilyPanel(PROOF, JANE, setup({ bookings: [justStarted] }).deps);
+    expect(fresh.ok && fresh.value.tags).toEqual(["test"]);
+  });
+
   it("not booked → booking null", async () => {
     const got = await loadFamilyPanel(PROOF, JANE, setup({ bookings: [] }).deps);
     expect(got.ok && got.value.booking).toBeNull();
@@ -200,7 +209,7 @@ describe("failures", () => {
     expect(got.ok && got.value.deposit).toBe("Could not be read");
   });
 
-  it.each(["readBookingsForParents", "readLogEntriesForParents", "readContacts", "readBlocks"] as const)("%s fails → error", async (method) => {
+  it.each(["readBookingsForParents", "readLogEntriesForParents", "readContacts", "readBlocks", "readSettings"] as const)("%s fails → error", async (method) => {
     expect(await loadFamilyPanel(PROOF, JANE, setup({ failing: [method] }).deps)).toEqual({ ok: false, error: "error" });
   });
 

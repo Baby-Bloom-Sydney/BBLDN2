@@ -121,7 +121,7 @@ function HistoryTable({ rows, onOpen }: { readonly rows: readonly HistoryRowView
         <TableCaption className="sr-only">{ADMIN_COPY.sectionHistory}</TableCaption>
         <TableHeader>
           <TableRow>
-            {[ADMIN_COPY.colWhen, ADMIN_COPY.colFamily, "What happened", "Note", "Recorded by"].map((h) => (
+            {[ADMIN_COPY.colWhen, ADMIN_COPY.colFamily, ADMIN_COPY.colWhat, ADMIN_COPY.colNote, ADMIN_COPY.colBy].map((h) => (
               <TableHead key={h}>{h}</TableHead>
             ))}
           </TableRow>

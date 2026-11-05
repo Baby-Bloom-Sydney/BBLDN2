@@ -13,7 +13,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Phone } from "lucide-react";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
-import { ADMIN_COPY } from "@/lib/calls/copy";
+import { ADMIN_COPY, callControlLabel } from "@/lib/calls/copy";
 import type { CallRowView } from "@/lib/calls/dashboard";
 import { tagLabel, type CallTag, type ContactWords, type PositionSummary, type RowLinks } from "@/lib/calls/dashboard-row";
 
@@ -27,12 +27,12 @@ const CALL_LINK =
 /** The default: tap to call her mobile (`tel:` in E.164). */
 export const defaultCallControl: RenderCallControl = ({ contact }) =>
   contact.mobile ? (
-    <a href={contact.mobile.href} aria-label={`Call ${contact.name} on ${contact.mobile.text}`} className={CALL_LINK}>
+    <a href={contact.mobile.href} aria-label={callControlLabel(contact.name, contact.mobile.text)} className={CALL_LINK}>
       <Phone className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span className="whitespace-nowrap">{contact.mobile.text}</span>
     </a>
   ) : (
-    <span className="text-sm text-slate-400">{ADMIN_COPY.noMobile}</span>
+    <span className="text-sm text-slate-500">{ADMIN_COPY.noMobile}</span>
   );
 
 const TAG_VARIANT: Readonly<Record<CallTag, "failed" | "pending" | "verified" | "inactive">> = {

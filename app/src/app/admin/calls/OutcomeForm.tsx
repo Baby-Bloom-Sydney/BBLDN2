@@ -16,7 +16,7 @@
  * Brief 05's "after call" hook: `prefill` (what JustCall knows), `extraReadOnly` (shown above the chips), `onSaved`.
  */
 
-import { useState, useTransition, type ReactNode } from "react";
+import { useId, useState, useTransition, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -138,8 +138,8 @@ function CallBackFields({ s, disabled }: { readonly s: OutcomeState; readonly di
     <div className="space-y-1">
       <p className="text-xs text-slate-500">{ADMIN_COPY.callBackAtLabel}</p>
       <div className="flex flex-wrap gap-2">
-        <Input type="date" aria-label="Call back date" value={s.callBackDate} onChange={(e) => s.setCallBackDate(e.target.value)} disabled={disabled} className="max-w-[11rem]" />
-        <Input type="time" aria-label="Call back time" value={s.callBackTime} onChange={(e) => s.setCallBackTime(e.target.value)} disabled={disabled} className="max-w-[8rem]" />
+        <Input type="date" aria-label={ADMIN_COPY.callBackDate} value={s.callBackDate} onChange={(e) => s.setCallBackDate(e.target.value)} disabled={disabled} className="max-w-[11rem]" />
+        <Input type="time" aria-label={ADMIN_COPY.callBackTime} value={s.callBackTime} onChange={(e) => s.setCallBackTime(e.target.value)} disabled={disabled} className="max-w-[8rem]" />
       </div>
     </div>
   );
@@ -173,7 +173,10 @@ export function OutcomeForm({ parentUserId, bookingId, prefill, extraReadOnly, o
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("");
-  const canSave = s.result !== null || s.outcome === "stop_calling";
+  const headingId = useId();
+  // Call back later with only a date or only a time would drop the call-back silently: say so, and wait.
+  const halfCallBack = s.result === "answered" && s.outcome === "call_back_later" && (s.callBackDate === "") !== (s.callBackTime === "");
+  const canSave = (s.result !== null || s.outcome === "stop_calling") && !halfCallBack;
   const submit = () => {
     setError(null);
     setStatus("");
@@ -191,12 +194,13 @@ export function OutcomeForm({ parentUserId, bookingId, prefill, extraReadOnly, o
     });
   };
   return (
-    <section aria-labelledby="calls-outcome-heading" className="space-y-3 rounded-md border border-slate-200 bg-white p-3">
-      <h3 id="calls-outcome-heading" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+    <section aria-labelledby={headingId} className="space-y-3 rounded-md border border-slate-200 bg-white p-3">
+      <h3 id={headingId} className="text-xs font-semibold uppercase tracking-wide text-slate-500">
         {ADMIN_COPY.recordOutcome}
       </h3>
       {extraReadOnly}
       <Chips s={s} pending={pending} />
+      {halfCallBack && <p className="text-xs text-amber-700">{ADMIN_COPY.callBackBoth}</p>}
       <label className="block text-xs">
         <span className="mb-1 block text-slate-500">{ADMIN_COPY.noteLabel}</span>
         <Textarea value={s.note} onChange={(e) => s.setNote(e.target.value)} disabled={pending} rows={2} maxLength={2000} className="text-sm" />

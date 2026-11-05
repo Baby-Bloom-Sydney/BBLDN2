@@ -4,8 +4,8 @@
  * attempt and note with who recorded it, the four links, the tags, and her picker grid for booking on her behalf.
  *
  * Server-only, not `"use server"`. The switch, then the admin proof, then the id (a user id), before any read; a
- * user with no parents row (not a parent) → `not_found`. Fails closed on her bookings, attempts, contact, blocks or
- * row data; the deposit and the grid are each optional ("Could not be read", and the picker's load-failed state).
+ * user with no parents row (not a parent) → `not_found`. Fails closed on her bookings, attempts, contact, blocks, the
+ * settings (the Overdue tag) or row data; the deposit and the grid are each optional ("Could not be read", and the picker's load-failed state).
  *
  * BB-wave1-041126/04c1-build, 2026-11-05.
  */
@@ -82,15 +82,19 @@ interface HerCalls {
   readonly booking: CallBooking | null;
   readonly entries: readonly CallLogEntry[];
   readonly blocks: readonly CallBlock[];
+  /** `overdue_grace_minutes`, for the Overdue tag her row has too. */
+  readonly graceMinutes: number;
 }
 
 /** Her contact, her booked first call (and any block over it), and her attempts. */
 async function herCalls(parentUserId: string, deps: DashboardDeps): Promise<CallsResult<HerCalls>> {
-  const [contacts, bookings, entries] = await Promise.all([
+  const [contacts, bookings, entries, settings] = await Promise.all([
     deps.repo.readContacts([parentUserId]),
     deps.repo.readBookingsForParents([parentUserId]),
     deps.repo.readLogEntriesForParents([parentUserId]),
+    deps.repo.readSettings(),
   ]);
+  if (!settings.ok) return settings;
   if (!contacts.ok) return contacts;
   if (!bookings.ok) return bookings;
   if (!entries.ok) return entries;
@@ -99,7 +103,7 @@ async function herCalls(parentUserId: string, deps: DashboardDeps): Promise<Call
   const blocks = booking === null ? ok<readonly CallBlock[]>([]) : await deps.repo.readBlocks(booking);
   if (!blocks.ok) return blocks;
   const contact = contacts.value.find((c) => c.userId === parentUserId) ?? null;
-  return ok({ contact, booking, entries: entries.value, blocks: blocks.value });
+  return ok({ contact, booking, entries: entries.value, blocks: blocks.value, graceMinutes: settings.value.overdueGraceMinutes });
 }
 
 /** Who recorded each attempt, by name; an unreadable name is just left off. */
@@ -132,6 +136,10 @@ function bookingView(booking: CallBooking | null, now: Date): PanelBooking | nul
   };
 }
 
+/** Her row's Overdue rule (`who-next.ts`): a booked call at least the grace past its start. */
+const isOverdue = (booking: CallBooking | null, graceMinutes: number, now: Date): boolean =>
+  booking !== null && now.getTime() >= Date.parse(booking.startsAt) + graceMinutes * 60_000;
+
 const depositWords = (read: CallsResult<DepositFacts | null>): string =>
   read.ok ? depositLine(depositStateOf(read.value)) : ADMIN_COPY.depositUnreadable;
 
@@ -141,7 +149,7 @@ export async function loadFamilyPanel(proof: AdminProof, parentUserId: string, d
   if (!isAdminProof(proof) || !uuid.safeParse(parentUserId).success) return CALLS_INVALID;
   const [calls, deposit, grid] = await Promise.all([herCalls(parentUserId, deps), deps.reads.readDeposit(parentUserId), familySlotGrid(proof, parentUserId, deps)]);
   if (!calls.ok) return calls;
-  const { contact, booking, entries, blocks } = calls.value;
+  const { contact, booking, entries, blocks, graceMinutes } = calls.value;
   const preferred = new Map(booking?.positionId ? [[parentUserId, booking.positionId] as const] : []);
   const details = await deps.reads.readFamilyDetails([parentUserId], preferred);
   if (!details.ok) return details;
@@ -157,7 +165,12 @@ export async function loadFamilyPanel(proof: AdminProof, parentUserId: string, d
     position,
     deposit: depositWords(deposit),
     links: rowLinks(parentUserId, position?.positionId ?? null),
-    tags: tagsOf({ blockedOver: blocks.length > 0, overdue: false, cohortPrebook: booking?.purpose === "cohort_prebook", test: contact?.isTestUser === true }),
+    tags: tagsOf({
+      blockedOver: blocks.length > 0,
+      overdue: isOverdue(booking, graceMinutes, deps.now()),
+      cohortPrebook: booking?.purpose === "cohort_prebook",
+      test: contact?.isTestUser === true,
+    }),
     booking: bookingView(booking, deps.now()),
     attempts: entries.map((e) => attemptView(e, names)),
     days: grid.ok ? groupSlotGridByDay(grid.value) : null,

@@ -145,6 +145,13 @@ export const ADMIN_COPY = Object.freeze({
   bookedStatus: "Booked — the family is emailed.",
   movedStatus: "Moved — the family is emailed.",
   bookedLabel: "Booked",
+  callBackBoth: "Add both a date and a time, or neither.",
+  loading: "Loading…",
+  colWhat: "What happened",
+  colNote: "Note",
+  colBy: "Recorded by",
+  callBackDate: "Call back date",
+  callBackTime: "Call back time",
   errorDisabled: "Call booking is switched off.",
   errorNotAuthorized: "Admins only.",
   errorInvalid: "Check the result, outcome and time, then try again.",
@@ -265,4 +272,9 @@ const ADMIN_ERROR_LINES: Readonly<Record<AdminCallError, string>> = Object.freez
 /** One line per refusal code on /admin/calls (a full `Record`: a new code fails to compile until it has words). */
 export function adminErrorLine(error: AdminCallError): string {
   return ADMIN_ERROR_LINES[error];
+}
+
+/** The Call control's accessible name: "Call Jane Smith on +44 (0) 7700 900 123". */
+export function callControlLabel(name: string, mobile: string): string {
+  return `Call ${name} on ${mobile}`;
 }

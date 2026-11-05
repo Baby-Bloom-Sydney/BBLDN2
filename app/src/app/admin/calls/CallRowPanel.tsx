@@ -41,7 +41,8 @@ export function CallRowPanel({ panel, renderCallControl, onChanged }: CallRowPan
   return (
     <div className="flex h-full flex-col">
       <Header panel={panel} />
-      <div className="flex-1 space-y-5 px-4 pb-24 pt-4">
+      {/* The body scrolls itself (the leads drawer's model), so the header and the close button stay in view. */}
+      <div className="min-h-0 flex-1 overflow-y-auto space-y-5 px-4 pb-24 pt-4">
         <p className="text-xs text-slate-500">{ADMIN_COPY.londonNote}</p>
         <PanelBlock title={ADMIN_COPY.panelContact}>
           <ContactLines contact={panel.contact} call={renderCallControl(target)} />

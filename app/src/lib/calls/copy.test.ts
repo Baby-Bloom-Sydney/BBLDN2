@@ -10,6 +10,7 @@ import {
   PARENT_COPY,
   adminErrorLine,
   adminHeldLine,
+  callControlLabel,
   cohortPlacesLine,
   depositLine,
   hoursLine,
@@ -194,5 +195,11 @@ describe("adminErrorLine: every refusal code as one admin line, never detail (04
     expect(adminErrorLine("hold_expired")).toBe("Your hold ran out — pick again");
     expect(adminErrorLine("rate_limited")).toBe("Too many changes — try again in a while");
     expect(adminErrorLine("error")).toBe("That didn't save — try again.");
+  });
+});
+
+describe("the Call control's name (04c-1)", () => {
+  it("names the family and the number", () => {
+    expect(callControlLabel("Jane Smith", "+44 (0) 7700 900 123")).toBe("Call Jane Smith on +44 (0) 7700 900 123");
   });
 });

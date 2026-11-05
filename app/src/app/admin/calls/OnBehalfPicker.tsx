@@ -14,7 +14,7 @@
  * The picker speaks the parent's refusal codes, so the admin codes are mapped onto them (`PICKER_REFUSAL`).
  */
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition, type RefObject } from "react";
 import { SlotPicker, type PickerResult, type SlotPickerActions } from "@/components/calls/SlotPicker";
 import { Button } from "@/components/ui/button";
 import type { AdminCallError, AdminCallResult } from "@/lib/calls/admin-calls";
@@ -67,7 +67,12 @@ function usePickerActions(parentUserId: string, setDays: (d: readonly SlotDay[])
   };
 }
 
-function BookedPanel({ booking, onMove, onCancel }: { readonly booking: PanelBooking; readonly onMove: () => void; readonly onCancel: () => void }) {
+interface PanelProps {
+  /** A write has landed but the page's fresh props haven't: the buttons wait. */
+  readonly busy: boolean;
+}
+
+function BookedPanel({ booking, busy, onMove, onCancel }: PanelProps & { readonly booking: PanelBooking; readonly onMove: () => void; readonly onCancel: () => void }) {
   return (
     <div className="space-y-3 rounded-lg border border-green-200 bg-green-50 p-3">
       <div>
@@ -79,11 +84,11 @@ function BookedPanel({ booking, onMove, onCancel }: { readonly booking: PanelBoo
       {booking.changeable && (
         <div className="flex flex-wrap gap-2">
           {booking.purpose === "first_call" && (
-            <Button type="button" variant="outline" size="sm" onClick={onMove}>
+            <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onMove}>
               {ADMIN_COPY.move}
             </Button>
           )}
-          <Button type="button" variant="outline" size="sm" className="text-red-700" onClick={onCancel}>
+          <Button type="button" variant="outline" size="sm" className="text-red-700" disabled={busy} onClick={onCancel}>
             {ADMIN_COPY.cancelBooking}
           </Button>
         </div>
@@ -92,18 +97,26 @@ function BookedPanel({ booking, onMove, onCancel }: { readonly booking: PanelBoo
   );
 }
 
-function NotBookedPanel({ onBook }: { readonly onBook: () => void }) {
+function NotBookedPanel({ busy, onBook }: PanelProps & { readonly onBook: () => void }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3">
       <p className="text-sm font-medium text-slate-600">{ADMIN_COPY.notBooked}</p>
-      <Button type="button" size="sm" className="bg-violet-500 hover:bg-violet-600" onClick={onBook}>
+      <Button type="button" size="sm" className="bg-violet-500 hover:bg-violet-600" disabled={busy} onClick={onBook}>
         {ADMIN_COPY.bookOnBehalf}
       </Button>
     </div>
   );
 }
 
-function CancelQuestion({ busy, onYes, onNo }: { readonly busy: boolean; readonly onYes: () => void; readonly onNo: () => void }) {
+interface CancelQuestionProps {
+  readonly busy: boolean;
+  readonly onYes: () => void;
+  readonly onNo: () => void;
+  /** Focus lands on the safe answer when the question opens. */
+  readonly keepRef: RefObject<HTMLButtonElement>;
+}
+
+function CancelQuestion({ busy, onYes, onNo, keepRef }: CancelQuestionProps) {
   return (
     <div className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-3">
       <p className="text-sm text-red-900">{ADMIN_COPY.cancelQuestion}</p>
@@ -111,7 +124,7 @@ function CancelQuestion({ busy, onYes, onNo }: { readonly busy: boolean; readonl
         <Button type="button" size="sm" variant="destructive" disabled={busy} onClick={onYes}>
           {ADMIN_COPY.confirmCancel}
         </Button>
-        <Button type="button" size="sm" variant="outline" disabled={busy} onClick={onNo}>
+        <Button ref={keepRef} type="button" size="sm" variant="outline" disabled={busy} onClick={onNo}>
           {ADMIN_COPY.keepIt}
         </Button>
       </div>
@@ -119,9 +132,8 @@ function CancelQuestion({ busy, onYes, onNo }: { readonly busy: boolean; readonl
   );
 }
 
-function useCancel(parentUserId: string, booking: PanelBooking | null, done: (status: string) => void) {
+function useCancel(parentUserId: string, booking: PanelBooking | null, done: (status: string) => void, setError: (line: string | null) => void) {
   const [busy, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
   const cancel = () => {
     if (booking === null) return;
     setError(null);
@@ -135,41 +147,81 @@ function useCancel(parentUserId: string, booking: PanelBooking | null, done: (st
       }
     });
   };
-  return { busy, error, cancel };
+  return { busy, cancel };
 }
 
-export function OnBehalfPicker({ parentUserId, booking, days, onChanged }: OnBehalfPickerProps) {
+/** Focus follows the steps: Back on the picker, Keep it on the question (React review). */
+function useStepFocus(mode: Mode) {
+  const backRef = useRef<HTMLButtonElement>(null);
+  const keepRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (mode === "picking") backRef.current?.focus();
+    if (mode === "confirm_cancel") keepRef.current?.focus();
+  }, [mode]);
+  return { backRef, keepRef };
+}
+
+/**
+ * The picker's own state. The page refreshes after a write: fresh days come in and the buttons come back (the
+ * component isn't remounted, so the status line stays). If her booking changes under the question or the picker, it's
+ * back to the view, so a stale "Yes, cancel it" can't act on it.
+ */
+function useOnBehalf(booking: PanelBooking | null, days: readonly SlotDay[] | null, onChanged: () => void) {
   const [mode, setMode] = useState<Mode>("view");
   const [shownDays, setShownDays] = useState(days);
-  // The page refreshes after a write: take the server's fresh days (the component isn't remounted, so the status stays).
-  useEffect(() => setShownDays(days), [days]);
   const [status, setStatus] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [settling, setSettling] = useState(false);
+  const statusRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    setShownDays(days);
+    setSettling(false);
+  }, [days]);
+  const bookingKey = booking ? `${booking.bookingId}:${booking.startsAt}` : null;
+  useEffect(() => {
+    setMode("view");
+    setError(null);
+  }, [bookingKey]);
   const done = (line: string) => {
     setMode("view");
     setStatus(line);
+    setSettling(true);
+    statusRef.current?.focus();
     onChanged();
   };
-  const actions = usePickerActions(parentUserId, setShownDays);
-  const cancel = useCancel(parentUserId, booking, done);
-  const open = (next: Mode) => {
+  const go = (next: Mode) => {
     setStatus("");
+    setError(null);
     setMode(next);
   };
+  return { mode, shownDays, setShownDays, status, error, setError, settling, statusRef, done, go };
+}
+
+export function OnBehalfPicker({ parentUserId, booking, days, onChanged }: OnBehalfPickerProps) {
+  const { mode, shownDays, setShownDays, status, error, setError, settling, statusRef, done, go } = useOnBehalf(booking, days, onChanged);
+  const focus = useStepFocus(mode);
+  const actions = usePickerActions(parentUserId, setShownDays);
+  const cancel = useCancel(parentUserId, booking, done, setError);
   return (
     <div className="space-y-3">
-      <p role="status" className={status ? "text-sm text-green-700" : "sr-only"}>
+      <p ref={statusRef} tabIndex={-1} role="status" className={status ? "text-sm text-green-700 focus:outline-none" : "sr-only"}>
         {status}
       </p>
-      {mode === "view" && (booking ? <BookedPanel booking={booking} onMove={() => open("picking")} onCancel={() => open("confirm_cancel")} /> : <NotBookedPanel onBook={() => open("picking")} />)}
-      {mode === "confirm_cancel" && <CancelQuestion busy={cancel.busy} onYes={cancel.cancel} onNo={() => setMode("view")} />}
-      {cancel.error && (
+      {mode === "view" &&
+        (booking ? (
+          <BookedPanel booking={booking} busy={settling} onMove={() => go("picking")} onCancel={() => go("confirm_cancel")} />
+        ) : (
+          <NotBookedPanel busy={settling} onBook={() => go("picking")} />
+        ))}
+      {mode === "confirm_cancel" && <CancelQuestion busy={cancel.busy} onYes={cancel.cancel} onNo={() => go("view")} keepRef={focus.keepRef} />}
+      {error && (
         <p role="alert" className="rounded bg-red-50 px-2 py-1 text-xs text-red-700">
-          {cancel.error}
+          {error}
         </p>
       )}
       {mode === "picking" && (
         <div className="space-y-3">
-          <Button type="button" variant="outline" size="sm" onClick={() => setMode("view")}>
+          <Button ref={focus.backRef} type="button" variant="outline" size="sm" onClick={() => go("view")}>
             {ADMIN_COPY.back}
           </Button>
           <SlotPicker
