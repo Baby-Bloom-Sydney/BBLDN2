@@ -34,6 +34,8 @@ export function TypeformFlow({ callAt }: { callAt?: string } = {}) {
   const [showConditional, setShowConditional] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // F-7: bumped by "Try again" so the save effect runs again (its other deps don't change on a retry).
+  const [saveAttempt, setSaveAttempt] = useState(0);
 
   // Always-current formData ref — fixes stale closure bugs
   const formDataRef = useRef(formData);
@@ -201,16 +203,19 @@ export function TypeformFlow({ callAt }: { callAt?: string } = {}) {
   useEffect(() => {
     if (completed && !hasSaved.current) {
       hasSaved.current = true;
-      saveTypeformPosition(formData, { callAt }).then((result) => {
-        if (result.success) {
-          // Brief 04 §0a.3 (04b rework W8): the server decides (the call popup over her Childcare tab, or today's).
-          router.push(result.redirectTo ?? "/parent");
-        } else {
-          setSubmitError(result.error);
-        }
-      });
+      saveTypeformPosition(formData, { callAt })
+        .then((result) => {
+          if (result.success) {
+            // Brief 04 §0a.3 (04b rework W8): the server decides (the call popup over her Childcare tab, or today's).
+            router.push(result.redirectTo ?? "/parent");
+          } else {
+            setSubmitError(result.error);
+          }
+        })
+        // F-7: a rejected save (a network drop) shows the error and Try again, not an endless spinner.
+        .catch(() => setSubmitError("Failed to save position"));
     }
-  }, [completed, formData, router, callAt]);
+  }, [completed, formData, router, callAt, saveAttempt]);
 
   if (intro) return <PositionIntro onDone={() => setIntro(false)} />;
 
@@ -223,7 +228,7 @@ export function TypeformFlow({ callAt }: { callAt?: string } = {}) {
             <p className="text-red-600 text-sm">{submitError}</p>
             <button
               type="button"
-              onClick={() => { hasSaved.current = false; setSubmitError(null); }}
+              onClick={() => { hasSaved.current = false; setSubmitError(null); setSaveAttempt((n) => n + 1); }}
               className="px-5 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 transition-colors"
             >
               Try again
