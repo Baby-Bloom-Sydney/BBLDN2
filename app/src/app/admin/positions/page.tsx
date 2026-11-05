@@ -200,7 +200,7 @@ function openPositionParam(searchParams: AdminPositionsPageProps['searchParams']
   return Array.isArray(v) && typeof v[0] === 'string' ? v[0] : null;
 }
 
-export default async function AdminPositionsPage({ searchParams }: AdminPositionsPageProps = {}) {
+export default async function AdminPositionsPage({ searchParams }: AdminPositionsPageProps) {
   const positions = await getPositionsData();
 
   return (

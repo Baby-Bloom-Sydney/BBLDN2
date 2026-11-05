@@ -28,7 +28,7 @@ function openCallParam(searchParams: AdminCallsPageProps["searchParams"]): strin
   return z.uuid().safeParse(value).success ? (value as string) : null;
 }
 
-export default async function AdminCallsPage({ searchParams }: AdminCallsPageProps = {}) {
+export default async function AdminCallsPage({ searchParams }: AdminCallsPageProps) {
   if (!callBookingEnabled()) notFound();
   const proof = await proveAdmin();
   if (!proof) notFound();
