@@ -4,7 +4,7 @@
  * this time" / "Move to this time", "Held for N minutes", the London heading). Cancel asks first. She is emailed
  * by the server either way.
  */
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -205,6 +205,53 @@ describe("OnBehalfPicker — booked", () => {
     expect(screen.getByRole("button", { name: "Cancel booking" })).toBeDisabled();
     rerender(<OnBehalfPicker parentUserId={AVA} booking={null} days={[...PANEL_DAYS]} onChanged={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Book a matchmaker call" })).toBeEnabled();
+  });
+
+  it("a double click on 'Yes, cancel it' sends one cancel (review round 2 M3)", async () => {
+    const user = userEvent.setup();
+    let release: (v: unknown) => void = () => {};
+    actions.cancelCallForFamily.mockImplementation(() => new Promise((resolve) => (release = resolve)));
+    render(<OnBehalfPicker parentUserId={AVA} booking={PANEL.booking} days={PANEL_DAYS} onChanged={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Cancel booking" }));
+    const yes = screen.getByRole("button", { name: "Yes, cancel it" }); // the same element twice, as a real double click
+    fireEvent.click(yes);
+    fireEvent.click(yes);
+    expect(actions.cancelCallForFamily).toHaveBeenCalledTimes(1);
+    release({ ok: true, value: { bookingId: BOOKING } });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Cancelled"));
+  });
+
+  it("the buttons come back when her booking changes, even if the grid stays unreadable (review round 2 M4)", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<OnBehalfPicker parentUserId={AVA} booking={PANEL.booking} days={null} onChanged={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Cancel booking" }));
+    await user.click(screen.getByRole("button", { name: "Yes, cancel it" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Cancelled"));
+    rerender(<OnBehalfPicker parentUserId={AVA} booking={null} days={null} onChanged={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Book a matchmaker call" })).toBeEnabled();
+  });
+
+  it("the cancel question is read with its answers, and leaving it returns focus to Cancel booking (review round 2 M6)", async () => {
+    const user = userEvent.setup();
+    render(<OnBehalfPicker parentUserId={AVA} booking={PANEL.booking} days={PANEL_DAYS} onChanged={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Cancel booking" }));
+    expect(screen.getByRole("button", { name: "Keep it" })).toHaveAccessibleDescription("Cancel this matchmaker call? The family is emailed.");
+    expect(screen.getByRole("button", { name: "Yes, cancel it" })).toHaveAccessibleDescription("Cancel this matchmaker call? The family is emailed.");
+    await user.click(screen.getByRole("button", { name: "Keep it" }));
+    expect(screen.getByRole("button", { name: "Cancel booking" })).toHaveFocus();
+  });
+
+  it("Back returns focus to the button that opened the picker — Move, or Book (M6)", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<OnBehalfPicker parentUserId={AVA} booking={PANEL.booking} days={PANEL_DAYS} onChanged={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Move" }));
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("button", { name: "Move" })).toHaveFocus();
+    unmount();
+    render(<OnBehalfPicker parentUserId={AVA} booking={null} days={PANEL_DAYS} onChanged={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Book a matchmaker call" }));
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("button", { name: "Book a matchmaker call" })).toHaveFocus();
   });
 
   it("a call that has started: no Move, no Cancel (record the outcome instead)", () => {

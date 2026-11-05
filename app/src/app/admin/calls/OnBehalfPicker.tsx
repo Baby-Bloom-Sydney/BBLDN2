@@ -14,7 +14,7 @@
  * The picker speaks the parent's refusal codes, so the admin codes are mapped onto them (`PICKER_REFUSAL`).
  */
 
-import { useEffect, useRef, useState, useTransition, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type MutableRefObject, type RefObject } from "react";
 import { SlotPicker, type PickerResult, type SlotPickerActions } from "@/components/calls/SlotPicker";
 import { Button } from "@/components/ui/button";
 import type { AdminCallError, AdminCallResult } from "@/lib/calls/admin-calls";
@@ -67,12 +67,22 @@ function usePickerActions(parentUserId: string, setDays: (d: readonly SlotDay[])
   };
 }
 
+/** The view's buttons that open a step: focus comes back to the one that opened it (review round 2 M6). */
+type Opener = "book" | "move" | "cancel";
+
+interface StepRefs {
+  readonly back: RefObject<HTMLButtonElement>;
+  readonly keep: RefObject<HTMLButtonElement>;
+  readonly openers: Readonly<Record<Opener, RefObject<HTMLButtonElement>>>;
+}
+
 interface PanelProps {
   /** A write has landed but the page's fresh props haven't: the buttons wait. */
   readonly busy: boolean;
+  readonly refs: StepRefs;
 }
 
-function BookedPanel({ booking, busy, onMove, onCancel }: PanelProps & { readonly booking: PanelBooking; readonly onMove: () => void; readonly onCancel: () => void }) {
+function BookedPanel({ booking, busy, refs, onMove, onCancel }: PanelProps & { readonly booking: PanelBooking; readonly onMove: () => void; readonly onCancel: () => void }) {
   return (
     <div className="space-y-3 rounded-lg border border-green-200 bg-green-50 p-3">
       <div>
@@ -84,11 +94,11 @@ function BookedPanel({ booking, busy, onMove, onCancel }: PanelProps & { readonl
       {booking.changeable && (
         <div className="flex flex-wrap gap-2">
           {booking.purpose === "first_call" && (
-            <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onMove}>
+            <Button ref={refs.openers.move} type="button" variant="outline" size="sm" disabled={busy} onClick={onMove}>
               {ADMIN_COPY.move}
             </Button>
           )}
-          <Button type="button" variant="outline" size="sm" className="text-red-700" disabled={busy} onClick={onCancel}>
+          <Button ref={refs.openers.cancel} type="button" variant="outline" size="sm" className="text-red-700" disabled={busy} onClick={onCancel}>
             {ADMIN_COPY.cancelBooking}
           </Button>
         </div>
@@ -97,11 +107,11 @@ function BookedPanel({ booking, busy, onMove, onCancel }: PanelProps & { readonl
   );
 }
 
-function NotBookedPanel({ busy, onBook }: PanelProps & { readonly onBook: () => void }) {
+function NotBookedPanel({ busy, refs, onBook }: PanelProps & { readonly onBook: () => void }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3">
       <p className="text-sm font-medium text-slate-600">{ADMIN_COPY.notBooked}</p>
-      <Button type="button" size="sm" className="bg-violet-500 hover:bg-violet-600" disabled={busy} onClick={onBook}>
+      <Button ref={refs.openers.book} type="button" size="sm" className="bg-violet-500 hover:bg-violet-600" disabled={busy} onClick={onBook}>
         {ADMIN_COPY.bookOnBehalf}
       </Button>
     </div>
@@ -116,15 +126,19 @@ interface CancelQuestionProps {
   readonly keepRef: RefObject<HTMLButtonElement>;
 }
 
+/** The question describes both answers, so a screen reader reads it with "Keep it" (review round 2 M6). */
 function CancelQuestion({ busy, onYes, onNo, keepRef }: CancelQuestionProps) {
+  const questionId = useId();
   return (
     <div className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-3">
-      <p className="text-sm text-red-900">{ADMIN_COPY.cancelQuestion}</p>
+      <p id={questionId} className="text-sm text-red-900">
+        {ADMIN_COPY.cancelQuestion}
+      </p>
       <div className="flex flex-wrap gap-2">
-        <Button type="button" size="sm" variant="destructive" disabled={busy} onClick={onYes}>
+        <Button type="button" size="sm" variant="destructive" aria-describedby={questionId} disabled={busy} onClick={onYes}>
           {ADMIN_COPY.confirmCancel}
         </Button>
-        <Button ref={keepRef} type="button" size="sm" variant="outline" disabled={busy} onClick={onNo}>
+        <Button ref={keepRef} type="button" size="sm" variant="outline" aria-describedby={questionId} disabled={busy} onClick={onNo}>
           {ADMIN_COPY.keepIt}
         </Button>
       </div>
@@ -132,38 +146,50 @@ function CancelQuestion({ busy, onYes, onNo, keepRef }: CancelQuestionProps) {
   );
 }
 
+/** One cancel per press (review round 2 M3): a ref guards the call; `busy` holds the buttons until it settles. */
 function useCancel(parentUserId: string, booking: PanelBooking | null, done: (status: string) => void, setError: (line: string | null) => void) {
-  const [busy, startTransition] = useTransition();
-  const cancel = () => {
-    if (booking === null) return;
+  const inFlight = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const cancel = async () => {
+    if (booking === null || inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
     setError(null);
-    startTransition(async () => {
-      try {
-        const cancelled = await cancelCallForFamily({ parentUserId, bookingId: booking.bookingId });
-        if (cancelled.ok) done(ADMIN_COPY.cancelled);
-        else setError(adminErrorLine(cancelled.error));
-      } catch {
-        setError(adminErrorLine("error"));
-      }
-    });
+    try {
+      const cancelled = await cancelCallForFamily({ parentUserId, bookingId: booking.bookingId });
+      if (cancelled.ok) done(ADMIN_COPY.cancelled);
+      else setError(adminErrorLine(cancelled.error));
+    } catch {
+      setError(adminErrorLine("error"));
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
   };
   return { busy, cancel };
 }
 
-/** Focus follows the steps: Back on the picker, Keep it on the question (React review). */
-function useStepFocus(mode: Mode) {
-  const backRef = useRef<HTMLButtonElement>(null);
-  const keepRef = useRef<HTMLButtonElement>(null);
+/** Focus follows the steps: Back on the picker, Keep it on the question, and back to the button that opened them. */
+function useStepFocus(mode: Mode, returnTo: MutableRefObject<Opener | null>): StepRefs {
+  const back = useRef<HTMLButtonElement>(null);
+  const keep = useRef<HTMLButtonElement>(null);
+  const book = useRef<HTMLButtonElement>(null);
+  const move = useRef<HTMLButtonElement>(null);
+  const cancel = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (mode === "picking") backRef.current?.focus();
-    if (mode === "confirm_cancel") keepRef.current?.focus();
-  }, [mode]);
-  return { backRef, keepRef };
+    if (mode === "picking") return back.current?.focus();
+    if (mode === "confirm_cancel") return keep.current?.focus();
+    const to = returnTo.current;
+    returnTo.current = null;
+    if (to !== null) ({ book, move, cancel })[to].current?.focus();
+  }, [mode, returnTo]);
+  return { back, keep, openers: { book, move, cancel } };
 }
 
 /**
- * The picker's own state. The page refreshes after a write: fresh days come in and the buttons come back (the
- * component isn't remounted, so the status line stays). If her booking changes under the question or the picker, it's
+ * The picker's own state. The page refreshes after a write: fresh days come in, and once her booking (or the days)
+ * changes the buttons come back — a grid that stays unreadable can't keep them disabled (review round 2 M4). The
+ * component isn't remounted, so the status line stays. If her booking changes under the question or the picker it's
  * back to the view, so a stale "Yes, cancel it" can't act on it.
  */
 function useOnBehalf(booking: PanelBooking | null, days: readonly SlotDay[] | null, onChanged: () => void) {
@@ -173,33 +199,38 @@ function useOnBehalf(booking: PanelBooking | null, days: readonly SlotDay[] | nu
   const [error, setError] = useState<string | null>(null);
   const [settling, setSettling] = useState(false);
   const statusRef = useRef<HTMLParagraphElement>(null);
+  const returnTo = useRef<Opener | null>(null);
   useEffect(() => {
     setShownDays(days);
     setSettling(false);
   }, [days]);
   const bookingKey = booking ? `${booking.bookingId}:${booking.startsAt}` : null;
   useEffect(() => {
+    returnTo.current = null; // a refresh never pulls focus back to a button
     setMode("view");
     setError(null);
+    setSettling(false);
   }, [bookingKey]);
   const done = (line: string) => {
+    returnTo.current = null;
     setMode("view");
     setStatus(line);
     setSettling(true);
     statusRef.current?.focus();
     onChanged();
   };
-  const go = (next: Mode) => {
+  const go = (next: Mode, from?: Opener) => {
+    if (next !== "view") returnTo.current = from ?? null;
     setStatus("");
     setError(null);
     setMode(next);
   };
-  return { mode, shownDays, setShownDays, status, error, setError, settling, statusRef, done, go };
+  return { mode, shownDays, setShownDays, status, error, setError, settling, statusRef, returnTo, done, go };
 }
 
 export function OnBehalfPicker({ parentUserId, booking, days, onChanged }: OnBehalfPickerProps) {
-  const { mode, shownDays, setShownDays, status, error, setError, settling, statusRef, done, go } = useOnBehalf(booking, days, onChanged);
-  const focus = useStepFocus(mode);
+  const { mode, shownDays, setShownDays, status, error, setError, settling, statusRef, returnTo, done, go } = useOnBehalf(booking, days, onChanged);
+  const refs = useStepFocus(mode, returnTo);
   const actions = usePickerActions(parentUserId, setShownDays);
   const cancel = useCancel(parentUserId, booking, done, setError);
   return (
@@ -209,11 +240,11 @@ export function OnBehalfPicker({ parentUserId, booking, days, onChanged }: OnBeh
       </p>
       {mode === "view" &&
         (booking ? (
-          <BookedPanel booking={booking} busy={settling} onMove={() => go("picking")} onCancel={() => go("confirm_cancel")} />
+          <BookedPanel booking={booking} busy={settling} refs={refs} onMove={() => go("picking", "move")} onCancel={() => go("confirm_cancel", "cancel")} />
         ) : (
-          <NotBookedPanel busy={settling} onBook={() => go("picking")} />
+          <NotBookedPanel busy={settling} refs={refs} onBook={() => go("picking", "book")} />
         ))}
-      {mode === "confirm_cancel" && <CancelQuestion busy={cancel.busy} onYes={cancel.cancel} onNo={() => go("view")} keepRef={focus.keepRef} />}
+      {mode === "confirm_cancel" && <CancelQuestion busy={cancel.busy} onYes={cancel.cancel} onNo={() => go("view")} keepRef={refs.keep} />}
       {error && (
         <p role="alert" className="rounded bg-red-50 px-2 py-1 text-xs text-red-700">
           {error}
@@ -221,7 +252,7 @@ export function OnBehalfPicker({ parentUserId, booking, days, onChanged }: OnBeh
       )}
       {mode === "picking" && (
         <div className="space-y-3">
-          <Button ref={focus.backRef} type="button" variant="outline" size="sm" onClick={() => go("view")}>
+          <Button ref={refs.back} type="button" variant="outline" size="sm" onClick={() => go("view")}>
             {ADMIN_COPY.back}
           </Button>
           <SlotPicker
