@@ -381,7 +381,7 @@ describe("SlotPicker — taken by someone else: the notice (BAI 2026-11-05)", ()
 });
 
 describe("SlotPicker — other refusals keep 04b's inline alert", () => {
-  it("a hold that ran out but is still free: 'Your hold ran out — pick again', focused, refreshed", async () => {
+  it("a hold that ran out but is still free: 'Your hold ran out — pick again', announced (not focused), refreshed", async () => {
     const user = userEvent.setup();
     const actions = actionsWith({ confirm: vi.fn(async () => ({ ok: false as const, error: "hold_expired" as const })), reload: vi.fn(async () => gridDays()) });
     render(<SlotPicker days={DAYS} actions={actions} onConfirmed={vi.fn()} />);
@@ -389,7 +389,8 @@ describe("SlotPicker — other refusals keep 04b's inline alert", () => {
     await user.click(await screen.findByRole("button", { name: "Confirm time" }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Your hold ran out — pick again");
-    await waitFor(() => expect(alert).toHaveFocus());
+    await waitFor(() => expect(actions.reload).toHaveBeenCalled());
+    expect(alert).not.toHaveFocus(); // W17 item 14: role=alert announces it; focus is never moved onto it
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(actions.reload).toHaveBeenCalled();
   });

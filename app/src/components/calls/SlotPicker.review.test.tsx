@@ -1,6 +1,8 @@
 /**
- * SlotPicker — the final review's fixes (04b rework W17). A refusal's alert keeps focus (Confirm doesn't take it
- * back), and the same failure twice is announced twice; any new choice (a day, a time of day, a time, Confirm) clears
+ * SlotPicker — the final review's fixes (04b rework W17). A refusal's alert is announced on insert (role=alert) but
+ * never takes focus (item 14: a focused alert is read twice, and with no roving a keyboard user would tab through every
+ * tile back to Confirm): when her hold survives, focus goes to Confirm. The same failure twice is announced twice; any
+ * new choice (a day, a time of day, a time, Confirm) clears
  * the last refusal; the held line's status region stays mounted for the picker's life and only its words change; the
  * refusal sets are typed to the parent's codes. (Item 4, toggle buttons, and item 8, the 320px labels, are in
  * SlotPicker.test.tsx.)
@@ -22,18 +24,29 @@ async function holdTue14(user: User) {
   await user.click(tile("Tuesday 9 February, 14:00"));
 }
 
-describe("item 2: the alert keeps focus after a refusal", () => {
-  it("a confirm that fails: the alert has focus once everything settles, not Confirm", async () => {
+describe("item 14: the alert is announced, never focused; a surviving hold puts focus on Confirm", () => {
+  it("a confirm that fails with her hold surviving: Confirm has focus and the alert's words are there", async () => {
     const user = userEvent.setup();
     render(<SlotPicker days={DAYS} actions={actionsWith({ confirm: vi.fn(async () => ({ ok: false as const, error: "error" as const })) })} onConfirmed={vi.fn()} />);
     await holdTue14(user);
     await user.click(await screen.findByRole("button", { name: "Confirm time" }));
     const alert = await screen.findByRole("alert");
-    await waitFor(() => expect(confirmButton()).toBeEnabled());
-    expect(alert).toHaveFocus();
+    expect(alert).toHaveTextContent("We couldn't do that — try again");
+    await waitFor(() => expect(document.activeElement).toBe(confirmButton()));
+    expect(alert).not.toHaveAttribute("tabindex");
   });
 
-  it("a refused tap while holding another time: the alert keeps focus (her first hold comes back, Confirm stays put)", async () => {
+  it("a refused tap with no hold to fall back on: focus stays on the tile she tapped, not the alert", async () => {
+    const user = userEvent.setup();
+    render(<SlotPicker days={DAYS} actions={actionsWith({ hold: vi.fn(async () => ({ ok: false as const, error: "rate_limited" as const })) })} onConfirmed={vi.fn()} />);
+    await holdTue14(user);
+    const alert = await screen.findByRole("alert");
+    await waitFor(() => expect(tile("Tuesday 9 February, 14:00")).toBeEnabled());
+    expect(alert).not.toHaveFocus();
+    expect(tile("Tuesday 9 February, 14:00")).toHaveFocus();
+  });
+
+  it("a refused tap while holding another time: her first hold survives, so focus is on Confirm", async () => {
     const user = userEvent.setup();
     const hold = vi
       .fn()
@@ -44,8 +57,8 @@ describe("item 2: the alert keeps focus after a refusal", () => {
     await screen.findByText(HOLD.line);
     await user.click(tile("Tuesday 9 February, 14:30"));
     const alert = await screen.findByRole("alert");
-    await waitFor(() => expect(confirmButton()).toBeEnabled());
-    expect(alert).toHaveFocus();
+    await waitFor(() => expect(document.activeElement).toBe(confirmButton()));
+    expect(alert).not.toHaveFocus();
   });
 
   it("the same failure twice is announced twice: the alert is cleared when Confirm is pressed and comes back", async () => {

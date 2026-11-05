@@ -12,7 +12,8 @@
  * - Tapping a free time holds it at once; the green panel names it ("Thursday 5 November at 10:00") with the hold line,
  *   and Confirm takes focus once it is enabled (never while busy). Confirm writes with the hold.
  * - Taken (by someone else, or a held time that ran out and was taken) → the "This time has just been booked" notice,
- *   and the list refreshes under it. Ran-out-but-free, invalid and failed → 04b's inline alert, which takes focus.
+ *   and the list refreshes under it. Ran-out-but-free, invalid and failed → 04b's inline alert, announced on insert
+ *   (role=alert) but never focused (W17 item 14): when her hold survives, focus goes to Confirm; otherwise it stays.
  * - The left button: "Skip for now" (a link), or "Keep my time" while changing; none in the in-app popup.
  * - No position yet (W11): a tap selects without a hold; the panel says "Complete your childcare position so that we
  *   can confirm your call with your matchmaker." and the right button still reads "Confirm time" (W15, BAI
@@ -139,11 +140,11 @@ interface ButtonRowProps {
 
 function ButtonRow({ picker, onKeepTime, skipHref, gate }: ButtonRowProps) {
   const confirmRef = useRef<HTMLButtonElement>(null);
-  // Focus Confirm once a hold is in and nothing is in flight (never while busy), unless a refusal's alert is showing:
-  // that keeps focus (W17). The action area scrolls itself.
+  // Focus Confirm once a hold is in and nothing is in flight (never while busy) — after a refusal too, when her hold
+  // survived it (the alert is announced, never focused: W17 item 14). The action area scrolls itself.
   useEffect(() => {
-    if (picker.hold !== null && !picker.busy && picker.message === null) confirmRef.current?.focus({ preventScroll: true });
-  }, [picker.hold, picker.busy, picker.message]);
+    if (picker.hold !== null && !picker.busy) confirmRef.current?.focus({ preventScroll: true });
+  }, [picker.hold, picker.busy]);
   return (
     <div className="flex flex-wrap gap-3">
       {onKeepTime ? (
@@ -269,12 +270,8 @@ export function SlotPicker<T>(props: SlotPickerProps<T>) {
   const words = { ...DEFAULT_COPY, ...copy };
   const picker = useSlotPicker({ days, actions, onConfirmed, current, initialNotice, initialMessage, gated: gate !== undefined });
   const uid = useId();
-  const alertRef = useRef<HTMLParagraphElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  useEffect(() => {
-    if (picker.message !== null) alertRef.current?.focus();
-  }, [picker.message]);
   const sectionRef = useRef<HTMLElement>(null);
   const backToGrid = () => focusBack(sectionRef.current, gridRef.current, headingRef.current);
   useFocusAfterReload(picker.loading, backToGrid);
@@ -290,12 +287,9 @@ export function SlotPicker<T>(props: SlotPickerProps<T>) {
         <span>{words.heading}</span>
       </h2>
       {picker.message !== null && (
-        <p
-          ref={alertRef}
-          tabIndex={-1}
-          role="alert"
-          className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-        >
+        // Announced on insert, never focused (W17 item 14): focusing it too would read it twice, and with no roving a
+        // keyboard user would have to tab back through every tile to reach Confirm.
+        <p role="alert" className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {picker.message}
         </p>
       )}

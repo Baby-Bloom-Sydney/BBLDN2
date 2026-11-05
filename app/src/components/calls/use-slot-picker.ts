@@ -11,7 +11,8 @@
  *   `call_hold_slot` replaces her own live hold, so nothing is released first).
  * - A refusal never sticks: throws settle as `error`; a taken time (or a held time that ran out and was taken) opens
  *   the taken notice and the list refreshes under it; ran-out-but-still-free, invalid and failed keep 04b's inline
- *   alert (it takes focus) and refresh as 04b did; a failed confirm always refreshes (a lost reply may have booked).
+ *   alert (announced, not focused — W17 item 14) and refresh as 04b did; a failed confirm always refreshes (a lost
+ *   reply may have booked).
  *
  * BB-wave1-041126/04b-rework, 2026-11-05.
  */
