@@ -16,10 +16,16 @@ import { SuburbAutocomplete } from "./renderers/SuburbAutocomplete";
 import { DaysTimesCompound } from "./renderers/DaysTimesCompound";
 import { saveTypeformPosition } from "@/lib/actions/parent";
 import { Button } from "@/components/ui/button";
+import { Interstitial } from "./Interstitial";
+import { PositionIntro } from "./PositionIntro";
 
-/** `callAt` (04b rework W11): the call time she picked before she had a position; booked once it is saved. */
+/**
+ * `callAt` (04b rework W11): the call time she picked before she had a position; booked once it is saved. With it the
+ * flow opens on an intro, then question 1 (W15); without it, today's flow.
+ */
 export function TypeformFlow({ callAt }: { callAt?: string } = {}) {
   const router = useRouter();
+  const [intro, setIntro] = useState(callAt !== undefined);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [formData, setFormData] = useState<Partial<TypeformFormData>>(
     INITIAL_FORM_DATA
@@ -205,6 +211,8 @@ export function TypeformFlow({ callAt }: { callAt?: string } = {}) {
       });
     }
   }, [completed, formData, router, callAt]);
+
+  if (intro) return <PositionIntro onDone={() => setIntro(false)} />;
 
   // Form complete — show finalizing spinner
   if (completed) {
@@ -426,27 +434,7 @@ export function TypeformFlow({ callAt }: { callAt?: string } = {}) {
 
   // Interstitial screen
   if (currentQ.type === "interstitial") {
-    return (
-      <div
-        className={`relative flex flex-col h-[calc(100vh-10rem)] transition-opacity duration-200 ${
-          isExiting ? "opacity-0" : "opacity-100"
-        }`}
-      >
-        <div className="-mx-4 -mt-4 lg:-mx-6 lg:-mt-6">
-          <div className="h-1 bg-slate-100">
-            <div
-              className="h-full bg-violet-600 transition-all duration-500 ease-out rounded-r-full"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-xl sm:text-2xl font-semibold text-slate-800 text-center max-w-md px-4">
-            {currentQ.interstitialText}
-          </p>
-        </div>
-      </div>
-    );
+    return <Interstitial text={currentQ.interstitialText ?? ""} progress={progress} exiting={isExiting} />;
   }
 
   // Compound questions — top-down flow

@@ -26,7 +26,8 @@ beforeEach(() => {
 async function finish(callAt?: string) {
   const user = userEvent.setup();
   render(<TypeformFlow callAt={callAt} />);
-  await user.click(await screen.findByRole("button", { name: "18+" }, { timeout: 2000 }));
+  // With a picked time the flow opens on its intro first (W15), so question 1 comes after it.
+  await user.click(await screen.findByRole("button", { name: "18+" }, { timeout: 5000 }));
   await waitFor(() => expect(h.save).toHaveBeenCalled(), { timeout: 3000 });
 }
 

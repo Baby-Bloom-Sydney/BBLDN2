@@ -62,6 +62,8 @@ export const PARENT_COPY = Object.freeze({
   completePositionLine: "Complete your childcare position so that we can confirm your call with your matchmaker.",
   // 04b rework W12: the taken notice when the time that went isn't known
   thatTime: "that time",
+  // 04b rework W15: the position flow's intro on the call path (BAI 2026-11-05, verbatim)
+  positionIntro: "Create your childcare position to get your best matches",
   // 04b rework W14: the step-by-step picker
   timeOfDay: "Time of day",
   yourCurrentTime: "your current time",

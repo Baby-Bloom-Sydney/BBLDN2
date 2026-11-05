@@ -69,6 +69,7 @@ describe("parent copy, word for word", () => {
     expect(PARENT_COPY.completePositionLine).toBe("Complete your childcare position so that we can confirm your call with your matchmaker.");
     expect(PARENT_COPY.confirmTimeButton).toBe("Confirm time");
     expect(allStrings(PARENT_COPY)).not.toContain("Complete my childcare position");
+    expect(PARENT_COPY.positionIntro).toBe("Create your childcare position to get your best matches");
   });
 
   it("the Childcare tab card's words (04b rework W9)", () => {
