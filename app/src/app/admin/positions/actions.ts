@@ -1,10 +1,15 @@
 'use server';
 
+import { requireAdmin } from '@/lib/admin/require-admin';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
 import type { UserData } from '@/app/admin/users/page';
 
+// F-8: every export here is callable from the browser, so each proves admin before any client is made.
 export async function fetchUserData(userId: string): Promise<UserData | null> {
+  const gate = await requireAdmin();
+  if (gate.error) return null;
+
   const admin = createAdminClient();
 
   const [profileRes, roleRes, nannyRes, parentRes, verificationRes] = await Promise.all([
@@ -42,6 +47,9 @@ export async function fetchUserData(userId: string): Promise<UserData | null> {
 }
 
 export async function closePositionAction(positionId: string): Promise<{ success: boolean; error: string | null }> {
+  const gate = await requireAdmin();
+  if (gate.error) return { success: false, error: gate.error };
+
   const admin = createAdminClient();
 
   const { error } = await admin
