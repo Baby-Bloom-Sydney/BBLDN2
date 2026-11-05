@@ -6,7 +6,8 @@
  * when selected the timeslots appear underneath to select from … These should also be selectors which can be
  * unselected and make the later selections be hidden again").
  *
- * 1. `DayStep` — the rolling days as tiles ("Thu" over "5 Nov"): four across on a phone, one row from 640px.
+ * 1. `DayStep` — the rolling days as tiles ("Thu" over "5 Nov"): four across on a phone, one row from 640px; a short
+ *    last row is centred (W15, BAI 2026-11-05: "center the day tiles"), and so is a short last row of times.
  * 2. `BracketStep` — once a day is chosen: Morning / Midday / Afternoon / Evening with their sublabels.
  * 3. `TimeStep` — once a time of day is chosen: "Select a time" and that bracket's call slots.
  *
@@ -41,6 +42,17 @@ const LOOK = {
   },
 } as const;
 const LABEL = "text-sm font-medium text-slate-700";
+/**
+ * Centred rows of fixed-width tiles (W15): each tile is exactly a column's width (a quarter, less the gaps), so full
+ * rows line up as the grid did and a short last row sits in the middle rather than at the left.
+ */
+const CENTRED = "flex flex-wrap justify-center";
+const QUARTER_OF_DAYS = "w-[calc((100%-1.5rem)/4)]"; // four across, three gap-2 gaps
+const DAYS_FROM_640: Readonly<Record<7 | 8, string>> = {
+  7: "sm:w-[calc((100%-3rem)/7)]", // six gaps
+  8: "sm:w-[calc((100%-3.5rem)/8)]", // seven gaps: the window's first and last both still have times
+};
+const QUARTER_OF_TIMES = "w-[calc((100%-1.125rem)/4)]"; // four across, three gap-1.5 gaps
 
 /** Free and not seen taken in this visit. */
 export const isOpenSlot = (slot: SlotOption, gone: ReadonlySet<string>): boolean => slot.free && !gone.has(slot.startsAt);
@@ -162,9 +174,8 @@ export function DayStep({ uid, days, chosen, gone, current, busy, onPick }: Step
       </>
     ),
   }));
-  // Seven London dates, or eight when the window's first and last both still have times: one row from 640px.
-  const wide = days.length > 7 ? "sm:grid-cols-8" : "sm:grid-cols-7";
-  return <RadioTiles tiles={tiles} look="cell" gridClass={`grid grid-cols-4 gap-2 ${wide}`} tileClass="h-14" columns={1} labelledBy={`${uid}-heading`} busy={busy} onPick={onPick} />;
+  const wide = DAYS_FROM_640[days.length > 7 ? 8 : 7];
+  return <RadioTiles tiles={tiles} look="cell" gridClass={`${CENTRED} gap-2`} tileClass={`h-14 ${QUARTER_OF_DAYS} ${wide}`} columns={1} labelledBy={`${uid}-heading`} busy={busy} onPick={onPick} />;
 }
 
 export function BracketStep({ uid, day, chosen, gone, current, busy, onPick }: StepProps & { readonly day: SlotDay; readonly chosen: BracketKey | null; readonly onPick: (bracket: BracketKey) => void }) {
@@ -210,7 +221,7 @@ export function TimeStep({ uid, slots, chosen, gone, current, busy, onTap }: Ste
         {PARENT_COPY.selectTime}
       </p>
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <RadioTiles tiles={tiles} look="time" gridClass="grid grid-cols-4 gap-1.5" columns={4} labelledBy={`${uid}-select-time`} busy={busy} onPick={onTap} />
+        <RadioTiles tiles={tiles} look="time" gridClass={`${CENTRED} gap-1.5`} tileClass={QUARTER_OF_TIMES} columns={4} labelledBy={`${uid}-select-time`} busy={busy} onPick={onTap} />
       </div>
     </div>
   );

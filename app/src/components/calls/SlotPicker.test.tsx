@@ -47,12 +47,17 @@ describe("SlotPicker — step 1: the days only", () => {
     expect(confirmButton()).toBeDisabled();
   });
 
-  it("a day with no free time is greyed and disabled; an open day is violet; four across, seven from 640px", () => {
+  it("a day with no free time is greyed and disabled; an open day is violet", () => {
     render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />);
     expect(day("Thu 11 Feb")).toBeDisabled();
     expect(day("Thu 11 Feb").className).toContain("bg-slate-50 text-slate-200 border-slate-100 cursor-not-allowed");
     expect(tue().className).toContain("bg-violet-50 text-violet-600 border-violet-200");
-    expect(screen.getByRole("radiogroup", { name: "Your matchmaker's availability" }).className).toContain("grid-cols-4 gap-2 sm:grid-cols-7");
+  });
+
+  it("W15: the day tiles are centred — four across on a phone (a short last row centred), seven from 640px", () => {
+    render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />);
+    expect(screen.getByRole("radiogroup", { name: "Your matchmaker's availability" }).className).toContain("flex flex-wrap justify-center gap-2");
+    expect(tue().className).toContain("w-[calc((100%-1.5rem)/4)] sm:w-[calc((100%-3rem)/7)]");
   });
 
   it("eight days (the window's first and last both still have times) sit on one row from 640px, not seven and one", () => {
@@ -61,8 +66,8 @@ describe("SlotPicker — step 1: the days only", () => {
     render(<SlotPicker days={groupSlotGridByDay({ dates, slots })} actions={actionsWith()} onConfirmed={vi.fn()} />);
     const days = screen.getByRole("radiogroup", { name: "Your matchmaker's availability" });
     expect(within(days).getAllByRole("radio")).toHaveLength(8);
-    expect(days.className).toContain("sm:grid-cols-8");
-    expect(days.className).not.toContain("sm:grid-cols-7");
+    expect(within(days).getAllByRole("radio")[0].className).toContain("sm:w-[calc((100%-3.5rem)/8)]");
+    expect(within(days).getAllByRole("radio")[0].className).not.toContain("/7)]");
   });
 
   it("a single day (03's pre-book) is one tile", () => {
@@ -96,6 +101,9 @@ describe("SlotPicker — step 2 and step 3 appear in turn", () => {
     await toAfternoon(user);
     const box = screen.getByRole("radiogroup", { name: "Select a time" });
     expect(within(box).getAllByRole("radio").map((r) => r.textContent)).toEqual(["14:00", "14:30", "15:00"]);
+    // W15: a short row of times is centred too, each time a quarter of the box.
+    expect(box.className).toContain("flex flex-wrap justify-center gap-1.5");
+    expect(tue14().className).toContain("w-[calc((100%-1.125rem)/4)]");
     const t15 = time("Tuesday 9 February, 15:00");
     expect(t15).toBeDisabled();
     expect(t15).toHaveAttribute("aria-disabled", "true");
