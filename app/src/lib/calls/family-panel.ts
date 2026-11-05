@@ -84,17 +84,31 @@ interface HerCalls {
   readonly blocks: readonly CallBlock[];
   /** `overdue_grace_minutes`, for the Overdue tag her row has too. */
   readonly graceMinutes: number;
+  /** Brief 03's pending pre-book request: her row's Cohort pre-book tag (review round 2 M8). */
+  readonly prebookRequested: boolean;
+}
+
+/** Does she have a pending pre-book request? A source that throws fails the drawer, as it fails her row's list. */
+async function prebookRequested(parentUserId: string, deps: DashboardDeps): Promise<CallsResult<boolean>> {
+  try {
+    return ok((await deps.prebookRequests([parentUserId])).has(parentUserId));
+  } catch (thrown) {
+    console.error("[calls/family-panel] pre-book requests failed", { message: thrown instanceof Error ? thrown.message : String(thrown) });
+    return { ok: false, error: "error" };
+  }
 }
 
 /** Her contact, her booked first call (and any block over it), and her attempts. */
 async function herCalls(parentUserId: string, deps: DashboardDeps): Promise<CallsResult<HerCalls>> {
-  const [contacts, bookings, entries, settings] = await Promise.all([
+  const [contacts, bookings, entries, settings, prebook] = await Promise.all([
     deps.repo.readContacts([parentUserId]),
     deps.repo.readBookingsForParents([parentUserId]),
     deps.repo.readLogEntriesForParents([parentUserId]),
     deps.repo.readSettings(),
+    prebookRequested(parentUserId, deps),
   ]);
   if (!settings.ok) return settings;
+  if (!prebook.ok) return prebook;
   if (!contacts.ok) return contacts;
   if (!bookings.ok) return bookings;
   if (!entries.ok) return entries;
@@ -103,7 +117,14 @@ async function herCalls(parentUserId: string, deps: DashboardDeps): Promise<Call
   const blocks = booking === null ? ok<readonly CallBlock[]>([]) : await deps.repo.readBlocks(booking);
   if (!blocks.ok) return blocks;
   const contact = contacts.value.find((c) => c.userId === parentUserId) ?? null;
-  return ok({ contact, booking, entries: entries.value, blocks: blocks.value, graceMinutes: settings.value.overdueGraceMinutes });
+  return ok({
+    contact,
+    booking,
+    entries: entries.value,
+    blocks: blocks.value,
+    graceMinutes: settings.value.overdueGraceMinutes,
+    prebookRequested: prebook.value,
+  });
 }
 
 /** Who recorded each attempt, by name; an unreadable name is just left off. */
@@ -149,7 +170,7 @@ export async function loadFamilyPanel(proof: AdminProof, parentUserId: string, d
   if (!isAdminProof(proof) || !uuid.safeParse(parentUserId).success) return CALLS_INVALID;
   const [calls, deposit, grid] = await Promise.all([herCalls(parentUserId, deps), deps.reads.readDeposit(parentUserId), familySlotGrid(proof, parentUserId, deps)]);
   if (!calls.ok) return calls;
-  const { contact, booking, entries, blocks, graceMinutes } = calls.value;
+  const { contact, booking, entries, blocks, graceMinutes, prebookRequested: requested } = calls.value;
   const preferred = new Map(booking?.positionId ? [[parentUserId, booking.positionId] as const] : []);
   const details = await deps.reads.readFamilyDetails([parentUserId], preferred);
   if (!details.ok) return details;
@@ -168,7 +189,7 @@ export async function loadFamilyPanel(proof: AdminProof, parentUserId: string, d
     tags: tagsOf({
       blockedOver: blocks.length > 0,
       overdue: isOverdue(booking, graceMinutes, deps.now()),
-      cohortPrebook: booking?.purpose === "cohort_prebook",
+      cohortPrebook: booking?.purpose === "cohort_prebook" || requested,
       test: contact?.isTestUser === true,
     }),
     booking: bookingView(booking, deps.now()),

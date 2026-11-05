@@ -35,7 +35,7 @@ const ENTRIES = [
   entryRow({ parentUserId: JANE, occurredAt: "2027-02-03T17:00:00.000Z", result: "answered", outcome: "call_back_later", callBackAt: "2027-02-05T17:00:00.000Z", recordedBy: null }),
 ];
 
-function setup(seed: Partial<FakeCallsState> = {}, readsOver: Partial<DashboardReads> = {}) {
+function setup(seed: Partial<FakeCallsState> = {}, readsOver: Partial<DashboardReads> = {}, depsOver: Partial<DashboardDeps> = {}) {
   const fake = fakeCallsRepo({
     settings: { ...CALL_SETTINGS_DEFAULTS, enabledSince: "2027-02-01T09:00:00.000Z" },
     bookings: [BOOKED],
@@ -74,7 +74,15 @@ function setup(seed: Partial<FakeCallsState> = {}, readsOver: Partial<DashboardR
     readDeposit: async () => ({ ok: true, value: { status: "deposit_paid", depositPaidAt: "2027-02-03T10:00:00.000Z", depositRefundedAt: null } }),
     ...readsOver,
   };
-  const deps: DashboardDeps = { repo: fake.repo, now: () => NOW, notify: async () => {}, prebookRequests: async () => new Map(), reads, cohortLine: async () => null };
+  const deps: DashboardDeps = {
+    repo: fake.repo,
+    now: () => NOW,
+    notify: async () => {},
+    prebookRequests: async () => new Map(),
+    reads,
+    cohortLine: async () => null,
+    ...depsOver,
+  };
   return { fake, deps, detailCalls };
 }
 
@@ -175,6 +183,17 @@ describe("the drawer's facts (brief §3 admin 2)", () => {
     const justStarted = bookingRow({ parentUserId: JANE, startsAt: "2027-02-04T09:50:00.000Z" });
     const fresh = await loadFamilyPanel(PROOF, JANE, setup({ bookings: [justStarted] }).deps);
     expect(fresh.ok && fresh.value.tags).toEqual(["test"]);
+  });
+
+  it("brief 03's pending pre-book request tags her Cohort pre-book here too, as on her row (review round 2 M8)", async () => {
+    const { deps } = setup({ bookings: [] }, {}, { prebookRequests: async (ids) => new Map(ids.map((id) => [id, { londonDate: "2027-02-08" }])) });
+    const got = await loadFamilyPanel(PROOF, JANE, deps);
+    expect(got.ok && got.value.tags).toEqual(["cohort_prebook", "test"]);
+  });
+
+  it("pre-book requests that can't be read → error, as her row's list does", async () => {
+    const { deps } = setup({}, {}, { prebookRequests: async () => Promise.reject(new Error("down")) });
+    expect(await loadFamilyPanel(PROOF, JANE, deps)).toEqual({ ok: false, error: "error" });
   });
 
   it("not booked → booking null", async () => {
