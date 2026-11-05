@@ -8,6 +8,7 @@ interface Op { table: string; kind: string; payload?: unknown; filters: Array<[s
 
 const h = vi.hoisted(() => ({
   gate: { userId: "admin-1", error: null } as Gate,
+  gateThrows: false,
   ops: [] as Op[],
   clients: 0,
   revalidated: [] as string[],
@@ -36,7 +37,12 @@ function client() {
   };
 }
 
-vi.mock("@/lib/admin/require-admin", () => ({ requireAdmin: async () => h.gate }));
+vi.mock("@/lib/admin/require-admin", () => ({
+  requireAdmin: async () => {
+    if (h.gateThrows) throw new Error("auth unavailable");
+    return h.gate;
+  },
+}));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => client() }));
 vi.mock("next/cache", () => ({ revalidatePath: (p: string) => { h.revalidated.push(p); } }));
 
@@ -47,6 +53,7 @@ const NOT_ADMIN: Gate = { userId: "", error: "Not authorized — admin role requ
 
 beforeEach(() => {
   h.gate = { userId: "admin-1", error: null };
+  h.gateThrows = false;
   h.ops = [];
   h.clients = 0;
   h.revalidated = [];
@@ -91,4 +98,15 @@ describe("closePositionAction", () => {
       expect(h.revalidated).toEqual([]);
     },
   );
+});
+
+describe("when the admin check itself fails", () => {
+  it("both actions reject before any client is made", async () => {
+    h.gateThrows = true;
+    await expect(fetchUserData("user-1")).rejects.toThrow("auth unavailable");
+    await expect(closePositionAction("pos-1")).rejects.toThrow("auth unavailable");
+    expect(h.clients).toBe(0);
+    expect(h.ops).toEqual([]);
+    expect(h.revalidated).toEqual([]);
+  });
 });
