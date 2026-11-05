@@ -6,7 +6,7 @@
  *
  * `prefill`, `extraReadOnly` and `onSaved` are brief 05's "after call" hook.
  */
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -133,6 +133,23 @@ describe("OutcomeForm — saving", () => {
     await user.click(save());
     expect(await screen.findByRole("alert")).toHaveTextContent("That didn't save — try again.");
     expect(save()).toBeEnabled();
+  });
+});
+
+describe("OutcomeForm — one save per press (review round 2 M3)", () => {
+  it("a double click while the first save is in flight sends it once", async () => {
+    const user = userEvent.setup();
+    let release: (v: unknown) => void = () => {};
+    actions.recordCallOutcomeAction.mockImplementation(() => new Promise((resolve) => (release = resolve)));
+    render(<OutcomeForm parentUserId={AVA} bookingId={BOOKING} />);
+    await user.click(chip("No answer"));
+    const button = save(); // the same element twice, as a real double click
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(actions.recordCallOutcomeAction).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+    release({ ok: true, value: { entryId: "e-1" } });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Saved."));
   });
 });
 

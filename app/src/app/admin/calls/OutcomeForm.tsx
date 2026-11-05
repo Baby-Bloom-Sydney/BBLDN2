@@ -4,7 +4,7 @@
  * Record what happened on a call (plan C4; brief §3 admin 3, §0.10, §11 Q4; BB-wave1-041126/04c1-build).
  *
  * The chip rows are `LeadDrawerLogContactForm`'s (rounded-full, `ring-1 ring-inset`, `aria-pressed`, a second tap
- * unselects; `useTransition`; refusals in a `role="alert"` line):
+ * unselects; refusals in a `role="alert"` line); one save per press (an in-flight guard, review round 2 M3):
  *   - the result: Answered / No answer / Voicemail left / Wrong number;
  *   - the outcome, only once Answered is chosen: Deposit taken / Link sent / Call back later / Not going ahead /
  *     Pre-booked next cohort / Other — with a call-back time (London clock, read on the server) for Call back later;
@@ -16,7 +16,7 @@
  * Brief 05's "after call" hook: `prefill` (what JustCall knows), `extraReadOnly` (shown above the chips), `onSaved`.
  */
 
-import { useId, useState, useTransition, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -168,43 +168,57 @@ function Chips({ s, pending }: { readonly s: OutcomeState; readonly pending: boo
   );
 }
 
-export function OutcomeForm({ parentUserId, bookingId, prefill, extraReadOnly, onSaved }: OutcomeFormProps) {
-  const s = useOutcomeState(prefill);
-  const [pending, startTransition] = useTransition();
+/**
+ * One save per press (review round 2 M3): under React 18 an async transition's `pending` clears before the action
+ * settles, so a ref guards the call and `saving` holds the button until the promise does.
+ */
+function useOutcomeSave(parentUserId: string, bookingId: string | null, s: OutcomeState, onSaved?: (entryId: string) => void) {
+  const inFlight = useRef(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("");
-  const headingId = useId();
-  // Call back later with only a date or only a time would drop the call-back silently: say so, and wait.
-  const halfCallBack = s.result === "answered" && s.outcome === "call_back_later" && (s.callBackDate === "") !== (s.callBackTime === "");
-  const canSave = (s.result !== null || s.outcome === "stop_calling") && !halfCallBack;
-  const submit = () => {
+  const submit = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setSaving(true);
     setError(null);
     setStatus("");
-    const input = payload(parentUserId, bookingId, s);
-    startTransition(async () => {
-      try {
-        const saved = await recordCallOutcomeAction(input);
-        if (!saved.ok) return setError(adminErrorLine(saved.error));
-        s.reset();
-        setStatus(ADMIN_COPY.saved);
-        onSaved?.(saved.value.entryId);
-      } catch {
-        setError(adminErrorLine("error"));
-      }
-    });
+    try {
+      const saved = await recordCallOutcomeAction(payload(parentUserId, bookingId, s));
+      if (!saved.ok) return setError(adminErrorLine(saved.error));
+      s.reset();
+      setStatus(ADMIN_COPY.saved);
+      onSaved?.(saved.value.entryId);
+    } catch {
+      setError(adminErrorLine("error"));
+    } finally {
+      inFlight.current = false;
+      setSaving(false);
+    }
   };
+  return { saving, error, status, submit };
+}
+
+function NoteField({ s, disabled }: { readonly s: OutcomeState; readonly disabled: boolean }) {
   return (
-    <section aria-labelledby={headingId} className="space-y-3 rounded-md border border-slate-200 bg-white p-3">
-      <h3 id={headingId} className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {ADMIN_COPY.recordOutcome}
-      </h3>
-      {extraReadOnly}
-      <Chips s={s} pending={pending} />
-      {halfCallBack && <p className="text-xs text-amber-700">{ADMIN_COPY.callBackBoth}</p>}
-      <label className="block text-xs">
-        <span className="mb-1 block text-slate-500">{ADMIN_COPY.noteLabel}</span>
-        <Textarea value={s.note} onChange={(e) => s.setNote(e.target.value)} disabled={pending} rows={2} maxLength={2000} className="text-sm" />
-      </label>
+    <label className="block text-xs">
+      <span className="mb-1 block text-slate-500">{ADMIN_COPY.noteLabel}</span>
+      <Textarea value={s.note} onChange={(e) => s.setNote(e.target.value)} disabled={disabled} rows={2} maxLength={2000} className="text-sm" />
+    </label>
+  );
+}
+
+interface FooterProps {
+  readonly error: string | null;
+  readonly status: string;
+  readonly canSave: boolean;
+  readonly saving: boolean;
+  readonly onSave: () => void;
+}
+
+function Footer({ error, status, canSave, saving, onSave }: FooterProps) {
+  return (
+    <>
       {error && (
         <p role="alert" className="rounded bg-red-50 px-2 py-1 text-xs text-red-700">
           {error}
@@ -214,10 +228,31 @@ export function OutcomeForm({ parentUserId, bookingId, prefill, extraReadOnly, o
         {status}
       </p>
       <div className="flex justify-end">
-        <Button type="button" size="sm" onClick={submit} disabled={!canSave || pending}>
-          {pending ? ADMIN_COPY.saving : ADMIN_COPY.save}
+        <Button type="button" size="sm" onClick={onSave} disabled={!canSave || saving}>
+          {saving ? ADMIN_COPY.saving : ADMIN_COPY.save}
         </Button>
       </div>
+    </>
+  );
+}
+
+export function OutcomeForm({ parentUserId, bookingId, prefill, extraReadOnly, onSaved }: OutcomeFormProps) {
+  const s = useOutcomeState(prefill);
+  const save = useOutcomeSave(parentUserId, bookingId, s, onSaved);
+  const headingId = useId();
+  // Call back later with only a date or only a time would drop the call-back silently: say so, and wait.
+  const halfCallBack = s.result === "answered" && s.outcome === "call_back_later" && (s.callBackDate === "") !== (s.callBackTime === "");
+  const canSave = (s.result !== null || s.outcome === "stop_calling") && !halfCallBack;
+  return (
+    <section aria-labelledby={headingId} className="space-y-3 rounded-md border border-slate-200 bg-white p-3">
+      <h3 id={headingId} className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {ADMIN_COPY.recordOutcome}
+      </h3>
+      {extraReadOnly}
+      <Chips s={s} pending={save.saving} />
+      {halfCallBack && <p className="text-xs text-amber-700">{ADMIN_COPY.callBackBoth}</p>}
+      <NoteField s={s} disabled={save.saving} />
+      <Footer error={save.error} status={save.status} canSave={canSave} saving={save.saving} onSave={save.submit} />
     </section>
   );
 }
