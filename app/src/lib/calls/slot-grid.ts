@@ -14,7 +14,7 @@
 import { callBookingEnabled } from "@/lib/features/flags";
 import { londonDateOf } from "@/lib/timezone";
 import { CALL_BOOKING_DISABLED, defaultCallsDeps, type CallsDeps } from "./deps";
-import { computeFreeSlots, slotBounds, spanOf, type FreeSlotsInput } from "./free-slots";
+import { candidateSlots, computeFreeSlots, slotBounds, spanOf, type FreeSlotsInput } from "./free-slots";
 import { datesBetween, generateSlots } from "./generate-slots";
 import type { CallBooking, CallPurpose, CallsResult, Slot } from "./types";
 
@@ -23,20 +23,36 @@ export interface GridSlot extends Slot {
 }
 
 export interface SlotGrid {
-  /** Every London date in the window, in order (a date with no hours is still here). */
+  /** Every London date in the window, in order (a date with no hours is still here; an edge date with nothing inside
+   *  the window is not). */
   readonly dates: readonly string[];
   readonly slots: readonly GridSlot[];
 }
 
 type GridInput = Omit<FreeSlotsInput, "blocks" | "bookings">;
 
+/**
+ * The window's first or last date goes when none of its slots falls inside the window: just after midnight the last
+ * date has nothing left before the window ends, and late in the evening today has nothing left after the notice (an
+ * all-grey extra day tile otherwise). Every date between stays, hours or not.
+ */
+function withoutEmptyEdges(dates: readonly string[], input: GridInput): readonly string[] {
+  if (input.londonDate !== undefined || dates.length < 2) return dates;
+  const inside = new Set(candidateSlots(input).map((slot) => londonDateOf(slot.startsAt)));
+  const from = inside.has(dates[0]) ? 0 : 1;
+  const to = inside.has(dates[dates.length - 1]) ? dates.length : dates.length - 1;
+  return dates.slice(from, Math.max(from, to));
+}
+
 /** The window's dates and every slot the hours make on them, before anything is taken away. */
 function gridOf(input: GridInput): { readonly dates: readonly string[]; readonly all: readonly Slot[] } {
   const { earliest, latest } = slotBounds(input);
   const fromDate = input.londonDate ?? londonDateOf(earliest);
   const toDate = input.londonDate ?? londonDateOf(latest ?? earliest);
+  const dates = withoutEmptyEdges(datesBetween(fromDate, toDate), input);
+  const kept = new Set(dates);
   const all = generateSlots({ hours: input.hours, fromDate, toDate, slotMinutes: input.settings.slotMinutes });
-  return { dates: datesBetween(fromDate, toDate), all };
+  return { dates, all: all.filter((slot) => kept.has(londonDateOf(slot.startsAt))) };
 }
 
 export function slotGridOf(input: FreeSlotsInput): SlotGrid {

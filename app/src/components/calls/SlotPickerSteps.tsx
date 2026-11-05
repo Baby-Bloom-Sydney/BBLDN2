@@ -6,7 +6,7 @@
  * when selected the timeslots appear underneath to select from … These should also be selectors which can be
  * unselected and make the later selections be hidden again").
  *
- * 1. `DayStep` — the rolling days as tiles ("Thu" over "5 Nov"): four across on a phone, all seven from 640px.
+ * 1. `DayStep` — the rolling days as tiles ("Thu" over "5 Nov"): four across on a phone, one row from 640px.
  * 2. `BracketStep` — once a day is chosen: Morning / Midday / Afternoon / Evening with their sublabels.
  * 3. `TimeStep` — once a time of day is chosen: "Select a time" and that bracket's call slots.
  *
@@ -162,7 +162,9 @@ export function DayStep({ uid, days, chosen, gone, current, busy, onPick }: Step
       </>
     ),
   }));
-  return <RadioTiles tiles={tiles} look="cell" gridClass="grid grid-cols-4 gap-2 sm:grid-cols-7" tileClass="h-14" columns={1} labelledBy={`${uid}-heading`} busy={busy} onPick={onPick} />;
+  // Seven London dates, or eight when the window's first and last both still have times: one row from 640px.
+  const wide = days.length > 7 ? "sm:grid-cols-8" : "sm:grid-cols-7";
+  return <RadioTiles tiles={tiles} look="cell" gridClass={`grid grid-cols-4 gap-2 ${wide}`} tileClass="h-14" columns={1} labelledBy={`${uid}-heading`} busy={busy} onPick={onPick} />;
 }
 
 export function BracketStep({ uid, day, chosen, gone, current, busy, onPick }: StepProps & { readonly day: SlotDay; readonly chosen: BracketKey | null; readonly onPick: (bracket: BracketKey) => void }) {

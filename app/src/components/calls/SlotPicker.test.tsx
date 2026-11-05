@@ -14,6 +14,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { actionsWith, DAYS, gridDays, HOLD, TUE_09, TUE_14, TUE_1430, TUE_15, WED_09 } from "./slot-picker.fixtures.test-util";
+import { groupSlotGridByDay } from "@/lib/calls/group-slots-by-day";
 import type { MyCallRefusal } from "@/lib/calls/parent-view";
 import { SlotPicker } from "./SlotPicker";
 
@@ -52,6 +53,16 @@ describe("SlotPicker — step 1: the days only", () => {
     expect(day("Thu 11 Feb").className).toContain("bg-slate-50 text-slate-200 border-slate-100 cursor-not-allowed");
     expect(tue().className).toContain("bg-violet-50 text-violet-600 border-violet-200");
     expect(screen.getByRole("radiogroup", { name: "Your matchmaker's availability" }).className).toContain("grid-cols-4 gap-2 sm:grid-cols-7");
+  });
+
+  it("eight days (the window's first and last both still have times) sit on one row from 640px, not seven and one", () => {
+    const dates = ["2027-02-04", "2027-02-05", "2027-02-06", "2027-02-07", "2027-02-08", "2027-02-09", "2027-02-10", "2027-02-11"];
+    const slots = dates.map((date) => ({ startsAt: `${date}T10:00:00.000Z`, endsAt: `${date}T10:30:00.000Z`, free: true }));
+    render(<SlotPicker days={groupSlotGridByDay({ dates, slots })} actions={actionsWith()} onConfirmed={vi.fn()} />);
+    const days = screen.getByRole("radiogroup", { name: "Your matchmaker's availability" });
+    expect(within(days).getAllByRole("radio")).toHaveLength(8);
+    expect(days.className).toContain("sm:grid-cols-8");
+    expect(days.className).not.toContain("sm:grid-cols-7");
   });
 
   it("a single day (03's pre-book) is one tile", () => {

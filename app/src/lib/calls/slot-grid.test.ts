@@ -58,6 +58,15 @@ describe("slotGridOf", () => {
     expect(freeAt(grid, "2027-02-06T16:00:00.000Z")).toBe(true);
   });
 
+  it("an edge date with nothing inside the window isn't a day at all (no all-grey eighth tile); inside, every date is", () => {
+    const justAfterMidnight = new Date("2027-02-04T00:05:00.000Z"); // the window ends Thu 11 at 00:05: no slot there
+    expect(slotGridOf({ ...base, now: justAfterMidnight }).dates).toEqual([
+      "2027-02-04", "2027-02-05", "2027-02-06", "2027-02-07", "2027-02-08", "2027-02-09", "2027-02-10",
+    ]);
+    const lateEvening = new Date("2027-02-04T20:30:00.000Z"); // the window starts at 22:30 today: nothing left today
+    expect(slotGridOf({ ...base, now: lateEvening }).dates[0]).toBe("2027-02-05");
+  });
+
   it("a date with no hours at all is still a date in the grid, with no slots", () => {
     const noSaturday = EVERY_DAY_9_TO_7.filter((h) => h.weekday !== 6);
     const grid = slotGridOf({ ...base, hours: noSaturday });
