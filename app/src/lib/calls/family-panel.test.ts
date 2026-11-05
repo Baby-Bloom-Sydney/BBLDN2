@@ -110,6 +110,15 @@ describe("the gates", () => {
     expect(detailCalls).toEqual([]);
   });
 
+  it("a sign-up source of '__proto__' or 'constructor' reads Direct, never an object the page can't send (H1)", async () => {
+    for (const source of ["__proto__", "constructor"]) {
+      const families = new Map([[JANE, { userId: JANE, signupSource: source, signedUpAt: "2027-02-01T10:00:00.000Z" }]]);
+      const { deps } = setup({}, { readFamilyDetails: async () => ({ ok: true, value: { families, positions: new Map() } }) });
+      const got = await loadFamilyPanel(PROOF, JANE, deps);
+      expect(got.ok && got.value.signupType).toBe("Direct");
+    }
+  });
+
   it("someone with no parents row (not a parent) → not_found", async () => {
     const { deps } = setup({}, { readFamilyDetails: async () => ({ ok: true, value: { families: new Map(), positions: new Map() } }) });
     expect(await loadFamilyPanel(PROOF, JANE, deps)).toEqual({ ok: false, error: "not_found" });

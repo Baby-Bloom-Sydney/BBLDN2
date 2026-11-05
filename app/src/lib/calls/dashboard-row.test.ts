@@ -60,6 +60,10 @@ describe("the family", () => {
     expect(signupTypeOf(null)).toBe("Direct");
   });
 
+  it("a stored source that names an Object.prototype key is just Direct (review round 2 H1: it returned a function)", () => {
+    for (const source of ["constructor", "toString", "__proto__", "hasOwnProperty", "valueOf"]) expect(signupTypeOf(source)).toBe("Direct");
+  });
+
   it("contact: the name, the email, and the mobile in +44 form with a tel: link in E.164", () => {
     const words = contactWords({ userId: PARENT, firstName: "Jane", lastName: "Smith", email: "jane@example.test", mobile: "+447700900123", isTestUser: false });
     expect(words).toEqual({

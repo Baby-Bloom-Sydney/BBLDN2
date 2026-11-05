@@ -33,14 +33,16 @@ export function londonDayWords(dateOrInstant: string): string {
   return DAY_WORDS.format(new Date(`${date}T12:00:00.000Z`));
 }
 
-const SIGNUP_TYPES: Readonly<Record<string, string>> = Object.freeze({
-  standard_match: ADMIN_COPY.signupQuick,
-  advanced_match: ADMIN_COPY.signupAdvanced,
-});
+/** A Map, not an object: `signup_source` is stored as the form sent it, so "constructor" or "__proto__" must not hit
+ *  an inherited key (review round 2 H1 — a function there broke the page for every admin). */
+const SIGNUP_TYPES: ReadonlyMap<string, string> = new Map([
+  ["standard_match", ADMIN_COPY.signupQuick],
+  ["advanced_match", ADMIN_COPY.signupAdvanced],
+]);
 
-/** How she signed up: Quick match, Advanced, or Direct (a cold sign-up, or no source recorded). */
+/** How she signed up: Quick match, Advanced, or Direct (a cold sign-up, no source recorded, or anything else). */
 export function signupTypeOf(source: string | null): string {
-  return (source !== null && SIGNUP_TYPES[source]) || ADMIN_COPY.signupDirect;
+  return (source !== null && SIGNUP_TYPES.get(source)) || ADMIN_COPY.signupDirect;
 }
 
 export interface MobileLink {
