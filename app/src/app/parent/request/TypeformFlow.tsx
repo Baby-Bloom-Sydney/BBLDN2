@@ -203,17 +203,19 @@ export function TypeformFlow({ callAt }: { callAt?: string } = {}) {
   useEffect(() => {
     if (completed && !hasSaved.current) {
       hasSaved.current = true;
-      saveTypeformPosition(formData, { callAt })
-        .then((result) => {
+      saveTypeformPosition(formData, { callAt }).then(
+        (result) => {
           if (result.success) {
             // Brief 04 §0a.3 (04b rework W8): the server decides (the call popup over her Childcare tab, or today's).
             router.push(result.redirectTo ?? "/parent");
           } else {
             setSubmitError(result.error);
           }
-        })
-        // F-7: a rejected save (a network drop) shows the error and Try again, not an endless spinner.
-        .catch(() => setSubmitError("Failed to save position"));
+        },
+        // F-7: only a rejected save (a network drop) shows the error and Try again, not an endless spinner; a throw
+        // after a save that worked isn't reported as a failed save.
+        () => setSubmitError("Failed to save position"),
+      );
     }
   }, [completed, formData, router, callAt, saveAttempt]);
 
