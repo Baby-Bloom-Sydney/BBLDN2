@@ -37,14 +37,18 @@ export interface HubCall {
   readonly card: HubCallCard | null;
   /** The card's rule (`callOffered`): may the call be offered to her now? */
   readonly offered: boolean;
+  /** A read failed: `offered: false` then means "couldn't tell", not a definite no (W17). */
+  readonly failed: boolean;
 }
 
-const NO_HUB_CALL: HubCall = Object.freeze({ card: null, offered: false });
+const NO_HUB_CALL: HubCall = Object.freeze({ card: null, offered: false, failed: false });
+const HUB_CALL_UNREADABLE: HubCall = Object.freeze({ card: null, offered: false, failed: true });
 
 /**
  * Her Childcare-tab card and whether the call is offered to her (plan B7; TS review), from one read — or nothing:
  * with the switch off (before any read), for an id that isn't one, and when a read fails (logged; no card is better
- * than a wrong one). Called by `/parent` only while the switch is on, and by `after-position.ts`.
+ * than a wrong one; marked `failed`, so a caller can tell "couldn't read" from "not offered", W17). Called by
+ * `/parent` only while the switch is on, and by `after-position.ts`.
  */
 export async function loadHubCall(sessionUserId: string, deps: CallsDeps = defaultCallsDeps()): Promise<HubCall> {
   if (!callBookingEnabled()) return NO_HUB_CALL;
@@ -57,8 +61,8 @@ export async function loadHubCall(sessionUserId: string, deps: CallsDeps = defau
   ]);
   if (!settings.ok || !parent.ok || !bookings.ok || !entries.ok) {
     console.error("[calls/parent-state] the hub card could not be read");
-    return NO_HUB_CALL;
+    return HUB_CALL_UNREADABLE;
   }
   const facts = { bookings: bookings.value, entries: entries.value, parent: parent.value, enabledSince: settings.value.enabledSince, now: deps.now() };
-  return { card: hubCardFor(facts), offered: callOffered(facts) };
+  return { card: hubCardFor(facts), offered: callOffered(facts), failed: false };
 }

@@ -12,9 +12,9 @@ import { redirectAfterPosition, type AfterPositionDeps, type BookOutcome } from 
 const POSITION = "d0400000-0000-4000-8000-000000000001";
 const AT = "2027-02-09T14:00:00.000Z";
 
-function deps(over: { offered?: boolean; nanny?: boolean | null; book?: BookOutcome | Error } = {}) {
+function deps(over: { offered?: boolean | null; nanny?: boolean | null; book?: BookOutcome | Error } = {}) {
   return {
-    offered: vi.fn(async () => over.offered ?? true),
+    offered: vi.fn(async () => (over.offered === undefined ? true : over.offered)),
     hasNanny: vi.fn(async () => (over.nanny === undefined ? false : over.nanny)),
     book: vi.fn(async () => {
       if (over.book instanceof Error) throw over.book;
@@ -51,7 +51,8 @@ describe("redirectAfterPosition — when the call comes at all", () => {
   it.each([
     ["not offered (out of scope, answered, Stop calling)", { offered: false }],
     ["a hired or connected nanny", { nanny: true }],
-    ["couldn't tell", { nanny: null }],
+    ["couldn't tell (the nanny check)", { nanny: null }],
+    ["couldn't tell (the offer)", { offered: null }],
   ])("%s → no destination (today's /parent)", async (_why, over) => {
     expect(await redirectAfterPosition(POSITION, { created: true }, deps(over))).toBeUndefined();
   });
@@ -96,6 +97,30 @@ describe("redirectAfterPosition — a picked time (W11)", () => {
     expect(await redirectAfterPosition(POSITION, { created: false, callAt: raw }, d)).toBeUndefined();
     expect(await redirectAfterPosition(POSITION, { created: true, callAt: raw }, d)).toBe("/parent?t=childcare&call=open");
     expect(d.book).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["the offer couldn't be read", { offered: null }],
+    ["the nanny check couldn't be read", { nanny: null }],
+  ])("W17: %s → her time isn't dropped: the picker open with 04b's line (failed=1); nothing booked", async (_why, over) => {
+    const d = deps(over);
+    expect(await redirectAfterPosition(POSITION, { created: true, callAt: AT }, d)).toBe("/parent?t=childcare&call=open&failed=1");
+    expect(d.book).not.toHaveBeenCalled();
+  });
+
+  it("W17: a check that throws, with a picked time → the same (logged), nothing booked", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const d = deps();
+    d.offered.mockRejectedValueOnce(new TypeError("x"));
+    expect(await redirectAfterPosition(POSITION, { created: false, callAt: AT }, d)).toBe("/parent?t=childcare&call=open&failed=1");
+    expect(d.book).not.toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it("W17: a definite 'no' outranks a check that couldn't be read → no destination", async () => {
+    for (const over of [{ offered: false, nanny: null }, { offered: null, nanny: true }]) {
+      expect(await redirectAfterPosition(POSITION, { created: true, callAt: AT }, deps(over))).toBeUndefined();
+    }
   });
 
   it("not offered, or a nanny → nothing booked, no destination", async () => {

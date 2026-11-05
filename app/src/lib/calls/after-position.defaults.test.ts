@@ -5,7 +5,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ placement: vi.fn(), connections: vi.fn(), session: vi.fn(), hold: vi.fn(), confirm: vi.fn(), hub: vi.fn() }));
+const h = vi.hoisted(() => ({ placement: vi.fn(), connections: vi.fn(), session: vi.fn(), hold: vi.fn(), confirm: vi.fn(), hub: vi.fn(), revalidate: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: h.revalidate }));
 vi.mock("@/lib/actions/position-funnel", () => ({ getParentPlacement: h.placement, getConfirmedConnections: h.connections }));
 vi.mock("./parent-session", () => ({ sessionParentId: h.session }));
 vi.mock("./parent-booking", () => ({ parentHoldSlot: h.hold, parentConfirmHold: h.confirm }));
@@ -25,7 +26,7 @@ beforeEach(() => {
   h.session.mockResolvedValue(HER);
   h.hold.mockResolvedValue({ ok: true, value: { bookingId: "hold-1", startsAt: AT, endsAt: AT, holdExpiresAt: AT } });
   h.confirm.mockResolvedValue({ ok: true, value: { kind: "booked", bookingId: "hold-1", startsAt: AT, replay: false } });
-  h.hub.mockResolvedValue({ card: null, offered: true });
+  h.hub.mockResolvedValue({ card: null, offered: true, failed: false });
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -50,7 +51,7 @@ describe("the default nanny check", () => {
   });
 
   it("the offer is the card's rule, for her session (TS review)", async () => {
-    h.hub.mockResolvedValueOnce({ card: null, offered: false });
+    h.hub.mockResolvedValueOnce({ card: null, offered: false, failed: false });
     expect(await redirectAfterPosition(POSITION, { created: true })).toBeUndefined();
     expect(h.hub).toHaveBeenCalledWith(HER);
     h.session.mockResolvedValueOnce(null);
@@ -58,11 +59,32 @@ describe("the default nanny check", () => {
   });
 });
 
+describe("the offer read failing is not a 'no' (W17)", () => {
+  it("the hub's read failed, with a picked time → the picker open with the line; nothing held", async () => {
+    h.hub.mockResolvedValueOnce({ card: null, offered: false, failed: true });
+    expect(await redirectAfterPosition(POSITION, { created: true, callAt: AT })).toBe("/parent?t=childcare&call=open&failed=1");
+    expect(h.hold).not.toHaveBeenCalled();
+  });
+
+  it("a definite not offered, with a picked time → no destination, nothing held (as before)", async () => {
+    h.hub.mockResolvedValueOnce({ card: null, offered: false, failed: false });
+    expect(await redirectAfterPosition(POSITION, { created: true, callAt: AT })).toBeUndefined();
+    expect(h.hold).not.toHaveBeenCalled();
+  });
+});
+
 describe("the default booking, as her own session (W11)", () => {
-  it("holds then confirms with the hold id as the key → booked", async () => {
+  it("holds then confirms with the hold id as the key → booked; /parent is revalidated, as confirmMyCallHold does (W17)", async () => {
     expect(await redirectAfterPosition(POSITION, { created: true, callAt: AT })).toBe("/parent?t=childcare&call=booked");
     expect(h.hold).toHaveBeenCalledWith(HER, AT);
     expect(h.confirm).toHaveBeenCalledWith(HER, "hold-1", "hold-1");
+    expect(h.revalidate).toHaveBeenCalledWith("/parent");
+  });
+
+  it("not booked → nothing revalidated", async () => {
+    h.confirm.mockResolvedValueOnce({ ok: false, error: "taken" });
+    await redirectAfterPosition(POSITION, { created: true, callAt: AT });
+    expect(h.revalidate).not.toHaveBeenCalled();
   });
 
   it.each([

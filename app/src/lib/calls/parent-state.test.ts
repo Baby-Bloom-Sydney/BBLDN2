@@ -79,7 +79,9 @@ describe("loadMyCallView", () => {
 describe("loadHubCall (plan B7; TS review: the card and whether the call is offered, one read)", () => {
   const SCOPE = { userId: HER, signupSource: "advanced_match", signedUpAt: "2027-02-03T10:00:00.000Z" };
   const STARTED = { ...CALL_SETTINGS_DEFAULTS, enabledSince: "2027-02-01T09:00:00.000Z" };
-  const NONE = { card: null, offered: false };
+  const NONE = { card: null, offered: false, failed: false };
+  /** A read failed: not a definite "not offered" (W17), so after-position can tell them apart. */
+  const FAILED = { card: null, offered: false, failed: true };
 
   it("switch off → nothing, with zero reads", async () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "");
@@ -96,7 +98,7 @@ describe("loadHubCall (plan B7; TS review: the card and whether the call is offe
 
   it("reads her settings, scope row, bookings and attempts → the card, and the call offered", async () => {
     const { fake, deps } = setup({ settings: STARTED, scope: [SCOPE] });
-    expect(await loadHubCall(HER, deps)).toEqual({ card: { kind: "not_booked", afterNoAnswer: false }, offered: true });
+    expect(await loadHubCall(HER, deps)).toEqual({ card: { kind: "not_booked", afterNoAnswer: false }, offered: true, failed: false });
     expect(callsTo(fake, "readScopeParent")[0].args).toEqual([HER]);
     expect(callsTo(fake, "readBookingsForParents")[0].args).toEqual([[HER]]);
   });
@@ -106,11 +108,11 @@ describe("loadHubCall (plan B7; TS review: the card and whether the call is offe
     expect(await loadHubCall(HER, deps)).toEqual(NONE);
   });
 
-  it("any read failing → nothing (logged), never a wrong card", async () => {
+  it("any read failing → no card, and marked failed (logged) — never a wrong card, never a definite 'not offered'", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     for (const failing of ["readSettings", "readScopeParent", "readBookingsForParents", "readLogEntriesForParents"] as const) {
       const { deps } = setup({ settings: STARTED, scope: [SCOPE], failing: [failing] });
-      expect(await loadHubCall(HER, deps)).toEqual(NONE);
+      expect(await loadHubCall(HER, deps)).toEqual(FAILED);
     }
     expect(log).toHaveBeenCalledTimes(4);
     log.mockRestore();
