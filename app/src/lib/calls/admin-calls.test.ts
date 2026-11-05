@@ -30,8 +30,11 @@ const TUE_14 = "2027-02-09T14:00:00.000Z";
 const FORGED = { kind: "admin_proof", userId: ADMIN } as unknown as AdminProof;
 let PROOF: AdminProof;
 
+/** PARENT has a parents row (she is in the scope the fake reads `readScopeParent` from). */
+const PARENT_ROW = { userId: "b0400000-0000-4000-8000-000000000001", signupSource: "advanced_match", signedUpAt: "2027-02-01T09:00:00.000Z" };
+
 function setup(seed: Partial<FakeCallsState> = {}) {
-  const fake = fakeCallsRepo(seed);
+  const fake = fakeCallsRepo({ scope: [PARENT_ROW], ...seed });
   const notices: CallNotice[] = [];
   const deps: CallsDeps = {
     repo: fake.repo,
@@ -178,6 +181,26 @@ describe("the on-behalf picker: tap to hold, then confirm (04c-1 C4; BB-wave1-04
     const { fake, deps } = setup();
     expect(await familySlotGrid(PROOF, "nope", deps)).toEqual({ ok: false, error: "invalid" });
     expect(fake.calls).toEqual([]);
+  });
+});
+
+describe("on-behalf writes need a parents row (review round 2 L11)", () => {
+  it.each([
+    ["holdSlotOnBehalf", (deps: CallsDeps) => holdSlotOnBehalf(PROOF, { parentUserId: PARENT, startsAt: TUE_14 }, deps)],
+    ["confirmHoldOnBehalf", (deps: CallsDeps) => confirmHoldOnBehalf(PROOF, { parentUserId: PARENT, holdId: BOOKING, idempotencyKey: "k" }, deps)],
+    ["bookSlotOnBehalf", (deps: CallsDeps) => bookSlotOnBehalf(PROOF, { parentUserId: PARENT, startsAt: TUE_14, idempotencyKey: "k" }, deps)],
+    ["cancelBookingOnBehalf", (deps: CallsDeps) => cancelBookingOnBehalf(PROOF, { parentUserId: PARENT, bookingId: BOOKING }, deps)],
+  ] as const)("%s: no parents row → not_found, before any write or email", async (_n, act) => {
+    const { fake, deps, notices } = setup({ scope: [] });
+    expect(await act(deps)).toEqual({ ok: false, error: "not_found" });
+    for (const write of ["holdSlot", "confirmHold", "bookSlot", "cancelBooking"] as const) expect(callsTo(fake, write)).toEqual([]);
+    expect(notices).toEqual([]);
+  });
+
+  it("the parents read failing → error, before any write", async () => {
+    const { fake, deps } = setup({ failing: ["readScopeParent"] });
+    expect(await holdSlotOnBehalf(PROOF, { parentUserId: PARENT, startsAt: TUE_14 }, deps)).toEqual({ ok: false, error: "error" });
+    expect(callsTo(fake, "holdSlot")).toEqual([]);
   });
 });
 

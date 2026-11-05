@@ -31,6 +31,16 @@ import { loadSlotGrid, type SlotGrid } from "./slot-grid";
 import type { CallError, CallsResult, CancelledBooking, ConfirmedBooking, StartedCallBooking } from "./types";
 import { uuid } from "./zod-parts";
 
+const NOT_FOUND = Object.freeze({ ok: false, error: "not_found" } as const);
+
+/** On-behalf writes act only for a parent (review round 2 L11): her parents row, before any write or email. */
+async function forAParent(parentUserId: string, deps: CallsDeps): Promise<CallsResult<true>> {
+  if (!uuid.safeParse(parentUserId).success) return CALLS_INVALID;
+  const row = await deps.repo.readScopeParent(parentUserId);
+  if (!row.ok) return row;
+  return row.value === null ? NOT_FOUND : { ok: true, value: true };
+}
+
 /** Brief 14's "Start call booking": sets `enabled_since` once; later presses keep the first time (plan §12 R11). */
 export async function startCallBooking(proof: AdminProof, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<StartedCallBooking>> {
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
@@ -55,6 +65,8 @@ export async function bookSlotOnBehalf(
 ): Promise<CallsResult<ConfirmedBooking>> {
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
   if (!isAdminProof(proof)) return CALLS_INVALID;
+  const parent = await forAParent(request.parentUserId, deps);
+  if (!parent.ok) return parent;
   return bookSlotForParent({ ...request, actor: { kind: "admin", proof } }, deps);
 }
 
@@ -66,6 +78,8 @@ export async function cancelBookingOnBehalf(
 ): Promise<CallsResult<CancelledBooking>> {
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
   if (!isAdminProof(proof)) return CALLS_INVALID;
+  const parent = await forAParent(request.parentUserId, deps);
+  if (!parent.ok) return parent;
   return cancelBooking({ ...request, actor: { kind: "admin", proof } }, deps);
 }
 
@@ -77,6 +91,8 @@ export async function holdSlotOnBehalf(
 ): Promise<CallsResult<HeldTime>> {
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
   if (!isAdminProof(proof)) return CALLS_INVALID;
+  const parent = await forAParent(request.parentUserId, deps);
+  if (!parent.ok) return parent;
   return holdSlotForParent({ parentUserId: request.parentUserId, startsAt: request.startsAt, purpose: "first_call", actor: { kind: "admin", proof } }, deps);
 }
 
@@ -88,6 +104,8 @@ export async function confirmHoldOnBehalf(
 ): Promise<CallsResult<ConfirmedBooking>> {
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
   if (!isAdminProof(proof)) return CALLS_INVALID;
+  const parent = await forAParent(request.parentUserId, deps);
+  if (!parent.ok) return parent;
   return confirmHoldForParent({ ...request, actor: { kind: "admin", proof } }, deps);
 }
 

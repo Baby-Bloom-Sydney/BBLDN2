@@ -52,7 +52,10 @@ beforeEach(() => {
   h.gateCalls = 0;
   h.revalidated = [];
   notices = [];
-  fake = fakeCallsRepo({ settings: { ...CALL_SETTINGS_DEFAULTS, enabledSince: "2027-02-01T09:00:00.000Z" } });
+  fake = fakeCallsRepo({
+    settings: { ...CALL_SETTINGS_DEFAULTS, enabledSince: "2027-02-01T09:00:00.000Z" },
+    scope: [{ userId: JANE, signupSource: "advanced_match", signedUpAt: "2027-02-01T09:00:00.000Z" }],
+  });
   h.deps = {
     repo: fake.repo,
     now: () => NOW,
