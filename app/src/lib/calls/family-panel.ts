@@ -33,7 +33,7 @@ import {
 import { CALL_BOOKING_DISABLED, CALLS_INVALID } from "./deps";
 import { groupSlotGridByDay, type SlotDay } from "./group-slots-by-day";
 import { myBookedCall } from "./parent-view";
-import type { CallBlock, CallBooking, CallLogEntry, CallsResult, ParentContact } from "./types";
+import type { CallBlock, CallBooking, CallLogEntry, CallPurpose, CallsResult, ParentContact } from "./types";
 import { uuid } from "./zod-parts";
 
 export interface PanelBooking {
@@ -43,6 +43,8 @@ export interface PanelBooking {
   readonly when: string;
   /** Move and Cancel only before the start; after it, an outcome. */
   readonly changeable: boolean;
+  /** A cohort pre-book (brief 03's) can be cancelled here but not moved: the picker books first calls. */
+  readonly purpose: CallPurpose;
 }
 
 export interface AttemptView {
@@ -64,7 +66,7 @@ export interface FamilyPanel {
   readonly deposit: string;
   readonly links: RowLinks;
   readonly tags: readonly CallTag[];
-  /** Her booked first call, or null. */
+  /** Her booked first call, else her booked cohort pre-book, or null. */
   readonly booking: PanelBooking | null;
   /** Newest first. */
   readonly attempts: readonly AttemptView[];
@@ -92,7 +94,8 @@ async function herCalls(parentUserId: string, deps: DashboardDeps): Promise<Call
   if (!contacts.ok) return contacts;
   if (!bookings.ok) return bookings;
   if (!entries.ok) return entries;
-  const booking = myBookedCall(bookings.value);
+  // Her first call; else a booked cohort pre-book, so the drawer never says "Not booked" beside a booked row.
+  const booking = myBookedCall(bookings.value) ?? bookings.value.find((b) => b.status === "booked") ?? null;
   const blocks = booking === null ? ok<readonly CallBlock[]>([]) : await deps.repo.readBlocks(booking);
   if (!blocks.ok) return blocks;
   const contact = contacts.value.find((c) => c.userId === parentUserId) ?? null;
@@ -120,7 +123,13 @@ function attemptView(entry: CallLogEntry, names: ReadonlyMap<string, string>): A
 
 function bookingView(booking: CallBooking | null, now: Date): PanelBooking | null {
   if (booking === null) return null;
-  return { bookingId: booking.id, startsAt: booking.startsAt, when: londonLabel(booking.startsAt), changeable: Date.parse(booking.startsAt) > now.getTime() };
+  return {
+    bookingId: booking.id,
+    startsAt: booking.startsAt,
+    when: londonLabel(booking.startsAt),
+    changeable: Date.parse(booking.startsAt) > now.getTime(),
+    purpose: booking.purpose,
+  };
 }
 
 const depositWords = (read: CallsResult<DepositFacts | null>): string =>
@@ -148,7 +157,7 @@ export async function loadFamilyPanel(proof: AdminProof, parentUserId: string, d
     position,
     deposit: depositWords(deposit),
     links: rowLinks(parentUserId, position?.positionId ?? null),
-    tags: tagsOf({ blockedOver: blocks.length > 0, overdue: false, cohortPrebook: false, test: contact?.isTestUser === true }),
+    tags: tagsOf({ blockedOver: blocks.length > 0, overdue: false, cohortPrebook: booking?.purpose === "cohort_prebook", test: contact?.isTestUser === true }),
     booking: bookingView(booking, deps.now()),
     attempts: entries.map((e) => attemptView(e, names)),
     days: grid.ok ? groupSlotGridByDay(grid.value) : null,

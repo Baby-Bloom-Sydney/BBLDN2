@@ -137,13 +137,26 @@ describe("the drawer's facts (brief §3 admin 2)", () => {
 
   it("her booked call, in London words, changeable before its start", async () => {
     const got = await loadFamilyPanel(PROOF, JANE, setup().deps);
-    expect(got.ok && got.value.booking).toEqual({ bookingId: BOOKED.id, startsAt: BOOKED.startsAt, when: "Fri 5 Feb, 14:00 (London time)", changeable: true });
+    expect(got.ok && got.value.booking).toEqual({ bookingId: BOOKED.id, startsAt: BOOKED.startsAt, when: "Fri 5 Feb, 14:00 (London time)", changeable: true, purpose: "first_call" });
   });
 
   it("a booked call that has started is no longer changeable (outcome only)", async () => {
     const started = bookingRow({ parentUserId: JANE, startsAt: "2027-02-04T09:45:00.000Z" });
     const got = await loadFamilyPanel(PROOF, JANE, setup({ bookings: [started] }).deps);
     expect(got.ok && got.value.booking?.changeable).toBe(false);
+  });
+
+  it("a booked cohort pre-book (brief 03's) is her booked call too, with its purpose, tagged Cohort pre-book", async () => {
+    const prebook = bookingRow({ parentUserId: JANE, startsAt: "2027-02-08T10:00:00.000Z", purpose: "cohort_prebook" });
+    const got = await loadFamilyPanel(PROOF, JANE, setup({ bookings: [prebook] }).deps);
+    expect(got.ok && got.value.booking).toMatchObject({ bookingId: prebook.id, purpose: "cohort_prebook" });
+    expect(got.ok && got.value.tags).toEqual(["cohort_prebook", "test"]);
+  });
+
+  it("her first call wins over a pre-book when she has both", async () => {
+    const prebook = bookingRow({ parentUserId: JANE, startsAt: "2027-02-08T10:00:00.000Z", purpose: "cohort_prebook" });
+    const got = await loadFamilyPanel(PROOF, JANE, setup({ bookings: [prebook, BOOKED] }).deps);
+    expect(got.ok && got.value.booking).toMatchObject({ bookingId: BOOKED.id, purpose: "first_call" });
   });
 
   it("not booked → booking null", async () => {

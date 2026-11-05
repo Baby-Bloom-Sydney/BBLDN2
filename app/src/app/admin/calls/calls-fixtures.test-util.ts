@@ -122,7 +122,7 @@ export const PANEL: FamilyPanel = {
   deposit: "Deposit paid 3 February 2027",
   links: links(AVA, POS),
   tags: ["test"],
-  booking: { bookingId: BOOKING, startsAt: "2027-02-08T10:00:00.000Z", when: "Mon 8 Feb, 10:00 (London time)", changeable: true },
+  booking: { bookingId: BOOKING, startsAt: "2027-02-08T10:00:00.000Z", when: "Mon 8 Feb, 10:00 (London time)", changeable: true, purpose: "first_call" },
   attempts: [
     { key: "e2", when: "Wed 3 Feb, 17:00 (London time)", what: "Answered · Call back later", note: null, by: null, callBack: "Call back Fri 5 Feb, 17:00 (London time)" },
     { key: "e1", when: "Wed 3 Feb, 15:00 (London time)", what: "No answer", note: "Rang twice", by: "Bai Admin", callBack: null },

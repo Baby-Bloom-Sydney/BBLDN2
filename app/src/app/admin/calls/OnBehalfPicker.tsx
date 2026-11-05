@@ -7,7 +7,8 @@
  * - Not booked: "Book a matchmaker call" opens the same `SlotPicker` she uses, with the admin actions (`actions.ts`)
  *   and the admin words: the London heading, "Book this time", "Held for N minutes" (the hold action's line).
  * - Booked: her time in London words, with Move ("Move to this time", the same booking moved) and Cancel booking
- *   (asks first). Neither once the call has started — that is an outcome.
+ *   (asks first). Neither once the call has started — that is an outcome. A cohort pre-book (brief 03's) has Cancel
+ *   only: the picker books first calls, so "moving" it would add a second booking instead.
  * - The server emails her as her own booking would; afterwards `onChanged` refreshes the page.
  *
  * The picker speaks the parent's refusal codes, so the admin codes are mapped onto them (`PICKER_REFUSAL`).
@@ -70,14 +71,18 @@ function BookedPanel({ booking, onMove, onCancel }: { readonly booking: PanelBoo
   return (
     <div className="space-y-3 rounded-lg border border-green-200 bg-green-50 p-3">
       <div>
-        <p className="text-xs font-medium uppercase tracking-wide text-green-700">{ADMIN_COPY.bookedLabel}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-green-700">
+          {booking.purpose === "cohort_prebook" ? ADMIN_COPY.tagCohortPrebook : ADMIN_COPY.bookedLabel}
+        </p>
         <p className="text-sm font-medium text-green-900">{booking.when}</p>
       </div>
       {booking.changeable && (
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={onMove}>
-            {ADMIN_COPY.move}
-          </Button>
+          {booking.purpose === "first_call" && (
+            <Button type="button" variant="outline" size="sm" onClick={onMove}>
+              {ADMIN_COPY.move}
+            </Button>
+          )}
           <Button type="button" variant="outline" size="sm" className="text-red-700" onClick={onCancel}>
             {ADMIN_COPY.cancelBooking}
           </Button>

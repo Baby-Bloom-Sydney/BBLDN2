@@ -146,6 +146,13 @@ describe("OnBehalfPicker — booked", () => {
     expect(onChanged).not.toHaveBeenCalled();
   });
 
+  it("a cohort pre-book (brief 03's): Cancel booking, but no Move — the first-call picker would add a second booking, not move it", () => {
+    render(<OnBehalfPicker parentUserId={AVA} booking={{ ...PANEL.booking!, purpose: "cohort_prebook" }} days={PANEL_DAYS} onChanged={vi.fn()} />);
+    expect(screen.getByText("Cohort pre-book")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Move" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel booking" })).toBeInTheDocument();
+  });
+
   it("a call that has started: no Move, no Cancel (record the outcome instead)", () => {
     render(<OnBehalfPicker parentUserId={AVA} booking={{ ...PANEL.booking!, changeable: false }} days={PANEL_DAYS} onChanged={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Move" })).not.toBeInTheDocument();
