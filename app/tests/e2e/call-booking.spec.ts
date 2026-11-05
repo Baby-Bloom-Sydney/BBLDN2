@@ -423,6 +423,8 @@ test.describe.serial("call booking — flag off (local stack)", () => {
 // Run just these with `--grep "Calls tab"`; screenshots go to B04C1_PROOF_DIR.
 
 const C1_PROOF_DIR = process.env.B04C1_PROOF_DIR ?? "test-results/b04c1";
+/** The fixture admin's password is typed into this app: only ever a local one (security review L3). */
+const APP_IS_LOCAL = /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(BASE_URL);
 
 const LONDON_SHORT = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
@@ -483,7 +485,7 @@ const section = (page: Page, name: string) => page.getByRole("table", { name });
 const familyRow = (page: Page, table: string, name: string) => section(page, table).locator("tr", { hasText: name });
 
 test.describe.serial("Calls tab — flag on (local stack)", () => {
-  test.skip(MODE !== "on" || !IS_LOCAL, "set CALL_BOOKING_E2E=on with the local stack's env");
+  test.skip(MODE !== "on" || !IS_LOCAL || !APP_IS_LOCAL, "set CALL_BOOKING_E2E=on with the local stack's env and a local app");
   test.setTimeout(240_000);
 
   let db: SupabaseClient;
@@ -652,7 +654,7 @@ test.describe.serial("Calls tab — flag on (local stack)", () => {
 });
 
 test.describe.serial("Calls tab — flag off (local stack)", () => {
-  test.skip(MODE !== "off" || !IS_LOCAL, "set CALL_BOOKING_E2E=off with the local stack's env");
+  test.skip(MODE !== "off" || !IS_LOCAL || !APP_IS_LOCAL, "set CALL_BOOKING_E2E=off with the local stack's env and a local app");
   test.setTimeout(240_000);
 
   let db: SupabaseClient;

@@ -142,8 +142,8 @@ export function ContactLines({ contact, call }: { readonly contact: ContactWords
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
       {call}
-      {contact.email && (
-        <a href={`mailto:${contact.email}`} className={`${LINK} break-all text-sm`}>
+      {contact.email && contact.emailHref && (
+        <a href={contact.emailHref} className={`${LINK} break-all text-sm`}>
           {contact.email}
         </a>
       )}

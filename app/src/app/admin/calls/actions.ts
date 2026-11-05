@@ -57,6 +57,8 @@ const outcomeInput = z
     callBackTime: z.string().regex(CLOCK).nullable().optional(),
   })
   .refine((i) => (i.callBackDate ?? null) === null === ((i.callBackTime ?? null) === null))
+  // A call-back time belongs to "Call back later" only (security review L2).
+  .refine((i) => (i.callBackDate ?? null) === null || i.outcome === "call_back_later")
   .refine(checkOutcome);
 const holdInput = z.strictObject({ parentUserId, startsAt: z.iso.datetime({ offset: true }) });
 const confirmInput = z.strictObject({ parentUserId, holdId: z.uuid(), idempotencyKey: z.string().min(1).max(200) });
@@ -83,12 +85,14 @@ function answer<T, R>(result: CallsResult<T>, value: (v: T) => R, wrote = true):
 
 /**
  * The call-back time typed on the Calls tab, read as London clock time here — never in the browser's zone. Null when
- * none was given; undefined when that London time doesn't exist (the spring-forward hour), which is refused.
+ * none was given; undefined when that London time doesn't exist (the spring-forward hour) or has passed — refused.
  */
 function callBackAt(date: string | null | undefined, time: string | null | undefined): string | null | undefined {
   if (!date || !time) return null;
   const [hour, minute] = time.split(":").map(Number);
-  return wallClockExists(date, hour, minute) ? localToUTC(date, hour, minute) : undefined;
+  if (!wallClockExists(date, hour, minute)) return undefined;
+  const at = localToUTC(date, hour, minute);
+  return Date.parse(at) > Date.now() ? at : undefined;
 }
 
 /** Record a call attempt: result, the outcome when answered (or Stop calling), a note, a call-back time. */

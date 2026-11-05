@@ -62,7 +62,12 @@ describe("the family", () => {
 
   it("contact: the name, the email, and the mobile in +44 form with a tel: link in E.164", () => {
     const words = contactWords({ userId: PARENT, firstName: "Jane", lastName: "Smith", email: "jane@example.test", mobile: "+447700900123", isTestUser: false });
-    expect(words).toEqual({ name: "Jane Smith", email: "jane@example.test", mobile: { href: "tel:+447700900123", text: "+44 (0) 7700 900 123" } });
+    expect(words).toEqual({
+      name: "Jane Smith",
+      email: "jane@example.test",
+      emailHref: "mailto:jane@example.test",
+      mobile: { href: "tel:+447700900123", text: "+44 (0) 7700 900 123" },
+    });
   });
 
   it("contact: a national mobile still dials in E.164; no mobile → none; a missing profile → Unknown family", () => {
@@ -73,9 +78,18 @@ describe("the family", () => {
     expect(contactWords({ userId: PARENT, firstName: " ", lastName: "", email: "j@example.test", mobile: null, isTestUser: false })).toEqual({
       name: "j@example.test",
       email: "j@example.test",
+      emailHref: "mailto:j@example.test",
       mobile: null,
     });
-    expect(contactWords(null)).toEqual({ name: "Unknown family", email: null, mobile: null });
+    expect(contactWords(null)).toEqual({ name: "Unknown family", email: null, emailHref: null, mobile: null });
+  });
+
+  it("the email link is encoded, so an address can't carry mail headers (security review L1)", () => {
+    const plain = contactWords({ userId: PARENT, firstName: "Jane", lastName: "Smith", email: "jane@example.test", mobile: null, isTestUser: false });
+    expect(plain.emailHref).toBe("mailto:jane@example.test");
+    const hostile = contactWords({ userId: PARENT, firstName: "X", lastName: "Y", email: "x?subject=Hi&body=yo@evil.test", mobile: null, isTestUser: false });
+    expect(hostile.emailHref).toBe("mailto:x%3Fsubject%3DHi%26body%3Dyo@evil.test");
+    expect(contactWords(null).emailHref).toBeNull();
   });
 
   it("an unusual stored number is shown as stored and dialled without spaces", () => {

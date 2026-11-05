@@ -152,6 +152,14 @@ describe("recordCallOutcomeAction (brief §3 admin 3, §0.10)", () => {
     expect(callsTo(fake, "recordOutcome")).toEqual([]);
   });
 
+  it("a call-back time only with Call back later, and only in the future (security review L2)", async () => {
+    expect(await recordCallOutcomeAction({ ...OUTCOME, result: "no_answer", callBackDate: "2027-02-05", callBackTime: "17:30" })).toEqual({ ok: false, error: "invalid" });
+    expect(
+      await recordCallOutcomeAction({ ...OUTCOME, result: "answered", outcome: "call_back_later", callBackDate: "2020-01-01", callBackTime: "09:00" }),
+    ).toEqual({ ok: false, error: "invalid" });
+    expect(callsTo(fake, "recordOutcome")).toEqual([]);
+  });
+
   it("a write that failed → error (logged in the repository), never detail", async () => {
     fake.state.failing = ["recordOutcome"];
     expect(await recordCallOutcomeAction(OUTCOME)).toEqual({ ok: false, error: "error" });

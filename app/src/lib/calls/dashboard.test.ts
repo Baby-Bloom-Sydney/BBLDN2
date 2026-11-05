@@ -274,7 +274,7 @@ describe("a row (brief §0.9)", () => {
       signedUp: "Signed up Mon 1 Feb, 10:00 (London time)",
       lastTried: null,
       callBack: null,
-      contact: { name: "Ava Overdue", email: "ava@example.test", mobile: { href: "tel:+447700900123", text: "+44 (0) 7700 900 123" } },
+      contact: { name: "Ava Overdue", email: "ava@example.test", emailHref: "mailto:ava@example.test", mobile: { href: "tel:+447700900123", text: "+44 (0) 7700 900 123" } },
       signupType: "Advanced",
       position: {
         positionId: pos(1),

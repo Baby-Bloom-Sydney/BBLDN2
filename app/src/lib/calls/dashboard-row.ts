@@ -51,6 +51,8 @@ export interface MobileLink {
 export interface ContactWords {
   readonly name: string;
   readonly email: string | null;
+  /** `mailto:` with the address encoded, so a stored address can't carry mail headers (security review L1). */
+  readonly emailHref: string | null;
   readonly mobile: MobileLink | null;
 }
 
@@ -60,10 +62,16 @@ function mobileLink(raw: string | null): MobileLink | null {
   return { href: `tel:${raw.replace(/[^\d+]/g, "")}`, text: raw };
 }
 
+function mailtoOf(email: string): string {
+  const at = email.lastIndexOf("@");
+  if (at < 0) return `mailto:${encodeURIComponent(email)}`;
+  return `mailto:${encodeURIComponent(email.slice(0, at))}@${encodeURIComponent(email.slice(at + 1))}`;
+}
+
 export function contactWords(contact: ParentContact | null): ContactWords {
-  if (contact === null) return { name: "Unknown family", email: null, mobile: null };
+  if (contact === null) return { name: "Unknown family", email: null, emailHref: null, mobile: null };
   const full = `${contact.firstName} ${contact.lastName}`.trim();
-  return { name: full || contact.email, email: contact.email, mobile: mobileLink(contact.mobile) };
+  return { name: full || contact.email, email: contact.email, emailHref: mailtoOf(contact.email), mobile: mobileLink(contact.mobile) };
 }
 
 /** A position's facts, read in batches by `dashboard-reads.ts`. */

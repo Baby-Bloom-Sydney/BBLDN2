@@ -40,7 +40,7 @@ export function row(over: Partial<CallRowView> & Pick<CallRowView, "parentUserId
     signedUp: "Signed up Mon 1 Feb, 10:00 (London time)",
     lastTried: null,
     callBack: null,
-    contact: { name: "Someone", email: "someone@example.test", mobile: { href: "tel:+447700900123", text: "+44 (0) 7700 900 123" } },
+    contact: { name: "Someone", email: "someone@example.test", emailHref: "mailto:someone@example.test", mobile: { href: "tel:+447700900123", text: "+44 (0) 7700 900 123" } },
     signupType: "Advanced",
     position: POSITION,
     links: links(over.parentUserId, POS),
@@ -55,7 +55,7 @@ export const OVERDUE_ROW = row({
   bookingId: BOOKING,
   startsAt: "2027-02-04T09:30:00.000Z",
   when: "Thu 4 Feb, 09:30 (London time)",
-  contact: { name: "Ava Overdue", email: "ava@example.test", mobile: { href: "tel:+447700900111", text: "+44 (0) 7700 900 111" } },
+  contact: { name: "Ava Overdue", email: "ava@example.test", emailHref: "mailto:ava@example.test", mobile: { href: "tel:+447700900111", text: "+44 (0) 7700 900 111" } },
   tags: ["overdue"],
 });
 
@@ -65,14 +65,14 @@ export const UPCOMING_ROW = row({
   bookingId: "c0400000-0000-4000-8000-000000000002",
   startsAt: "2027-02-05T14:00:00.000Z",
   when: "Fri 5 Feb, 14:00 (London time)",
-  contact: { name: "Ben Blocked", email: "ben@example.test", mobile: null },
+  contact: { name: "Ben Blocked", email: "ben@example.test", emailHref: "mailto:ben@example.test", mobile: null },
   tags: ["blocked_over", "cohort_prebook"],
 });
 
 export const QUICK_ROW = row({
   parentUserId: FAY,
   section: "not_booked",
-  contact: { name: "Fay Quick", email: "fay@example.test", mobile: { href: "tel:+447700900666", text: "+44 (0) 7700 900 666" } },
+  contact: { name: "Fay Quick", email: "fay@example.test", emailHref: "mailto:fay@example.test", mobile: { href: "tel:+447700900666", text: "+44 (0) 7700 900 666" } },
   signupType: "Quick match",
   position: null,
   links: links(FAY, null),
@@ -82,7 +82,7 @@ export const QUICK_ROW = row({
 export const TEST_ROW = row({
   parentUserId: GUS,
   section: "not_booked",
-  contact: { name: "Gus Tester", email: "gus@example.test", mobile: null },
+  contact: { name: "Gus Tester", email: "gus@example.test", emailHref: "mailto:gus@example.test", mobile: null },
   tags: ["test"],
 });
 
