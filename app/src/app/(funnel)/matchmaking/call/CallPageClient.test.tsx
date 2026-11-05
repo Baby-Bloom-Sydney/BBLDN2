@@ -175,11 +175,11 @@ describe("change and cancel", () => {
     expect(await youreBooked()).toBeInTheDocument();
   });
 
-  it("?change=1 opens straight into picking a new time for her booking, her slot chosen", async () => {
+  it("?change=1 opens straight into picking a new time for her booking: only the days, nothing chosen (W15)", async () => {
     page(BOOKED_VIEW, NEXT, true);
     expect(screen.getByText(BOOKED.yourCall)).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Tue 9 Feb" })).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByRole("radio", { name: /^Afternoon / })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Tue 9 Feb" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.queryByRole("radiogroup", { name: "Time of day" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Keep my time" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Skip for now" })).not.toBeInTheDocument();
     expect(h.reload).not.toHaveBeenCalled();

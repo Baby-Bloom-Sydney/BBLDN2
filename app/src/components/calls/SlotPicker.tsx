@@ -50,7 +50,7 @@ export interface SlotPickerProps<T> {
   readonly onKeepTime?: () => void;
   /** The left button otherwise ("Skip for now"), a link onward. Neither → the primary button alone, full width. */
   readonly skipHref?: string;
-  /** Her booked time while she changes it: shown chosen until she picks another. */
+  /** Her booked time while she changes it: marked as hers (and shown chosen) when she reaches it, until she picks another. */
   readonly current?: string | null;
   /** Open with the taken notice for this time, in words (a time chosen elsewhere has just gone). */
   readonly initialNotice?: string | null;

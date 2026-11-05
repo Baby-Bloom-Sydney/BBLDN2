@@ -117,6 +117,26 @@ describe("SlotPicker — step 2 and step 3 appear in turn", () => {
   });
 });
 
+describe("SlotPicker — strictly one step at a time, like a form unhiding (W15)", () => {
+  const steps = () => screen.getAllByRole("radiogroup").length;
+
+  it.each([
+    ["picking", undefined],
+    ["changing her booking", TUE_15],
+  ])("%s: each tap reveals exactly one new step, each its own reveal", async (_, current) => {
+    const user = userEvent.setup();
+    const { container } = render(<SlotPicker days={gridDays({ [TUE_15]: false })} actions={actionsWith()} onConfirmed={vi.fn()} current={current} />);
+    const reveals = () => container.querySelectorAll("[data-reveal]").length;
+    expect([steps(), reveals()]).toEqual([1, 0]);
+    await user.click(tue());
+    expect([steps(), reveals()]).toEqual([2, 1]);
+    await user.click(bracket("Afternoon"));
+    expect([steps(), reveals()]).toEqual([3, 2]);
+    await user.click(day("Wed 10 Feb"));
+    expect([steps(), reveals()]).toEqual([2, 1]);
+  });
+});
+
 describe("SlotPicker — unselecting hides what comes after (W14)", () => {
   it("tapping the chosen day again unselects it and hides the times of day and the times", async () => {
     const user = userEvent.setup();
@@ -270,12 +290,16 @@ describe("SlotPicker — hold and confirm", () => {
     expect(await screen.findByText("Tuesday 9 February at 14:30")).toBeInTheDocument();
   });
 
-  it("changing: her booking's day and time of day open chosen, her time marked as hers; any step can change", async () => {
+  it("changing (W15): only the days, nothing chosen; she reveals each step; her time is marked as hers when she reaches it", async () => {
     const user = userEvent.setup();
     const keep = vi.fn();
     render(<SlotPicker days={gridDays({ [TUE_15]: false })} actions={actionsWith()} onConfirmed={vi.fn()} current={TUE_15} onKeepTime={keep} />);
-    expect(tue()).toHaveAttribute("aria-checked", "true");
-    expect(bracket("Afternoon")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getAllByRole("radiogroup")).toHaveLength(1);
+    expect(tue()).toHaveAttribute("aria-checked", "false");
+    expect(screen.queryByText("Time of day")).not.toBeInTheDocument();
+    await user.click(tue());
+    expect(screen.queryByText("Select a time")).not.toBeInTheDocument();
+    await user.click(bracket("Afternoon"));
     const hers = time("Tuesday 9 February, 15:00 — your current time");
     expect(hers).toHaveAttribute("aria-checked", "true");
     expect(hers.className).toContain("bg-violet-600");

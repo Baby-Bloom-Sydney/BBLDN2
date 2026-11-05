@@ -97,13 +97,16 @@ describe("ChildcareCall — opening", () => {
     expect(h.replace).not.toHaveBeenCalled();
   });
 
-  it("the card's Change time opens straight into changing: her booking on top, her slot chosen until she picks another", async () => {
+  it("the card's Change time opens straight into changing: her booking on top, only the days (W15); her time marked as hers", async () => {
     const user = userEvent.setup();
     h.reload.mockResolvedValue({ ok: true, value: BOOKED_VIEW });
     render(<ChildcareCall card={{ kind: "booked", line: "Tue 9 Feb, 15:00", changeable: true }} openWith={null} goneWhen={null} failed={false} />);
     await user.click(screen.getByRole("button", { name: "Change time" }));
     const dialog = await popup();
     expect(await within(dialog).findByText(BOOKED.yourCall)).toBeInTheDocument();
+    expect(within(dialog).getAllByRole("radiogroup")).toHaveLength(1);
+    await user.click(within(dialog).getByRole("radio", { name: "Tue 9 Feb" }));
+    await user.click(within(dialog).getByRole("radio", { name: /^Afternoon / }));
     expect(within(dialog).getByRole("radio", { name: "Tuesday 9 February, 15:00 — your current time" })).toHaveAttribute("aria-checked", "true");
   });
 
@@ -165,7 +168,9 @@ describe("ChildcareCall — her booking, for changes (BAI 2026-11-05)", () => {
     await user.click(within(dialog).getByRole("button", { name: "Change time" }));
     const picking = await popup();
     expect(within(picking).getByText(BOOKED.yourCall)).toBeInTheDocument();
-    await user.click(await within(picking).findByRole("radio", { name: "Tuesday 9 February, 14:00" }));
+    await user.click(await within(picking).findByRole("radio", { name: "Tue 9 Feb" }));
+    await user.click(within(picking).getByRole("radio", { name: /^Afternoon / }));
+    await user.click(within(picking).getByRole("radio", { name: "Tuesday 9 February, 14:00" }));
     await user.click(await within(picking).findByRole("button", { name: "Confirm time" }));
     const booked = await screen.findByRole("dialog", { name: "You're booked" });
     expect(within(booked).getByText(MOVED.yourCall)).toBeInTheDocument();

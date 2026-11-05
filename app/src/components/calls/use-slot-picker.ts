@@ -5,7 +5,8 @@
  * over the owner's actions — the component (`SlotPicker.tsx`) only draws it.
  *
  * - A day, then a time of day, then a time (W14); each a selector she can unselect, which hides the later steps.
- *   Tapping a free time holds it at once (the
+ *   Strictly one step per tap, like a form unhiding (W15): nothing opens pre-chosen, not even while she changes her
+ *   booking. Tapping a free time holds it at once (the
  *   separate "Choose this time" step is gone, BAI 2026-11-05). Tapping another time holds that one (amendment 19's
  *   `call_hold_slot` replaces her own live hold, so nothing is released first).
  * - A refusal never sticks: throws settle as `error`; a taken time (or a held time that ran out and was taken) opens
@@ -43,12 +44,6 @@ export interface SlotPickerActions<T> {
   reload(): Promise<readonly SlotDay[] | null | void>;
 }
 
-/** Where a time sits: its day and its time of day. */
-export interface PickerCell {
-  readonly londonDate: string;
-  readonly bracket: BracketKey;
-}
-
 const TAKEN = new Set(["taken", "too_soon", "overlap"]);
 const RAN_OUT = new Set(["hold_expired", "not_yours", "not_found"]);
 /** Refusals that mean the list is stale (review F2). */
@@ -79,14 +74,6 @@ export function findSlot(days: readonly SlotDay[] | null | undefined, startsAt: 
   return null;
 }
 
-/** The cell a time sits in. */
-export function cellOf(days: readonly SlotDay[] | null, startsAt: string | null | undefined): PickerCell | null {
-  if (!startsAt) return null;
-  const day = (days ?? []).find((d) => d.slots.some((s) => s.startsAt === startsAt));
-  const slot = day?.slots.find((s) => s.startsAt === startsAt);
-  return day && slot ? { londonDate: day.londonDate, bracket: slot.bracket } : null;
-}
-
 /**
  * The list's own state: loading, and a reload that failed (shown as load-failed with Retry, review F2). Fresh days
  * handed back by the owner go to `onFresh` (the gone times are reconciled with them, react review HIGH 2).
@@ -115,7 +102,7 @@ export interface UsePickerOptions<T> {
   readonly days: readonly SlotDay[] | null;
   readonly actions: SlotPickerActions<T>;
   readonly onConfirmed: (value: T) => void;
-  /** Her booked time while she changes it: its cell opens first, and it shows chosen until she picks another. */
+  /** Her booked time while she changes it: marked as hers when she reaches it (W15: nothing opens pre-chosen). */
   readonly current?: string | null;
   /** Open with the taken notice (a time she chose elsewhere has just gone), in words. */
   readonly initialNotice?: string | null;
@@ -128,9 +115,9 @@ export interface UsePickerOptions<T> {
 type Phase = "idle" | "holding" | "confirming";
 
 function usePickerState<T>(o: UsePickerOptions<T>) {
-  // While she changes her booking, its day and time of day open pre-chosen (W14).
-  const [day, setDay] = useState<string | null>(() => cellOf(o.days, o.current)?.londonDate ?? null);
-  const [bracket, setBracket] = useState<BracketKey | null>(() => cellOf(o.days, o.current)?.bracket ?? null);
+  // Only the days at first, changing included (W15, BAI 2026-11-05: "appear individually like unhiding a form").
+  const [day, setDay] = useState<string | null>(null);
+  const [bracket, setBracket] = useState<BracketKey | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [hold, setHold] = useState<PickerHold | null>(null);
   const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set());
