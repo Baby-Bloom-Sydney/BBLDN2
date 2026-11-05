@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { mayBookNow } from "@/lib/calls/call-allowed";
 import { CALL_PAGE_PATH, safeNextPath } from "@/lib/calls/next-path";
 import { sessionCaller } from "@/lib/calls/parent-session";
 import { loadMyCallView } from "@/lib/calls/parent-state";
@@ -14,6 +15,12 @@ import { CallPageClient } from "./CallPageClient";
  * safe internal paths, `src/app/(auth)/login/page.tsx:87`); signed in but not a parent → 404. Her view is loaded here,
  * on the server, with every time already in London words, so the device's zone can't matter (§3 parent 6). `next` is
  * checked (`next-path.ts`): onward never leaves `/parent`. `?change=1` opens straight into changing her time (W5).
+ *
+ * W17 item 13: the same rule as the hold and confirm actions (`mayBookNow`: the card's rule, or a booked call still
+ * ahead she is changing, and no hired or connected nanny), read alongside her view (no extra round trip). "no" —
+ * before Start call booking, after Stop calling or an answered call, out of scope, or with a nanny — sends her straight
+ * onward to the checked `next`, so the slide never shows a picker whose taps would be refused. "yes" renders as
+ * before; so does "unknown" (her view and the actions already handle a read that failed).
  *
  * BB-wave1-041126/04b-build, 2026-11-04; BB-wave1-041126/04b-rework, 2026-11-05.
  */
@@ -36,13 +43,15 @@ export default async function MatchmakingCallPage({ searchParams }: { searchPara
   const caller = await sessionCaller();
   if (caller.kind === "signed_out") redirect(`/login?redirect=${encodeURIComponent(returnPath(searchParams))}`);
   if (caller.kind !== "parent") notFound();
-  const view = await loadMyCallView(caller.parentId);
+  const [allowed, view] = await Promise.all([mayBookNow(caller.parentId), loadMyCallView(caller.parentId)]);
+  const nextHref = safeNextPath(searchParams.next);
+  if (allowed === "no") redirect(nextHref);
 
   // The slide draws its own funnel shell (W3): no app wrapper here.
   return (
     <CallPageClient
       initial={view.ok ? view.value : { kind: "load_failed" }}
-      nextHref={safeNextPath(searchParams.next)}
+      nextHref={nextHref}
       startChanging={searchParams.change === "1"}
     />
   );

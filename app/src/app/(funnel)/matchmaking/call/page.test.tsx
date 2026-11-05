@@ -2,11 +2,13 @@
  * /matchmaking/call, the page (04b rework W1; brief §0a.1, §0.15, §3 parent 2, 5–6). The call slide moved out of the
  * app (`/parent/call`) into the funnel. Flag off → 404 before anything is read; signed out → `/login?redirect=` this
  * path with its query (the middleware doesn't guard `/matchmaking`, so the page does); signed in but not a parent →
- * 404; otherwise her view, loaded server-side for her session id, and the checked `next`.
+ * 404; otherwise her view, loaded server-side for her session id, and the checked `next`. W17 item 13: the same rule as
+ * the hold and confirm actions (`mayBookNow`) — "no" sends her straight onward to the checked `next`, so the slide
+ * never shows a picker whose taps would be refused; "yes" and "unknown" render as before.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ caller: vi.fn(), load: vi.fn(), notFound: vi.fn(), redirect: vi.fn() }));
+const h = vi.hoisted(() => ({ caller: vi.fn(), load: vi.fn(), notFound: vi.fn(), redirect: vi.fn(), allowed: vi.fn() }));
 vi.mock("next/navigation", () => ({
   notFound: () => {
     h.notFound();
@@ -19,6 +21,7 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/lib/calls/parent-session", () => ({ sessionCaller: h.caller }));
 vi.mock("@/lib/calls/parent-state", () => ({ loadMyCallView: h.load }));
+vi.mock("@/lib/calls/call-allowed", () => ({ mayBookNow: h.allowed }));
 vi.mock("./CallPageClient", () => ({ CallPageClient: () => null }));
 
 import MatchmakingCallPage from "./page";
@@ -40,6 +43,7 @@ beforeEach(() => {
   for (const fn of Object.values(h)) fn.mockReset();
   h.caller.mockResolvedValue({ kind: "parent", parentId: HER });
   h.load.mockResolvedValue({ ok: true, value: VIEW });
+  h.allowed.mockResolvedValue("yes");
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -49,6 +53,7 @@ describe("MatchmakingCallPage — who may see it", () => {
     await expect(MatchmakingCallPage({ searchParams: {} })).rejects.toThrow("NEXT_NOT_FOUND");
     expect(h.caller).not.toHaveBeenCalled();
     expect(h.load).not.toHaveBeenCalled();
+    expect(h.allowed).not.toHaveBeenCalled();
   });
 
   it("signed out → /login?redirect= this path with its query; nothing loaded", async () => {
@@ -71,6 +76,44 @@ describe("MatchmakingCallPage — who may see it", () => {
     await expect(MatchmakingCallPage({ searchParams: {} })).rejects.toThrow("NEXT_NOT_FOUND");
     expect(h.redirect).not.toHaveBeenCalled();
     expect(h.load).not.toHaveBeenCalled();
+    expect(h.allowed).not.toHaveBeenCalled();
+  });
+});
+
+describe("MatchmakingCallPage — the call offered to her (W17 item 13: the actions' rule)", () => {
+  it("not offered → straight onward to the checked next; the slide never renders", async () => {
+    h.allowed.mockResolvedValue("no");
+    await expect(MatchmakingCallPage({ searchParams: { next: MATCHES } })).rejects.toThrow("NEXT_REDIRECT");
+    expect(h.allowed).toHaveBeenCalledWith(HER);
+    expect(h.redirect).toHaveBeenCalledWith(MATCHES);
+  });
+
+  it.each([
+    ["an unsafe next", { next: "//evil.com" }],
+    ["no next", {}],
+  ])("not offered with %s → /parent", async (_why, searchParams) => {
+    h.allowed.mockResolvedValue("no");
+    await expect(MatchmakingCallPage({ searchParams })).rejects.toThrow("NEXT_REDIRECT");
+    expect(h.redirect).toHaveBeenCalledWith("/parent");
+  });
+
+  it.each([["yes"], ["unknown"]])("%s → the slide as before (a read that failed is handled by her view and the actions)", async (allowed) => {
+    h.allowed.mockResolvedValue(allowed);
+    const tree = await MatchmakingCallPage({ searchParams: { next: MATCHES, change: "1" } });
+    expect(clientProps(tree)).toMatchObject({ initial: VIEW, nextHref: MATCHES, startChanging: true });
+    expect(h.redirect).not.toHaveBeenCalled();
+  });
+
+  it("the check and her view are read together (no extra round trip)", async () => {
+    let releaseCheck: (value: string) => void = () => {};
+    h.allowed.mockImplementation(() => new Promise((resolve) => (releaseCheck = resolve)));
+    const page = MatchmakingCallPage({ searchParams: {} });
+    await vi.waitFor(() => {
+      expect(h.allowed).toHaveBeenCalledWith(HER);
+      expect(h.load).toHaveBeenCalledWith(HER); // already asked for while the check is still pending
+    });
+    releaseCheck("yes");
+    await page;
   });
 });
 
