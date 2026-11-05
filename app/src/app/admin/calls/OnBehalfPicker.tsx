@@ -1,0 +1,179 @@
+"use client";
+
+/**
+ * Book, move or cancel a family's matchmaker call on her behalf, in the row drawer (plan C4, §13; brief §3 admin 4,
+ * §0.11; BB-wave1-041126/04c1-build).
+ *
+ * - Not booked: "Book a matchmaker call" opens the same `SlotPicker` she uses, with the admin actions (`actions.ts`)
+ *   and the admin words: the London heading, "Book this time", "Held for N minutes" (the hold action's line).
+ * - Booked: her time in London words, with Move ("Move to this time", the same booking moved) and Cancel booking
+ *   (asks first). Neither once the call has started — that is an outcome.
+ * - The server emails her as her own booking would; afterwards `onChanged` refreshes the page.
+ *
+ * The picker speaks the parent's refusal codes, so the admin codes are mapped onto them (`PICKER_REFUSAL`).
+ */
+
+import { useState, useTransition } from "react";
+import { SlotPicker, type PickerResult, type SlotPickerActions } from "@/components/calls/SlotPicker";
+import { Button } from "@/components/ui/button";
+import type { AdminCallError, AdminCallResult } from "@/lib/calls/admin-calls";
+import { ADMIN_COPY, adminErrorLine } from "@/lib/calls/copy";
+import type { PanelBooking } from "@/lib/calls/family-panel";
+import type { SlotDay } from "@/lib/calls/group-slots-by-day";
+import type { MyCallRefusal } from "@/lib/calls/parent-view";
+import { cancelCallForFamily, confirmCallForFamily, holdCallForFamily, reloadFamilySlots } from "./actions";
+
+export interface OnBehalfPickerProps {
+  readonly parentUserId: string;
+  readonly booking: PanelBooking | null;
+  /** Her picker grid; null when it couldn't be read (load-failed with Retry). */
+  readonly days: readonly SlotDay[] | null;
+  readonly onChanged: () => void;
+}
+
+const PICKER_REFUSAL: Readonly<Record<AdminCallError, MyCallRefusal>> = Object.freeze({
+  taken: "taken",
+  too_soon: "too_soon",
+  hold_expired: "hold_expired",
+  not_yours: "not_yours",
+  not_found: "not_yours",
+  rate_limited: "rate_limited",
+  invalid: "invalid",
+  call_booking_disabled: "call_booking_disabled",
+  not_authorized: "error",
+  booked_call_exists: "error",
+  error: "error",
+});
+
+function forPicker<T>(result: AdminCallResult<T>): PickerResult<T> {
+  return result.ok ? result : { ok: false, error: PICKER_REFUSAL[result.error] };
+}
+
+type Confirmed = { readonly bookingId: string; readonly moved: boolean };
+type Mode = "view" | "picking" | "confirm_cancel";
+
+function usePickerActions(parentUserId: string, setDays: (d: readonly SlotDay[]) => void): SlotPickerActions<Confirmed> {
+  return {
+    hold: async (startsAt) => forPicker(await holdCallForFamily({ parentUserId, startsAt })),
+    // The hold id is the idempotency key: a double press replays the first answer.
+    confirm: async (hold) => forPicker(await confirmCallForFamily({ parentUserId, holdId: hold.holdId, idempotencyKey: hold.holdId })),
+    reload: async () => {
+      const fresh = await reloadFamilySlots({ parentUserId });
+      if (!fresh.ok) throw new Error(fresh.error); // the picker shows load-failed with Retry
+      setDays(fresh.value);
+      return fresh.value;
+    },
+  };
+}
+
+function BookedPanel({ booking, onMove, onCancel }: { readonly booking: PanelBooking; readonly onMove: () => void; readonly onCancel: () => void }) {
+  return (
+    <div className="space-y-3 rounded-lg border border-green-200 bg-green-50 p-3">
+      <div>
+        <p className="text-xs font-medium uppercase tracking-wide text-green-700">{ADMIN_COPY.bookedLabel}</p>
+        <p className="text-sm font-medium text-green-900">{booking.when}</p>
+      </div>
+      {booking.changeable && (
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={onMove}>
+            {ADMIN_COPY.move}
+          </Button>
+          <Button type="button" variant="outline" size="sm" className="text-red-700" onClick={onCancel}>
+            {ADMIN_COPY.cancelBooking}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NotBookedPanel({ onBook }: { readonly onBook: () => void }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3">
+      <p className="text-sm font-medium text-slate-600">{ADMIN_COPY.notBooked}</p>
+      <Button type="button" size="sm" className="bg-violet-500 hover:bg-violet-600" onClick={onBook}>
+        {ADMIN_COPY.bookOnBehalf}
+      </Button>
+    </div>
+  );
+}
+
+function CancelQuestion({ busy, onYes, onNo }: { readonly busy: boolean; readonly onYes: () => void; readonly onNo: () => void }) {
+  return (
+    <div className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-3">
+      <p className="text-sm text-red-900">{ADMIN_COPY.cancelQuestion}</p>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" variant="destructive" disabled={busy} onClick={onYes}>
+          {ADMIN_COPY.confirmCancel}
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={busy} onClick={onNo}>
+          {ADMIN_COPY.keepIt}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function useCancel(parentUserId: string, booking: PanelBooking | null, done: (status: string) => void) {
+  const [busy, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const cancel = () => {
+    if (booking === null) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        const cancelled = await cancelCallForFamily({ parentUserId, bookingId: booking.bookingId });
+        if (cancelled.ok) done(ADMIN_COPY.cancelled);
+        else setError(adminErrorLine(cancelled.error));
+      } catch {
+        setError(adminErrorLine("error"));
+      }
+    });
+  };
+  return { busy, error, cancel };
+}
+
+export function OnBehalfPicker({ parentUserId, booking, days, onChanged }: OnBehalfPickerProps) {
+  const [mode, setMode] = useState<Mode>("view");
+  const [shownDays, setShownDays] = useState(days);
+  const [status, setStatus] = useState("");
+  const done = (line: string) => {
+    setMode("view");
+    setStatus(line);
+    onChanged();
+  };
+  const actions = usePickerActions(parentUserId, setShownDays);
+  const cancel = useCancel(parentUserId, booking, done);
+  const open = (next: Mode) => {
+    setStatus("");
+    setMode(next);
+  };
+  return (
+    <div className="space-y-3">
+      <p role="status" className={status ? "text-sm text-green-700" : "sr-only"}>
+        {status}
+      </p>
+      {mode === "view" && (booking ? <BookedPanel booking={booking} onMove={() => open("picking")} onCancel={() => open("confirm_cancel")} /> : <NotBookedPanel onBook={() => open("picking")} />)}
+      {mode === "confirm_cancel" && <CancelQuestion busy={cancel.busy} onYes={cancel.cancel} onNo={() => setMode("view")} />}
+      {cancel.error && (
+        <p role="alert" className="rounded bg-red-50 px-2 py-1 text-xs text-red-700">
+          {cancel.error}
+        </p>
+      )}
+      {mode === "picking" && (
+        <div className="space-y-3">
+          <Button type="button" variant="outline" size="sm" onClick={() => setMode("view")}>
+            {ADMIN_COPY.back}
+          </Button>
+          <SlotPicker
+            days={shownDays}
+            actions={actions}
+            onConfirmed={(c) => done(c.moved ? ADMIN_COPY.movedStatus : ADMIN_COPY.bookedStatus)}
+            current={booking?.startsAt ?? null}
+            copy={{ heading: ADMIN_COPY.availability, confirm: booking ? ADMIN_COPY.moveToThisTime : ADMIN_COPY.bookThisTime }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
