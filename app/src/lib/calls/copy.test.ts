@@ -4,9 +4,15 @@
  * the placement is free, and audience-facing text never says "tracking".
  */
 import { describe, expect, it } from "vitest";
+import { placesLeftLine } from "@/lib/cohorts/copy";
 import {
   ADMIN_COPY,
   PARENT_COPY,
+  adminHeldLine,
+  cohortPlacesLine,
+  depositLine,
+  hoursLine,
+  nanniesLine,
   bookedLine,
   callOnLine,
   callsToMakeLine,
@@ -139,5 +145,37 @@ describe("the copy rules", () => {
   it("is frozen", () => {
     expect(Object.isFrozen(PARENT_COPY)).toBe(true);
     expect(Object.isFrozen(ADMIN_COPY)).toBe(true);
+  });
+});
+
+describe("admin copy for the drawer and on-behalf picker (04c-1; plan §13)", () => {
+  it("the picker's admin words: Book this time / Move to this time, the London heading, Held for N minutes", () => {
+    expect(ADMIN_COPY).toMatchObject({
+      bookThisTime: "Book this time",
+      moveToThisTime: "Move to this time",
+      availability: "Matchmaker's availability (London time)",
+    });
+    expect(adminHeldLine(5)).toBe("Held for 5 minutes");
+    expect(adminHeldLine(1)).toBe("Held for 1 minute");
+  });
+
+  it("the cohort line agrees with 02's placesLeftLine for the same numbers", () => {
+    const view = { start: "2027-02-01", places: 5, taken: 2, beingPaid: 1, left: 2, overBy: 0 };
+    expect(cohortPlacesLine({ places: 5, left: 2 })).toBe(placesLeftLine(view));
+    expect(cohortPlacesLine({ places: 5, left: 2 })).toBe("Current cohort: 2 of 5 places left");
+  });
+
+  it("hours, and the deposit state (read-only)", () => {
+    expect(hoursLine(30)).toBe("30 hours a week");
+    expect(hoursLine(1)).toBe("1 hour a week");
+    expect(depositLine({ kind: "none" })).toBe("No deposit");
+    expect(depositLine({ kind: "paid", on: "3 February 2027" })).toBe("Deposit paid 3 February 2027");
+    expect(depositLine({ kind: "refunded", on: "5 February 2027" })).toBe("Deposit refunded 5 February 2027");
+    expect(depositLine({ kind: "placed" })).toBe("Placed");
+  });
+
+  it("the nannies line", () => {
+    expect(nanniesLine({ contacted: 6, replied: 2 })).toBe("6 nannies contacted · 2 replied");
+    expect(nanniesLine({ contacted: 1, replied: 0 })).toBe("1 nanny contacted · 0 replied");
   });
 });
