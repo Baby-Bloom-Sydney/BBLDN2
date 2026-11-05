@@ -15,7 +15,8 @@
  *   and the list refreshes under it. Ran-out-but-free, invalid and failed → 04b's inline alert, which takes focus.
  * - The left button: "Skip for now" (a link), or "Keep my time" while changing; none in the in-app popup.
  * - No position yet (W11): a tap selects without a hold; the panel says "Complete your childcare position so that we
- *   can confirm your call with your matchmaker." and the right button reads "Complete my childcare position".
+ *   can confirm your call with your matchmaker." and the right button still reads "Confirm time" (W15, BAI
+ *   2026-11-05), a link to her position form carrying the time.
  * - Every label arrives preformatted from the server (`SlotDay`), so the device's zone can't matter. Motion stops under
  *   `prefers-reduced-motion`. Two pickers on one page share no ids (`useId`). 04c and 03 reuse it.
  *
@@ -108,20 +109,19 @@ function HeldPanel({ when, line }: { readonly when: string; readonly line: strin
 }
 
 const PRIMARY = "flex-1 min-w-[7rem] bg-violet-500 hover:bg-violet-600";
-/** The long label wraps inside its button, and the row wraps before it would squeeze it (coordinator review, 320px). */
-const GATE = "flex-1 min-w-[12rem] h-auto min-h-9 whitespace-normal py-2 bg-violet-500 hover:bg-violet-600";
 
+/** No position yet: "Confirm time" too (W15), a link to her position form with the time; nothing is held. */
 function GateButton({ gate, selected }: { readonly gate: PickerGate; readonly selected: string | null }) {
   if (selected === null) {
     return (
-      <Button type="button" className={GATE} disabled>
-        {PARENT_COPY.completePosition}
+      <Button type="button" className={PRIMARY} disabled>
+        {PARENT_COPY.confirmTimeButton}
       </Button>
     );
   }
   return (
-    <Button asChild className={GATE}>
-      <Link href={gate.href(selected)}>{PARENT_COPY.completePosition}</Link>
+    <Button asChild className={PRIMARY}>
+      <Link href={gate.href(selected)}>{PARENT_COPY.confirmTimeButton}</Link>
     </Button>
   );
 }

@@ -503,18 +503,19 @@ describe("SlotPicker — a rejected action never sticks (review F1, F2)", () => 
 describe("SlotPicker — a parent with no position yet (W11)", () => {
   const gate = { href: (startsAt: string) => `/parent/request?callAt=${encodeURIComponent(startsAt)}` };
 
-  it("a tap selects the time but never holds; the panel asks her to complete her position; the button goes there", async () => {
+  it("a tap selects the time but never holds; the panel asks her to complete her position; 'Confirm time' goes there (W15)", async () => {
     const user = userEvent.setup();
     const actions = actionsWith();
     render(<SlotPicker days={DAYS} actions={actions} onConfirmed={vi.fn()} gate={gate} skipHref="/parent?t=childcare" />);
-    expect(screen.getByRole("button", { name: "Complete my childcare position" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Confirm time" })).toBeDisabled();
     await holdTue14(user);
     expect(actions.hold).not.toHaveBeenCalled();
     expect(tue14()).toHaveAttribute("aria-checked", "true");
     expect(screen.getByText("Tuesday 9 February at 14:00")).toBeInTheDocument();
     expect(screen.getByText("Complete your childcare position so that we can confirm your call with your matchmaker.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Complete my childcare position" })).toHaveAttribute("href", `/parent/request?callAt=${encodeURIComponent(TUE_14)}`);
+    expect(screen.getByRole("link", { name: "Confirm time" })).toHaveAttribute("href", `/parent/request?callAt=${encodeURIComponent(TUE_14)}`);
     expect(screen.queryByRole("button", { name: "Confirm time" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Complete my childcare position")).not.toBeInTheDocument();
   });
 
   it("unselecting the time takes the button away again", async () => {
@@ -522,8 +523,8 @@ describe("SlotPicker — a parent with no position yet (W11)", () => {
     render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} gate={gate} />);
     await holdTue14(user);
     await user.click(tue14());
-    expect(screen.queryByRole("link", { name: "Complete my childcare position" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Complete my childcare position" })).toBeDisabled();
+    expect(screen.queryByRole("link", { name: "Confirm time" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm time" })).toBeDisabled();
   });
 });
 
@@ -534,12 +535,10 @@ describe("SlotPicker — layout (walk and coordinator review)", () => {
     expect([...heading.children].filter((el) => el.tagName !== "svg")).toHaveLength(1);
   });
 
-  it("the button row wraps rather than clipping a long label", () => {
+  it("the button row wraps rather than clipping; with no position the right button is Confirm time's own (W15)", () => {
     render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} gate={{ href: (at) => at }} skipHref="/parent" />);
     expect((screen.getByRole("link", { name: "Skip for now" }).parentElement as HTMLElement).className).toContain("flex-wrap");
-    const complete = screen.getByRole("button", { name: "Complete my childcare position" });
-    expect(complete.className).toContain("whitespace-normal");
-    expect(complete.className).toContain("h-auto");
+    expect(screen.getByRole("button", { name: "Confirm time" }).className).toContain("flex-1 min-w-[7rem] bg-violet-500 hover:bg-violet-600");
   });
 });
 

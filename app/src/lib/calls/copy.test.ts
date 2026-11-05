@@ -65,9 +65,10 @@ describe("parent copy, word for word", () => {
     expect(callOnLine("07700 900123")).toBe("We'll call you on 07700 900123.");
   });
 
-  it("the no-position words (04b rework W11, BAI 2026-11-05 verbatim)", () => {
+  it("the no-position words (04b rework W11, BAI 2026-11-05 verbatim); the button is 'Confirm time' (W15)", () => {
     expect(PARENT_COPY.completePositionLine).toBe("Complete your childcare position so that we can confirm your call with your matchmaker.");
-    expect(PARENT_COPY.completePosition).toBe("Complete my childcare position");
+    expect(PARENT_COPY.confirmTimeButton).toBe("Confirm time");
+    expect(allStrings(PARENT_COPY)).not.toContain("Complete my childcare position");
   });
 
   it("the Childcare tab card's words (04b rework W9)", () => {

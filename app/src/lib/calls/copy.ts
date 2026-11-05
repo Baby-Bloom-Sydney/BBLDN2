@@ -58,9 +58,8 @@ export const PARENT_COPY = Object.freeze({
   goToDashboard: "Go to my dashboard",
   // 04b rework W9: the Childcare tab card (BB-wave1-041126/04b-rework)
   bookATime: "Book a time",
-  // 04b rework W11: a parent with no position yet — BAI 2026-11-05, the line verbatim
+  // 04b rework W11: a parent with no position yet — BAI 2026-11-05, the line verbatim (W15: her button is "Confirm time")
   completePositionLine: "Complete your childcare position so that we can confirm your call with your matchmaker.",
-  completePosition: "Complete my childcare position",
   // 04b rework W12: the taken notice when the time that went isn't known
   thatTime: "that time",
   // 04b rework W14: the step-by-step picker

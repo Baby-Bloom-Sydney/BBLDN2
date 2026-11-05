@@ -281,13 +281,13 @@ describe("a rejected or refused action never sticks (review F1, F2)", () => {
 });
 
 describe("a parent with no position yet (W11: the quick-match sign-up, the card, the email link)", () => {
-  it("picking a time holds nothing; 'Complete my childcare position' carries the time to her position form", async () => {
+  it("picking a time holds nothing; 'Confirm time' carries the time to her position form (W15)", async () => {
     const user = userEvent.setup();
     page({ ...PICK, needsPosition: true }, "/parent?t=childcare");
     await pickTue14(user);
     expect(h.hold).not.toHaveBeenCalled();
     expect(screen.getByText("Complete your childcare position so that we can confirm your call with your matchmaker.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Complete my childcare position" })).toHaveAttribute("href", `/parent/request?callAt=${encodeURIComponent(TUE_14)}`);
+    expect(screen.getByRole("link", { name: "Confirm time" })).toHaveAttribute("href", `/parent/request?callAt=${encodeURIComponent(TUE_14)}`);
     expect(screen.getByRole("link", { name: "Skip for now" })).toHaveAttribute("href", "/parent?t=childcare");
   });
 });

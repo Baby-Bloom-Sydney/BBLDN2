@@ -179,7 +179,7 @@ describe("ChildcareCall — her booking, for changes (BAI 2026-11-05)", () => {
     expect(h.cancel).not.toHaveBeenCalled();
   });
 
-  it("no position yet: the line and 'Complete my childcare position' (nothing held), primary alone", async () => {
+  it("no position yet: the line and 'Confirm time' to her position form (nothing held), primary alone (W15)", async () => {
     const user = userEvent.setup();
     h.reload.mockResolvedValue({ ok: true, value: { ...PICK, needsPosition: true } });
     render(<ChildcareCall card={null} openWith="open" goneWhen={null} failed={false} />);
@@ -189,7 +189,7 @@ describe("ChildcareCall — her booking, for changes (BAI 2026-11-05)", () => {
     await user.click(within(dialog).getByRole("radio", { name: "Tuesday 9 February, 14:00" }));
     expect(h.hold).not.toHaveBeenCalled();
     expect(within(dialog).getByText("Complete your childcare position so that we can confirm your call with your matchmaker.")).toBeInTheDocument();
-    expect(within(dialog).getByRole("link", { name: "Complete my childcare position" })).toHaveAttribute(
+    expect(within(dialog).getByRole("link", { name: "Confirm time" })).toHaveAttribute(
       "href",
       `/parent/request?callAt=${encodeURIComponent(TUE_14)}`,
     );

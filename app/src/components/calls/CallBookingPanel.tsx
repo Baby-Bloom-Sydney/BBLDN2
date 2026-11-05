@@ -13,8 +13,9 @@
  * - **picking** (not booked; after a no-answer with "We tried to call you — pick another time"; no times; load
  *   failed): the heading and 04b's intro, then the picker;
  * - **changing** (Change time, `?change=1`, or the card's Change time): her booking stays on top ("Your call: …", the
- *   green panel) and the picker shows underneath with her slot chosen; confirming moves the same booking;
- * - **no position yet** (W11): picking a time holds nothing; "Complete my childcare position" takes the time to
+ *   green panel) and the picker underneath opens with only the days (W15); her time is marked as hers once she
+ *   reaches it; confirming moves the same booking;
+ * - **no position yet** (W11): picking a time holds nothing; "Confirm time" (W15) takes the time to
  *   `/parent/request?callAt=`;
  * - **booked**: the tick, "You're booked", "We'll call you on <her mobile>"; on the slide the time and
  *   one button onward, in the popup "Your call: …" (BAI 2026-11-05: "this pop up would also display their current
