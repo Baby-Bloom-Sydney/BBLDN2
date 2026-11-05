@@ -5,8 +5,10 @@
  * should be a popup (without a close button, they would tap outside of the rounded rectangle pop up to close the pop
  * up) not a seperate page or slide").
  *
- * The app's popup style (`ConnectionDetailPopup`: a `rounded-2xl` dialog), `max-h-[90dvh]` and scrolling so it fits a
- * 390px phone, and no close (X) button (`hideClose`). A tap outside or Escape closes it; Radix keeps focus trapped
+ * The app's popup style (`ConnectionDetailPopup`: a `rounded-2xl` dialog), scrolling inside, and no close (X) button
+ * (`hideClose`). On a phone it always leaves a dimmed strip to tap on every side (04b rework W16): at most 80dvh tall,
+ * and 1rem in from each edge (`w-[calc(100%-2rem)]`; the shared dialog is `w-full`), still at most `max-w-md`.
+ * A tap outside or Escape closes it; Radix keeps focus trapped
  * inside while it is open. Her view is loaded when it opens (a skeleton meanwhile), then the shared
  * `CallBookingPanel` draws it — the primary button alone, no onward button.
  *
@@ -66,7 +68,7 @@ export function CallPopup({ open, onClose, startChanging, notice, message }: Cal
     <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
       <DialogContent
         hideClose
-        className="max-w-md max-h-[90dvh] overflow-y-auto overflow-x-hidden rounded-2xl p-5 sm:p-6 motion-reduce:animate-none motion-reduce:transition-none"
+        className="w-[calc(100%-2rem)] max-w-md max-h-[80dvh] overflow-y-auto overflow-x-hidden rounded-2xl p-5 sm:p-6 motion-reduce:animate-none motion-reduce:transition-none"
       >
         {view === null ? <Loading /> : <CallBookingPanel initial={view} inPopup startChanging={startChanging} notice={notice} message={message} />}
       </DialogContent>

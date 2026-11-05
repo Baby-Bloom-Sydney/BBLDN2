@@ -59,7 +59,7 @@ describe("ChildcareCall — opening", () => {
     render(<ChildcareCall card={null} openWith="open" goneWhen={null} failed={false} />);
     const dialog = await popup();
     expect(dialog.className).toContain("rounded-2xl");
-    expect(dialog.className).toContain("max-h-[90dvh]");
+    expect(dialog.className).toContain("max-h-[80dvh]"); // W16 (was 90dvh)
     expect(await within(dialog).findByRole("radio", { name: "Tue 9 Feb" })).toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("link", { name: "Skip for now" })).not.toBeInTheDocument();
@@ -194,6 +194,19 @@ describe("ChildcareCall — her booking, for changes (BAI 2026-11-05)", () => {
       `/parent/request?callAt=${encodeURIComponent(TUE_14)}`,
     );
     expect(within(dialog).queryByRole("link", { name: "Skip for now" })).not.toBeInTheDocument();
+  });
+});
+
+describe("the popup leaves a dimmed strip to tap out of, on every side of a phone (W16)", () => {
+  it("at most 80dvh tall and 1rem in from each side, still at most max-w-md", async () => {
+    h.reload.mockResolvedValue({ ok: true, value: PICK });
+    render(<ChildcareCall card={null} openWith="open" goneWhen={null} failed={false} />);
+    const dialog = await popup();
+    expect(dialog.className).toContain("max-h-[80dvh]");
+    expect(dialog.className).not.toContain("90dvh");
+    expect(dialog.className).toContain("w-[calc(100%-2rem)]");
+    expect(dialog.className).toContain("max-w-md");
+    expect(dialog.className.split(/\s+/)).not.toContain("w-full");
   });
 });
 

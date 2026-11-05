@@ -370,6 +370,14 @@ describe("SlotPicker — taken by someone else: the notice (BAI 2026-11-05)", ()
     expect(await screen.findByRole("dialog", { name: "This time has just been booked" })).toHaveTextContent(NOTICE);
   });
 
+  it("W16: on a phone the notice stays 1rem in from each side (a dimmed strip to tap), still at most max-w-sm", async () => {
+    render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} initialNotice="Tuesday 9 February at 14:00" />);
+    const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
+    expect(notice.className).toContain("w-[calc(100%-2rem)]");
+    expect(notice.className).toContain("max-w-sm");
+    expect(notice.className.split(/\s+/)).not.toContain("w-full");
+  });
+
   it("a time seen taken is free again when a fresh list says so (reconciled on reload)", async () => {
     const user = userEvent.setup();
     const actions = actionsWith({ hold: vi.fn(async () => ({ ok: false as const, error: "taken" as const })), reload: vi.fn(async () => gridDays()) });

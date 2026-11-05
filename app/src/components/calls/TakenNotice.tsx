@@ -3,11 +3,11 @@
 /**
  * "This time has just been booked" (04b rework W4; BAI 2026-11-05: "if someone else takes it before them, it has a
  * seemless popup informing them that this time has already been selected, to avoid double booking"). A small
- * `rounded-2xl` dialog with one button, shown when a hold or a confirm comes back taken (or a held time ran out and
- * was taken). The list refreshes underneath at the same moment. Its button takes focus when it opens; on close the
- * picker puts focus back on the grid (`onClosed`). It nests inside the in-app booking popup: Radix layers dismiss the
- * top one only, so closing this never closes that. The database's exclusion constraint is what refuses the double
- * booking; this is only how she hears about it.
+ * `rounded-2xl` dialog with one button — 1rem in from each side of a phone, like the booking popup (W16) — shown when
+ * a hold or a confirm comes back taken (or a held time ran out and was taken). The list refreshes underneath at the
+ * same moment. Its button takes focus when it opens; on close the picker puts focus back on the grid (`onClosed`). It
+ * nests inside the in-app booking popup: Radix layers dismiss the top one only, so closing this never closes that. The
+ * database's exclusion constraint is what refuses the double booking; this is only how she hears about it.
  *
  * BB-wave1-041126/04b-rework, 2026-11-05.
  */
@@ -33,7 +33,7 @@ export function TakenNotice({ when, onClose, onClosed }: TakenNoticeProps) {
     <Dialog open={when !== null} onOpenChange={(open) => (open ? undefined : onClose())}>
       <DialogContent
         hideClose
-        className="max-w-sm rounded-2xl motion-reduce:animate-none motion-reduce:transition-none"
+        className="w-[calc(100%-2rem)] max-w-sm rounded-2xl motion-reduce:animate-none motion-reduce:transition-none"
         onCloseAutoFocus={(event) => {
           event.preventDefault();
           onClosed();
