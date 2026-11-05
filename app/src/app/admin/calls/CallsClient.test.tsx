@@ -3,7 +3,7 @@
  * `/admin/leads` drawer — `Sheet side="right"`, opened by `?openCall=<parentUserId>` (shareable, refreshable), open
  * at once on a click while the server reads her (a skeleton), closed by a click outside.
  */
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const nav = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
@@ -88,6 +88,17 @@ describe("CallsClient", () => {
     fireEvent.keyDown(drawer()!, { key: "Escape" });
     await waitFor(() => expect((document.activeElement as HTMLElement | null)?.dataset.familyId).toBe(FAY));
     expect(document.activeElement?.isConnected).toBe(true);
+  });
+
+  it("when she is in two sections, focus goes back to her row in the section she was opened from (re-review M5)", async () => {
+    const twice = { ...DASHBOARD, history: [...(DASHBOARD.history ?? []), { key: "e-fay", parentUserId: FAY, when: "Wed 3 Feb, 16:00 (London time)", name: "Fay Quick", what: "No answer", note: "Rang once", by: "Bai Admin", tags: [] }] };
+    render(<CallsClient dashboard={twice} openCallId={null} panel={null} panelFailed={false} />);
+    const history = screen.getByRole("heading", { level: 2, name: /History/ }).closest("section")!;
+    // Opened from History, without focusing the button (Safari, Firefox).
+    fireEvent.click(within(history as HTMLElement).getAllByRole("button", { name: "Fay Quick" })[0]);
+    fireEvent.keyDown(drawer()!, { key: "Escape" });
+    await waitFor(() => expect((document.activeElement as HTMLElement | null)?.dataset.familyId).toBe(FAY));
+    expect(document.activeElement?.closest("section")).toBe(history);
   });
 
   it("if her name is no longer on the page, focus goes to the heading of the section she was opened from (M5)", async () => {

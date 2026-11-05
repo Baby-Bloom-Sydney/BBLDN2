@@ -9,7 +9,7 @@
  * Only Calls in 04c-1; the Calendar tab (`?tab=calendar`) is 04c-2's.
  */
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { type MouseEvent, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -44,9 +44,9 @@ function PanelLoading() {
   );
 }
 
-/** Her name's buttons on the page now (a table row and a phone card), the visible one first. */
-function familyButtons(parentUserId: string): HTMLElement[] {
-  const all = [...document.querySelectorAll<HTMLElement>("[data-family-id]")].filter((el) => el.dataset.familyId === parentUserId);
+/** Her name's buttons under `root` now (a table row and a phone card), the visible one first. */
+function familyButtons(parentUserId: string, root: ParentNode = document): HTMLElement[] {
+  const all = [...root.querySelectorAll<HTMLElement>("[data-family-id]")].filter((el) => el.dataset.familyId === parentUserId);
   return [...all.filter((el) => el.getClientRects().length > 0), ...all.filter((el) => el.getClientRects().length === 0)];
 }
 
@@ -57,13 +57,16 @@ interface Opener {
 }
 
 /**
- * Where focus goes when the drawer closes (review round 2 M5): her name's button as the page now draws it — after a
- * write her row may have moved section, and Safari and Firefox don't focus a clicked button at all — else the heading
- * of the section she was opened from. A deep-linked open has no opener and keeps Radix's default.
+ * Where focus goes when the drawer closes (review round 2 M5): her name's button as the page now draws it — in the
+ * section she was opened from first (she can be in History too), then anywhere, since after a write her row may have
+ * moved section, and Safari and Firefox don't focus a clicked button at all — else that section's heading. A
+ * deep-linked open has no opener and keeps Radix's default.
  */
 function focusBack(opener: Opener | null): boolean {
   if (opener === null) return false;
-  const target = familyButtons(opener.parentUserId)[0] ?? (opener.headingId ? document.getElementById(opener.headingId) : null);
+  const heading = opener.headingId ? document.getElementById(opener.headingId) : null;
+  const section = heading?.closest("section") ?? null;
+  const target = (section ? familyButtons(opener.parentUserId, section)[0] : undefined) ?? familyButtons(opener.parentUserId)[0] ?? heading;
   target?.focus();
   return target !== null && target !== undefined;
 }
@@ -78,10 +81,12 @@ function useDrawer(openCallId: string | null) {
   const [wanted, setWanted] = useState<string | null>(openCallId);
   const last = useRef<string | null>(openCallId);
   const opener = useRef<Opener | null>(null);
+  const clicked = useRef<HTMLElement | null>(null);
   useEffect(() => setWanted(openCallId), [openCallId]);
   if (wanted !== null) last.current = wanted;
   const open = (parentUserId: string) => {
-    const from = familyButtons(parentUserId)[0]?.closest("section")?.querySelector("h2") ?? null;
+    const button = clicked.current?.dataset.familyId === parentUserId ? clicked.current : familyButtons(parentUserId)[0];
+    const from = button?.closest("section")?.querySelector("h2") ?? null;
     opener.current = { parentUserId, headingId: from?.id || null };
     setWanted(parentUserId);
     startTransition(() => router.push(`${PAGE}?openCall=${encodeURIComponent(parentUserId)}`, { scroll: false }));
@@ -93,7 +98,11 @@ function useDrawer(openCallId: string | null) {
   const restoreFocus = (event: Event) => {
     if (focusBack(opener.current)) event.preventDefault();
   };
-  return { wanted, shown: wanted ?? last.current, open, close, restoreFocus, refresh: () => router.refresh() };
+  /** The family button a click (or Enter) came from, so `open` knows which of her rows it was. */
+  const noteClick = (event: MouseEvent) => {
+    clicked.current = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-family-id]") : null;
+  };
+  return { wanted, shown: wanted ?? last.current, open, close, restoreFocus, noteClick, refresh: () => router.refresh() };
 }
 
 export function CallsClient({ dashboard, openCallId, panel, panelFailed, renderCallControl = defaultCallControl }: CallsClientProps) {
@@ -101,7 +110,7 @@ export function CallsClient({ dashboard, openCallId, panel, panelFailed, renderC
   const ready = panel !== null && panel.parentUserId === drawer.shown;
   const failed = panelFailed && drawer.shown === openCallId;
   return (
-    <div className="mt-6">
+    <div className="mt-6" onClickCapture={drawer.noteClick}>
       <CallsTab dashboard={dashboard} onOpen={drawer.open} renderCallControl={renderCallControl} />
       <Sheet open={drawer.wanted !== null} onOpenChange={(isOpen) => !isOpen && drawer.close()}>
         {/* [&>button]:z-20 — the Sheet's own close button stays above the drawer's sticky header. */}
