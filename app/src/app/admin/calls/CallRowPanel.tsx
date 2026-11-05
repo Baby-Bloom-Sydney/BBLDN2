@@ -53,7 +53,7 @@ export function CallRowPanel({ panel, renderCallControl, onChanged }: CallRowPan
         <OutcomeForm parentUserId={panel.parentUserId} bookingId={booking?.bookingId ?? null} onSaved={onChanged} />
         <PanelBlock title={ADMIN_COPY.panelPosition}>
           <PositionCell position={panel.position} />
-          {panel.position && <p className="text-sm text-slate-700">{panel.position.nannies}</p>}
+          {panel.position && <p className="text-sm text-slate-700">{panel.position.nannies ?? "—"}</p>}
         </PanelBlock>
         <PanelBlock title={ADMIN_COPY.panelDeposit}>
           <p className="text-sm text-slate-700">{panel.deposit}</p>

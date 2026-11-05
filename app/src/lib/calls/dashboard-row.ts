@@ -87,10 +87,10 @@ export interface PositionFacts {
   readonly startDate: string | null;
   readonly createdAt: string;
   readonly childAgesMonths: readonly number[];
-  /** Nannies the blast notified (`dfy_match_notifications`). */
-  readonly nanniesContacted: number;
-  /** Nannies who replied (`connection_requests` with `responded_at` set). */
-  readonly nanniesReplied: number;
+  /** Nannies the blast notified (`dfy_match_notifications` with `notified_at`); null when it couldn't be read. */
+  readonly nanniesContacted: number | null;
+  /** Nannies who replied (`connection_requests` with `responded_at` set); null when it couldn't be read. */
+  readonly nanniesReplied: number | null;
 }
 
 export interface PositionSummary {
@@ -100,7 +100,8 @@ export interface PositionSummary {
   readonly days: string | null;
   readonly children: string | null;
   readonly starts: string | null;
-  readonly nannies: string;
+  /** "6 nannies contacted · 2 replied"; null when the counts couldn't be read (shown as —). */
+  readonly nannies: string | null;
 }
 
 const plural = (n: number, one: string): string => `${n} ${one}${n === 1 ? "" : "s"}`;
@@ -124,7 +125,7 @@ export function positionSummaryOf(p: PositionFacts | null): PositionSummary | nu
     days: p.daysRequired.length === 0 ? null : p.daysRequired.join(", "),
     children: p.childAgesMonths.length === 0 ? null : p.childAgesMonths.map(ageWords).join(", "),
     starts: p.startDate === null ? null : `Starts ${londonDayWords(p.startDate)}`,
-    nannies: nanniesLine({ contacted: p.nanniesContacted, replied: p.nanniesReplied }),
+    nannies: p.nanniesContacted === null || p.nanniesReplied === null ? null : nanniesLine({ contacted: p.nanniesContacted, replied: p.nanniesReplied }),
   };
 }
 

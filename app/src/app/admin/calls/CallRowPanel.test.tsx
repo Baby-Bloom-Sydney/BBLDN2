@@ -61,6 +61,11 @@ describe("CallRowPanel", () => {
     expect(within(block("Deposit (read-only)")).queryByRole("button")).not.toBeInTheDocument();
   });
 
+  it("nanny counts that couldn't be read show — in the drawer (M10)", () => {
+    render(<CallRowPanel panel={{ ...PANEL, position: { ...PANEL.position!, nannies: null } }} renderCallControl={defaultCallControl} onChanged={vi.fn()} />);
+    expect(within(block("Position")).getByText("—")).toBeInTheDocument();
+  });
+
   it("a quick-match family: 'No position yet', no Position link", () => {
     render(<CallRowPanel panel={{ ...PANEL, position: null, links: { ...PANEL.links, position: null } }} renderCallControl={defaultCallControl} onChanged={vi.fn()} />);
     expect(within(block("Position")).getByText("No position yet")).toBeInTheDocument();

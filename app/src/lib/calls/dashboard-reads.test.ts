@@ -128,7 +128,29 @@ describe("readFamilyDetails", () => {
     expect(parentReads.map((o) => inIds(o).length)).toEqual([100, 100, 50]);
   });
 
-  it.each(["parents", "nanny_positions", "position_children", "dfy_match_notifications", "connection_requests"])(
+  it.each(["dfy_match_notifications", "connection_requests"])(
+    "a failed %s read leaves the families and positions standing, with no nanny counts (review round 2 M10)",
+    async (table) => {
+      fake.readErrors[table] = { message: "boom", code: "XX000" };
+      const got = await reads().readFamilyDetails([P1, P2]);
+      expect(got.ok).toBe(true);
+      if (!got.ok) return;
+      expect(got.value.positions.get(P1)).toMatchObject({ id: POS_NEW, childAgesMonths: [8, 30], nanniesContacted: null, nanniesReplied: null });
+      expect(console.error).toHaveBeenCalled();
+    },
+  );
+
+  it("the children and both nanny reads start together, not one after another (M10)", async () => {
+    let nannyReadStarted = false;
+    fake.reads.position_children = (op: Op) => {
+      nannyReadStarted = fake.ops.some((o) => o.table === "dfy_match_notifications") && fake.ops.some((o) => o.table === "connection_requests");
+      return pick(CHILDREN, "position_id")(op);
+    };
+    await reads().readFamilyDetails([P1]);
+    expect(nannyReadStarted).toBe(true);
+  });
+
+  it.each(["parents", "nanny_positions", "position_children"])(
     "a failed %s read fails the whole read (logged, no partial rows)",
     async (table) => {
       fake.readErrors[table] = { message: "boom", code: "XX000" };

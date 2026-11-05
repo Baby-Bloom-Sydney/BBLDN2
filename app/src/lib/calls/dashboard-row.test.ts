@@ -129,6 +129,10 @@ describe("the position", () => {
     });
   });
 
+  it("nanny counts that couldn't be read: no nannies line (the row shows —), the rest stands (M10)", () => {
+    expect(positionSummaryOf(facts({ nanniesContacted: null, nanniesReplied: null }))).toMatchObject({ area: "Islington", nannies: null });
+  });
+
   it("a quick-match family has no position: null (the row says No position yet)", () => {
     expect(positionSummaryOf(null)).toBeNull();
   });

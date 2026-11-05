@@ -151,13 +151,16 @@ function chosenPositions(parents: readonly ParentRow[], positions: readonly Posi
   return chosen;
 }
 
-const distinctNannies = (rows: readonly z.infer<typeof nannyRow>[], positionId: string): number =>
-  new Set(rows.filter((r) => r.position_id === positionId).map((r) => r.nanny_id)).size;
+type NannyRows = readonly z.infer<typeof nannyRow>[];
+
+const distinctNannies = (rows: NannyRows | null, positionId: string): number | null =>
+  rows === null ? null : new Set(rows.filter((r) => r.position_id === positionId).map((r) => r.nanny_id)).size;
 
 interface PositionExtras {
   readonly children: readonly z.infer<typeof childRow>[];
-  readonly notified: readonly z.infer<typeof nannyRow>[];
-  readonly replied: readonly z.infer<typeof nannyRow>[];
+  /** Null when the counts couldn't be read: the rows still show, without them (review round 2 M10). */
+  readonly notified: NannyRows | null;
+  readonly replied: NannyRows | null;
 }
 
 function factsOf(userId: string, p: PositionRow, extras: PositionExtras): PositionFacts {
@@ -178,15 +181,20 @@ function factsOf(userId: string, p: PositionRow, extras: PositionExtras): Positi
   };
 }
 
+/**
+ * The children, and the nanny counts, read together. The children are part of the row (a failure fails the read);
+ * the counts degrade: if either can't be read the rows show "—" for them, so staff still see who to call (M10).
+ */
 async function positionExtras(db: Db, ids: readonly string[]): Promise<CallsResult<PositionExtras>> {
-  const children = await readByPosition(db, "position_children", "position_id, age_months, display_order", ids, childRow);
+  const [children, notified, replied] = await Promise.all([
+    readByPosition(db, "position_children", "position_id, age_months, display_order", ids, childRow),
+    // Later waves are inserted up front as `pending_wave` with no `notified_at` (matching.ts): not contacted yet (H2).
+    readByPosition(db, "dfy_match_notifications", "position_id, nanny_id", ids, nannyRow, "notified_at"),
+    readByPosition(db, "connection_requests", "position_id, nanny_id", ids, nannyRow, "responded_at"),
+  ]);
   if (!children.ok) return children;
-  // Later waves are inserted up front as `pending_wave` with no `notified_at` (matching.ts): not contacted yet (H2).
-  const notified = await readByPosition(db, "dfy_match_notifications", "position_id, nanny_id", ids, nannyRow, "notified_at");
-  if (!notified.ok) return notified;
-  const replied = await readByPosition(db, "connection_requests", "position_id, nanny_id", ids, nannyRow, "responded_at");
-  if (!replied.ok) return replied;
-  return ok({ children: children.value, notified: notified.value, replied: replied.value });
+  const counted = notified.ok && replied.ok;
+  return ok({ children: children.value, notified: counted ? notified.value : null, replied: counted ? replied.value : null });
 }
 
 async function familyDetails(db: Db, userIds: readonly string[], preferred: ReadonlyMap<string, string>): Promise<CallsResult<FamilyDetails>> {

@@ -96,6 +96,14 @@ describe("CallsTab — a row (brief §0.9)", () => {
     }
   });
 
+  it("nanny counts that couldn't be read show — (M10)", () => {
+    const noCounts = { ...DASHBOARD, overdue: [{ ...DASHBOARD.overdue[0], position: { ...DASHBOARD.overdue[0].position!, nannies: null } }] };
+    render(<CallsTab dashboard={noCounts} onOpen={vi.fn()} />);
+    const row = within(table("Overdue")).getByText("Ava Overdue").closest("tr")!;
+    expect(within(row).getByText("—")).toBeInTheDocument();
+    expect(within(row).getByText("Islington")).toBeInTheDocument();
+  });
+
   it("the four links", () => {
     render(<CallsTab dashboard={DASHBOARD} onOpen={vi.fn()} />);
     const overdue = table("Overdue");
