@@ -92,9 +92,12 @@ export function bookedLine(words: Pick<SlotWords, "day" | "time">): string {
   return `Your ${CALL_NAME} is on ${words.day} at ${words.time}`;
 }
 
-/** The held time (04b; W14 no "London time"): "We're holding Tuesday 9 February, 14:00 for you until 10:05." */
-export function heldLine(words: Pick<SlotWords, "day" | "time">, until: string): string {
-  return `We're holding ${words.day}, ${words.time} for you until ${until}.`;
+/**
+ * The held time's line, under the green panel that names it (04b rework W16; BAI 2026-11-05, verbatim, no full stop):
+ * "Your time is being reserved for 5 minutes" — the minutes are `call_settings.hold_minutes`; "1 minute" at one.
+ */
+export function heldLine(holdMinutes: number): string {
+  return `Your time is being reserved for ${holdMinutes} ${holdMinutes === 1 ? "minute" : "minutes"}`;
 }
 
 /** The picker's green panel (04b rework W4): "Tuesday 9 February at 14:00". */

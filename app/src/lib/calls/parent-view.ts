@@ -31,7 +31,7 @@ export interface BookedCallView {
 export interface HeldCallView {
   readonly holdId: string;
   readonly startsAt: string;
-  /** "We're holding Tuesday 9 February, 14:00 for you until 10:05." */
+  /** "Your time is being reserved for 5 minutes" (W16; the green panel above names the time). */
   readonly line: string;
 }
 
@@ -125,8 +125,9 @@ export function nationalMobile(raw: string | null): string | null {
   return `${national.slice(0, 5)} ${national.slice(5)}`;
 }
 
-export function heldViewOf(held: { readonly bookingId: string; readonly startsAt: string; readonly holdExpiresAt: string }): HeldCallView {
-  return { holdId: held.bookingId, startsAt: held.startsAt, line: heldLine(slotWords(held.startsAt), slotWords(held.holdExpiresAt).time) };
+/** Her held time: the panel names it; the line says how long it is reserved (W16, the settings' `hold_minutes`). */
+export function heldViewOf(held: { readonly bookingId: string; readonly startsAt: string; readonly holdMinutes: number }): HeldCallView {
+  return { holdId: held.bookingId, startsAt: held.startsAt, line: heldLine(held.holdMinutes) };
 }
 
 /** Brief §0.10: her latest attempt went unanswered (No answer, Voicemail, Wrong number) and she hasn't booked since. */

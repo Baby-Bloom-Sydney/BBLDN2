@@ -40,7 +40,7 @@ const BOOKED: BookedCallView = {
 const MOVED: BookedCallView = { ...BOOKED, startsAt: TUE_14, when: "Tuesday 9 February, 14:00", yourCall: "Your call: Tuesday 9 February at 14:00" };
 const PICK: MyCallView = { kind: "pick", afterNoAnswer: false, days: DAYS, mobile: "07700 900123", needsPosition: false };
 const BOOKED_VIEW: MyCallView = { kind: "booked", booking: BOOKED, days: gridDays({ [TUE_15]: false }), mobile: "07700 900123", needsPosition: false };
-const HOLD = { holdId: "h-1", startsAt: TUE_14, line: "We're holding Tuesday 9 February, 14:00 for you until 10:05." };
+const HOLD = { holdId: "h-1", startsAt: TUE_14, line: "Your time is being reserved for 5 minutes" };
 
 const popup = () => screen.findByRole("dialog", { name: /Complimentary matchmaker call|You're booked/ });
 

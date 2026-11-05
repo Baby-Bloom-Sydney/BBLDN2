@@ -100,6 +100,14 @@ export interface OutcomeRequest {
 export interface HeldTime extends Slot {
   readonly bookingId: string;
   readonly holdExpiresAt: string;
+  /** How long it is held: `call_settings.hold_minutes`, read with the free check (04b rework W16, the parent's line). */
+  readonly holdMinutes: number;
+}
+
+/** A current free slot for her, and the hold length the same settings read gives. */
+interface FreeNow {
+  readonly slot: Slot;
+  readonly holdMinutes: number;
 }
 
 const purpose = z.enum(["first_call", "cohort_prebook"]);
@@ -182,7 +190,7 @@ async function currentFreeSlot(
   slotPurpose: CallPurpose,
   parentUserId: string,
   deps: CallsDeps,
-): Promise<CallsResult<Slot>> {
+): Promise<CallsResult<FreeNow>> {
   const [settings, hours] = await Promise.all([deps.repo.readSettings(), deps.repo.readWeeklyHours()]);
   if (!settings.ok) return settings;
   if (!hours.ok) return hours;
@@ -199,7 +207,8 @@ async function currentFreeSlot(
   if (!blocks.ok) return blocks;
   if (!bookings.ok) return bookings;
   const others = bookings.value.filter((b) => !isOwnReplaceableHold(b, parentUserId, slotPurpose));
-  return withoutTaken([slot], { blocks: blocks.value, bookings: others, now }).length === 1 ? ok(slot) : { ok: false, error: "taken" };
+  const free = withoutTaken([slot], { blocks: blocks.value, bookings: others, now }).length === 1;
+  return free ? ok({ slot, holdMinutes: settings.value.holdMinutes }) : { ok: false, error: "taken" };
 }
 
 async function positionFor(parentUserId: string, given: string | null | undefined, deps: CallsDeps): Promise<string | null> {
@@ -239,17 +248,18 @@ export async function holdSlotForParent(request: HoldRequest, deps: CallsDeps = 
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
   const parsed = parse(holdSchema, request);
   if (parsed === null) return INVALID;
-  const slot = await currentFreeSlot(parsed.startsAt, parsed.purpose, parsed.parentUserId, deps);
-  if (!slot.ok) return slot;
+  const free = await currentFreeSlot(parsed.startsAt, parsed.purpose, parsed.parentUserId, deps);
+  if (!free.ok) return free;
+  const { slot, holdMinutes } = free.value;
   const positionId = await positionFor(parsed.parentUserId, parsed.positionId, deps);
   const held = await deps.repo.holdSlot({
-    ...slot.value,
+    ...slot,
     parentUserId: parsed.parentUserId,
     purpose: parsed.purpose,
     positionId,
     actor: repoActor(parsed.actor),
   });
-  return held.ok ? ok({ ...held.value, startsAt: slot.value.startsAt, endsAt: slot.value.endsAt }) : held;
+  return held.ok ? ok({ ...held.value, startsAt: slot.startsAt, endsAt: slot.endsAt, holdMinutes }) : held;
 }
 
 /** Confirm her hold: a new booking, or her existing one moved there (the same row). Brief 10 hooks 04b's caller. */
@@ -266,11 +276,11 @@ export async function bookSlotForParent(request: BookRequest, deps: CallsDeps = 
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
   const parsed = parse(bookSchema, request);
   if (parsed === null) return INVALID;
-  const slot = await currentFreeSlot(parsed.startsAt, parsed.purpose, parsed.parentUserId, deps);
-  if (!slot.ok) return slot;
+  const free = await currentFreeSlot(parsed.startsAt, parsed.purpose, parsed.parentUserId, deps);
+  if (!free.ok) return free;
   const positionId = await positionFor(parsed.parentUserId, parsed.positionId, deps);
   const booked = await deps.repo.bookSlot({
-    ...slot.value,
+    ...free.value.slot,
     parentUserId: parsed.parentUserId,
     purpose: parsed.purpose,
     positionId,

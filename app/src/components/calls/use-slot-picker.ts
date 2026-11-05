@@ -22,7 +22,7 @@ import type { SlotDay, SlotOption } from "@/lib/calls/group-slots-by-day";
 import type { MyCallRefusal } from "@/lib/calls/parent-view";
 import type { BracketKey } from "@/lib/timezone";
 
-/** A held time: what the server holds, and its line ("We're holding … until 10:05."). */
+/** A held time: what the server holds, and its line ("Your time is being reserved for 5 minutes", W16). */
 export interface PickerHold {
   readonly holdId: string;
   readonly startsAt: string;

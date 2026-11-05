@@ -199,7 +199,10 @@ test.describe.serial("call booking — flag on (local stack)", () => {
 
   test("book: a tap holds at once, Confirm time → You're booked", async () => {
     await pickSlot(page);
-    await expect(page.getByText(/^We're holding .+, \d\d:\d\d for you until \d\d:\d\d\.$/)).toBeVisible();
+    // W16: BAI's line with the settings' hold minutes (the green panel above names the time).
+    const { data: hold } = await db.from("call_settings").select("hold_minutes").eq("id", 1).single();
+    const minutes = (hold as { hold_minutes: number }).hold_minutes;
+    await expect(page.getByText(`Your time is being reserved for ${minutes} ${minutes === 1 ? "minute" : "minutes"}`, { exact: true })).toBeVisible();
     await shoot(page, "held");
     await page.getByRole("button", { name: "Confirm time" }).click();
     await expect(page.getByRole("heading", { name: "You're booked" })).toBeVisible();

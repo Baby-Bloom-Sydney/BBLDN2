@@ -36,7 +36,7 @@ beforeEach(() => {
   vi.stubEnv("CALL_BOOKING_ENABLED", "true");
   for (const fn of Object.values(h)) fn.mockReset();
   h.session.mockResolvedValue(HER);
-  h.hold.mockResolvedValue({ ok: true, value: { bookingId: HOLD, startsAt: TUE_14, endsAt: "2027-02-09T14:30:00.000Z", holdExpiresAt: "2027-02-04T10:05:00.000Z" } });
+  h.hold.mockResolvedValue({ ok: true, value: { bookingId: HOLD, startsAt: TUE_14, endsAt: "2027-02-09T14:30:00.000Z", holdExpiresAt: "2027-02-04T10:05:00.000Z", holdMinutes: 5 } });
   h.confirm.mockResolvedValue({ ok: true, value: { kind: "booked", bookingId: HOLD, startsAt: TUE_14, replay: false } });
   h.cancel.mockResolvedValue({ ok: true, value: { bookingId: HOLD, startsAt: TUE_14 } });
   h.load.mockResolvedValue({ ok: true, value: VIEW });
@@ -98,11 +98,13 @@ describe("the parent comes from the session only", () => {
 });
 
 describe("each action", () => {
-  it("holdMyCallSlot → the held time in London words", async () => {
+  it("holdMyCallSlot → the held time, and how long it is reserved for (W16: the settings' minutes)", async () => {
     expect(await holdMyCallSlot(TUE_14)).toEqual({
       ok: true,
-      value: { holdId: HOLD, startsAt: TUE_14, line: "We're holding Tuesday 9 February, 14:00 for you until 10:05." },
+      value: { holdId: HOLD, startsAt: TUE_14, line: "Your time is being reserved for 5 minutes" },
     });
+    h.hold.mockResolvedValueOnce({ ok: true, value: { bookingId: HOLD, startsAt: TUE_14, endsAt: "2027-02-09T14:30:00.000Z", holdExpiresAt: "2027-02-04T10:01:00.000Z", holdMinutes: 1 } });
+    expect(await holdMyCallSlot(TUE_14)).toMatchObject({ ok: true, value: { line: "Your time is being reserved for 1 minute" } });
   });
 
   it("confirmMyCallHold → the booking id (brief 10's hook), moved/replay, the booked view; revalidates /parent", async () => {

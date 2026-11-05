@@ -40,18 +40,17 @@ describe("bookedViewOf / heldViewOf", () => {
     expect(bookedViewOf({ id: "b-1", startsAt: TUE_14 }, new Date(TUE_14)).changeable).toBe(false);
   });
 
-  it("the held line names the time and when the hold runs out, London clock", () => {
-    expect(heldViewOf({ bookingId: "h-1", startsAt: TUE_14, holdExpiresAt: "2027-02-04T10:05:00.000Z" })).toEqual({
+  it("the held line says how long it is reserved, from the hold's own minutes (W16); the panel above names the time", () => {
+    expect(heldViewOf({ bookingId: "h-1", startsAt: TUE_14, holdMinutes: 5 })).toEqual({
       holdId: "h-1",
       startsAt: TUE_14,
-      line: "We're holding Tuesday 9 February, 14:00 for you until 10:05.",
+      line: "Your time is being reserved for 5 minutes",
     });
   });
 
-  it("a BST hold expiry reads on the London clock", () => {
-    expect(heldViewOf({ bookingId: "h", startsAt: "2027-07-01T13:00:00.000Z", holdExpiresAt: "2027-07-01T09:05:00.000Z" }).line).toBe(
-      "We're holding Thursday 1 July, 14:00 for you until 10:05.",
-    );
+  it("not hardcoded: the settings' minutes, singular at one", () => {
+    expect(heldViewOf({ bookingId: "h", startsAt: TUE_14, holdMinutes: 12 }).line).toBe("Your time is being reserved for 12 minutes");
+    expect(heldViewOf({ bookingId: "h", startsAt: TUE_14, holdMinutes: 1 }).line).toBe("Your time is being reserved for 1 minute");
   });
 });
 

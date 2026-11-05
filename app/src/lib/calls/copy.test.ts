@@ -76,10 +76,15 @@ describe("parent copy, word for word", () => {
     expect(PARENT_COPY.bookATime).toBe("Book a time");
   });
 
+  it("the hold line is BAI's words with the hold's minutes, no full stop (W16); one minute is singular", () => {
+    expect(heldLine(5)).toBe("Your time is being reserved for 5 minutes");
+    expect(heldLine(1)).toBe("Your time is being reserved for 1 minute");
+    expect(heldLine(60)).toBe("Your time is being reserved for 60 minutes");
+  });
+
   it("builds the booked lines from London words, without saying London (W14)", () => {
     const words = { day: "Tuesday 9 February", time: "14:00", short: "Tue 9 Feb, 14:00" };
     expect(bookedLine(words)).toBe("Your Complimentary matchmaker call is on Tuesday 9 February at 14:00");
-    expect(heldLine(words, "10:05")).toBe("We're holding Tuesday 9 February, 14:00 for you until 10:05.");
     expect(yourCallLine("Thursday 5 November at 10:00")).toBe("Your call: Thursday 5 November at 10:00");
     expect(prebookFullLine("Monday 8 February")).toBe("We'll call you on Monday 8 February");
   });

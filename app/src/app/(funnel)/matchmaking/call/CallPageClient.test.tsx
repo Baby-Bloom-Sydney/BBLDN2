@@ -34,7 +34,7 @@ const BOOKED: BookedCallView = {
 };
 const PICK: MyCallView = { kind: "pick", afterNoAnswer: false, days: DAYS, mobile: MOBILE, needsPosition: false };
 const BOOKED_VIEW: MyCallView = { kind: "booked", booking: BOOKED, days: DAYS, mobile: MOBILE, needsPosition: false };
-const HOLD = { holdId: "h-1", startsAt: TUE_14, line: "We're holding Tuesday 9 February, 14:00 for you until 10:05." };
+const HOLD = { holdId: "h-1", startsAt: TUE_14, line: "Your time is being reserved for 5 minutes" };
 
 const page = (initial: MyCallView, next = NEXT, startChanging = false) =>
   render(<CallPageClient initial={initial} nextHref={next} startChanging={startChanging} />);

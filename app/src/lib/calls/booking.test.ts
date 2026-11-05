@@ -20,6 +20,7 @@ import {
 import type { CallsDeps } from "./deps";
 import { bookingRow, callsTo, fakeCallsRepo, type FakeCallsState } from "./fake-calls-repo.test-util";
 import type { CallNotice } from "./notify";
+import { CALL_SETTINGS_DEFAULTS } from "./settings";
 
 const PARENT = "b0400000-0000-4000-8000-000000000001";
 const OTHER_PARENT = "b0400000-0000-4000-8000-000000000002";
@@ -146,7 +147,7 @@ describe("holdSlotForParent — the server recomputes the slot", () => {
     const held = await holdSlotForParent({ parentUserId: PARENT, startsAt: "2027-02-09T14:00:00+00:00", actor: PARENT_ACTOR }, deps);
     expect(held).toEqual({
       ok: true,
-      value: { bookingId: "hold-1", holdExpiresAt: "2027-02-04T10:05:00.000Z", startsAt: TUE_14, endsAt: "2027-02-09T14:30:00.000Z" },
+      value: { bookingId: "hold-1", holdExpiresAt: "2027-02-04T10:05:00.000Z", startsAt: TUE_14, endsAt: "2027-02-09T14:30:00.000Z", holdMinutes: 5 },
     });
     expect(callsTo(fake, "holdSlot")[0].args[0]).toEqual({
       parentUserId: PARENT,
@@ -156,6 +157,12 @@ describe("holdSlotForParent — the server recomputes the slot", () => {
       positionId: "pos-1",
       actor: PARENT_ACTOR,
     });
+  });
+
+  it("says how long it is held: call_settings.hold_minutes, read with the free check (W16)", async () => {
+    const { deps } = setup({ settings: { ...CALL_SETTINGS_DEFAULTS, holdMinutes: 12 } });
+    const held = await holdSlotForParent({ parentUserId: PARENT, startsAt: TUE_14, positionId: null, actor: PARENT_ACTOR }, deps);
+    expect(held.ok && held.value.holdMinutes).toBe(12);
   });
 
   it("keeps an explicit position (or none) without looking one up", async () => {
