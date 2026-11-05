@@ -7,15 +7,39 @@
  *
  * (`recordCallOutcome`, `getToCallList` and `getWhoIsNext` take the proof the same way, in their own modules.)
  *
- * BB-wave1-041126/04a-core, 2026-11-04.
+ * 04c-1 adds the on-behalf picker's steps (plan §13): `holdSlotOnBehalf` (a tap holds the time for her, as the
+ * admin), `confirmHoldOnBehalf` (her first booking, or her booked call moved there), and `familySlotGrid` (her
+ * picker's grid). Her first call only; the server recomputes every time against the live grid (`booking.ts`).
+ *
+ * BB-wave1-041126/04a-core, 2026-11-04; BB-wave1-041126/04c1-build, 2026-11-05.
  */
 
 import { callBookingEnabled } from "@/lib/features/flags";
 import { actingAdmin, isAdminProof, type AdminProof } from "./admin-proof";
-import { bookSlotForParent, cancelBooking, type BookRequest, type CancelRequest } from "./booking";
+import {
+  bookSlotForParent,
+  cancelBooking,
+  confirmHoldForParent,
+  holdSlotForParent,
+  type BookRequest,
+  type CancelRequest,
+  type HeldTime,
+} from "./booking";
 import { CALL_BOOKING_DISABLED, CALLS_INVALID, defaultCallsDeps, type CallsDeps } from "./deps";
 import { validateWeeklyHours } from "./hours";
-import type { CallsResult, CancelledBooking, ConfirmedBooking, StartedCallBooking } from "./types";
+import { loadSlotGrid, type SlotGrid } from "./slot-grid";
+import type { CallError, CallsResult, CancelledBooking, ConfirmedBooking, StartedCallBooking } from "./types";
+import { uuid } from "./zod-parts";
+
+const NOT_FOUND = Object.freeze({ ok: false, error: "not_found" } as const);
+
+/** On-behalf writes act only for a parent (review round 2 L11): her parents row, before any write or email. */
+async function forAParent(parentUserId: string, deps: CallsDeps): Promise<CallsResult<true>> {
+  if (!uuid.safeParse(parentUserId).success) return CALLS_INVALID;
+  const row = await deps.repo.readScopeParent(parentUserId);
+  if (!row.ok) return row;
+  return row.value === null ? NOT_FOUND : { ok: true, value: true };
+}
 
 /** Brief 14's "Start call booking": sets `enabled_since` once; later presses keep the first time (plan §12 R11). */
 export async function startCallBooking(proof: AdminProof, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<StartedCallBooking>> {
@@ -41,6 +65,8 @@ export async function bookSlotOnBehalf(
 ): Promise<CallsResult<ConfirmedBooking>> {
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
   if (!isAdminProof(proof)) return CALLS_INVALID;
+  const parent = await forAParent(request.parentUserId, deps);
+  if (!parent.ok) return parent;
   return bookSlotForParent({ ...request, actor: { kind: "admin", proof } }, deps);
 }
 
@@ -52,5 +78,79 @@ export async function cancelBookingOnBehalf(
 ): Promise<CallsResult<CancelledBooking>> {
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
   if (!isAdminProof(proof)) return CALLS_INVALID;
+  const parent = await forAParent(request.parentUserId, deps);
+  if (!parent.ok) return parent;
   return cancelBooking({ ...request, actor: { kind: "admin", proof } }, deps);
+}
+
+/** The on-behalf picker's tap: hold this time for her first call, as the admin (her latest position, server-side). */
+export async function holdSlotOnBehalf(
+  proof: AdminProof,
+  request: { readonly parentUserId: string; readonly startsAt: string },
+  deps: CallsDeps = defaultCallsDeps(),
+): Promise<CallsResult<HeldTime>> {
+  if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
+  if (!isAdminProof(proof)) return CALLS_INVALID;
+  const parent = await forAParent(request.parentUserId, deps);
+  if (!parent.ok) return parent;
+  return holdSlotForParent({ parentUserId: request.parentUserId, startsAt: request.startsAt, purpose: "first_call", actor: { kind: "admin", proof } }, deps);
+}
+
+/** "Book this time" / "Move to this time": confirm the admin's hold for her; she gets the usual email. */
+export async function confirmHoldOnBehalf(
+  proof: AdminProof,
+  request: { readonly parentUserId: string; readonly holdId: string; readonly idempotencyKey: string },
+  deps: CallsDeps = defaultCallsDeps(),
+): Promise<CallsResult<ConfirmedBooking>> {
+  if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
+  if (!isAdminProof(proof)) return CALLS_INVALID;
+  const parent = await forAParent(request.parentUserId, deps);
+  if (!parent.ok) return parent;
+  return confirmHoldForParent({ ...request, actor: { kind: "admin", proof } }, deps);
+}
+
+/** Her first call's picker grid (every date and slot in the window, free or greyed); her own live hold stays hers. */
+export async function familySlotGrid(proof: AdminProof, parentUserId: string, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<SlotGrid>> {
+  if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
+  if (!isAdminProof(proof)) return CALLS_INVALID;
+  if (!uuid.safeParse(parentUserId).success) return CALLS_INVALID;
+  return loadSlotGrid({ purpose: "first_call", parentUserId }, deps);
+}
+
+/**
+ * What /admin/calls' actions answer when they refuse: closed codes only, never detail (brief §9.15). The gate adds
+ * `not_authorized`; the rest are the call operations' own, with an overlap read as taken.
+ */
+export type AdminCallError =
+  | "call_booking_disabled"
+  | "not_authorized"
+  | "invalid"
+  | "taken"
+  | "too_soon"
+  | "hold_expired"
+  | "not_yours"
+  | "not_found"
+  | "rate_limited"
+  | "booked_call_exists"
+  | "error";
+
+export type AdminCallResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: AdminCallError };
+
+/** Typed as a full `Record` over `CallError`, so a new code fails to compile until it is mapped here. */
+const ADMIN_REFUSAL: Readonly<Record<CallError, AdminCallError>> = Object.freeze({
+  taken: "taken",
+  overlap: "taken",
+  too_soon: "too_soon",
+  hold_expired: "hold_expired",
+  not_yours: "not_yours",
+  not_found: "not_found",
+  rate_limited: "rate_limited",
+  invalid: "invalid",
+  booked_call_exists: "booked_call_exists",
+  call_booking_disabled: "call_booking_disabled",
+  error: "error",
+});
+
+export function adminRefusalOf(error: CallError): AdminCallError {
+  return ADMIN_REFUSAL[error];
 }

@@ -7,7 +7,16 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 const { requireAdmin } = vi.hoisted(() => ({ requireAdmin: vi.fn() }));
 vi.mock("@/lib/admin/require-admin", () => ({ requireAdmin }));
 
-import { bookSlotOnBehalf, cancelBookingOnBehalf, replaceWeeklyHours, startCallBooking } from "./admin-calls";
+import {
+  adminRefusalOf,
+  bookSlotOnBehalf,
+  cancelBookingOnBehalf,
+  confirmHoldOnBehalf,
+  familySlotGrid,
+  holdSlotOnBehalf,
+  replaceWeeklyHours,
+  startCallBooking,
+} from "./admin-calls";
 import { proveAdmin, type AdminProof } from "./admin-proof";
 import type { CallsDeps } from "./deps";
 import { callsTo, fakeCallsRepo, type FakeCallsState } from "./fake-calls-repo.test-util";
@@ -21,8 +30,11 @@ const TUE_14 = "2027-02-09T14:00:00.000Z";
 const FORGED = { kind: "admin_proof", userId: ADMIN } as unknown as AdminProof;
 let PROOF: AdminProof;
 
+/** PARENT has a parents row (she is in the scope the fake reads `readScopeParent` from). */
+const PARENT_ROW = { userId: "b0400000-0000-4000-8000-000000000001", signupSource: "advanced_match", signedUpAt: "2027-02-01T09:00:00.000Z" };
+
 function setup(seed: Partial<FakeCallsState> = {}) {
-  const fake = fakeCallsRepo(seed);
+  const fake = fakeCallsRepo({ scope: [PARENT_ROW], ...seed });
   const notices: CallNotice[] = [];
   const deps: CallsDeps = {
     repo: fake.repo,
@@ -49,19 +61,22 @@ const ALL = (proof: AdminProof, deps: CallsDeps) => [
   replaceWeeklyHours(proof, [{ weekday: 6, startMinute: 600, endMinute: 840 }], deps),
   bookSlotOnBehalf(proof, { parentUserId: PARENT, startsAt: TUE_14, idempotencyKey: "k" }, deps),
   cancelBookingOnBehalf(proof, { parentUserId: PARENT, bookingId: BOOKING }, deps),
+  holdSlotOnBehalf(proof, { parentUserId: PARENT, startsAt: TUE_14 }, deps),
+  confirmHoldOnBehalf(proof, { parentUserId: PARENT, holdId: BOOKING, idempotencyKey: "k" }, deps),
+  familySlotGrid(proof, PARENT, deps),
 ];
 
 describe("the gates", () => {
   it("switch off → call_booking_disabled, zero repo calls", async () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "");
     const { fake, deps } = setup();
-    expect(await Promise.all(ALL(PROOF, deps))).toEqual(Array(4).fill({ ok: false, error: "call_booking_disabled" }));
+    expect(await Promise.all(ALL(PROOF, deps))).toEqual(Array(7).fill({ ok: false, error: "call_booking_disabled" }));
     expect(fake.calls).toEqual([]);
   });
 
   it("a forged proof → invalid, zero repo calls", async () => {
     const { fake, deps } = setup();
-    expect(await Promise.all(ALL(FORGED, deps))).toEqual(Array(4).fill({ ok: false, error: "invalid" }));
+    expect(await Promise.all(ALL(FORGED, deps))).toEqual(Array(7).fill({ ok: false, error: "invalid" }));
     expect(fake.calls).toEqual([]);
   });
 });
@@ -106,5 +121,96 @@ describe("acting as the proven admin", () => {
     expect((await cancelBookingOnBehalf(PROOF, { parentUserId: PARENT, bookingId: BOOKING }, deps)).ok).toBe(true);
     expect(callsTo(fake, "cancelBooking")[0].args[0]).toEqual({ parentUserId: PARENT, bookingId: BOOKING, actor: { userId: ADMIN, kind: "admin" } });
     expect(notices[0]).toMatchObject({ kind: "cancelled", actorKind: "admin" });
+  });
+});
+
+describe("the on-behalf picker: tap to hold, then confirm (04c-1 C4; BB-wave1-041126/04c1-build)", () => {
+  it("holdSlotOnBehalf holds her first call as the admin; her latest position is found server-side", async () => {
+    const { fake, deps } = setup({ latestPositionId: "d0400000-0000-4000-8000-000000000001" });
+    const held = await holdSlotOnBehalf(PROOF, { parentUserId: PARENT, startsAt: TUE_14 }, deps);
+    expect(held).toEqual({
+      ok: true,
+      value: { bookingId: "hold-1", holdExpiresAt: "2027-02-04T10:05:00.000Z", startsAt: TUE_14, endsAt: "2027-02-09T14:30:00.000Z", holdMinutes: 5 },
+    });
+    expect(callsTo(fake, "holdSlot")[0].args[0]).toMatchObject({
+      parentUserId: PARENT,
+      purpose: "first_call",
+      positionId: "d0400000-0000-4000-8000-000000000001",
+      actor: { userId: ADMIN, kind: "admin" },
+    });
+  });
+
+  it("holdSlotOnBehalf refuses a time off the grid (the server recomputes it), with no write", async () => {
+    const { fake, deps } = setup();
+    expect(await holdSlotOnBehalf(PROOF, { parentUserId: PARENT, startsAt: "2027-02-09T14:10:00.000Z" }, deps)).toEqual({ ok: false, error: "invalid" });
+    expect(callsTo(fake, "holdSlot")).toEqual([]);
+  });
+
+  it("holdSlotOnBehalf refuses a parent id that isn't a user id, before any read", async () => {
+    const { fake, deps } = setup();
+    expect(await holdSlotOnBehalf(PROOF, { parentUserId: "nope", startsAt: TUE_14 }, deps)).toEqual({ ok: false, error: "invalid" });
+    expect(fake.calls).toEqual([]);
+  });
+
+  it("confirmHoldOnBehalf confirms as the admin; a move is a move, and she is emailed either way", async () => {
+    const moved = { ok: true as const, value: { kind: "moved" as const, bookingId: BOOKING, startsAt: TUE_14, fromStartsAt: "2027-02-08T10:00:00.000Z" } };
+    const { fake, deps, notices } = setup({ results: { confirmHold: moved } });
+    expect(await confirmHoldOnBehalf(PROOF, { parentUserId: PARENT, holdId: BOOKING, idempotencyKey: "k" }, deps)).toEqual(moved);
+    expect(callsTo(fake, "confirmHold")[0].args[0]).toEqual({ parentUserId: PARENT, holdId: BOOKING, idempotencyKey: "k", actor: { userId: ADMIN, kind: "admin" } });
+    expect(notices[0]).toMatchObject({ kind: "moved", actorKind: "admin", parentUserId: PARENT });
+  });
+
+  it("confirmHoldOnBehalf passes a refusal through (her hold ran out)", async () => {
+    const { deps, notices } = setup({ results: { confirmHold: { ok: false, error: "hold_expired" } } });
+    expect(await confirmHoldOnBehalf(PROOF, { parentUserId: PARENT, holdId: BOOKING, idempotencyKey: "k" }, deps)).toEqual({ ok: false, error: "hold_expired" });
+    expect(notices).toEqual([]);
+  });
+
+  it("familySlotGrid is her picker's whole grid; her own live hold doesn't look taken to her", async () => {
+    const hers = { id: "h", parentUserId: PARENT, startsAt: TUE_14, status: "held" as const, holdExpiresAt: "2027-02-04T10:05:00.000Z" };
+    const { bookingRow } = await import("./fake-calls-repo.test-util");
+    const { deps } = setup({ bookings: [bookingRow({ ...hers, bookedAt: null })] });
+    const grid = await familySlotGrid(PROOF, PARENT, deps);
+    expect(grid.ok).toBe(true);
+    if (!grid.ok) return;
+    expect(grid.value.slots.find((s) => s.startsAt === TUE_14)?.free).toBe(true);
+    expect(grid.value.dates[0]).toBe("2027-02-04");
+  });
+
+  it("familySlotGrid refuses a parent id that isn't a user id", async () => {
+    const { fake, deps } = setup();
+    expect(await familySlotGrid(PROOF, "nope", deps)).toEqual({ ok: false, error: "invalid" });
+    expect(fake.calls).toEqual([]);
+  });
+});
+
+describe("on-behalf writes need a parents row (review round 2 L11)", () => {
+  it.each([
+    ["holdSlotOnBehalf", (deps: CallsDeps) => holdSlotOnBehalf(PROOF, { parentUserId: PARENT, startsAt: TUE_14 }, deps)],
+    ["confirmHoldOnBehalf", (deps: CallsDeps) => confirmHoldOnBehalf(PROOF, { parentUserId: PARENT, holdId: BOOKING, idempotencyKey: "k" }, deps)],
+    ["bookSlotOnBehalf", (deps: CallsDeps) => bookSlotOnBehalf(PROOF, { parentUserId: PARENT, startsAt: TUE_14, idempotencyKey: "k" }, deps)],
+    ["cancelBookingOnBehalf", (deps: CallsDeps) => cancelBookingOnBehalf(PROOF, { parentUserId: PARENT, bookingId: BOOKING }, deps)],
+  ] as const)("%s: no parents row → not_found, before any write or email", async (_n, act) => {
+    const { fake, deps, notices } = setup({ scope: [] });
+    expect(await act(deps)).toEqual({ ok: false, error: "not_found" });
+    for (const write of ["holdSlot", "confirmHold", "bookSlot", "cancelBooking"] as const) expect(callsTo(fake, write)).toEqual([]);
+    expect(notices).toEqual([]);
+  });
+
+  it("the parents read failing → error, before any write", async () => {
+    const { fake, deps } = setup({ failing: ["readScopeParent"] });
+    expect(await holdSlotOnBehalf(PROOF, { parentUserId: PARENT, startsAt: TUE_14 }, deps)).toEqual({ ok: false, error: "error" });
+    expect(callsTo(fake, "holdSlot")).toEqual([]);
+  });
+});
+
+describe("adminRefusalOf: every call error as a code staff may see (04c-1)", () => {
+  it("passes the closed codes through; an overlap reads as taken", () => {
+    expect(adminRefusalOf("taken")).toBe("taken");
+    expect(adminRefusalOf("overlap")).toBe("taken");
+    expect(adminRefusalOf("booked_call_exists")).toBe("booked_call_exists");
+    expect(adminRefusalOf("hold_expired")).toBe("hold_expired");
+    expect(adminRefusalOf("call_booking_disabled")).toBe("call_booking_disabled");
+    expect(adminRefusalOf("error")).toBe("error");
   });
 });

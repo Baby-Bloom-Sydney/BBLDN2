@@ -10,6 +10,7 @@
  * BB-wave1-041126/04a-core, 2026-11-04.
  */
 
+import type { AdminCallError } from "./admin-calls";
 import type { SlotWords } from "./slot-words";
 
 export const CALL_NAME = "Complimentary matchmaker call";
@@ -85,6 +86,77 @@ export const ADMIN_COPY = Object.freeze({
   bookOnBehalf: "Book a matchmaker call",
   overlappingHours: "Those hours overlap — change one range",
   startCallBooking: "Start call booking",
+  // 04c-1: the Calls tab, the row drawer and the on-behalf picker (BB-wave1-041126/04c1-build)
+  pageIntro: "Every matchmaker call still to make, booked or not.",
+  londonNote: "Every time on this page is London time.",
+  bookThisTime: "Book this time",
+  moveToThisTime: "Move to this time",
+  availability: "Matchmaker's availability (London time)",
+  colWhen: "When (London time)",
+  colFamily: "Family",
+  colPosition: "Position",
+  colNannies: "Nannies",
+  colLinks: "Links",
+  colCall: "Call",
+  linkProfile: "Profile",
+  linkAccount: "Account",
+  linkMoney: "Money",
+  linkPosition: "Position",
+  signupQuick: "Quick match",
+  signupAdvanced: "Advanced",
+  signupDirect: "Direct",
+  sectionEmpty: "None right now.",
+  nothingYetTitle: "No matchmaker calls yet",
+  nothingYetBody: "Families appear here once call booking has started and they sign up.",
+  loadFailed: "The calls could not be read — reload to try again.",
+  countsFailed: "The call counts could not be read — reload to try again.",
+  historyFailed: "The call history could not be read — reload to try again.",
+  familyFailed: "This family could not be read — reload to try again.",
+  noMobile: "No mobile",
+  notBooked: "Not booked",
+  signedUp: "Signed up",
+  lastTried: "Last tried",
+  callBack: "Call back",
+  by: "by",
+  panelContact: "Contact",
+  panelPosition: "Position",
+  panelNannies: "Nannies",
+  panelDeposit: "Deposit (read-only)",
+  depositUnreadable: "Could not be read",
+  panelBooking: "Matchmaker call",
+  panelAttempts: "Every attempt",
+  noAttempts: "No attempts yet.",
+  recordOutcome: "Record outcome",
+  resultLabel: "Result",
+  outcomeLabel: "Outcome (answered calls)",
+  orLabel: "Or",
+  noteLabel: "Note (optional)",
+  callBackAtLabel: "Call back at (London time)",
+  save: "Save outcome",
+  saving: "Saving…",
+  saved: "Saved.",
+  move: "Move",
+  cancelBooking: "Cancel booking",
+  cancelQuestion: "Cancel this matchmaker call? The family is emailed.",
+  confirmCancel: "Yes, cancel it",
+  keepIt: "Keep it",
+  back: "Back",
+  cancelled: "Cancelled — the family is back under Not booked.",
+  bookedStatus: "Booked — the family is emailed.",
+  movedStatus: "Moved — the family is emailed.",
+  bookedLabel: "Booked",
+  callBackBoth: "Add both a date and a time, or neither.",
+  loading: "Loading…",
+  colWhat: "What happened",
+  colNote: "Note",
+  colBy: "Recorded by",
+  callBackDate: "Call back date",
+  callBackTime: "Call back time",
+  errorDisabled: "Call booking is switched off.",
+  errorNotAuthorized: "Admins only.",
+  errorInvalid: "Check the result, outcome and time, then try again.",
+  errorNotFound: "That call has changed — reload to see it.",
+  errorFailed: "That didn't save — try again.",
 });
 
 /** Parent-facing (W14: no "London time"): "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00" */
@@ -146,4 +218,63 @@ export function noFreeTimesLine(windowDays: number): string {
 /** The amber banner (threshold is 04c's placeholder; OPEN §5a.4 leaves "slots running out" TBD). */
 export function fewFreeTimesLine(windowDays: number): string {
   return `Free call times are running low in the next ${days(windowDays)}.`;
+}
+
+// ── 04c-1: admin lines (BB-wave1-041126/04c1-build) ──────────────────────────────────────────────────────────
+
+/** The admin picker's held line: "Held for 5 minutes" (plan §13); "1 minute" at one. */
+export function adminHeldLine(holdMinutes: number): string {
+  return `Held for ${holdMinutes} ${holdMinutes === 1 ? "minute" : "minutes"}`;
+}
+
+/** "Current cohort: 2 of 5 places left" — the same words as 02's `placesLeftLine` (pinned by `copy.test.ts`). */
+export function cohortPlacesLine(line: { readonly places: number; readonly left: number }): string {
+  return `Current cohort: ${line.left} of ${line.places} places left`;
+}
+
+/** "6 nannies contacted · 2 replied" (brief §0.9). */
+export function nanniesLine(counts: { readonly contacted: number; readonly replied: number }): string {
+  return `${counts.contacted} ${counts.contacted === 1 ? "nanny" : "nannies"} contacted · ${counts.replied} replied`;
+}
+
+/** "30 hours a week". */
+export function hoursLine(hours: number): string {
+  return `${hours} ${hours === 1 ? "hour" : "hours"} a week`;
+}
+
+/** The family's deposit, read-only (brief §3 admin 2). */
+export type DepositState =
+  | { readonly kind: "none" }
+  | { readonly kind: "paid"; readonly on: string }
+  | { readonly kind: "refunded"; readonly on: string }
+  | { readonly kind: "placed" };
+
+export function depositLine(state: DepositState): string {
+  if (state.kind === "paid") return `Deposit paid ${state.on}`;
+  if (state.kind === "refunded") return `Deposit refunded ${state.on}`;
+  return state.kind === "placed" ? "Placed" : "No deposit";
+}
+
+const ADMIN_ERROR_LINES: Readonly<Record<AdminCallError, string>> = Object.freeze({
+  booked_call_exists: ADMIN_COPY.stopCallingWhileBooked,
+  not_authorized: ADMIN_COPY.errorNotAuthorized,
+  call_booking_disabled: ADMIN_COPY.errorDisabled,
+  invalid: ADMIN_COPY.errorInvalid,
+  not_found: ADMIN_COPY.errorNotFound,
+  not_yours: ADMIN_COPY.errorNotFound,
+  taken: PARENT_COPY.taken,
+  too_soon: PARENT_COPY.taken,
+  hold_expired: PARENT_COPY.holdExpired,
+  rate_limited: PARENT_COPY.rateLimited,
+  error: ADMIN_COPY.errorFailed,
+});
+
+/** One line per refusal code on /admin/calls (a full `Record`: a new code fails to compile until it has words). */
+export function adminErrorLine(error: AdminCallError): string {
+  return ADMIN_ERROR_LINES[error];
+}
+
+/** The Call control's accessible name: "Call Jane Smith on +44 (0) 7700 900 123". */
+export function callControlLabel(name: string, mobile: string): string {
+  return `Call ${name} on ${mobile}`;
 }

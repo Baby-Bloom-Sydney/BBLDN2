@@ -41,6 +41,11 @@ export interface SlotPickerCopy {
   readonly heading: string;
   readonly noTimes: string;
   readonly loadFailed: string;
+  /**
+   * The confirm button (04c-1, plan §13): the parent's "Confirm time" by default; staff on /admin/calls say "Book this
+   * time" or "Move to this time". The held line is the owner's already — its hold action returns it (`PickerHold.line`).
+   */
+  readonly confirm: string;
 }
 
 export interface SlotPickerProps<T> {
@@ -74,6 +79,7 @@ const DEFAULT_COPY: SlotPickerCopy = {
   heading: PARENT_COPY.availability,
   noTimes: PARENT_COPY.noTimes,
   loadFailed: PARENT_COPY.loadFailed,
+  confirm: PARENT_COPY.confirmTimeButton,
 };
 
 function Loading() {
@@ -136,9 +142,10 @@ interface ButtonRowProps {
   readonly onKeepTime?: () => void;
   readonly skipHref?: string;
   readonly gate?: PickerGate;
+  readonly confirmLabel: string;
 }
 
-function ButtonRow({ picker, onKeepTime, skipHref, gate }: ButtonRowProps) {
+function ButtonRow({ picker, onKeepTime, skipHref, gate, confirmLabel }: ButtonRowProps) {
   const confirmRef = useRef<HTMLButtonElement>(null);
   // Focus Confirm once a hold is in and nothing is in flight (never while busy) — after a refusal too, when her hold
   // survived it (the alert is announced, never focused: W17 item 14). The action area scrolls itself.
@@ -166,7 +173,7 @@ function ButtonRow({ picker, onKeepTime, skipHref, gate }: ButtonRowProps) {
               {PARENT_COPY.confirming}
             </>
           ) : (
-            PARENT_COPY.confirmTimeButton
+            confirmLabel
           )}
         </Button>
       )}
@@ -299,7 +306,7 @@ export function SlotPicker<T>(props: SlotPickerProps<T>) {
       </div>
       <div ref={actionArea} data-testid="slot-picker-actions" className="flex flex-col gap-4">
         <HeldPanel panel={panel} />
-        <ButtonRow picker={picker} onKeepTime={onKeepTime} skipHref={skipHref} gate={gate} />
+        <ButtonRow picker={picker} onKeepTime={onKeepTime} skipHref={skipHref} gate={gate} confirmLabel={words.confirm} />
       </div>
       <TakenNotice when={picker.notice} onClose={picker.closeNotice} onClosed={backToGrid} />
     </section>

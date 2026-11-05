@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useTransition } from 'react';
+import { useState, useMemo, useTransition, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Briefcase, Users, CheckCircle, XCircle, Search, ChevronDown, ChevronRight, ExternalLink, Ban, User } from 'lucide-react';
 import { closePositionAction, fetchUserData } from './actions';
@@ -14,9 +14,28 @@ import { EmptyState } from '@/components/dashboard/EmptyState';
 import { POSITION_STAGE, POSITION_STATUS, CONNECTION_STAGE, POSITION_STAGE_LABELS, POSITION_STATUS_LABELS, CONNECTION_STAGE_LABELS } from '@/lib/position/constants';
 import type { PositionStage, PositionStatus, ConnectionStage } from '@/lib/position/constants';
 import type { AdminPosition } from './page';
+import { callBookingEnabled } from '@/lib/features/flags';
 
 interface Props {
   positions: AdminPosition[];
+  /** `?openPosition=<id>` (brief 04 §0.9, the /admin/calls Position link). Ignored while CALL_BOOKING_ENABLED is off. */
+  openPositionId?: string | null;
+}
+
+/**
+ * Brief 04 §0.9: open that position's row expanded and scroll it into view — the `UsersTab` `openUser` pattern.
+ * Flag off, no id, or an id not on the page → nothing happens (today's page).
+ */
+function useOpenPosition(targetId: string | null, positions: AdminPosition[], open: (id: string) => void) {
+  // Once per link: a refresh (a new positions array) must not re-open a row she has since collapsed.
+  const handled = useRef<string | null>(null);
+  useEffect(() => {
+    if (!callBookingEnabled() || !targetId || handled.current === targetId) return;
+    if (!positions.some(p => p.id === targetId)) return;
+    handled.current = targetId;
+    open(targetId);
+    document.getElementById(`position-row-${targetId}`)?.scrollIntoView({ block: 'start' });
+  }, [targetId, positions, open]);
 }
 
 type StageFilter = 'all' | 'active' | 'connecting' | 'filled' | 'closed';
@@ -133,11 +152,12 @@ function matchesStageFilter(pos: AdminPosition, filter: StageFilter): boolean {
   }
 }
 
-export function AdminPositionsClient({ positions }: Props) {
+export function AdminPositionsClient({ positions, openPositionId = null }: Props) {
   const [stageFilter, setStageFilter] = useState<StageFilter>('all');
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  useOpenPosition(openPositionId, positions, setExpandedId);
   const [drawerUser, setDrawerUser] = useState<UserData | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -263,6 +283,7 @@ export function AdminPositionsClient({ positions }: Props) {
                     <>
                       <TableRow
                         key={pos.id}
+                        id={`position-row-${pos.id}`}
                         className="cursor-pointer hover:bg-slate-50"
                         onClick={() => setExpandedId(isExpanded ? null : pos.id)}
                       >

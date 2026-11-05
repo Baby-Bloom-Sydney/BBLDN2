@@ -189,12 +189,23 @@ async function getPositionsData(): Promise<AdminPosition[]> {
   });
 }
 
-export default async function AdminPositionsPage() {
+interface AdminPositionsPageProps {
+  searchParams?: Record<string, string | string[] | undefined>;
+}
+
+/** `?openPosition=<id>` (brief 04 §0.9), first value only; the client ignores it while CALL_BOOKING_ENABLED is off. */
+function openPositionParam(searchParams: AdminPositionsPageProps['searchParams']): string | null {
+  const v = searchParams?.openPosition;
+  if (typeof v === 'string') return v;
+  return Array.isArray(v) && typeof v[0] === 'string' ? v[0] : null;
+}
+
+export default async function AdminPositionsPage({ searchParams }: AdminPositionsPageProps) {
   const positions = await getPositionsData();
 
   return (
     <Suspense fallback={<div className="p-6 text-slate-500">Loading positions...</div>}>
-      <AdminPositionsClient positions={positions} />
+      <AdminPositionsClient positions={positions} openPositionId={openPositionParam(searchParams)} />
     </Suspense>
   );
 }
