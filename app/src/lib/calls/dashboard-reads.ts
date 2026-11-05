@@ -5,7 +5,8 @@
  *   parents                  her sign-up source and time
  *   nanny_positions          the booking's own position, else her latest (a quick-match family has none)
  *   position_children        the children's ages, in display order
- *   dfy_match_notifications  nannies contacted: distinct nannies the blast notified
+ *   dfy_match_notifications  nannies contacted: distinct nannies the blast notified (`notified_at` set — a later wave
+ *                            waits as `pending_wave` with none, as the pipeline counts it)
  *   connection_requests      nannies replied: distinct nannies with `responded_at` set (as `admin/positions`)
  *   parent_subscriptions     the deposit (the drawer only; amendment 12's columns)
  *
@@ -129,10 +130,11 @@ function readPositions(db: Db, parentIds: readonly string[]) {
   ).then((r) => parsed("nanny_positions", r, positionRow));
 }
 
-function readByPosition<T>(db: Db, table: string, columns: string, ids: readonly string[], schema: z.ZodType<T>, repliesOnly = false) {
+/** `onlyWhereSet`: count a row only once this column is set (a reply's `responded_at`; a notification's `notified_at`). */
+function readByPosition<T>(db: Db, table: string, columns: string, ids: readonly string[], schema: z.ZodType<T>, onlyWhereSet?: string) {
   return rowsByIds(table, ids, (chunk) => (from, to) => {
     const query = db().from(table).select(columns).in("position_id", chunk);
-    const filtered = repliesOnly ? query.not("responded_at", "is", null) : query;
+    const filtered = onlyWhereSet ? query.not(onlyWhereSet, "is", null) : query;
     return filtered.order("position_id", { ascending: true }).order(table === "position_children" ? "display_order" : "id", { ascending: true }).range(from, to);
   }).then((r) => parsed(table, r, schema));
 }
@@ -179,9 +181,10 @@ function factsOf(userId: string, p: PositionRow, extras: PositionExtras): Positi
 async function positionExtras(db: Db, ids: readonly string[]): Promise<CallsResult<PositionExtras>> {
   const children = await readByPosition(db, "position_children", "position_id, age_months, display_order", ids, childRow);
   if (!children.ok) return children;
-  const notified = await readByPosition(db, "dfy_match_notifications", "position_id, nanny_id", ids, nannyRow);
+  // Later waves are inserted up front as `pending_wave` with no `notified_at` (matching.ts): not contacted yet (H2).
+  const notified = await readByPosition(db, "dfy_match_notifications", "position_id, nanny_id", ids, nannyRow, "notified_at");
   if (!notified.ok) return notified;
-  const replied = await readByPosition(db, "connection_requests", "position_id, nanny_id", ids, nannyRow, true);
+  const replied = await readByPosition(db, "connection_requests", "position_id, nanny_id", ids, nannyRow, "responded_at");
   if (!replied.ok) return replied;
   return ok({ children: children.value, notified: notified.value, replied: replied.value });
 }

@@ -105,10 +105,16 @@ describe("readFamilyDetails", () => {
 
   it("one request per table, the replies only with responded_at set", async () => {
     await reads().readFamilyDetails([P1, P2, P3]);
-    expect(fake.ops.map((o) => o.table)).toEqual(["parents", "nanny_positions", "position_children", "dfy_match_notifications", "connection_requests"]);
+    expect([...fake.ops.map((o) => o.table)].sort()).toEqual(["connection_requests", "dfy_match_notifications", "nanny_positions", "parents", "position_children"]);
     const replies = fake.ops.find((o) => o.table === "connection_requests");
     expect(replies?.filters).toContainEqual(["not", "responded_at", "is"]);
     expect(inIds(fake.ops.find((o) => o.table === "position_children")!)).toEqual([POS_NEW, POS_2]);
+  });
+
+  it("nannies contacted counts only notified rows: later waves wait as pending_wave with no notified_at (review round 2 H2)", async () => {
+    await reads().readFamilyDetails([P1]);
+    const notified = fake.ops.find((o) => o.table === "dfy_match_notifications");
+    expect(notified?.filters).toContainEqual(["not", "notified_at", "is"]);
   });
 
   it("ids go 100 to a request, and a full page asks for the next one", async () => {
