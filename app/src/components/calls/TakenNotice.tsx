@@ -33,7 +33,10 @@ export function TakenNotice({ when, onClose, onClosed }: TakenNoticeProps) {
     <Dialog open={when !== null} onOpenChange={(open) => (open ? undefined : onClose())}>
       <DialogContent
         hideClose
-        className="w-[calc(100%-2rem)] max-w-sm rounded-2xl motion-reduce:animate-none motion-reduce:transition-none"
+        // An alert, described by its line (Radix points aria-describedby at the description); still closed by a tap
+        // outside (BAI's popup ruling, §0a.8), so a Dialog with the alertdialog role rather than Radix's AlertDialog.
+        role="alertdialog"
+        className="w-[calc(100%-2rem)] max-w-sm rounded-2xl motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none motion-reduce:data-[state=open]:transition-none motion-reduce:data-[state=closed]:transition-none"
         onCloseAutoFocus={(event) => {
           event.preventDefault();
           onClosed();

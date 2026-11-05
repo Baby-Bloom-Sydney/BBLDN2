@@ -8,6 +8,8 @@
  * The app's popup style (`ConnectionDetailPopup`: a `rounded-2xl` dialog), scrolling inside, and no close (X) button
  * (`hideClose`). On a phone it always leaves a dimmed strip to tap on every side (04b rework W16): at most 80dvh tall,
  * and 1rem in from each edge (`w-[calc(100%-2rem)]`; the shared dialog is `w-full`), still at most `max-w-md`.
+ * Under reduced motion it neither animates nor transitions, in either state (W17: per-state variants, since the
+ * shared dialog's `data-[state=open]:animate-in` outranks a bare `motion-reduce:animate-none`).
  * A tap outside or Escape closes it; Radix keeps focus trapped
  * inside while it is open. Her view is loaded when it opens (a skeleton meanwhile), then the shared
  * `CallBookingPanel` draws it — the primary button alone, no onward button.
@@ -68,7 +70,7 @@ export function CallPopup({ open, onClose, startChanging, notice, message }: Cal
     <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
       <DialogContent
         hideClose
-        className="w-[calc(100%-2rem)] max-w-md max-h-[80dvh] overflow-y-auto overflow-x-hidden rounded-2xl p-5 sm:p-6 motion-reduce:animate-none motion-reduce:transition-none"
+        className="w-[calc(100%-2rem)] max-w-md max-h-[80dvh] overflow-y-auto overflow-x-hidden rounded-2xl p-5 sm:p-6 motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none motion-reduce:data-[state=open]:transition-none motion-reduce:data-[state=closed]:transition-none"
       >
         {view === null ? <Loading /> : <CallBookingPanel initial={view} inPopup startChanging={startChanging} notice={notice} message={message} />}
       </DialogContent>

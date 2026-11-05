@@ -105,3 +105,16 @@ describe("item 9: the refusal sets are typed to the parent's codes", () => {
     expect(pickerMessage("hold_expired")).toBe("Your hold ran out — pick again");
   });
 });
+
+describe("item 5: the taken notice is an alertdialog, described by its text; a tap outside still closes it (§0a.8)", () => {
+  it("role=alertdialog, aria-describedby → the 'Someone else booked …' line; the overlay closes it", async () => {
+    const user = userEvent.setup();
+    render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} initialNotice="Tuesday 9 February at 14:00" />);
+    const notice = await screen.findByRole("alertdialog", { name: "This time has just been booked" });
+    const described = document.getElementById(notice.getAttribute("aria-describedby") ?? "");
+    expect(described).toHaveTextContent("Someone else booked Tuesday 9 February at 14:00 a moment ago. Please pick another time.");
+    expect(notice).toHaveAccessibleDescription("Someone else booked Tuesday 9 February at 14:00 a moment ago. Please pick another time.");
+    await user.click(document.querySelector<HTMLElement>(".bg-black\\/80") as HTMLElement);
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+  });
+});

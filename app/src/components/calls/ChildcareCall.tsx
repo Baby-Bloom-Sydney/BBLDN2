@@ -27,9 +27,9 @@ export interface ChildcareCallProps {
   readonly failed: boolean;
 }
 
-const POPUP_PARAMS = ["call", "at"] as const;
+const POPUP_PARAMS = ["call", "at", "failed"] as const;
 
-/** Close: drop `call` and `at` from the URL if they are there (no scroll jump). */
+/** Close: drop `call`, `at` and `failed` from the URL if they are there (no scroll jump; W17 added `failed`). */
 function useClearParams() {
   const router = useRouter();
   const pathname = usePathname();

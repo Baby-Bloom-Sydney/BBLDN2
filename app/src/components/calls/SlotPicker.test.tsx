@@ -322,7 +322,7 @@ describe("SlotPicker — taken by someone else: the notice (BAI 2026-11-05)", ()
     const actions = actionsWith({ hold: vi.fn(async () => ({ ok: false as const, error: "taken" as const })) });
     render(<SlotPicker days={DAYS} actions={actions} onConfirmed={vi.fn()} />);
     await holdTue14(user);
-    const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
+    const notice = await screen.findByRole("alertdialog", { name: "This time has just been booked" });
     expect(notice).toHaveTextContent(NOTICE);
     expect(within(notice).queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
     await waitFor(() => expect(within(notice).getByRole("button", { name: "Pick another time" })).toHaveFocus());
@@ -340,7 +340,7 @@ describe("SlotPicker — taken by someone else: the notice (BAI 2026-11-05)", ()
     render(<SlotPicker days={DAYS} actions={actions} onConfirmed={vi.fn()} />);
     await holdTue14(user);
     await user.click(await screen.findByRole("button", { name: "Confirm time" }));
-    expect(await screen.findByRole("dialog", { name: "This time has just been booked" })).toHaveTextContent(NOTICE);
+    expect(await screen.findByRole("alertdialog", { name: "This time has just been booked" })).toHaveTextContent(NOTICE);
     expect(actions.reload).toHaveBeenCalled();
   });
 
@@ -353,17 +353,17 @@ describe("SlotPicker — taken by someone else: the notice (BAI 2026-11-05)", ()
     render(<SlotPicker days={DAYS} actions={actions} onConfirmed={vi.fn()} />);
     await holdTue14(user);
     await user.click(await screen.findByRole("button", { name: "Confirm time" }));
-    expect(await screen.findByRole("dialog", { name: "This time has just been booked" })).toBeInTheDocument();
+    expect(await screen.findByRole("alertdialog", { name: "This time has just been booked" })).toBeInTheDocument();
   });
 
   it("opened with a notice (a time chosen elsewhere has just gone)", async () => {
     render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} initialNotice="Tuesday 9 February at 14:00" />);
-    expect(await screen.findByRole("dialog", { name: "This time has just been booked" })).toHaveTextContent(NOTICE);
+    expect(await screen.findByRole("alertdialog", { name: "This time has just been booked" })).toHaveTextContent(NOTICE);
   });
 
   it("W16: on a phone the notice stays 1rem in from each side (a dimmed strip to tap), still at most max-w-sm", async () => {
     render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} initialNotice="Tuesday 9 February at 14:00" />);
-    const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
+    const notice = await screen.findByRole("alertdialog", { name: "This time has just been booked" });
     expect(notice.className).toContain("w-[calc(100%-2rem)]");
     expect(notice.className).toContain("max-w-sm");
     expect(notice.className.split(/\s+/)).not.toContain("w-full");
@@ -374,7 +374,7 @@ describe("SlotPicker — taken by someone else: the notice (BAI 2026-11-05)", ()
     const actions = actionsWith({ hold: vi.fn(async () => ({ ok: false as const, error: "taken" as const })), reload: vi.fn(async () => gridDays()) });
     render(<SlotPicker days={DAYS} actions={actions} onConfirmed={vi.fn()} />);
     await holdTue14(user);
-    const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
+    const notice = await screen.findByRole("alertdialog", { name: "This time has just been booked" });
     await user.click(within(notice).getByRole("button", { name: "Pick another time" }));
     await waitFor(() => expect(tue14()).toBeEnabled());
   });
@@ -615,7 +615,7 @@ describe("SlotPicker — React re-review fixes", () => {
     await holdTue14(user);
     await screen.findByText(HOLD.line);
     await user.click(time("Tuesday 9 February, 14:30"));
-    const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
+    const notice = await screen.findByRole("alertdialog", { name: "This time has just been booked" });
     await user.click(within(notice).getByRole("button", { name: "Pick another time" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(tue14()).toHaveAttribute("aria-pressed", "true");
@@ -628,7 +628,7 @@ describe("SlotPicker — React re-review fixes", () => {
     const user = userEvent.setup();
     render(<SlotPicker days={gridDays({ [TUE_1430]: false })} actions={actionsWith({ hold: vi.fn(async () => ({ ok: false as const, error: "taken" as const })) })} onConfirmed={vi.fn()} />);
     await holdTue14(user);
-    const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
+    const notice = await screen.findByRole("alertdialog", { name: "This time has just been booked" });
     await user.click(within(notice).getByRole("button", { name: "Pick another time" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(bracket("Afternoon")).toBeDisabled();

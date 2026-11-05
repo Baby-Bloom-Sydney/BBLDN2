@@ -80,10 +80,10 @@ describe("ChildcareCall — opening", () => {
   it("call=gone: the picker with the taken notice; closing the notice keeps the popup open", async () => {
     const user = userEvent.setup();
     render(<ChildcareCall card={null} openWith="gone" goneWhen="Tuesday 9 February at 14:00" failed={false} />);
-    const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
+    const notice = await screen.findByRole("alertdialog", { name: "This time has just been booked" });
     expect(notice).toHaveTextContent("Someone else booked Tuesday 9 February at 14:00 a moment ago. Please pick another time.");
     await user.click(within(notice).getByRole("button", { name: "Pick another time" }));
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "This time has just been booked" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("alertdialog", { name: "This time has just been booked" })).not.toBeInTheDocument());
     expect(await popup()).toBeInTheDocument();
     expect(h.replace).not.toHaveBeenCalled();
   });
@@ -134,6 +134,16 @@ describe("ChildcareCall — closing (a tap outside or Escape; the param cleared)
     const overlay = document.querySelector<HTMLElement>("[data-call-popup-overlay], .bg-black\\/80");
     expect(overlay).not.toBeNull();
     await user.click(overlay as HTMLElement);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(h.replace).toHaveBeenCalledWith("/parent?t=childcare", { scroll: false });
+  });
+
+  it("W17: closing clears failed= too (call=open&failed=1 after a booking that failed)", async () => {
+    const user = userEvent.setup();
+    h.search = "t=childcare&call=open&failed=1";
+    render(<ChildcareCall card={null} openWith="open" goneWhen={null} failed />);
+    await popup();
+    await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(h.replace).toHaveBeenCalledWith("/parent?t=childcare", { scroll: false });
   });
@@ -227,9 +237,9 @@ describe("React re-review fixes (the popup)", () => {
     const user = userEvent.setup();
     h.confirm.mockResolvedValue({ ok: true, value: { bookingId: "b-1", moved: false, replay: false, booking: MOVED } });
     render(<ChildcareCall card={null} openWith="gone" goneWhen="Tuesday 9 February at 14:00" failed={false} />);
-    const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
+    const notice = await screen.findByRole("alertdialog", { name: "This time has just been booked" });
     await user.click(within(notice).getByRole("button", { name: "Pick another time" }));
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "This time has just been booked" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("alertdialog", { name: "This time has just been booked" })).not.toBeInTheDocument());
     const dialog = await popup();
     await user.click(await within(dialog).findByRole("button", { name: "Tue 9 Feb" }));
     await user.click(within(dialog).getByRole("button", { name: /^Afternoon / }));
@@ -240,16 +250,17 @@ describe("React re-review fixes (the popup)", () => {
     await user.click(within(booked).getByRole("button", { name: "Change time" }));
     await popup();
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(screen.queryByRole("dialog", { name: "This time has just been booked" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("alertdialog", { name: "This time has just been booked" })).not.toBeInTheDocument();
   });
 
-  it("LOW: the popup and the notice stop animating under reduced motion (only these two dialogs)", async () => {
+  it("LOW → W17: the popup and the notice stop animating under reduced motion, per state (compiled check: dialog-motion.test.ts)", async () => {
     render(<ChildcareCall card={null} openWith="gone" goneWhen="Tuesday 9 February at 14:00" failed={false} />);
-    const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
-    expect(notice.className).toContain("motion-reduce:animate-none");
-    // The popup sits under the open notice (hidden from the accessibility tree meanwhile): both dialogs, by role.
-    await waitFor(() => expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(2));
-    for (const dialog of document.querySelectorAll('[role="dialog"]')) expect(dialog.className).toContain("motion-reduce:animate-none");
+    await screen.findByRole("alertdialog", { name: "This time has just been booked" });
+    // The popup sits under the open notice (hidden from the accessibility tree meanwhile): both, by role.
+    await waitFor(() => expect(document.querySelectorAll('[role="dialog"], [role="alertdialog"]')).toHaveLength(2));
+    for (const dialog of document.querySelectorAll('[role="dialog"], [role="alertdialog"]')) {
+      for (const variant of ["motion-reduce:data-[state=open]:animate-none", "motion-reduce:data-[state=closed]:animate-none"]) expect(dialog.className).toContain(variant);
+    }
   });
 });
 
@@ -258,6 +269,6 @@ describe("TS review: a booking that failed for any reason but taken (call=open&f
     render(<ChildcareCall card={null} openWith="open" goneWhen={null} failed />);
     const dialog = await popup();
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("We couldn't do that — try again");
-    expect(screen.queryByRole("dialog", { name: "This time has just been booked" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("alertdialog", { name: "This time has just been booked" })).not.toBeInTheDocument();
   });
 });
