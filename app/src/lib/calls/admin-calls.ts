@@ -7,15 +7,29 @@
  *
  * (`recordCallOutcome`, `getToCallList` and `getWhoIsNext` take the proof the same way, in their own modules.)
  *
- * BB-wave1-041126/04a-core, 2026-11-04.
+ * 04c-1 adds the on-behalf picker's steps (plan §13): `holdSlotOnBehalf` (a tap holds the time for her, as the
+ * admin), `confirmHoldOnBehalf` (her first booking, or her booked call moved there), and `familySlotGrid` (her
+ * picker's grid). Her first call only; the server recomputes every time against the live grid (`booking.ts`).
+ *
+ * BB-wave1-041126/04a-core, 2026-11-04; BB-wave1-041126/04c1-build, 2026-11-05.
  */
 
 import { callBookingEnabled } from "@/lib/features/flags";
 import { actingAdmin, isAdminProof, type AdminProof } from "./admin-proof";
-import { bookSlotForParent, cancelBooking, type BookRequest, type CancelRequest } from "./booking";
+import {
+  bookSlotForParent,
+  cancelBooking,
+  confirmHoldForParent,
+  holdSlotForParent,
+  type BookRequest,
+  type CancelRequest,
+  type HeldTime,
+} from "./booking";
 import { CALL_BOOKING_DISABLED, CALLS_INVALID, defaultCallsDeps, type CallsDeps } from "./deps";
 import { validateWeeklyHours } from "./hours";
+import { loadSlotGrid, type SlotGrid } from "./slot-grid";
 import type { CallsResult, CancelledBooking, ConfirmedBooking, StartedCallBooking } from "./types";
+import { uuid } from "./zod-parts";
 
 /** Brief 14's "Start call booking": sets `enabled_since` once; later presses keep the first time (plan §12 R11). */
 export async function startCallBooking(proof: AdminProof, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<StartedCallBooking>> {
@@ -53,4 +67,34 @@ export async function cancelBookingOnBehalf(
   if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
   if (!isAdminProof(proof)) return CALLS_INVALID;
   return cancelBooking({ ...request, actor: { kind: "admin", proof } }, deps);
+}
+
+/** The on-behalf picker's tap: hold this time for her first call, as the admin (her latest position, server-side). */
+export async function holdSlotOnBehalf(
+  proof: AdminProof,
+  request: { readonly parentUserId: string; readonly startsAt: string },
+  deps: CallsDeps = defaultCallsDeps(),
+): Promise<CallsResult<HeldTime>> {
+  if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
+  if (!isAdminProof(proof)) return CALLS_INVALID;
+  return holdSlotForParent({ parentUserId: request.parentUserId, startsAt: request.startsAt, purpose: "first_call", actor: { kind: "admin", proof } }, deps);
+}
+
+/** "Book this time" / "Move to this time": confirm the admin's hold for her; she gets the usual email. */
+export async function confirmHoldOnBehalf(
+  proof: AdminProof,
+  request: { readonly parentUserId: string; readonly holdId: string; readonly idempotencyKey: string },
+  deps: CallsDeps = defaultCallsDeps(),
+): Promise<CallsResult<ConfirmedBooking>> {
+  if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
+  if (!isAdminProof(proof)) return CALLS_INVALID;
+  return confirmHoldForParent({ ...request, actor: { kind: "admin", proof } }, deps);
+}
+
+/** Her first call's picker grid (every date and slot in the window, free or greyed); her own live hold stays hers. */
+export async function familySlotGrid(proof: AdminProof, parentUserId: string, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<SlotGrid>> {
+  if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
+  if (!isAdminProof(proof)) return CALLS_INVALID;
+  if (!uuid.safeParse(parentUserId).success) return CALLS_INVALID;
+  return loadSlotGrid({ purpose: "first_call", parentUserId }, deps);
 }
