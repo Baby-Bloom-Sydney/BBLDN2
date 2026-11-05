@@ -511,6 +511,7 @@ test.describe.serial("Calls tab — flag on (local stack)", () => {
   };
 
   test.beforeAll(async ({ browser }) => {
+    test.setTimeout(240_000); // the sign-in may compile /login and /admin/calls on a cold dev server
     db = localDb(SUPABASE_URL, SERVICE_KEY);
     fx = await createCallsFixture(db, RUN);
     readback.enabledSince = fx.enabledSince;
