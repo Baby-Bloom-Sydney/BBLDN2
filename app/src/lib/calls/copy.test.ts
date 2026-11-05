@@ -8,6 +8,7 @@ import { placesLeftLine } from "@/lib/cohorts/copy";
 import {
   ADMIN_COPY,
   PARENT_COPY,
+  adminErrorLine,
   adminHeldLine,
   cohortPlacesLine,
   depositLine,
@@ -177,5 +178,21 @@ describe("admin copy for the drawer and on-behalf picker (04c-1; plan §13)", ()
   it("the nannies line", () => {
     expect(nanniesLine({ contacted: 6, replied: 2 })).toBe("6 nannies contacted · 2 replied");
     expect(nanniesLine({ contacted: 1, replied: 0 })).toBe("1 nanny contacted · 0 replied");
+  });
+});
+
+describe("adminErrorLine: every refusal code as one admin line, never detail (04c-1)", () => {
+  it("maps each code", () => {
+    expect(adminErrorLine("booked_call_exists")).toBe("Cancel the booked time first");
+    expect(adminErrorLine("not_authorized")).toBe("Admins only.");
+    expect(adminErrorLine("call_booking_disabled")).toBe("Call booking is switched off.");
+    expect(adminErrorLine("invalid")).toBe("Check the result, outcome and time, then try again.");
+    expect(adminErrorLine("not_found")).toBe("That call has changed — reload to see it.");
+    expect(adminErrorLine("not_yours")).toBe("That call has changed — reload to see it.");
+    expect(adminErrorLine("taken")).toBe("That time has just gone — pick another");
+    expect(adminErrorLine("too_soon")).toBe("That time has just gone — pick another");
+    expect(adminErrorLine("hold_expired")).toBe("Your hold ran out — pick again");
+    expect(adminErrorLine("rate_limited")).toBe("Too many changes — try again in a while");
+    expect(adminErrorLine("error")).toBe("That didn't save — try again.");
   });
 });

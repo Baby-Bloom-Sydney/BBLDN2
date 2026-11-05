@@ -10,6 +10,7 @@
  * BB-wave1-041126/04a-core, 2026-11-04.
  */
 
+import type { AdminCallError } from "./admin-calls";
 import type { SlotWords } from "./slot-words";
 
 export const CALL_NAME = "Complimentary matchmaker call";
@@ -121,6 +122,7 @@ export const ADMIN_COPY = Object.freeze({
   panelPosition: "Position",
   panelNannies: "Nannies",
   panelDeposit: "Deposit (read-only)",
+  depositUnreadable: "Could not be read",
   panelBooking: "Matchmaker call",
   panelAttempts: "Every attempt",
   noAttempts: "No attempts yet.",
@@ -241,4 +243,23 @@ export function depositLine(state: DepositState): string {
   if (state.kind === "paid") return `Deposit paid ${state.on}`;
   if (state.kind === "refunded") return `Deposit refunded ${state.on}`;
   return state.kind === "placed" ? "Placed" : "No deposit";
+}
+
+const ADMIN_ERROR_LINES: Readonly<Record<AdminCallError, string>> = Object.freeze({
+  booked_call_exists: ADMIN_COPY.stopCallingWhileBooked,
+  not_authorized: ADMIN_COPY.errorNotAuthorized,
+  call_booking_disabled: ADMIN_COPY.errorDisabled,
+  invalid: ADMIN_COPY.errorInvalid,
+  not_found: ADMIN_COPY.errorNotFound,
+  not_yours: ADMIN_COPY.errorNotFound,
+  taken: PARENT_COPY.taken,
+  too_soon: PARENT_COPY.taken,
+  hold_expired: PARENT_COPY.holdExpired,
+  rate_limited: PARENT_COPY.rateLimited,
+  error: ADMIN_COPY.errorFailed,
+});
+
+/** One line per refusal code on /admin/calls (a full `Record`: a new code fails to compile until it has words). */
+export function adminErrorLine(error: AdminCallError): string {
+  return ADMIN_ERROR_LINES[error];
 }

@@ -8,6 +8,7 @@ const { requireAdmin } = vi.hoisted(() => ({ requireAdmin: vi.fn() }));
 vi.mock("@/lib/admin/require-admin", () => ({ requireAdmin }));
 
 import {
+  adminRefusalOf,
   bookSlotOnBehalf,
   cancelBookingOnBehalf,
   confirmHoldOnBehalf,
@@ -177,5 +178,16 @@ describe("the on-behalf picker: tap to hold, then confirm (04c-1 C4; BB-wave1-04
     const { fake, deps } = setup();
     expect(await familySlotGrid(PROOF, "nope", deps)).toEqual({ ok: false, error: "invalid" });
     expect(fake.calls).toEqual([]);
+  });
+});
+
+describe("adminRefusalOf: every call error as a code staff may see (04c-1)", () => {
+  it("passes the closed codes through; an overlap reads as taken", () => {
+    expect(adminRefusalOf("taken")).toBe("taken");
+    expect(adminRefusalOf("overlap")).toBe("taken");
+    expect(adminRefusalOf("booked_call_exists")).toBe("booked_call_exists");
+    expect(adminRefusalOf("hold_expired")).toBe("hold_expired");
+    expect(adminRefusalOf("call_booking_disabled")).toBe("call_booking_disabled");
+    expect(adminRefusalOf("error")).toBe("error");
   });
 });

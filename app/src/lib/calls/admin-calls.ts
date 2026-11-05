@@ -28,7 +28,7 @@ import {
 import { CALL_BOOKING_DISABLED, CALLS_INVALID, defaultCallsDeps, type CallsDeps } from "./deps";
 import { validateWeeklyHours } from "./hours";
 import { loadSlotGrid, type SlotGrid } from "./slot-grid";
-import type { CallsResult, CancelledBooking, ConfirmedBooking, StartedCallBooking } from "./types";
+import type { CallError, CallsResult, CancelledBooking, ConfirmedBooking, StartedCallBooking } from "./types";
 import { uuid } from "./zod-parts";
 
 /** Brief 14's "Start call booking": sets `enabled_since` once; later presses keep the first time (plan §12 R11). */
@@ -97,4 +97,42 @@ export async function familySlotGrid(proof: AdminProof, parentUserId: string, de
   if (!isAdminProof(proof)) return CALLS_INVALID;
   if (!uuid.safeParse(parentUserId).success) return CALLS_INVALID;
   return loadSlotGrid({ purpose: "first_call", parentUserId }, deps);
+}
+
+/**
+ * What /admin/calls' actions answer when they refuse: closed codes only, never detail (brief §9.15). The gate adds
+ * `not_authorized`; the rest are the call operations' own, with an overlap read as taken.
+ */
+export type AdminCallError =
+  | "call_booking_disabled"
+  | "not_authorized"
+  | "invalid"
+  | "taken"
+  | "too_soon"
+  | "hold_expired"
+  | "not_yours"
+  | "not_found"
+  | "rate_limited"
+  | "booked_call_exists"
+  | "error";
+
+export type AdminCallResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: AdminCallError };
+
+/** Typed as a full `Record` over `CallError`, so a new code fails to compile until it is mapped here. */
+const ADMIN_REFUSAL: Readonly<Record<CallError, AdminCallError>> = Object.freeze({
+  taken: "taken",
+  overlap: "taken",
+  too_soon: "too_soon",
+  hold_expired: "hold_expired",
+  not_yours: "not_yours",
+  not_found: "not_found",
+  rate_limited: "rate_limited",
+  invalid: "invalid",
+  booked_call_exists: "booked_call_exists",
+  call_booking_disabled: "call_booking_disabled",
+  error: "error",
+});
+
+export function adminRefusalOf(error: CallError): AdminCallError {
+  return ADMIN_REFUSAL[error];
 }
