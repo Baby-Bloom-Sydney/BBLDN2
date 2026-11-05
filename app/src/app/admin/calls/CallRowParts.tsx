@@ -55,11 +55,12 @@ export function TagBadges({ tags }: { readonly tags: readonly CallTag[] }) {
   );
 }
 
-/** Her name: the button that opens her drawer. */
-export function FamilyButton({ name, onOpen }: { readonly name: string; readonly onOpen: () => void }) {
+/** Her name: the button that opens her drawer (`data-family-id`: where focus returns when it closes). */
+export function FamilyButton({ familyId, name, onOpen }: { readonly familyId: string; readonly name: string; readonly onOpen: () => void }) {
   return (
     <button
       type="button"
+      data-family-id={familyId}
       onClick={onOpen}
       className="rounded-sm text-left font-medium text-violet-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
     >
@@ -69,10 +70,10 @@ export function FamilyButton({ name, onOpen }: { readonly name: string; readonly
 }
 
 /** Name (opens the drawer), tags, email and how she signed up. */
-export function FamilyCell({ row, onOpen }: { readonly row: Pick<CallRowView, "contact" | "tags" | "signupType">; readonly onOpen: () => void }) {
+export function FamilyCell({ row, onOpen }: { readonly row: Pick<CallRowView, "parentUserId" | "contact" | "tags" | "signupType">; readonly onOpen: () => void }) {
   return (
     <div className="space-y-1">
-      <FamilyButton name={row.contact.name} onOpen={onOpen} />
+      <FamilyButton familyId={row.parentUserId} name={row.contact.name} onOpen={onOpen} />
       <TagBadges tags={row.tags} />
       {row.contact.email && <p className="break-all text-xs text-slate-600">{row.contact.email}</p>}
       <p className="text-xs text-slate-500">{row.signupType}</p>

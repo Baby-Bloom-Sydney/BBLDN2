@@ -24,7 +24,8 @@ const CARD = "rounded-lg border border-slate-200 bg-white p-4 shadow-sm";
 function Section({ id, title, count, children }: SectionProps) {
   return (
     <section aria-labelledby={id} className="space-y-2">
-      <h2 id={id} className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+      {/* tabIndex -1: where focus returns when a closed drawer's family is no longer on the page. */}
+      <h2 id={id} tabIndex={-1} className="flex items-center gap-2 text-sm font-semibold text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500">
         {title}
         {count !== null && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{count}</span>}
       </h2>
@@ -131,7 +132,7 @@ function HistoryTable({ rows, onOpen }: { readonly rows: readonly HistoryRowView
             <TableRow key={r.key} className="align-top">
               <TableCell className="whitespace-nowrap text-slate-700">{r.when}</TableCell>
               <TableCell className="space-y-1">
-                <FamilyButton name={r.name} onOpen={() => onOpen(r.parentUserId)} />
+                <FamilyButton familyId={r.parentUserId} name={r.name} onOpen={() => onOpen(r.parentUserId)} />
                 <TagBadges tags={r.tags} />
               </TableCell>
               <TableCell className="text-slate-900">{r.what}</TableCell>
@@ -152,7 +153,7 @@ function HistoryCards({ rows, onOpen }: { readonly rows: readonly HistoryRowView
         <li key={r.key} className={CARD}>
           <p className="text-xs text-slate-500">{r.when}</p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <FamilyButton name={r.name} onOpen={() => onOpen(r.parentUserId)} />
+            <FamilyButton familyId={r.parentUserId} name={r.name} onOpen={() => onOpen(r.parentUserId)} />
             <TagBadges tags={r.tags} />
           </div>
           <p className="mt-1 text-sm text-slate-900">{r.what}</p>

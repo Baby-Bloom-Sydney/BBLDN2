@@ -79,6 +79,34 @@ describe("CallsClient", () => {
     await waitFor(() => expect(document.activeElement).toBe(opener));
   });
 
+  it("focus goes back to her current button even when her row moved section — or nobody focused it on click (review round 2 M5)", async () => {
+    const { rerender } = render(<CallsClient dashboard={DASHBOARD} openCallId={null} panel={null} panelFailed={false} />);
+    // Safari and Firefox don't focus a clicked button: open without focusing it.
+    fireEvent.click(screen.getAllByRole("button", { name: "Fay Quick" })[0]);
+    const moved = { ...DASHBOARD, notBooked: DASHBOARD.notBooked.filter((r) => r.parentUserId !== FAY), upcoming: [...DASHBOARD.upcoming, { ...DASHBOARD.notBooked[0], section: "upcoming" as const, key: "c-new" }] };
+    rerender(<CallsClient dashboard={moved} openCallId={null} panel={null} panelFailed={false} />);
+    fireEvent.keyDown(drawer()!, { key: "Escape" });
+    await waitFor(() => expect((document.activeElement as HTMLElement | null)?.dataset.familyId).toBe(FAY));
+    expect(document.activeElement?.isConnected).toBe(true);
+  });
+
+  it("if her name is no longer on the page, focus goes to the heading of the section she was opened from (M5)", async () => {
+    const { rerender } = render(<CallsClient dashboard={DASHBOARD} openCallId={null} panel={null} panelFailed={false} />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Fay Quick" })[0]);
+    rerender(<CallsClient dashboard={{ ...DASHBOARD, notBooked: DASHBOARD.notBooked.filter((r) => r.parentUserId !== FAY) }} openCallId={null} panel={null} panelFailed={false} />);
+    fireEvent.keyDown(drawer()!, { key: "Escape" });
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("heading", { level: 2, name: /Not booked — to call/ })));
+  });
+
+  it("the loading and failed drawers leave room for the close button at 320px (review round 2 M7)", () => {
+    const { unmount } = render(<CallsClient dashboard={DASHBOARD} openCallId={null} panel={null} panelFailed={false} />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Fay Quick" })[0]);
+    expect(screen.getByTestId("call-panel-loading").className).toContain("pr-12");
+    unmount();
+    render(<CallsClient dashboard={DASHBOARD} openCallId={AVA} panel={null} panelFailed />);
+    expect(screen.getByRole("alert").parentElement!.className).toContain("pr-12");
+  });
+
   it("the loading drawer says so to a screen reader", () => {
     render(<CallsClient dashboard={DASHBOARD} openCallId={null} panel={null} panelFailed={false} />);
     fireEvent.click(screen.getAllByRole("button", { name: "Fay Quick" })[0]);

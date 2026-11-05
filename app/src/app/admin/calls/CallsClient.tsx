@@ -35,7 +35,7 @@ export interface CallsClientProps {
 
 function PanelLoading() {
   return (
-    <div data-testid="call-panel-loading" role="status" className="space-y-3 p-4">
+    <div data-testid="call-panel-loading" role="status" className="space-y-3 p-4 pr-12">
       <span className="sr-only">{ADMIN_COPY.loading}</span>
       <Skeleton aria-hidden="true" className="h-6 w-1/2 motion-reduce:animate-none" />
       <Skeleton aria-hidden="true" className="h-24 w-full motion-reduce:animate-none" />
@@ -44,21 +44,45 @@ function PanelLoading() {
   );
 }
 
+/** Her name's buttons on the page now (a table row and a phone card), the visible one first. */
+function familyButtons(parentUserId: string): HTMLElement[] {
+  const all = [...document.querySelectorAll<HTMLElement>("[data-family-id]")].filter((el) => el.dataset.familyId === parentUserId);
+  return [...all.filter((el) => el.getClientRects().length > 0), ...all.filter((el) => el.getClientRects().length === 0)];
+}
+
+interface Opener {
+  readonly parentUserId: string;
+  /** The heading of the section she was opened from: the fallback when her name has left the page. */
+  readonly headingId: string | null;
+}
+
+/**
+ * Where focus goes when the drawer closes (review round 2 M5): her name's button as the page now draws it — after a
+ * write her row may have moved section, and Safari and Firefox don't focus a clicked button at all — else the heading
+ * of the section she was opened from. A deep-linked open has no opener and keeps Radix's default.
+ */
+function focusBack(opener: Opener | null): boolean {
+  if (opener === null) return false;
+  const target = familyButtons(opener.parentUserId)[0] ?? (opener.headingId ? document.getElementById(opener.headingId) : null);
+  target?.focus();
+  return target !== null && target !== undefined;
+}
+
 /**
  * The drawer's open state: the URL is the source of truth, a click flips it at once (the leads drawer's way). `shown`
- * is the family on screen — still the last one while the drawer slides out, so it never flashes the skeleton. The
- * opener (her name) gets focus back on close; a deep-linked open has none and keeps Radix's default.
+ * is the family on screen — still the last one while the drawer slides out, so it never flashes the skeleton.
  */
 function useDrawer(openCallId: string | null) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [wanted, setWanted] = useState<string | null>(openCallId);
   const last = useRef<string | null>(openCallId);
-  const opener = useRef<HTMLElement | null>(null);
+  const opener = useRef<Opener | null>(null);
   useEffect(() => setWanted(openCallId), [openCallId]);
   if (wanted !== null) last.current = wanted;
   const open = (parentUserId: string) => {
-    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const from = familyButtons(parentUserId)[0]?.closest("section")?.querySelector("h2") ?? null;
+    opener.current = { parentUserId, headingId: from?.id || null };
     setWanted(parentUserId);
     startTransition(() => router.push(`${PAGE}?openCall=${encodeURIComponent(parentUserId)}`, { scroll: false }));
   };
@@ -67,9 +91,7 @@ function useDrawer(openCallId: string | null) {
     startTransition(() => router.push(PAGE, { scroll: false }));
   };
   const restoreFocus = (event: Event) => {
-    if (opener.current === null) return;
-    event.preventDefault();
-    opener.current.focus();
+    if (focusBack(opener.current)) event.preventDefault();
   };
   return { wanted, shown: wanted ?? last.current, open, close, restoreFocus, refresh: () => router.refresh() };
 }
@@ -89,7 +111,7 @@ export function CallsClient({ dashboard, openCallId, panel, panelFailed, renderC
           {ready ? (
             <CallRowPanel key={panel.parentUserId} panel={panel} renderCallControl={renderCallControl} onChanged={drawer.refresh} />
           ) : failed ? (
-            <div className="p-4">
+            <div className="p-4 pr-12">
               <AlertLine>{ADMIN_COPY.familyFailed}</AlertLine>
             </div>
           ) : (
