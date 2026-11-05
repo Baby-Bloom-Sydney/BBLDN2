@@ -44,13 +44,14 @@ export interface SlotPickerActions<T> {
   reload(): Promise<readonly SlotDay[] | null | void>;
 }
 
-const TAKEN = new Set(["taken", "too_soon", "overlap"]);
-const RAN_OUT = new Set(["hold_expired", "not_yours", "not_found"]);
+/** Typed to the parent's codes (W17): a code the server can't send can't be listed. */
+const TAKEN: ReadonlySet<MyCallRefusal> = new Set<MyCallRefusal>(["taken", "too_soon"]);
+const RAN_OUT: ReadonlySet<MyCallRefusal> = new Set<MyCallRefusal>(["hold_expired", "not_yours"]);
 /** Refusals that mean the list is stale (review F2). */
-const REFRESHES = new Set([...RAN_OUT, "invalid"]);
+const REFRESHES: ReadonlySet<MyCallRefusal> = new Set<MyCallRefusal>([...RAN_OUT, "invalid"]);
 
 /** The inline line for a refusal that isn't "taken". */
-export function pickerMessage(error: string): string {
+export function pickerMessage(error: MyCallRefusal): string {
   if (TAKEN.has(error)) return PARENT_COPY.taken;
   if (RAN_OUT.has(error)) return PARENT_COPY.holdExpired;
   if (error === "rate_limited") return PARENT_COPY.rateLimited;
@@ -152,7 +153,7 @@ function useRefusal<T>(s: PickerState, list: ListReload, o: UsePickerOptions<T>)
     s.setHold(hold);
     s.setSelected(hold?.startsAt ?? null);
   };
-  return async (error: string, startsAt: string, keep: PickerHold | null, reloadAnyway = false) => {
+  return async (error: MyCallRefusal, startsAt: string, keep: PickerHold | null, reloadAnyway = false) => {
     const survivor = keep !== null && keep.startsAt !== startsAt ? keep : null;
     if (TAKEN.has(error)) {
       settle(survivor);
@@ -195,12 +196,12 @@ export function useSlotPicker<T>(o: UsePickerOptions<T>) {
   const busy = s.phase !== "idle";
   const tapTime = async (startsAt: string) => {
     if (busy) return;
+    s.setMessage(null); // a new choice clears the last refusal, so the same refusal again is announced again (W17)
     // A tile is a selector she can unselect (W14): a second tap clears it in the page; a hold just runs out.
     if (s.selected === startsAt) return clearTime(s);
     const previous = s.hold;
     s.setSelected(startsAt);
     s.setHold(null);
-    s.setMessage(null);
     if (o.gated) return; // W11: no position yet — her choice waits for her position; nothing is held.
     await inPhase(s, "holding", async () => {
       const held = await settled(() => o.actions.hold(startsAt));
@@ -211,6 +212,7 @@ export function useSlotPicker<T>(o: UsePickerOptions<T>) {
   const confirm = async () => {
     const hold = s.hold;
     if (hold === null || busy) return;
+    s.setMessage(null); // as BookedLinks does: a repeat of the same failure is announced again (W17)
     await inPhase(s, "confirming", async () => {
       const confirmed = await settled(() => o.actions.confirm(hold));
       if (confirmed.ok) o.onConfirmed(confirmed.value);
@@ -223,11 +225,13 @@ export function useSlotPicker<T>(o: UsePickerOptions<T>) {
     if (busy) return;
     s.setDay(s.day === londonDate ? null : londonDate);
     s.setBracket(null);
+    s.setMessage(null); // W17: a new choice clears the last refusal
     clearTime(s);
   };
   const pickBracket = (next: BracketKey) => {
     if (busy) return;
     s.setBracket(s.bracket === next ? null : next);
+    s.setMessage(null);
     clearTime(s);
   };
   return { ...s, busy, confirming: s.phase === "confirming", loading: list.loading, reloadFailed: list.failed, reload: list.reload, tapTime, confirm, pickDay, pickBracket, closeNotice: () => s.setNotice(null) };

@@ -88,9 +88,10 @@ function Frame({ inPopup, ...rest }: FrameProps) {
   return inPopup ? <PopupFrame {...rest} /> : <FunnelSlide {...rest} />;
 }
 
+/** The panel's own live region (booked, cancelled); the picker keeps its own for the held line (W17). */
 function Status({ text }: { readonly text: string }) {
   return (
-    <p role="status" className="sr-only">
+    <p role="status" data-call-status className="sr-only">
       {text}
     </p>
   );

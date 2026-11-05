@@ -96,13 +96,17 @@ function Empty({ line, busy, onRetry }: { readonly line: string; readonly busy: 
   );
 }
 
-/** The green panel: the chosen time, then the hold line (or, with no position yet, BAI's line). */
-function HeldPanel({ when, line }: { readonly when: string; readonly line: string }) {
+/**
+ * The green panel: the chosen time, then the hold line (or, with no position yet, BAI's line). The line's status
+ * region is mounted for the picker's life and only its words change (W17), so each new line is announced; with
+ * nothing chosen it is empty, visually hidden, and takes no room (`contents`, in the action area's flex column).
+ */
+function HeldPanel({ panel }: { readonly panel: { readonly when: string; readonly line: string } | null }) {
   return (
-    <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-      <p className="text-sm font-medium text-green-800">{when}</p>
-      <p role="status" className="mt-1 text-xs text-green-700">
-        {line}
+    <div className={panel ? "rounded-lg border border-green-200 bg-green-50 p-3" : "contents"}>
+      {panel && <p className="text-sm font-medium text-green-800">{panel.when}</p>}
+      <p role="status" className={panel ? "mt-1 text-xs text-green-700" : "sr-only"}>
+        {panel?.line ?? ""}
       </p>
     </div>
   );
@@ -135,10 +139,11 @@ interface ButtonRowProps {
 
 function ButtonRow({ picker, onKeepTime, skipHref, gate }: ButtonRowProps) {
   const confirmRef = useRef<HTMLButtonElement>(null);
-  // Focus Confirm once a hold is in and nothing is in flight (never while busy); the action area scrolls itself.
+  // Focus Confirm once a hold is in and nothing is in flight (never while busy), unless a refusal's alert is showing:
+  // that keeps focus (W17). The action area scrolls itself.
   useEffect(() => {
-    if (picker.hold !== null && !picker.busy) confirmRef.current?.focus({ preventScroll: true });
-  }, [picker.hold, picker.busy]);
+    if (picker.hold !== null && !picker.busy && picker.message === null) confirmRef.current?.focus({ preventScroll: true });
+  }, [picker.hold, picker.busy, picker.message]);
   return (
     <div className="flex flex-wrap gap-3">
       {onKeepTime ? (
@@ -298,8 +303,8 @@ export function SlotPicker<T>(props: SlotPickerProps<T>) {
       <div data-testid="slot-picker-body" aria-busy={picker.busy || picker.loading} className="space-y-4">
         <PickerBody uid={uid} picker={picker} days={shown} current={current} words={words} gridRef={gridRef} />
       </div>
-      <div ref={actionArea} data-testid="slot-picker-actions" className="space-y-4">
-        {panel && <HeldPanel when={panel.when} line={panel.line} />}
+      <div ref={actionArea} data-testid="slot-picker-actions" className="flex flex-col gap-4">
+        <HeldPanel panel={panel} />
         <ButtonRow picker={picker} onKeepTime={onKeepTime} skipHref={skipHref} gate={gate} />
       </div>
       <TakenNotice when={picker.notice} onClose={picker.closeNotice} onClosed={backToGrid} />

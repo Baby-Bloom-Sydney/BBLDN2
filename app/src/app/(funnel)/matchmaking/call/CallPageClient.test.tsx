@@ -36,6 +36,8 @@ const PICK: MyCallView = { kind: "pick", afterNoAnswer: false, days: DAYS, mobil
 const BOOKED_VIEW: MyCallView = { kind: "booked", booking: BOOKED, days: DAYS, mobile: MOBILE, needsPosition: false };
 const HOLD = { holdId: "h-1", startsAt: TUE_14, line: "Your time is being reserved for 5 minutes" };
 
+/** The panel's live region (the picker has its own for the held line, W17). */
+const panelStatus = () => screen.getAllByRole("status").find((r) => r.hasAttribute("data-call-status")) as HTMLElement;
 const page = (initial: MyCallView, next = NEXT, startChanging = false) =>
   render(<CallPageClient initial={initial} nextHref={next} startChanging={startChanging} />);
 /** W4: a time-of-day cell, then a time in it (a tap holds at once). */
@@ -81,7 +83,7 @@ describe("the seven states", () => {
     expect(screen.getByText("Tuesday 9 February, 14:00")).toBeInTheDocument();
     expect(screen.queryByText(/London/)).not.toBeInTheDocument();
     expect(screen.getByText(`We'll call you on ${MOBILE}.`)).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(`Done — ${BOOKED.line}.`);
+    expect(panelStatus()).toHaveTextContent(`Done — ${BOOKED.line}.`);
     expect(screen.getByRole("link", { name: "Go to my matches" })).toHaveAttribute("href", NEXT);
   });
 
@@ -201,7 +203,7 @@ describe("change and cancel", () => {
     await user.click(screen.getByRole("button", { name: "Yes, cancel it" }));
     expect(h.cancel).toHaveBeenCalledWith("b-1");
     expect(await screen.findByRole("button", { name: "Tue 9 Feb" })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Your call is cancelled");
+    expect(panelStatus()).toHaveTextContent("Your call is cancelled");
   });
 
   it.each([
@@ -296,7 +298,7 @@ describe("review fixes: one live region, and focus after the state changes", () 
   it("the status region is one node for the panel's life (booking and cancelling announce into it)", async () => {
     const user = userEvent.setup();
     page(PICK);
-    const region = screen.getByRole("status", { name: "" });
+    const region = panelStatus();
     await pickTue14(user);
     await user.click(await screen.findByRole("button", { name: "Confirm time" }));
     await youreBooked();
