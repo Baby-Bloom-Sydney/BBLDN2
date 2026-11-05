@@ -56,7 +56,7 @@ afterEach(() => vi.restoreAllMocks());
 describe("ChildcareCall — opening", () => {
   it("call=open: the popup over the tab, the picker, no close (X), and no Skip or Keep my time — Confirm alone", async () => {
     h.search = "t=childcare&call=open";
-    render(<ChildcareCall card={null} openWith="open" goneWhen={null} />);
+    render(<ChildcareCall card={null} openWith="open" goneWhen={null} failed={false} />);
     const dialog = await popup();
     expect(dialog.className).toContain("rounded-2xl");
     expect(dialog.className).toContain("max-h-[90dvh]");
@@ -69,7 +69,7 @@ describe("ChildcareCall — opening", () => {
 
   it("call=booked: You're booked, her call on top, Change time and Cancel — no onward button", async () => {
     h.reload.mockResolvedValue({ ok: true, value: BOOKED_VIEW });
-    render(<ChildcareCall card={null} openWith="booked" goneWhen={null} />);
+    render(<ChildcareCall card={null} openWith="booked" goneWhen={null} failed={false} />);
     const dialog = await screen.findByRole("dialog", { name: "You're booked" });
     expect(within(dialog).getByText(BOOKED.yourCall)).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Change time" })).toBeInTheDocument();
@@ -79,7 +79,7 @@ describe("ChildcareCall — opening", () => {
 
   it("call=gone: the picker with the taken notice; closing the notice keeps the popup open", async () => {
     const user = userEvent.setup();
-    render(<ChildcareCall card={null} openWith="gone" goneWhen="Tuesday 9 February at 14:00" />);
+    render(<ChildcareCall card={null} openWith="gone" goneWhen="Tuesday 9 February at 14:00" failed={false} />);
     const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
     expect(notice).toHaveTextContent("Someone else booked Tuesday 9 February at 14:00 a moment ago. Please pick another time.");
     await user.click(within(notice).getByRole("button", { name: "Pick another time" }));
@@ -90,7 +90,7 @@ describe("ChildcareCall — opening", () => {
 
   it("the card's Book a time opens it in place (no navigation)", async () => {
     const user = userEvent.setup();
-    render(<ChildcareCall card={{ kind: "not_booked", afterNoAnswer: false }} openWith={null} goneWhen={null} />);
+    render(<ChildcareCall card={{ kind: "not_booked", afterNoAnswer: false }} openWith={null} goneWhen={null} failed={false} />);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Book a time" }));
     expect(await within(await popup()).findByRole("radio", { name: "Tue 9 Feb" })).toBeInTheDocument();
@@ -100,7 +100,7 @@ describe("ChildcareCall — opening", () => {
   it("the card's Change time opens straight into changing: her booking on top, her slot chosen until she picks another", async () => {
     const user = userEvent.setup();
     h.reload.mockResolvedValue({ ok: true, value: BOOKED_VIEW });
-    render(<ChildcareCall card={{ kind: "booked", line: "Tue 9 Feb, 15:00", changeable: true }} openWith={null} goneWhen={null} />);
+    render(<ChildcareCall card={{ kind: "booked", line: "Tue 9 Feb, 15:00", changeable: true }} openWith={null} goneWhen={null} failed={false} />);
     await user.click(screen.getByRole("button", { name: "Change time" }));
     const dialog = await popup();
     expect(await within(dialog).findByText(BOOKED.yourCall)).toBeInTheDocument();
@@ -108,14 +108,14 @@ describe("ChildcareCall — opening", () => {
   });
 
   it("no param and no card → nothing at all", () => {
-    const { container } = render(<ChildcareCall card={null} openWith={null} goneWhen={null} />);
+    const { container } = render(<ChildcareCall card={null} openWith={null} goneWhen={null} failed={false} />);
     expect(container.innerHTML).toBe("");
   });
 
   it("a skeleton while her view loads; a failed load → the load-failed line", async () => {
     let finish: (v: unknown) => void = () => {};
     h.reload.mockReturnValueOnce(new Promise((resolve) => (finish = resolve)));
-    render(<ChildcareCall card={null} openWith="open" goneWhen={null} />);
+    render(<ChildcareCall card={null} openWith="open" goneWhen={null} failed={false} />);
     expect(await screen.findByTestId("call-popup-loading")).toBeInTheDocument();
     finish({ ok: false, error: "error" });
     expect(await screen.findByText("We couldn't load the times — we'll still call you for your Complimentary matchmaker call")).toBeInTheDocument();
@@ -126,7 +126,7 @@ describe("ChildcareCall — closing (a tap outside or Escape; the param cleared)
   it("a tap outside the rounded rectangle closes it and clears call= (router.replace, so a refresh doesn't reopen it)", async () => {
     const user = userEvent.setup();
     h.search = "t=childcare&call=open";
-    render(<ChildcareCall card={null} openWith="open" goneWhen={null} />);
+    render(<ChildcareCall card={null} openWith="open" goneWhen={null} failed={false} />);
     await popup();
     const overlay = document.querySelector<HTMLElement>("[data-call-popup-overlay], .bg-black\\/80");
     expect(overlay).not.toBeNull();
@@ -138,7 +138,7 @@ describe("ChildcareCall — closing (a tap outside or Escape; the param cleared)
   it("Escape closes it too, and clears call= and at=", async () => {
     const user = userEvent.setup();
     h.search = "t=childcare&call=gone&at=2027-02-09T14%3A00%3A00.000Z";
-    render(<ChildcareCall card={null} openWith="open" goneWhen={null} />);
+    render(<ChildcareCall card={null} openWith="open" goneWhen={null} failed={false} />);
     await popup();
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -147,7 +147,7 @@ describe("ChildcareCall — closing (a tap outside or Escape; the param cleared)
 
   it("opened from the card: closing leaves the URL alone", async () => {
     const user = userEvent.setup();
-    render(<ChildcareCall card={{ kind: "not_booked", afterNoAnswer: false }} openWith={null} goneWhen={null} />);
+    render(<ChildcareCall card={{ kind: "not_booked", afterNoAnswer: false }} openWith={null} goneWhen={null} failed={false} />);
     await user.click(screen.getByRole("button", { name: "Book a time" }));
     await popup();
     await user.keyboard("{Escape}");
@@ -160,7 +160,7 @@ describe("ChildcareCall — her booking, for changes (BAI 2026-11-05)", () => {
   it("Change time inside the popup: her call stays on top; confirming moves the same booking and shows the new time", async () => {
     const user = userEvent.setup();
     h.reload.mockResolvedValue({ ok: true, value: BOOKED_VIEW });
-    render(<ChildcareCall card={null} openWith="booked" goneWhen={null} />);
+    render(<ChildcareCall card={null} openWith="booked" goneWhen={null} failed={false} />);
     const dialog = await screen.findByRole("dialog", { name: "You're booked" });
     await user.click(within(dialog).getByRole("button", { name: "Change time" }));
     const picking = await popup();
@@ -177,7 +177,7 @@ describe("ChildcareCall — her booking, for changes (BAI 2026-11-05)", () => {
   it("no position yet: the line and 'Complete my childcare position' (nothing held), primary alone", async () => {
     const user = userEvent.setup();
     h.reload.mockResolvedValue({ ok: true, value: { ...PICK, needsPosition: true } });
-    render(<ChildcareCall card={null} openWith="open" goneWhen={null} />);
+    render(<ChildcareCall card={null} openWith="open" goneWhen={null} failed={false} />);
     const dialog = await popup();
     await user.click(await within(dialog).findByRole("radio", { name: "Tue 9 Feb" }));
     await user.click(within(dialog).getByRole("radio", { name: /^Afternoon / }));
@@ -196,7 +196,7 @@ describe("no 'London time' in the popup or on the card (W14)", () => {
   it("booked popup, picking popup and the card say no 'London'", async () => {
     const user = userEvent.setup();
     h.reload.mockResolvedValue({ ok: true, value: BOOKED_VIEW });
-    render(<ChildcareCall card={{ kind: "booked", line: "Tue 9 Feb, 15:00", changeable: true }} openWith={null} goneWhen={null} />);
+    render(<ChildcareCall card={{ kind: "booked", line: "Tue 9 Feb, 15:00", changeable: true }} openWith={null} goneWhen={null} failed={false} />);
     expect(document.body.innerHTML).not.toMatch(/London/);
     await user.click(screen.getByRole("button", { name: "Change time" }));
     await within(await popup()).findByText(BOOKED.yourCall);
@@ -208,7 +208,7 @@ describe("React re-review fixes (the popup)", () => {
   it("MEDIUM: the taken notice shows once — not again after she books and then changes her time", async () => {
     const user = userEvent.setup();
     h.confirm.mockResolvedValue({ ok: true, value: { bookingId: "b-1", moved: false, replay: false, booking: MOVED } });
-    render(<ChildcareCall card={null} openWith="gone" goneWhen="Tuesday 9 February at 14:00" />);
+    render(<ChildcareCall card={null} openWith="gone" goneWhen="Tuesday 9 February at 14:00" failed={false} />);
     const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
     await user.click(within(notice).getByRole("button", { name: "Pick another time" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "This time has just been booked" })).not.toBeInTheDocument());
@@ -226,11 +226,20 @@ describe("React re-review fixes (the popup)", () => {
   });
 
   it("LOW: the popup and the notice stop animating under reduced motion (only these two dialogs)", async () => {
-    render(<ChildcareCall card={null} openWith="gone" goneWhen="Tuesday 9 February at 14:00" />);
+    render(<ChildcareCall card={null} openWith="gone" goneWhen="Tuesday 9 February at 14:00" failed={false} />);
     const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
     expect(notice.className).toContain("motion-reduce:animate-none");
     // The popup sits under the open notice (hidden from the accessibility tree meanwhile): both dialogs, by role.
     await waitFor(() => expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(2));
     for (const dialog of document.querySelectorAll('[role="dialog"]')) expect(dialog.className).toContain("motion-reduce:animate-none");
+  });
+});
+
+describe("TS review: a booking that failed for any reason but taken (call=open&failed=1)", () => {
+  it("the popup opens on the picker with 04b's inline line, not the taken notice", async () => {
+    render(<ChildcareCall card={null} openWith="open" goneWhen={null} failed />);
+    const dialog = await popup();
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("We couldn't do that — try again");
+    expect(screen.queryByRole("dialog", { name: "This time has just been booked" })).not.toBeInTheDocument();
   });
 });

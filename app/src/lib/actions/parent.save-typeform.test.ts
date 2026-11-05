@@ -34,20 +34,30 @@ describe("saveTypeformPosition → redirectTo (W8)", () => {
   it("returns the destination decided for her saved position", async () => {
     h.after.mockResolvedValue("/parent?t=childcare&call=open");
     expect(await saveTypeformPosition(FORM)).toEqual({ success: true, error: null, positionId: "pos-1", redirectTo: "/parent?t=childcare&call=open" });
-    expect(h.after).toHaveBeenCalledWith("pos-1", undefined, undefined);
+    expect(h.after).toHaveBeenCalledWith("pos-1", { created: true, callAt: undefined });
     expect(h.autofire).toHaveBeenCalledWith("pos-1");
   });
 
   it("W11: the time she picked (callAt) is handed on after the save; its outcome is the destination", async () => {
     h.after.mockResolvedValue("/parent?t=childcare&call=booked");
     const result = await saveTypeformPosition(FORM, { callAt: "2027-02-09T14:00:00.000Z" });
-    expect(h.after).toHaveBeenCalledWith("pos-1", undefined, "2027-02-09T14:00:00.000Z");
+    expect(h.after).toHaveBeenCalledWith("pos-1", { created: true, callAt: "2027-02-09T14:00:00.000Z" });
     expect(result).toEqual({ success: true, error: null, positionId: "pos-1", redirectTo: "/parent?t=childcare&call=booked" });
   });
 
-  it("a hand-crafted null options never throws after the save (security review LOW)", async () => {
+  it("options arrive as unknown and are parsed (TS review): null, a non-time, or an extra key → no callAt; never a throw", async () => {
     h.after.mockResolvedValue(undefined);
-    expect(await saveTypeformPosition(FORM, null as unknown as { callAt?: string })).toMatchObject({ success: true, positionId: "pos-1" });
+    for (const options of [null, { callAt: 5 }, { callAt: "tomorrow" }, { callAt: "2027-02-09T14:00:00.000Z", extra: 1 }, "x"]) {
+      expect(await saveTypeformPosition(FORM, options)).toMatchObject({ success: true, positionId: "pos-1" });
+      expect(h.after).toHaveBeenLastCalledWith("pos-1", { created: true, callAt: undefined });
+    }
+  });
+
+  it("an update of her existing position says so (created: false) — the call then comes only for a picked time", async () => {
+    h.fake = fakeAdmin({ parents: { id: "parent-1" }, nanny_positions: { id: "pos-9" } });
+    h.after.mockResolvedValue(undefined);
+    expect(await saveTypeformPosition(FORM)).toEqual({ success: true, error: null, positionId: "pos-9" });
+    expect(h.after).toHaveBeenCalledWith("pos-9", { created: false, callAt: undefined });
   });
 
   it("W11: a booking that went wrong never fails the position save", async () => {

@@ -1,23 +1,24 @@
 /**
- * Slots grouped by London day for the picker (plan A4; port of LDN1 `group-slots-by-day.ts`, 24-hour words).
- * One group per day with the full date as its legend; every option named "…" (brief §2, picker
- * semantics). A day with no free slot is simply absent.
+ * Slots grouped by London day for the picker (plan A4; port of LDN1 `group-slots-by-day.ts`, 24-hour words; 04b
+ * rework W4, W14). One group per date in the window, the full date as its legend; every option named "Tuesday
+ * 9 February, 14:00" (brief §2 picker semantics, no "London time" since W14).
  */
 import { describe, expect, it } from "vitest";
-import { groupSlotGridByDay, groupSlotsByDay } from "./group-slots-by-day";
+import { groupSlotGridByDay } from "./group-slots-by-day";
 
 const slot = (startsAt: string) => ({
   startsAt,
   endsAt: new Date(Date.parse(startsAt) + 30 * 60 * 1000).toISOString(),
 });
 
-describe("groupSlotsByDay", () => {
-  it("groups in order, skips empty days, and names every option in full", () => {
-    const days = groupSlotsByDay([
-      slot("2027-02-11T09:30:00.000Z"),
-      slot("2027-02-09T14:00:00.000Z"),
-      slot("2027-02-09T14:30:00.000Z"),
-    ]);
+/** Free slots on the dates they fall on (the old free-only grouping, expressed as a grid). */
+const freeGrid = (slots: ReturnType<typeof slot>[], dates: string[]) => ({ dates, slots: slots.map((s) => ({ ...s, free: true })) });
+
+describe("groupSlotGridByDay — free slots", () => {
+  it("groups in order and names every option in full", () => {
+    const days = groupSlotGridByDay(
+      freeGrid([slot("2027-02-11T09:30:00.000Z"), slot("2027-02-09T14:00:00.000Z"), slot("2027-02-09T14:30:00.000Z")], ["2027-02-09", "2027-02-11"]),
+    );
     expect(days.map((d) => d.londonDate)).toEqual(["2027-02-09", "2027-02-11"]);
     expect(days[0].legend).toBe("Tuesday 9 February");
     expect(days[0].slots.map((s) => s.time)).toEqual(["14:00", "14:30"]);
@@ -35,15 +36,15 @@ describe("groupSlotsByDay", () => {
   });
 
   it("puts a 23:30Z slot in July on the next London day", () => {
-    const days = groupSlotsByDay([slot("2027-07-13T23:30:00.000Z")]);
+    const days = groupSlotGridByDay(freeGrid([slot("2027-07-13T23:30:00.000Z")], ["2027-07-14"]));
     expect(days[0].londonDate).toBe("2027-07-14");
     expect(days[0].slots[0].time).toBe("00:30");
   });
 
-  it("returns [] for no slots, and does not change its input", () => {
-    const input = Object.freeze([slot("2027-02-09T14:30:00.000Z"), slot("2027-02-09T14:00:00.000Z")]);
-    expect(groupSlotsByDay([])).toEqual([]);
-    groupSlotsByDay(input);
+  it("returns [] for no dates, and does not change its input", () => {
+    const input = Object.freeze([{ ...slot("2027-02-09T14:30:00.000Z"), free: true }, { ...slot("2027-02-09T14:00:00.000Z"), free: true }]);
+    expect(groupSlotGridByDay({ dates: [], slots: [] })).toEqual([]);
+    groupSlotGridByDay({ dates: ["2027-02-09"], slots: input });
     expect(input[0].startsAt).toBe("2027-02-09T14:30:00.000Z");
   });
 });

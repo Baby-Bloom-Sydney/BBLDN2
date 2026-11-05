@@ -176,9 +176,23 @@ function inScope(parent: ScopeParent | null, enabledSince: string | null): boole
 }
 
 /**
+ * The card's rule for offering her the call (TS review: shared by the card, the hub's `call=` popup and the in-app call
+ * after a new position): in scope, and never after an answered call or Stop calling (the call has happened, or BAI has
+ * stopped).
+ */
+export function callOffered(facts: {
+  readonly entries: readonly CallLogEntry[];
+  readonly parent: ScopeParent | null;
+  readonly enabledSince: string | null;
+}): boolean {
+  if (!inScope(facts.parent, facts.enabledSince)) return false;
+  return !facts.entries.some((e) => e.result === "answered" || e.outcome === "stop_calling");
+}
+
+/**
  * Booked → her short London time (Change time while it's ahead). Not booked → Book a time (after a no-answer, "We tried
- * to call you"), but only in scope, and never after an answered call or Stop calling (the call has happened, or BAI has
- * stopped). Otherwise no card. Whether a nanny is hired or connected is the page's to decide (W9).
+ * to call you"), but only while the call is offered (`callOffered`). Otherwise no card. Whether a nanny is hired or
+ * connected is the page's to decide (W9).
  */
 export function hubCardFor(facts: {
   readonly bookings: readonly CallBooking[];
@@ -191,7 +205,6 @@ export function hubCardFor(facts: {
   if (booked !== null) {
     return { kind: "booked", line: slotWords(booked.startsAt).short, changeable: Date.parse(booked.startsAt) > facts.now.getTime() };
   }
-  if (!inScope(facts.parent, facts.enabledSince)) return null;
-  if (facts.entries.some((e) => e.result === "answered" || e.outcome === "stop_calling")) return null;
+  if (!callOffered(facts)) return null;
   return { kind: "not_booked", afterNoAnswer: isAfterNoAnswer(facts.bookings, facts.entries) };
 }

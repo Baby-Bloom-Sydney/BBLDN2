@@ -121,7 +121,8 @@ describe("a picked time carried into her position (W11)", () => {
     }
   });
 
-  it("the gone popup can carry the time", () => {
-    expect(callPopupPath("gone", AT)).toBe(`/parent?t=childcare&call=gone&at=${encodeURIComponent(AT)}`);
+  it("the gone popup can carry the time; an open one can carry 04b's failure line", () => {
+    expect(callPopupPath("gone", { at: AT })).toBe(`/parent?t=childcare&call=gone&at=${encodeURIComponent(AT)}`);
+    expect(callPopupPath("open", { failed: true })).toBe("/parent?t=childcare&call=open&failed=1");
   });
 });

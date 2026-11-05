@@ -18,6 +18,7 @@
 import { useState } from "react";
 import { PARENT_COPY } from "@/lib/calls/copy";
 import type { SlotDay, SlotOption } from "@/lib/calls/group-slots-by-day";
+import type { MyCallRefusal } from "@/lib/calls/parent-view";
 import type { BracketKey } from "@/lib/timezone";
 
 /** A held time: what the server holds, and its line ("We're holding … until 10:05."). */
@@ -27,7 +28,8 @@ export interface PickerHold {
   readonly line: string;
 }
 
-export type PickerResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: string };
+/** A refusal is one of the parent-facing codes (TS review): never a free-form string. */
+export type PickerResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: MyCallRefusal };
 
 export interface SlotPickerActions<T> {
   /** A tap on a free time. */
@@ -117,6 +119,8 @@ export interface UsePickerOptions<T> {
   readonly current?: string | null;
   /** Open with the taken notice (a time she chose elsewhere has just gone), in words. */
   readonly initialNotice?: string | null;
+  /** Open with this inline line. */
+  readonly initialMessage?: string | null;
   /** No position yet (W11): a tap only selects; nothing is held. */
   readonly gated?: boolean;
 }
@@ -130,7 +134,7 @@ function usePickerState<T>(o: UsePickerOptions<T>) {
   const [selected, setSelected] = useState<string | null>(null);
   const [hold, setHold] = useState<PickerHold | null>(null);
   const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set());
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(o.initialMessage ?? null);
   const [notice, setNotice] = useState<string | null>(o.initialNotice ?? null);
   const [phase, setPhase] = useState<Phase>("idle");
   const markGone = (startsAt: string) => setGone((previous) => new Set([...previous, startsAt]));

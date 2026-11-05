@@ -6,7 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CallsDeps } from "./deps";
 import { callsTo, fakeCallsRepo, type FakeCallsState } from "./fake-calls-repo.test-util";
-import { parentCancelBooking, parentConfirmHold, parentFreeSlots, parentHoldSlot } from "./parent-booking";
+import { parentCancelBooking, parentConfirmHold, parentHoldSlot } from "./parent-booking";
 
 const SESSION = "b0400000-0000-4000-8000-000000000001";
 const HOLD = "c0400000-0000-4000-8000-0000000000aa";
@@ -59,37 +59,27 @@ describe("parentConfirmHold / parentCancelBooking", () => {
   });
 });
 
-describe("parentFreeSlots", () => {
-  it("is the first-call window", async () => {
-    const { deps } = setup();
-    const free = await parentFreeSlots(SESSION, deps);
-    expect(free.ok && free.value[0].startsAt).toBe("2027-02-04T12:00:00.000Z");
-  });
-});
-
 describe("the gates", () => {
-  it("switch off → call_booking_disabled for all four, zero repo calls", async () => {
+  it("switch off → call_booking_disabled for all three, zero repo calls", async () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "");
     const { fake, deps } = setup();
     const answers = await Promise.all([
-      parentFreeSlots(SESSION, deps),
       parentHoldSlot(SESSION, TUE_14, deps),
       parentConfirmHold(SESSION, HOLD, "k", deps),
       parentCancelBooking(SESSION, HOLD, deps),
     ]);
-    expect(answers).toEqual(Array(4).fill({ ok: false, error: "call_booking_disabled" }));
+    expect(answers).toEqual(Array(3).fill({ ok: false, error: "call_booking_disabled" }));
     expect(fake.calls).toEqual([]);
   });
 
   it.each(["", "not-a-uuid", "'; drop table parents; --"])("a session id that isn't one (%j) → invalid, zero repo calls", async (id) => {
     const { fake, deps } = setup();
     const answers = await Promise.all([
-      parentFreeSlots(id, deps),
       parentHoldSlot(id, TUE_14, deps),
       parentConfirmHold(id, HOLD, "k", deps),
       parentCancelBooking(id, HOLD, deps),
     ]);
-    expect(answers).toEqual(Array(4).fill({ ok: false, error: "invalid" }));
+    expect(answers).toEqual(Array(3).fill({ ok: false, error: "invalid" }));
     expect(fake.calls).toEqual([]);
   });
 });

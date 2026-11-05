@@ -14,6 +14,7 @@ import { createInboxMessage } from "./connection-helpers";
 import { autofireMatchmaking } from "./autofire-matchmaking";
 import { isUkMobile, normaliseUkMobile } from "@/lib/uk-contact";
 import { redirectAfterPosition } from "@/lib/calls/after-position";
+import { z } from "zod";
 
 export interface Position {
   id: string;
@@ -337,9 +338,12 @@ import {
   buildScheduleJson,
 } from "./position-utils";
 
+/** The save's options arrive from the browser (TS review): parsed, never trusted; anything else → none. */
+const saveOptions = z.strictObject({ callAt: z.iso.datetime({ offset: true }).optional() });
+
 export async function saveTypeformPosition(
   formData: Partial<TypeformFormData>,
-  options: { callAt?: string } = {},
+  options: unknown = undefined,
 ): Promise<{ success: boolean; error: string | null; positionId?: string; redirectTo?: string }> {
   const supabase = createClient();
 
@@ -545,9 +549,11 @@ export async function saveTypeformPosition(
     }
   }
 
-  // Brief 04 §0a.3, §0a.6 (04b rework W8, W11): where she goes next — and the call time she picked first, booked as
-  // her — decided here; it never throws, so it never fails the save. `callAt` is checked there, never trusted.
-  const redirectTo = await redirectAfterPosition(positionId, undefined, options?.callAt);
+  // Brief 04 §0a.3, §0a.6 (04b rework W8, W11, TS review): only after creating her position (or for a time she picked
+  // first) is the call offered next — and that picked time booked as her. It never throws, so it never fails the save.
+  const parsedOptions = saveOptions.safeParse(options ?? {});
+  const callAt = parsedOptions.success ? parsedOptions.data.callAt : undefined;
+  const redirectTo = await redirectAfterPosition(positionId, { created: !existing, callAt });
   return { success: true, error: null, positionId, ...(redirectTo === undefined ? {} : { redirectTo }) };
 }
 

@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CallsDeps } from "./deps";
 import { bookingRow, callsTo, fakeCallsRepo, type FakeCallsState } from "./fake-calls-repo.test-util";
-import { loadHubCallCard, loadMyCallView } from "./parent-state";
+import { loadHubCall, loadMyCallView } from "./parent-state";
 import { CALL_SETTINGS_DEFAULTS } from "./settings";
 
 const HER = "b0400000-0000-4000-8000-000000000001";
@@ -76,35 +76,41 @@ describe("loadMyCallView", () => {
   });
 });
 
-describe("loadHubCallCard (plan B7)", () => {
+describe("loadHubCall (plan B7; TS review: the card and whether the call is offered, one read)", () => {
   const SCOPE = { userId: HER, signupSource: "advanced_match", signedUpAt: "2027-02-03T10:00:00.000Z" };
   const STARTED = { ...CALL_SETTINGS_DEFAULTS, enabledSince: "2027-02-01T09:00:00.000Z" };
+  const NONE = { card: null, offered: false };
 
-  it("switch off → null with zero reads", async () => {
+  it("switch off → nothing, with zero reads", async () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "");
     const { fake, deps } = setup();
-    expect(await loadHubCallCard(HER, deps)).toBeNull();
+    expect(await loadHubCall(HER, deps)).toEqual(NONE);
     expect(fake.calls).toEqual([]);
   });
 
-  it("not a user id → null with zero reads", async () => {
+  it("not a user id → nothing, with zero reads", async () => {
     const { fake, deps } = setup();
-    expect(await loadHubCallCard("x", deps)).toBeNull();
+    expect(await loadHubCall("x", deps)).toEqual(NONE);
     expect(fake.calls).toEqual([]);
   });
 
-  it("reads her settings, scope row, bookings and attempts → the card", async () => {
+  it("reads her settings, scope row, bookings and attempts → the card, and the call offered", async () => {
     const { fake, deps } = setup({ settings: STARTED, scope: [SCOPE] });
-    expect(await loadHubCallCard(HER, deps)).toEqual({ kind: "not_booked", afterNoAnswer: false });
+    expect(await loadHubCall(HER, deps)).toEqual({ card: { kind: "not_booked", afterNoAnswer: false }, offered: true });
     expect(callsTo(fake, "readScopeParent")[0].args).toEqual([HER]);
     expect(callsTo(fake, "readBookingsForParents")[0].args).toEqual([[HER]]);
   });
 
-  it("any read failing → no card (logged), never a wrong one", async () => {
+  it("out of scope (switch-on not pressed) → no card, not offered", async () => {
+    const { deps } = setup({ scope: [SCOPE] });
+    expect(await loadHubCall(HER, deps)).toEqual(NONE);
+  });
+
+  it("any read failing → nothing (logged), never a wrong card", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     for (const failing of ["readSettings", "readScopeParent", "readBookingsForParents", "readLogEntriesForParents"] as const) {
       const { deps } = setup({ settings: STARTED, scope: [SCOPE], failing: [failing] });
-      expect(await loadHubCallCard(HER, deps)).toBeNull();
+      expect(await loadHubCall(HER, deps)).toEqual(NONE);
     }
     expect(log).toHaveBeenCalledTimes(4);
     log.mockRestore();

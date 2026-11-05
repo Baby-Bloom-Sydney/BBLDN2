@@ -54,6 +54,8 @@ export interface SlotPickerProps<T> {
   readonly current?: string | null;
   /** Open with the taken notice for this time, in words (a time chosen elsewhere has just gone). */
   readonly initialNotice?: string | null;
+  /** Open with this inline line (a booking made elsewhere failed for any reason but taken). */
+  readonly initialMessage?: string | null;
   /**
    * No position yet (W11, BAI 2026-11-05): a tap selects without holding; the green panel asks her to complete her
    * position, and the right button goes there carrying the time (`href`). Nothing is held until her position is saved.
@@ -257,9 +259,10 @@ function useFocusAfterReload(loading: boolean, back: () => void) {
   }, [loading]);
 }
 
-export function SlotPicker<T>({ days, actions, onConfirmed, onKeepTime, skipHref, current = null, initialNotice = null, gate, copy }: SlotPickerProps<T>) {
+export function SlotPicker<T>(props: SlotPickerProps<T>) {
+  const { days, actions, onConfirmed, onKeepTime, skipHref, current = null, initialNotice = null, initialMessage = null, gate, copy } = props;
   const words = { ...DEFAULT_COPY, ...copy };
-  const picker = useSlotPicker({ days, actions, onConfirmed, current, initialNotice, gated: gate !== undefined });
+  const picker = useSlotPicker({ days, actions, onConfirmed, current, initialNotice, initialMessage, gated: gate !== undefined });
   const uid = useId();
   const alertRef = useRef<HTMLParagraphElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);

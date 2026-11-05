@@ -49,6 +49,8 @@ export interface CallBookingPanelProps {
   readonly inPopup?: boolean;
   /** Open with the taken notice for this time, in words (the popup's `call=gone`). */
   readonly notice?: string | null;
+  /** Open with this inline line (the popup's `call=open&failed=1`). */
+  readonly message?: string | null;
 }
 
 interface FrameProps {
@@ -98,6 +100,7 @@ interface StateProps {
   readonly inPopup: boolean;
   readonly onward?: Onward;
   readonly notice?: string | null;
+  readonly message?: string | null;
 }
 
 function Booked({ call, inPopup, onward }: StateProps) {
@@ -128,7 +131,7 @@ function PickSubtitle({ afterNoAnswer }: { readonly afterNoAnswer: boolean }) {
   );
 }
 
-function Picking({ call, inPopup, onward, notice }: StateProps) {
+function Picking({ call, inPopup, onward, notice, message }: StateProps) {
   const { view } = call;
   const booked = view.kind === "booked" ? view.booking : null;
   return (
@@ -147,6 +150,7 @@ function Picking({ call, inPopup, onward, notice }: StateProps) {
             current={booked?.startsAt ?? null}
             gate={view.kind !== "load_failed" && view.needsPosition ? NO_POSITION_GATE : undefined}
             initialNotice={notice ?? null}
+            initialMessage={message ?? null}
           />
         )}
       </div>
@@ -165,19 +169,20 @@ function useFocusOnBooked(showBooked: boolean) {
   return root;
 }
 
-/** The taken notice is shown once: the first picker gets it, a later one (after booking, Change time) doesn't. */
-function useNoticeOnce(notice: string | null): string | null {
-  const [pending, setPending] = useState(notice);
+/** Shown once: the first picker gets it, a later one (after booking, Change time) doesn't (React re-review). */
+function useOnce(value: string | null): string | null {
+  const [pending, setPending] = useState(value);
   useEffect(() => setPending(null), []);
   return pending;
 }
 
-export function CallBookingPanel({ initial, startChanging = false, onward, inPopup = false, notice = null }: CallBookingPanelProps) {
+export function CallBookingPanel({ initial, startChanging = false, onward, inPopup = false, notice = null, message = null }: CallBookingPanelProps) {
   const call = useCallBooking(initial, startChanging);
-  const pendingNotice = useNoticeOnce(notice);
+  const pendingNotice = useOnce(notice);
+  const pendingMessage = useOnce(message);
   const showBooked = call.view.kind === "booked" && !call.changing;
   const root = useFocusOnBooked(showBooked);
-  const props = { call, inPopup, onward, notice: pendingNotice };
+  const props = { call, inPopup, onward, notice: pendingNotice, message: pendingMessage };
   // One status region for the panel's life, so booking and cancelling are announced into it (code review MEDIUM).
   return (
     <div ref={root}>

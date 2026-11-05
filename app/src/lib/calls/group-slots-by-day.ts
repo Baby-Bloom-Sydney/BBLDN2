@@ -5,9 +5,9 @@
  *
  * 04b rework W4 adds what the meet-and-greet-style grid draws: a day's row label ("Tue" over "9 Feb"), each slot's
  * time-of-day column (`bracket`), its panel line ("Tuesday 9 February at 14:00") and whether it is `free`.
- * - `groupSlotsByDay` takes free slots only (04a; a day with no free slot is absent).
- * - `groupSlotGridByDay` takes the whole grid: every date in the window is a row, a day with no free slot (or no
- *   slots at all) included, and every slot keeps its free flag — greyed, never hidden (BAI 2026-11-05).
+ * `groupSlotGridByDay` takes the whole grid: every date in the window is a row, a day with no free slot (or no slots at
+ * all) included, and every slot keeps its free flag — greyed, never hidden (BAI 2026-11-05). (04a's free-only
+ * `groupSlotsByDay` had no caller left and is gone, TS review.)
  *
  * BB-wave1-041126/04a-core, 2026-11-04; BB-wave1-041126/04b-rework, 2026-11-05.
  */
@@ -66,11 +66,4 @@ export function groupSlotGridByDay(grid: SlotGrid): readonly SlotDay[] {
   const sorted = [...grid.slots].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
   const options = sorted.map((slot) => ({ date: slotWords(slot.startsAt).londonDate, option: optionOf(slot) }));
   return Object.freeze(grid.dates.map((date) => dayOf(date, options.filter((o) => o.date === date).map((o) => o.option))));
-}
-
-/** Free slots only, by day (04a): a day with no free slot is absent. */
-export function groupSlotsByDay(slots: readonly Slot[]): readonly SlotDay[] {
-  const free = slots.map((slot) => ({ ...slot, free: true }));
-  const dates = [...new Set(free.map((slot) => slotWords(slot.startsAt).londonDate))].sort();
-  return groupSlotGridByDay({ dates, slots: free });
 }

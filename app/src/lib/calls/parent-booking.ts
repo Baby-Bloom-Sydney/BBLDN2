@@ -11,23 +11,16 @@
  */
 
 import { callBookingEnabled } from "@/lib/features/flags";
-import { cancelBooking, confirmHoldForParent, getFreeSlots, holdSlotForParent, type BookingActor, type HeldTime } from "./booking";
+import { cancelBooking, confirmHoldForParent, holdSlotForParent, type BookingActor, type HeldTime } from "./booking";
 import { CALL_BOOKING_DISABLED, CALLS_INVALID, defaultCallsDeps, type CallsDeps } from "./deps";
 import { loadSlotGrid, type SlotGrid } from "./slot-grid";
-import type { CallsResult, CancelledBooking, ConfirmedBooking, Slot } from "./types";
+import type { CallsResult, CancelledBooking, ConfirmedBooking } from "./types";
 import { uuid } from "./zod-parts";
 
 /** She acts for herself: the session id is the parent and the actor. Null if it isn't a user id. */
 function herself(sessionUserId: string): { readonly parentUserId: string; readonly actor: BookingActor } | null {
   if (!uuid.safeParse(sessionUserId).success) return null;
   return { parentUserId: sessionUserId, actor: { kind: "parent", userId: sessionUserId } };
-}
-
-/** Her picker: the free first-call times in the window. */
-export async function parentFreeSlots(sessionUserId: string, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<readonly Slot[]>> {
-  if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
-  if (herself(sessionUserId) === null) return CALLS_INVALID;
-  return getFreeSlots({ purpose: "first_call" }, deps);
 }
 
 /** Her picker's whole grid (04b rework W4): every date and slot in the window, free or greyed. */

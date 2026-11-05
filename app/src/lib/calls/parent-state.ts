@@ -10,7 +10,7 @@
 import { callBookingEnabled } from "@/lib/features/flags";
 import { CALL_BOOKING_DISABLED, CALLS_INVALID, defaultCallsDeps, type CallsDeps } from "./deps";
 import { parentSlotGrid } from "./parent-booking";
-import { callViewOf, hubCardFor, nationalMobile, type HubCallCard, type MyCallView } from "./parent-view";
+import { callOffered, callViewOf, hubCardFor, nationalMobile, type HubCallCard, type MyCallView } from "./parent-view";
 import type { CallsResult } from "./types";
 import { uuid } from "./zod-parts";
 
@@ -33,13 +33,22 @@ export async function loadMyCallView(sessionUserId: string, deps: CallsDeps = de
   return { ok: true, value: callViewOf({ bookings, entries, grid, now: deps.now(), mobile, needsPosition }) };
 }
 
+export interface HubCall {
+  readonly card: HubCallCard | null;
+  /** The card's rule (`callOffered`): may the call be offered to her now? */
+  readonly offered: boolean;
+}
+
+const NO_HUB_CALL: HubCall = Object.freeze({ card: null, offered: false });
+
 /**
- * Her hub card (plan B7), or null — with the switch off (before any read), for an id that isn't one, and when a read
- * fails (logged; no card is better than a wrong one). Called by `/parent` only while the switch is on.
+ * Her Childcare-tab card and whether the call is offered to her (plan B7; TS review), from one read — or nothing:
+ * with the switch off (before any read), for an id that isn't one, and when a read fails (logged; no card is better
+ * than a wrong one). Called by `/parent` only while the switch is on, and by `after-position.ts`.
  */
-export async function loadHubCallCard(sessionUserId: string, deps: CallsDeps = defaultCallsDeps()): Promise<HubCallCard | null> {
-  if (!callBookingEnabled()) return null;
-  if (!uuid.safeParse(sessionUserId).success) return null;
+export async function loadHubCall(sessionUserId: string, deps: CallsDeps = defaultCallsDeps()): Promise<HubCall> {
+  if (!callBookingEnabled()) return NO_HUB_CALL;
+  if (!uuid.safeParse(sessionUserId).success) return NO_HUB_CALL;
   const [settings, parent, bookings, entries] = await Promise.all([
     deps.repo.readSettings(),
     deps.repo.readScopeParent(sessionUserId),
@@ -48,13 +57,8 @@ export async function loadHubCallCard(sessionUserId: string, deps: CallsDeps = d
   ]);
   if (!settings.ok || !parent.ok || !bookings.ok || !entries.ok) {
     console.error("[calls/parent-state] the hub card could not be read");
-    return null;
+    return NO_HUB_CALL;
   }
-  return hubCardFor({
-    bookings: bookings.value,
-    entries: entries.value,
-    parent: parent.value,
-    enabledSince: settings.value.enabledSince,
-    now: deps.now(),
-  });
+  const facts = { bookings: bookings.value, entries: entries.value, parent: parent.value, enabledSince: settings.value.enabledSince, now: deps.now() };
+  return { card: hubCardFor(facts), offered: callOffered(facts) };
 }

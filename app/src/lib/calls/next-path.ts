@@ -4,8 +4,8 @@
  *
  * `next` arrives in the URL, so it is checked, never trusted: `isSafeInternalPath` (`invite/redirect.ts:36`) first,
  * then the path is resolved the way a browser would (dot segments, encoded dots, stripped tabs) and kept only if it
- * stays on this site, is `/parent` or below it (`=== "/parent"`, `"/parent/…"`, `"/parent?…"`) and isn't the call
- * page itself (a loop). Anything else → `/parent`.
+ * stays on this site and is `/parent` or below it (`=== "/parent"`, `"/parent/…"`, `"/parent?…"`) — so never the call
+ * page itself, which lives at `/matchmaking/call`. Anything else → `/parent`.
  *
  * The call page is a funnel slide at `/matchmaking/call` (04b rework W1, brief §0a.1), outside the app.
  *
@@ -40,7 +40,7 @@ export function safeNextPath(raw: string | readonly string[] | null | undefined)
     return PARENT_HOME;
   }
   if (url.origin !== BASE.origin) return PARENT_HOME;
-  if (!isUnder(url.pathname, PARENT_HOME) || isUnder(url.pathname, CALL_PAGE_PATH)) return PARENT_HOME;
+  if (!isUnder(url.pathname, PARENT_HOME)) return PARENT_HOME;
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
@@ -66,12 +66,23 @@ export function onwardFor(next: string): Onward {
 }
 
 /** What the in-app call popup opens with (04b rework W12): picking, "You're booked", or "that time has just gone". */
-export type CallPopupMode = "open" | "booked" | "gone";
-const POPUP_MODES: ReadonlySet<string> = new Set(["open", "booked", "gone"]);
+export const CALL_POPUP_MODES = ["open", "booked", "gone"] as const;
+export type CallPopupMode = (typeof CALL_POPUP_MODES)[number];
+const popupMode = z.enum(CALL_POPUP_MODES);
 
-/** `/parent?t=childcare&call=<mode>` — her Childcare tab with the call popup open over it (`at`: the time that went). */
-export function callPopupPath(mode: CallPopupMode, at?: string): string {
-  return `${CHILDCARE_TAB}&call=${mode}${at === undefined ? "" : `&at=${encodeURIComponent(at)}`}`;
+/**
+ * `/parent?t=childcare&call=<mode>` — her Childcare tab with the call popup open over it. `at`: the time that went (the
+ * taken notice names it); `failed`: a booking that failed for any reason but taken (the picker shows 04b's line).
+ */
+export function callPopupPath(mode: CallPopupMode, options: { readonly at?: string; readonly failed?: boolean } = {}): string {
+  const at = options.at === undefined ? "" : `&at=${encodeURIComponent(options.at)}`;
+  return `${CHILDCARE_TAB}&call=${mode}${at}${options.failed ? "&failed=1" : ""}`;
+}
+
+/** The hub's `call` param, checked: one of the modes, else null (ignored; a repeated param too). */
+export function parseCallPopup(raw: string | readonly string[] | null | undefined): CallPopupMode | null {
+  const parsed = popupMode.safeParse(raw);
+  return parsed.success ? parsed.data : null;
 }
 
 /** Her position form carrying the call time she picked (W11): `/parent/request?callAt=<the slot, encoded>`. */
@@ -84,11 +95,4 @@ const callAtInput = z.iso.datetime({ offset: true });
 /** A `callAt` / `at` from a URL, checked: an instant with an offset, else null (ignored). */
 export function parseCallAt(raw: string | readonly string[] | null | undefined): string | null {
   return typeof raw === "string" && callAtInput.safeParse(raw).success ? raw : null;
-}
-
-/** The hub's `call` param, checked: one of the three modes, else null (ignored). */
-const isPopupMode = (raw: unknown): raw is CallPopupMode => typeof raw === "string" && POPUP_MODES.has(raw);
-
-export function parseCallPopup(raw: string | readonly string[] | null | undefined): CallPopupMode | null {
-  return isPopupMode(raw) ? raw : null;
 }

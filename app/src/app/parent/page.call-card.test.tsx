@@ -28,7 +28,7 @@ vi.mock("@/lib/supabase/admin", () => {
 vi.mock("./ParentHubClient", () => ({
   ParentHubClient: ({ callCard }: { callCard?: ReactNode }) => <div data-testid="hub">{callCard}</div>,
 }));
-vi.mock("@/lib/calls/parent-state", () => ({ loadHubCallCard: h.card }));
+vi.mock("@/lib/calls/parent-state", () => ({ loadHubCall: h.card }));
 vi.mock("@/components/calls/ChildcareCall", () => ({
   ChildcareCall: ({ card, openWith }: { card: { kind: string } | null; openWith: string | null }) => (
     <section data-card={card?.kind ?? "none"} data-open={openWith ?? "none"}>
@@ -48,7 +48,7 @@ async function markup(): Promise<string> {
 
 beforeEach(() => {
   h.card.mockReset();
-  h.card.mockResolvedValue({ kind: "not_booked", afterNoAnswer: false });
+  h.card.mockResolvedValue({ card: { kind: "not_booked", afterNoAnswer: false }, offered: true });
   h.placement.mockReset();
   h.placement.mockResolvedValue({ data: null });
   h.connections.mockReset();
@@ -82,7 +82,7 @@ describe("/parent and the call card", () => {
 
   it("flag on, no card → no callCard prop either", async () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "true");
-    h.card.mockResolvedValueOnce(null);
+    h.card.mockResolvedValueOnce({ card: null, offered: false });
     const out = (await ParentHubPage({ searchParams: {} })) as ReactElement<{ children: ReactElement<Record<string, unknown>> }>;
     expect("callCard" in out.props.children.props).toBe(false);
   });
@@ -99,7 +99,7 @@ describe("/parent and the call card", () => {
 
   it("flag on, no card → today's markup", async () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "true");
-    h.card.mockResolvedValueOnce(null);
+    h.card.mockResolvedValueOnce({ card: null, offered: false });
     expect(await markup()).toBe(TODAY);
   });
 });
@@ -147,14 +147,35 @@ describe("/parent and the call popup's param (W12)", () => {
     expect((await slot({ t: "childcare", call: "gone", at: "nope" }))?.props.goneWhen).toBeNull();
   });
 
+  it("call=open&failed=1 opens the picker with 04b's failure line (TS review: only taken says 'gone')", async () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    const callCard = (await props({ t: "childcare", call: "open", failed: "1" })).callCard as ReactElement<{ failed: boolean }>;
+    expect(callCard.props.failed).toBe(true);
+    expect(((await props({ t: "childcare", call: "booked", failed: "1" })).callCard as ReactElement<{ failed: boolean }>).props.failed).toBe(false);
+  });
+
+  it("the param opens nothing for a parent the call isn't offered to (out of scope, answered, Stop calling)", async () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    h.card.mockResolvedValue({ card: null, offered: false });
+    expect("callCard" in (await props({ t: "childcare", call: "open" }))).toBe(false);
+    h.card.mockResolvedValue({ card: { kind: "booked", line: "Tue 9 Feb, 14:00", changeable: true }, offered: false });
+    expect(((await props({ t: "childcare", call: "open" })).callCard as ReactElement<{ openWith: string | null }>).props.openWith).toBeNull();
+  });
+
+  it("repeated params (?call=open&call=booked) are ignored", async () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    const searchParams = { t: "childcare", call: ["open", "booked"] } as unknown as Record<string, string>;
+    expect(((await props(searchParams)).callCard as ReactElement<{ openWith: string | null }>).props.openWith).toBeNull();
+  });
+
   it("anything else is ignored", async () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "true");
     expect((await slot({ t: "childcare", call: "please" }))?.props.openWith).toBeNull();
   });
 
-  it("the popup opens even with no card (out of scope), so W8/W11's destinations always land", async () => {
+  it("the popup opens from the param even with no card to show, while the call is offered", async () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "true");
-    h.card.mockResolvedValue(null);
+    h.card.mockResolvedValue({ card: null, offered: true });
     expect((await slot({ t: "childcare", call: "open" }))?.props.openWith).toBe("open");
     expect("callCard" in (await props({ t: "childcare" }))).toBe(false);
   });

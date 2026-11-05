@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { bookingRow, entryRow } from "./fake-calls-repo.test-util";
-import { REFUSAL_FOR, bookedViewOf, callViewOf, heldViewOf, hubCardFor, isAfterNoAnswer, myBookedCall, nationalMobile, refusalOf } from "./parent-view";
+import { REFUSAL_FOR, bookedViewOf, callOffered, callViewOf, heldViewOf, hubCardFor, isAfterNoAnswer, myBookedCall, nationalMobile, refusalOf } from "./parent-view";
 import type { SlotGrid } from "./slot-grid";
 import type { CallsResult } from "./types";
 
@@ -205,5 +205,24 @@ describe("hubCardFor (plan B7; the Childcare tab card since 04b rework W9, brief
     expect(hubCardFor({ ...base, parent: { ...inScope, signedUpAt: "2027-01-31T09:00:00.000Z" } })).toBeNull();
     expect(hubCardFor({ ...base, enabledSince: null })).toBeNull();
     expect(hubCardFor({ ...base, parent: null })).toBeNull();
+  });
+});
+
+describe("callOffered (TS review: the card's rule, shared with the in-app call after a new position)", () => {
+  const inScope = { userId: HER, signupSource: "standard_match", signedUpAt: "2027-02-03T10:00:00.000Z" };
+  const base = { entries: [], parent: inScope, enabledSince: "2027-02-01T09:00:00.000Z" };
+
+  it("in scope and not after an answered call or Stop calling → offered", () => {
+    expect(callOffered(base)).toBe(true);
+    expect(callOffered({ ...base, entries: [entryRow({ parentUserId: HER, occurredAt: "2027-02-03T12:00:00.000Z", result: "no_answer" })] })).toBe(true);
+  });
+
+  it("an invite sign-up, before switch-on, switch-on not pressed, no parents row, answered, Stop calling → not offered", () => {
+    expect(callOffered({ ...base, parent: { ...inScope, signupSource: "nanny_invite" } })).toBe(false);
+    expect(callOffered({ ...base, parent: { ...inScope, signedUpAt: "2027-01-31T09:00:00.000Z" } })).toBe(false);
+    expect(callOffered({ ...base, enabledSince: null })).toBe(false);
+    expect(callOffered({ ...base, parent: null })).toBe(false);
+    expect(callOffered({ ...base, entries: [entryRow({ parentUserId: HER, occurredAt: "2027-02-03T12:00:00.000Z", result: "answered", outcome: "call_back_later" })] })).toBe(false);
+    expect(callOffered({ ...base, entries: [entryRow({ parentUserId: HER, occurredAt: "2027-02-03T12:00:00.000Z", result: null, outcome: "stop_calling" })] })).toBe(false);
   });
 });

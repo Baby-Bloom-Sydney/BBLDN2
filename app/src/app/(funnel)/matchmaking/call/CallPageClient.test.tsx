@@ -7,7 +7,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { groupSlotsByDay } from "@/lib/calls/group-slots-by-day";
+import { groupSlotGridByDay } from "@/lib/calls/group-slots-by-day";
 import type { BookedCallView, MyCallView } from "@/lib/calls/parent-view";
 
 const h = vi.hoisted(() => ({ hold: vi.fn(), confirm: vi.fn(), cancel: vi.fn(), reload: vi.fn() }));
@@ -21,7 +21,7 @@ vi.mock("./actions", () => ({
 import { CallPageClient } from "./CallPageClient";
 
 const TUE_14 = "2027-02-09T14:00:00.000Z";
-const DAYS = groupSlotsByDay([{ startsAt: TUE_14, endsAt: TUE_14 }]);
+const DAYS = groupSlotGridByDay({ dates: ["2027-02-09"], slots: [{ startsAt: TUE_14, endsAt: TUE_14, free: true }] });
 const NEXT = "/parent?t=childcare&s=nannies&v=matches";
 const MOBILE = "07700 900123";
 const BOOKED: BookedCallView = {

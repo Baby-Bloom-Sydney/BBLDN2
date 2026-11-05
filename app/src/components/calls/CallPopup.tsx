@@ -28,6 +28,8 @@ export interface CallPopupProps {
   readonly startChanging: boolean;
   /** Open with the taken notice for this time, in words (`call=gone`). */
   readonly notice: string | null;
+  /** Open with this inline line (a booking that failed for any reason but taken). */
+  readonly message: string | null;
 }
 
 /** Her view, read fresh each time the popup opens; a refusal or a throw → load failed (Retry inside). */
@@ -58,7 +60,7 @@ function Loading() {
   );
 }
 
-export function CallPopup({ open, onClose, startChanging, notice }: CallPopupProps) {
+export function CallPopup({ open, onClose, startChanging, notice, message }: CallPopupProps) {
   const view = useViewWhenOpen(open);
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
@@ -66,7 +68,7 @@ export function CallPopup({ open, onClose, startChanging, notice }: CallPopupPro
         hideClose
         className="max-w-md max-h-[90dvh] overflow-y-auto overflow-x-hidden rounded-2xl p-5 sm:p-6 motion-reduce:animate-none motion-reduce:transition-none"
       >
-        {view === null ? <Loading /> : <CallBookingPanel initial={view} inPopup startChanging={startChanging} notice={notice} />}
+        {view === null ? <Loading /> : <CallBookingPanel initial={view} inPopup startChanging={startChanging} notice={notice} message={message} />}
       </DialogContent>
     </Dialog>
   );

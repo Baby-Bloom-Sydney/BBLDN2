@@ -14,6 +14,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { actionsWith, DAYS, gridDays, HOLD, TUE_09, TUE_14, TUE_1430, TUE_15, WED_09 } from "./slot-picker.fixtures.test-util";
+import type { MyCallRefusal } from "@/lib/calls/parent-view";
 import { SlotPicker } from "./SlotPicker";
 
 const day = (name: string) => screen.getByRole("radio", { name });
@@ -284,7 +285,7 @@ describe("SlotPicker — hold and confirm", () => {
 describe("SlotPicker — taken by someone else: the notice (BAI 2026-11-05)", () => {
   it("a taken hold: the notice (its button focused), the list refreshes, the time is greyed; no inline alert", async () => {
     const user = userEvent.setup();
-    const actions = actionsWith({ hold: vi.fn(async () => ({ ok: false as const, error: "taken" })) });
+    const actions = actionsWith({ hold: vi.fn(async () => ({ ok: false as const, error: "taken" as const })) });
     render(<SlotPicker days={DAYS} actions={actions} onConfirmed={vi.fn()} />);
     await holdTue14(user);
     const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
@@ -301,7 +302,7 @@ describe("SlotPicker — taken by someone else: the notice (BAI 2026-11-05)", ()
 
   it("a taken confirm: the notice, and the list refreshes", async () => {
     const user = userEvent.setup();
-    const actions = actionsWith({ confirm: vi.fn(async () => ({ ok: false as const, error: "taken" })) });
+    const actions = actionsWith({ confirm: vi.fn(async () => ({ ok: false as const, error: "taken" as const })) });
     render(<SlotPicker days={DAYS} actions={actions} onConfirmed={vi.fn()} />);
     await holdTue14(user);
     await user.click(await screen.findByRole("button", { name: "Confirm time" }));
@@ -312,7 +313,7 @@ describe("SlotPicker — taken by someone else: the notice (BAI 2026-11-05)", ()
   it("a held time that ran out and was taken: the notice too", async () => {
     const user = userEvent.setup();
     const actions = actionsWith({
-      confirm: vi.fn(async () => ({ ok: false as const, error: "hold_expired" })),
+      confirm: vi.fn(async () => ({ ok: false as const, error: "hold_expired" as const })),
       reload: vi.fn(async () => gridDays({ [TUE_14]: false })),
     });
     render(<SlotPicker days={DAYS} actions={actions} onConfirmed={vi.fn()} />);
@@ -328,7 +329,7 @@ describe("SlotPicker — taken by someone else: the notice (BAI 2026-11-05)", ()
 
   it("a time seen taken is free again when a fresh list says so (reconciled on reload)", async () => {
     const user = userEvent.setup();
-    const actions = actionsWith({ hold: vi.fn(async () => ({ ok: false as const, error: "taken" })), reload: vi.fn(async () => gridDays()) });
+    const actions = actionsWith({ hold: vi.fn(async () => ({ ok: false as const, error: "taken" as const })), reload: vi.fn(async () => gridDays()) });
     render(<SlotPicker days={DAYS} actions={actions} onConfirmed={vi.fn()} />);
     await holdTue14(user);
     const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
@@ -340,7 +341,7 @@ describe("SlotPicker — taken by someone else: the notice (BAI 2026-11-05)", ()
 describe("SlotPicker — other refusals keep 04b's inline alert", () => {
   it("a hold that ran out but is still free: 'Your hold ran out — pick again', focused, refreshed", async () => {
     const user = userEvent.setup();
-    const actions = actionsWith({ confirm: vi.fn(async () => ({ ok: false as const, error: "hold_expired" })), reload: vi.fn(async () => gridDays()) });
+    const actions = actionsWith({ confirm: vi.fn(async () => ({ ok: false as const, error: "hold_expired" as const })), reload: vi.fn(async () => gridDays()) });
     render(<SlotPicker days={DAYS} actions={actions} onConfirmed={vi.fn()} />);
     await holdTue14(user);
     await user.click(await screen.findByRole("button", { name: "Confirm time" }));
@@ -356,14 +357,14 @@ describe("SlotPicker — other refusals keep 04b's inline alert", () => {
     ["error", "We couldn't do that — try again"],
   ])("%s → '%s'", async (error, message) => {
     const user = userEvent.setup();
-    render(<SlotPicker days={DAYS} actions={actionsWith({ hold: vi.fn(async () => ({ ok: false as const, error })) })} onConfirmed={vi.fn()} />);
+    render(<SlotPicker days={DAYS} actions={actionsWith({ hold: vi.fn(async () => ({ ok: false as const, error: error as MyCallRefusal })) })} onConfirmed={vi.fn()} />);
     await holdTue14(user);
     expect(await screen.findByRole("alert")).toHaveTextContent(message);
   });
 
   it("an invalid refusal (a stale list) refreshes the list", async () => {
     const user = userEvent.setup();
-    const actions = actionsWith({ hold: vi.fn(async () => ({ ok: false as const, error: "invalid" })) });
+    const actions = actionsWith({ hold: vi.fn(async () => ({ ok: false as const, error: "invalid" as const })) });
     render(<SlotPicker days={DAYS} actions={actions} onConfirmed={vi.fn()} />);
     await holdTue14(user);
     await screen.findByRole("alert");
@@ -556,7 +557,7 @@ describe("SlotPicker — React re-review fixes", () => {
 
   it.each([["error"], ["rate_limited"], ["invalid"]])("HIGH 1 (b): a refused confirm (%s) keeps her hold and Confirm enabled", async (error) => {
     const user = userEvent.setup();
-    render(<SlotPicker days={DAYS} actions={actionsWith({ confirm: vi.fn(async () => ({ ok: false as const, error })) })} onConfirmed={vi.fn()} />);
+    render(<SlotPicker days={DAYS} actions={actionsWith({ confirm: vi.fn(async () => ({ ok: false as const, error: error as MyCallRefusal })) })} onConfirmed={vi.fn()} />);
     await holdTue14(user);
     await user.click(await screen.findByRole("button", { name: "Confirm time" }));
     await screen.findByRole("alert");
@@ -567,7 +568,7 @@ describe("SlotPicker — React re-review fixes", () => {
   it("HIGH 1: hold A, tap B, B refused → A is still hers, chosen and held (the database kept A's hold)", async () => {
     const user = userEvent.setup();
     const hold = vi.fn(async (startsAt: string) =>
-      startsAt === TUE_14 ? { ok: true as const, value: { ...HOLD, startsAt } } : { ok: false as const, error: "taken" },
+      startsAt === TUE_14 ? { ok: true as const, value: { ...HOLD, startsAt } } : { ok: false as const, error: "taken" as const },
     );
     render(<SlotPicker days={DAYS} actions={actionsWith({ hold })} onConfirmed={vi.fn()} />);
     await holdTue14(user);
@@ -584,7 +585,7 @@ describe("SlotPicker — React re-review fixes", () => {
 
   it("LOW: a chosen time of day that has since closed renders greyed and disabled, not violet", async () => {
     const user = userEvent.setup();
-    render(<SlotPicker days={gridDays({ [TUE_1430]: false })} actions={actionsWith({ hold: vi.fn(async () => ({ ok: false as const, error: "taken" })) })} onConfirmed={vi.fn()} />);
+    render(<SlotPicker days={gridDays({ [TUE_1430]: false })} actions={actionsWith({ hold: vi.fn(async () => ({ ok: false as const, error: "taken" as const })) })} onConfirmed={vi.fn()} />);
     await holdTue14(user);
     const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
     await user.click(within(notice).getByRole("button", { name: "Pick another time" }));
