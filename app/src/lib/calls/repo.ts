@@ -11,6 +11,8 @@
  *   ever writes.
  * - Every result is a closed `CallsResult`: refusal codes from the functions, or `error` for anything else.
  *   Nothing is thrown to callers; failures are logged here with a code and message (never contact details).
+ * - 04b adds `ReminderRepo` (the call-reminders cron's claims, plan B2 / §12 R3): plain service-role writes of the
+ *   two reminder stamps and the `call_nudges` row, each guarded so only one run can claim a send.
  *
  * BB-wave1-041126/04a-core, 2026-11-04.
  */
@@ -87,6 +89,8 @@ export interface CallsRepo {
   readRecentLogEntries(limit: number): Promise<CallsResult<readonly CallLogEntry[]>>;
   /** Parents not from an invite (NULL source included, plan D7) who signed up at or after `enabledSince`. */
   readScopeParents(enabledSince: string): Promise<CallsResult<readonly ScopeParent[]>>;
+  /** Her own parents row (04b: the hub card's scope check); null when she has none. */
+  readScopeParent(userId: string): Promise<CallsResult<ScopeParent | null>>;
   readContacts(userIds: readonly string[]): Promise<CallsResult<readonly ParentContact[]>>;
   readLatestPositionId(parentUserId: string): Promise<CallsResult<string | null>>;
   holdSlot(input: HoldInput): Promise<CallsResult<HeldSlot>>;
@@ -327,7 +331,13 @@ async function latestPositionId(db: Db, parentUserId: string): Promise<CallsResu
   return position.ok ? ok(position.value.id) : position;
 }
 
-function familyQueries(db: Db): Pick<CallsRepo, "readScopeParents" | "readContacts" | "readLatestPositionId"> {
+/** One parents row, or none; a row that doesn't fit → undefined (`rows` fails it). */
+const oneScopeParent = (data: unknown): { readonly parent: ScopeParent | null } | undefined => {
+  const list = scopeParentsFromRows(data === null || data === undefined ? [] : [data]);
+  return list === null ? undefined : { parent: list[0] ?? null };
+};
+
+function familyQueries(db: Db): Pick<CallsRepo, "readScopeParents" | "readScopeParent" | "readContacts" | "readLatestPositionId"> {
   return {
     readScopeParents: (enabledSince) =>
       guarded("readScopeParents", async () =>
@@ -346,6 +356,11 @@ function familyQueries(db: Db): Pick<CallsRepo, "readScopeParents" | "readContac
           scopeParentsFromRows,
         ),
       ),
+    readScopeParent: (userId) =>
+      guarded("readScopeParent", async () => {
+        const read = await rows("readScopeParent", db().from("parents").select(SCOPE_COLUMNS).eq("user_id", userId).maybeSingle(), oneScopeParent);
+        return read.ok ? ok(read.value.parent) : read;
+      }),
     readContacts: (ids) =>
       guarded("readContacts", async () =>
         mapped(
@@ -478,4 +493,143 @@ export function createCallsRepo(options: CallsRepoOptions = {}): CallsRepo {
     ...logAndHoursWriters(caller(db)),
     startCallBooking: (actor: CallActor) => guarded("startCallBooking", () => startCallBooking(db, now, actor)),
   });
+}
+
+// ── The call-reminders cron's claims (04b, plan B2 + §12 R3) ──────────────────────────────────────────────────
+
+export type ReminderKind = "parent" | "admin";
+
+/** `(after, until]`: the start times a reminder pass is due for. */
+export interface ReminderWindow {
+  readonly after: string;
+  readonly until: string;
+}
+
+export interface ReminderRepo {
+  /** Booked calls starting in `(after, until]` whose `kind` reminder hasn't been sent. */
+  readUnremindedCalls(kind: ReminderKind, window: ReminderWindow): Promise<CallsResult<readonly CallBooking[]>>;
+  /** Stamp the reminder before sending: true only if this run claimed it (still booked, same start, unstamped). */
+  claimReminder(kind: ReminderKind, booking: Pick<CallBooking, "id" | "startsAt">, stamp: string): Promise<CallsResult<boolean>>;
+  /** After a failed send: clear the stamp, only if it is still this run's. */
+  releaseReminder(kind: ReminderKind, bookingId: string, stamp: string): Promise<CallsResult<true>>;
+  /** Which of these parents already have a "pick a time" claim. */
+  readNudgedParents(parentUserIds: readonly string[]): Promise<CallsResult<ReadonlySet<string>>>;
+  /** Claim her one "pick a time" email: `INSERT … ON CONFLICT DO NOTHING RETURNING`; true only if this run inserted. */
+  claimNudge(parentUserId: string, stamp: string): Promise<CallsResult<boolean>>;
+  /** After a failed send: delete the claim, only if it is still this run's. */
+  releaseNudge(parentUserId: string, stamp: string): Promise<CallsResult<true>>;
+}
+
+const STAMP_COLUMN: Readonly<Record<ReminderKind, string>> = Object.freeze({
+  parent: "parent_reminder_sent_at",
+  admin: "admin_reminder_sent_at",
+});
+
+/** A write that answers with its rows: did exactly one come back? */
+async function claimed(label: string, query: PromiseLike<DbReply>): Promise<CallsResult<boolean>> {
+  const { data, error } = await query;
+  if (error) {
+    logFailure(label, error);
+    return FAILED;
+  }
+  return ok(Array.isArray(data) && data.length === 1);
+}
+
+async function written(label: string, query: PromiseLike<DbReply>): Promise<CallsResult<true>> {
+  const { error } = await query;
+  if (error) {
+    logFailure(label, error);
+    return FAILED;
+  }
+  return ok(true);
+}
+
+const nudgedIds = (rows: unknown): ReadonlySet<string> | null =>
+  Array.isArray(rows) && rows.every((r) => typeof (r as { parent_user_id?: unknown })?.parent_user_id === "string")
+    ? new Set(rows.map((r) => (r as { parent_user_id: string }).parent_user_id))
+    : null;
+
+function reminderStamps(db: Db): Pick<ReminderRepo, "readUnremindedCalls" | "claimReminder" | "releaseReminder"> {
+  return {
+    readUnremindedCalls: (kind, window) =>
+      guarded("readUnremindedCalls", async () =>
+        mapped(
+          "readUnremindedCalls",
+          await allPages("readUnremindedCalls", (from, to) =>
+            db()
+              .from("call_bookings")
+              .select(BOOKING_COLUMNS)
+              .eq("status", "booked")
+              .gt("starts_at", window.after)
+              .lte("starts_at", window.until)
+              .is(STAMP_COLUMN[kind], null)
+              .order("starts_at", { ascending: true })
+              .order("id", { ascending: true })
+              .range(from, to),
+          ),
+          bookingsFromRows,
+        ),
+      ),
+    claimReminder: (kind, booking, stamp) =>
+      guarded("claimReminder", () =>
+        claimed(
+          "claimReminder",
+          db()
+            .from("call_bookings")
+            .update({ [STAMP_COLUMN[kind]]: stamp })
+            .eq("id", booking.id)
+            .eq("status", "booked")
+            .eq("starts_at", booking.startsAt)
+            .is(STAMP_COLUMN[kind], null)
+            .select("id"),
+        ),
+      ),
+    releaseReminder: (kind, bookingId, stamp) =>
+      guarded("releaseReminder", () =>
+        written(
+          "releaseReminder",
+          db()
+            .from("call_bookings")
+            .update({ [STAMP_COLUMN[kind]]: null })
+            .eq("id", bookingId)
+            .eq(STAMP_COLUMN[kind], stamp),
+        ),
+      ),
+  };
+}
+
+function nudgeClaims(db: Db): Pick<ReminderRepo, "readNudgedParents" | "claimNudge" | "releaseNudge"> {
+  return {
+    readNudgedParents: (ids) =>
+      guarded("readNudgedParents", async () => {
+        if (ids.length === 0) return ok(new Set<string>());
+        const collected = await allPagesByIds("readNudgedParents", ids, (chunk) => (from, to) =>
+          db().from("call_nudges").select("parent_user_id").in("parent_user_id", chunk).order("parent_user_id", { ascending: true }).range(from, to),
+        );
+        return mapped("readNudgedParents", collected, nudgedIds);
+      }),
+    claimNudge: (parentUserId, stamp) =>
+      guarded("claimNudge", () =>
+        claimed(
+          "claimNudge",
+          db()
+            .from("call_nudges")
+            .upsert({ parent_user_id: parentUserId, not_booked_sent_at: stamp }, { onConflict: "parent_user_id", ignoreDuplicates: true })
+            .select("parent_user_id"),
+        ),
+      ),
+    releaseNudge: (parentUserId, stamp) =>
+      guarded("releaseNudge", () =>
+        written("releaseNudge", db().from("call_nudges").delete().eq("parent_user_id", parentUserId).eq("not_booked_sent_at", stamp)),
+      ),
+  };
+}
+
+export function createReminderRepo(options: CallsRepoOptions = {}): ReminderRepo {
+  let client: SupabaseClient | null = options.client ?? null;
+  const db: Db = () => {
+    client ??= createAdminClient();
+    return client;
+  };
+  return Object.freeze({ ...reminderStamps(db), ...nudgeClaims(db) });
 }

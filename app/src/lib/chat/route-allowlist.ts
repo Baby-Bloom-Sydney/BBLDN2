@@ -70,13 +70,17 @@ function isAllowed(path: string): boolean {
  * Audience for a path — used so a nanny doesn't see a parent-only URL
  * dangling in their prompt (and vice versa). Anything that's neither
  * /nanny/* nor /parent/* is considered shared (login, contact, etc.)
- * and shown to both roles.
+ * and shown to both roles — except the parent-only pages that live
+ * outside /parent, named here.
  */
 type Audience = "nanny" | "parent" | "shared";
 
+/** Parent-only pages outside `/parent`: the call slide (brief 04, 04b rework W1; 404 for anyone else). */
+const PARENT_ONLY_EXACT = new Set<string>(["/matchmaking/call"]);
+
 function audienceOf(path: string): Audience {
   if (path.startsWith("/nanny")) return "nanny";
-  if (path.startsWith("/parent")) return "parent";
+  if (path.startsWith("/parent") || PARENT_ONLY_EXACT.has(path)) return "parent";
   return "shared";
 }
 

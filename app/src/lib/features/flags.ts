@@ -77,7 +77,7 @@ export function legacyTierCheckoutEnabled(): boolean {
  * While off:
  * - Every `src/lib/calls` operation refuses with `"call_booking_disabled"` before any read, and every cross-brief
  *   contract (`calls/contracts.ts`) returns `null`.
- * - Later PRs gate the rest on the same switch: sign-up redirects and subtitles keep today's text, `/parent/call`
+ * - Later PRs gate the rest on the same switch: sign-up redirects and subtitles keep today's text, `/matchmaking/call`
  *   and `/admin/calls` → `notFound()`, the call-reminders cron → 404, no nav entry, no hub card, no email.
  */
 export function callBookingEnabled(): boolean {

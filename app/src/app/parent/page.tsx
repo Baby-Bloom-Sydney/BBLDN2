@@ -8,21 +8,49 @@ import {
 } from "@/lib/actions/position-funnel";
 import { getDfyStatus } from "@/lib/actions/matching";
 import { getParentBabysittingRequests } from "@/lib/actions/babysitting";
-import { babysittingEnabled } from "@/lib/features/flags";
+import { babysittingEnabled, callBookingEnabled } from "@/lib/features/flags";
 import { getPendingInvitesForUser } from "@/lib/actions/bapp/child-invites";
 import { POSITION_STAGE } from "@/lib/position/constants";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { ParentHubClient } from "./ParentHubClient";
 import type { ChildClient } from "@/types/bapp";
+import { ChildcareCall } from "@/components/calls/ChildcareCall";
+import { slotAtLine } from "@/lib/calls/copy";
+import { parseCallAt, parseCallPopup } from "@/lib/calls/next-path";
+import { slotWords } from "@/lib/calls/slot-words";
+import { loadHubCall } from "@/lib/calls/parent-state";
 
 const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === "true";
 
-export default async function ParentHubPage({
-  searchParams,
-}: {
-  searchParams: { t?: string; s?: string; v?: string };
-}) {
+/** Brief 04 (B7, review F5): a call-card error never fails the hub. Logged by error name only. */
+function noCallCard(thrown: unknown): null {
+  console.error("[parent/page] the call card could not be loaded", { name: thrown instanceof Error ? thrown.name : typeof thrown });
+  return null;
+}
+
+/**
+ * Brief 04 (04b rework W12): the call popup's `call` param (open | booked | gone), checked; with `gone`, the time that
+ * went (`at`) in London words for the notice. Anything else → null (ignored).
+ */
+type SearchParams = Readonly<Record<string, string | string[] | undefined>>;
+
+/** One value, or undefined for a missing or repeated param (TS review). */
+const one = (value: string | string[] | undefined): string | undefined => (typeof value === "string" ? value : undefined);
+
+function callPopupFrom(searchParams: SearchParams) {
+  const openWith = parseCallPopup(searchParams.call);
+  const at = openWith === "gone" ? parseCallAt(searchParams.at) : null;
+  return {
+    openWith,
+    goneWhen: at === null ? null : slotAtLine(slotWords(at)),
+    failed: openWith === "open" && one(searchParams.failed) === "1",
+  };
+}
+
+const NO_POPUP = { openWith: null, goneWhen: null, failed: false } as const;
+
+export default async function ParentHubPage({ searchParams }: { searchParams: SearchParams }) {
   let position: PositionWithChildren | null = null;
   let error: string | null = null;
 
@@ -47,6 +75,7 @@ export default async function ParentHubPage({
     bsrResult,
     educationChildrenRes,
     pendingInvitesResult,
+    callCard,
   ] = await Promise.all([
     getParentPlacement(),
     position?.id
@@ -67,6 +96,8 @@ export default async function ParentHubPage({
           .order("created_at", { ascending: true })
       : Promise.resolve({ data: [] }),
     user ? getPendingInvitesForUser() : Promise.resolve({ data: [] }),
+    // Brief 04 (B7): not called while CALL_BOOKING_ENABLED is off, so no call table is read.
+    callBookingEnabled() && user ? loadHubCall(user.id).catch(noCallCard) : Promise.resolve(null),
   ]);
 
   const placement = placementResult.data;
@@ -76,6 +107,13 @@ export default async function ParentHubPage({
   const dfyExpiresAt = dfyStatusResult.expiresAt;
   const dfyActivated = dfyStatusResult.activated;
   const babysittingRequests = bsrResult.data ?? [];
+  // Brief 04 §0a.4 (04b rework W9, W12, TS review): the call card — and the popup it opens, or that `call=` opens — only
+  // with the flag on and while no nanny is hired or connected; `call=` only while the call is offered to her (the
+  // card's rule), else it is ignored.
+  const offered = callCard?.offered === true;
+  const popup = callBookingEnabled() && offered ? callPopupFrom(searchParams) : NO_POPUP;
+  const card = callCard?.card ?? null;
+  const showCallCard = callBookingEnabled() && !placement && confirmedNannies.length === 0 && (card !== null || popup.openWith !== null);
   const showFillButton =
     position &&
     !placement &&
@@ -108,11 +146,13 @@ export default async function ParentHubPage({
         dfyExpiresAt={dfyExpiresAt}
         dfyActivated={dfyActivated}
         babysittingRequests={babysittingRequests}
-        initialTab={searchParams.t}
-        initialSub={searchParams.s}
-        initialView={searchParams.v}
+        initialTab={one(searchParams.t)}
+        initialSub={one(searchParams.s)}
+        initialView={one(searchParams.v)}
         educationChildren={(educationChildrenRes.data ?? []) as ChildClient[]}
         pendingInvites={pendingInvitesResult.data ?? []}
+        // Brief 04 (B7, W9): only with a card — while CALL_BOOKING_ENABLED is off the props are exactly today's.
+        {...(showCallCard ? { callCard: <ChildcareCall card={card} openWith={popup.openWith} goneWhen={popup.goneWhen} failed={popup.failed} /> } : {})}
       />
     </div>
   );

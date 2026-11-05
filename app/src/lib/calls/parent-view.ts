@@ -1,0 +1,213 @@
+/**
+ * What her call page and her hub card show (plan B6, B7; brief §3 parent 2–7, §0.5, §0.10). Pure: the loaders in
+ * `parent-state.ts` read, these decide. Every line is built here, on the server, in London words (`slot-words.ts`),
+ * so the device's zone can never matter (brief §3 parent 6). The client components import the types only.
+ *
+ * BB-wave1-041126/04b-build, 2026-11-04.
+ */
+
+import { isUkMobile, normaliseUkMobile } from "@/lib/uk-contact";
+import { bookedLine, heldLine, slotAtLine, yourCallLine } from "./copy";
+import { groupSlotGridByDay, type SlotDay } from "./group-slots-by-day";
+import type { SlotGrid } from "./slot-grid";
+import { slotWords } from "./slot-words";
+import { everBooked } from "./status";
+import { latestEntryOf } from "./to-call";
+import type { CallBooking, CallError, CallLogEntry, CallsResult, ScopeParent } from "./types";
+
+export interface BookedCallView {
+  readonly bookingId: string;
+  readonly startsAt: string;
+  /** "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00" */
+  readonly line: string;
+  /** "Tuesday 9 February, 14:00" — the booked slide (04b rework W5). */
+  readonly when: string;
+  /** "Your call: Tuesday 9 February at 14:00" — at the top while she changes it (W5, W12). */
+  readonly yourCall: string;
+  /** Change time and Cancel only before the start (brief §3 parent 4). */
+  readonly changeable: boolean;
+}
+
+export interface HeldCallView {
+  readonly holdId: string;
+  readonly startsAt: string;
+  /** "Your time is being reserved for 5 minutes" (W16; the green panel above names the time). */
+  readonly line: string;
+}
+
+/**
+ * Her page: booked (with the days for Change time, null if they couldn't be read), picking, or failed. `mobile` is
+ * her own number in UK national form for "We'll call you on …" (04b rework W5), or null.
+ */
+export type MyCallView =
+  | {
+      readonly kind: "booked";
+      readonly booking: BookedCallView;
+      readonly days: readonly SlotDay[] | null;
+      readonly mobile: string | null;
+      readonly needsPosition: boolean;
+    }
+  | {
+      readonly kind: "pick";
+      readonly afterNoAnswer: boolean;
+      readonly days: readonly SlotDay[];
+      readonly mobile: string | null;
+      /** No position yet (W11): a picked time isn't held; she completes her position first. */
+      readonly needsPosition: boolean;
+    }
+  | { readonly kind: "load_failed" };
+
+/** What the parent's actions can answer. Never a detail: a code the page turns into one of its lines. */
+export type MyCallRefusal =
+  | "taken"
+  | "too_soon"
+  | "hold_expired"
+  | "not_yours"
+  | "rate_limited"
+  | "invalid"
+  | "not_a_parent"
+  | "call_booking_disabled"
+  /** The call isn't offered to her (W17: out of scope, after an answered call or Stop calling, or a nanny). */
+  | "not_offered"
+  | "error";
+
+export type MyCallResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: MyCallRefusal };
+
+/** A confirmed time (brief 10 hooks `Schedule` on `moved: false, replay: false`; plan §12 R9). */
+export interface ConfirmedCallView {
+  readonly bookingId: string;
+  readonly moved: boolean;
+  readonly replay: boolean;
+  readonly booking: BookedCallView;
+}
+
+/**
+ * Every call operation's error as the parent may see it: a hold or booking gone is "not yours"; nothing internal.
+ * Typed as a full `Record` over `CallError` (review F3), so a new code fails to compile until it is mapped here.
+ */
+export const REFUSAL_FOR: Readonly<Record<CallError, MyCallRefusal>> = Object.freeze({
+  taken: "taken",
+  too_soon: "too_soon",
+  hold_expired: "hold_expired",
+  not_yours: "not_yours",
+  rate_limited: "rate_limited",
+  invalid: "invalid",
+  call_booking_disabled: "call_booking_disabled",
+  overlap: "taken",
+  not_found: "not_yours",
+  booked_call_exists: "error",
+  error: "error",
+});
+
+export function refusalOf(error: CallError): MyCallRefusal {
+  return REFUSAL_FOR[error];
+}
+
+/** Her booked first call (a cohort pre-book is brief 03's; the database allows one booked row per purpose). */
+export function myBookedCall(bookings: readonly CallBooking[]): CallBooking | null {
+  return bookings.find((b) => b.status === "booked" && b.purpose === "first_call") ?? null;
+}
+
+export function bookedViewOf(booking: Pick<CallBooking, "id" | "startsAt">, now: Date): BookedCallView {
+  const words = slotWords(booking.startsAt);
+  return {
+    bookingId: booking.id,
+    startsAt: booking.startsAt,
+    line: bookedLine(words),
+    when: `${words.day}, ${words.time}`,
+    yourCall: yourCallLine(slotAtLine(words)),
+    changeable: Date.parse(booking.startsAt) > now.getTime(),
+  };
+}
+
+/** Her mobile as she'd say it, "07700 900123" (UK national form; brief §0a.1 "the number we'll call"), or null. */
+export function nationalMobile(raw: string | null): string | null {
+  if (raw === null || !isUkMobile(raw)) return null;
+  const national = `0${normaliseUkMobile(raw).slice(3)}`;
+  return `${national.slice(0, 5)} ${national.slice(5)}`;
+}
+
+/** Her held time: the panel names it; the line says how long it is reserved (W16, the settings' `hold_minutes`). */
+export function heldViewOf(held: { readonly bookingId: string; readonly startsAt: string; readonly holdMinutes: number }): HeldCallView {
+  return { holdId: held.bookingId, startsAt: held.startsAt, line: heldLine(held.holdMinutes) };
+}
+
+/** Brief §0.10: her latest attempt went unanswered (No answer, Voicemail, Wrong number) and she hasn't booked since. */
+export function isAfterNoAnswer(bookings: readonly CallBooking[], entries: readonly CallLogEntry[]): boolean {
+  const last = latestEntryOf(entries);
+  if (last === null || last.result === null || last.result === "answered") return false;
+  return !bookings.some((b) => everBooked(b) && [b.bookedAt, b.movedAt].some((at) => at !== null && at > last.occurredAt));
+}
+
+/** The page's view from her three reads. The days are the whole grid, greyed where not free (04b rework W4). */
+export function callViewOf(reads: {
+  readonly bookings: CallsResult<readonly CallBooking[]>;
+  readonly entries: CallsResult<readonly CallLogEntry[]>;
+  readonly grid: CallsResult<SlotGrid>;
+  readonly now: Date;
+  /** Her number, already in national form (or null). */
+  readonly mobile: string | null;
+  /** She has no position yet (W11). */
+  readonly needsPosition?: boolean;
+}): MyCallView {
+  if (!reads.bookings.ok) return { kind: "load_failed" };
+  const days = reads.grid.ok ? groupSlotGridByDay(reads.grid.value) : null;
+  const facts = { mobile: reads.mobile, needsPosition: reads.needsPosition ?? false };
+  const booked = myBookedCall(reads.bookings.value);
+  if (booked !== null) return { kind: "booked", booking: bookedViewOf(booked, reads.now), days, ...facts };
+  if (days === null) return { kind: "load_failed" };
+  // Her attempts unreadable: she can still pick; there's just no "We tried to call you" line (review F6).
+  const afterNoAnswer = reads.entries.ok && isAfterNoAnswer(reads.bookings.value, reads.entries.value);
+  return { kind: "pick", afterNoAnswer, days, ...facts };
+}
+
+/**
+ * The call card on her Childcare tab (brief §0a.4; plan B7 → 04b rework W9): booked → "Tue 9 Feb, 14:00" (changeable
+ * before the start); not booked → Book a time, saying so after a no-answer.
+ */
+export type HubCallCard =
+  | { readonly kind: "booked"; readonly line: string; readonly changeable: boolean }
+  | { readonly kind: "not_booked"; readonly afterNoAnswer: boolean };
+
+const INVITE_SOURCES: ReadonlySet<string> = new Set(["nanny_invite", "parent_invite"]);
+
+/** Brief §3 "who appears": not from an invite (a NULL source counts, plan D7), signed up since Start call booking. */
+function inScope(parent: ScopeParent | null, enabledSince: string | null): boolean {
+  if (parent === null || enabledSince === null) return false;
+  const fromInvite = parent.signupSource !== null && INVITE_SOURCES.has(parent.signupSource);
+  return !fromInvite && parent.signedUpAt >= enabledSince;
+}
+
+/**
+ * The card's rule for offering her the call (TS review: shared by the card, the hub's `call=` popup and the in-app call
+ * after a new position): in scope, and never after an answered call or Stop calling (the call has happened, or BAI has
+ * stopped).
+ */
+export function callOffered(facts: {
+  readonly entries: readonly CallLogEntry[];
+  readonly parent: ScopeParent | null;
+  readonly enabledSince: string | null;
+}): boolean {
+  if (!inScope(facts.parent, facts.enabledSince)) return false;
+  return !facts.entries.some((e) => e.result === "answered" || e.outcome === "stop_calling");
+}
+
+/**
+ * Booked → her short London time (Change time while it's ahead). Not booked → Book a time (after a no-answer, "We tried
+ * to call you"), but only while the call is offered (`callOffered`). Otherwise no card. Whether a nanny is hired or
+ * connected is the page's to decide (W9).
+ */
+export function hubCardFor(facts: {
+  readonly bookings: readonly CallBooking[];
+  readonly entries: readonly CallLogEntry[];
+  readonly parent: ScopeParent | null;
+  readonly enabledSince: string | null;
+  readonly now: Date;
+}): HubCallCard | null {
+  const booked = myBookedCall(facts.bookings);
+  if (booked !== null) {
+    return { kind: "booked", line: slotWords(booked.startsAt).short, changeable: Date.parse(booked.startsAt) > facts.now.getTime() };
+  }
+  if (!callOffered(facts)) return null;
+  return { kind: "not_booked", afterNoAnswer: isAfterNoAnswer(facts.bookings, facts.entries) };
+}

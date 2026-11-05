@@ -31,6 +31,42 @@ export const PARENT_COPY = Object.freeze({
   change: "Change",
   goToMatches: "Go to my matches",
   retry: "Retry",
+  // 04b: the call page (BB-wave1-041126/04b-build)
+  // W14 (BAI 2026-11-05): parents are never told "London time" — "this is just a given". Times are still London.
+  pageIntro: "Pick a time and we'll call you then.",
+  pickHeading: "Pick a time",
+  pickHint: "Choose a time, then confirm it. We'll hold it for you while you do.",
+  confirmTime: "Confirm this time",
+  pickAnother: "Pick another time",
+  keepTime: "Keep my time",
+  notSet: "We couldn't do that — try again",
+  cancelQuestion: "Cancel your call?",
+  confirmCancel: "Yes, cancel it",
+  keepCall: "Keep it",
+  cancelledStatus: "Your call is cancelled — we'll still call you, or pick a new time.",
+  noLongerAvailable: "no longer available",
+  // 04b rework W4: the picker in the meet-and-greet grid's style (BB-wave1-041126/04b-rework)
+  availability: "Your matchmaker's availability",
+  selectTime: "Select a time",
+  confirmTimeButton: "Confirm time",
+  confirming: "Confirming...",
+  skipForNow: "Skip for now",
+  takenTitle: "This time has just been booked",
+  // 04b rework W5: the booked slide (BB-wave1-041126/04b-rework)
+  youreBooked: "You're booked",
+  goToChildcare: "Go to my childcare",
+  goToDashboard: "Go to my dashboard",
+  // 04b rework W9: the Childcare tab card (BB-wave1-041126/04b-rework)
+  bookATime: "Book a time",
+  // 04b rework W11: a parent with no position yet — BAI 2026-11-05, the line verbatim (W15: her button is "Confirm time")
+  completePositionLine: "Complete your childcare position so that we can confirm your call with your matchmaker.",
+  // 04b rework W12: the taken notice when the time that went isn't known
+  thatTime: "that time",
+  // 04b rework W15: the position flow's intro on the call path (BAI 2026-11-05, verbatim)
+  positionIntro: "Create your childcare position to get your best matches",
+  // 04b rework W14: the step-by-step picker
+  timeOfDay: "Time of day",
+  yourCurrentTime: "your current time",
 });
 
 export const ADMIN_COPY = Object.freeze({
@@ -51,14 +87,42 @@ export const ADMIN_COPY = Object.freeze({
   startCallBooking: "Start call booking",
 });
 
-/** "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00 (London time)" */
+/** Parent-facing (W14: no "London time"): "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00" */
 export function bookedLine(words: Pick<SlotWords, "day" | "time">): string {
-  return `Your ${CALL_NAME} is on ${words.day} at ${words.time} ${LONDON_TIME_SUFFIX}`;
+  return `Your ${CALL_NAME} is on ${words.day} at ${words.time}`;
 }
 
-/** The hub card: "Your Complimentary matchmaker call: Tue 9 Feb, 14:00 (London time)" */
-export function hubBookedLine(words: Pick<SlotWords, "short">): string {
-  return `Your ${CALL_NAME}: ${words.short} ${LONDON_TIME_SUFFIX}`;
+/**
+ * The held time's line, under the green panel that names it (04b rework W16; BAI 2026-11-05, verbatim, no full stop):
+ * "Your time is being reserved for 5 minutes" — the minutes are `call_settings.hold_minutes`; "1 minute" at one.
+ */
+export function heldLine(holdMinutes: number): string {
+  return `Your time is being reserved for ${holdMinutes} ${holdMinutes === 1 ? "minute" : "minutes"}`;
+}
+
+/** The picker's green panel (04b rework W4): "Tuesday 9 February at 14:00". */
+export function slotAtLine(words: Pick<SlotWords, "day" | "time">): string {
+  return `${words.day} at ${words.time}`;
+}
+
+/** The taken notice (04b rework W4, BAI 2026-11-05): "Someone else booked Tuesday 9 February at 14:00 a moment ago. …" */
+export function takenNoticeLine(when: string): string {
+  return `Someone else booked ${when} a moment ago. Please pick another time.`;
+}
+
+/** The booked slide (04b rework W5): "We'll call you on 07700 900123." */
+export function callOnLine(mobile: string): string {
+  return `We'll call you on ${mobile}.`;
+}
+
+/** Her booking, at the top while she changes it (04b rework W5, W12; W14 no "London time"): "Your call: Thursday 5 November at 10:00". */
+export function yourCallLine(at: string): string {
+  return `Your call: ${at}`;
+}
+
+/** Announced once she has booked (04b): "Done — Your Complimentary matchmaker call is on …." */
+export function doneLine(bookedText: string): string {
+  return `Done — ${bookedText}.`;
 }
 
 /** A full cohort pre-book day (brief §11 Q9): "We'll call you on Monday 8 February" */

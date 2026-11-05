@@ -143,6 +143,11 @@ interface ParentHubClientProps {
   initialView?: string;
   educationChildren?: ChildClient[];
   pendingInvites?: PendingInviteCard[];
+  /**
+   * Brief 04 §0a.4 (04b rework W9): the Complimentary matchmaker call card, at the top of the "My childcare" sub-tab.
+   * Absent while CALL_BOOKING_ENABLED is off, with a hired or connected nanny, or with no card.
+   */
+  callCard?: React.ReactNode;
 }
 
 function bsrFormatSlotDate(dateStr: string): string {
@@ -302,6 +307,7 @@ export function ParentHubClient({
   initialView,
   educationChildren = [],
   pendingInvites = [],
+  callCard,
 }: ParentHubClientProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -1748,6 +1754,9 @@ export function ParentHubClient({
               />
             </div>
           )}
+
+          {/* Brief 04 §0a.4 (04b rework W9): the call card at the top of My childcare. Absent → nothing, as today. */}
+          {nannySubTab === "childcare" && callCard ? <div className="px-4 pt-4">{callCard}</div> : null}
 
           {/* Sub-tab: My childcare */}
           {nannySubTab === "childcare" && (

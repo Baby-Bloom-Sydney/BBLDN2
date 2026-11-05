@@ -122,6 +122,7 @@ function reads(state: FakeCallsState): Omit<CallsRepo, "holdSlot" | "confirmHold
       ok([...state.entries].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)).slice(0, limit)),
     readScopeParents: async (enabledSince) =>
       ok(state.scope.filter((p) => (p.signupSource === null || !INVITES.has(p.signupSource)) && p.signedUpAt >= enabledSince)),
+    readScopeParent: async (userId) => ok(state.scope.find((p) => p.userId === userId) ?? null),
     readContacts: async (ids) => ok(state.contacts.filter((c) => ids.includes(c.userId))),
     readLatestPositionId: async () => ok(state.latestPositionId),
   };

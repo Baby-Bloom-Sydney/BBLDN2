@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Module-scope so test assertions get typed access to insertCall payloads
 // (per typescript-reviewer feedback — keeping it inside vi.hoisted scoped
@@ -201,5 +201,89 @@ describe("signUp() — parent mobile validation (T-021)", () => {
     // Confirm we used the nanny insert path, not parent.
     expect(insertCalls.some((c) => c.table === "nannies")).toBe(true);
     expect(insertCalls.some((c) => c.table === "parents")).toBe(false);
+  });
+});
+
+// ── Brief 04b (plan B4; brief §6 row 2, §9.1): the redirects in both CALL_BOOKING_ENABLED states. Add-only. ──
+// Off is today: nanny → /nanny, invite → /invite/<token>?auto=1, parent → /parent. 04b rework W7 (brief §0a.5): a cold
+// /signup is today's in both states too — she books her call after creating her position (place 2).
+
+const INVITE_TOKEN = "ABCD-EFGH";
+
+function withPendingInvite() {
+  const fallback = mocks.adminFromMock.getMockImplementation()!;
+  mocks.adminFromMock.mockImplementation((table: string) => {
+    if (table !== "child_invites") return fallback(table);
+    return {
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          maybeSingle: vi.fn(async () => ({
+            data: {
+              direction: "nanny_to_parent",
+              status: "pending",
+              child_client_id: "cc-1",
+              created_by_user_id: null,
+              child_client: { first_name: "Lily" },
+            },
+            error: null,
+          })),
+        })),
+      })),
+    } as unknown as ReturnType<typeof fallback>;
+  });
+}
+
+describe.each([
+  ["off", "", "/parent"],
+  ["on", "true", "/parent"],
+])("signUp() redirects with CALL_BOOKING_ENABLED %s (brief 04b)", (_state, flag, parentTarget) => {
+  beforeEach(() => vi.stubEnv("CALL_BOOKING_ENABLED", flag));
+  afterEach(() => vi.unstubAllEnvs());
+
+  it(`a cold parent sign-up, no invite → ${parentTarget}`, async () => {
+    expect(await signUp(buildFormData())).toEqual({ success: true, redirectTo: parentTarget });
+  });
+
+  it("nanny → /nanny, as today", async () => {
+    expect(await signUp(buildFormData({ role: "nanny", mobile_number: undefined }))).toEqual({ success: true, redirectTo: "/nanny" });
+  });
+
+  it("parent through a nanny's invite → /invite/<token>?auto=1, as today", async () => {
+    withPendingInvite();
+    expect(await signUp(buildFormData({ invite_token: INVITE_TOKEN }))).toEqual({
+      success: true,
+      redirectTo: `/invite/${INVITE_TOKEN}?auto=1`,
+    });
+    expect(mocks.signupViaInviteMock).toHaveBeenCalledWith({ token: INVITE_TOKEN, userId: VALID_USER_ID });
+  });
+});
+
+// ── 04b rework W11 (BAI 2026-11-05, brief §0a.6): a quick-match sign-up (`/signup?src=std`, signup_source
+//    standard_match) lands on the call slide, then her Childcare tab. A cold /signup stays on today's redirect. ──
+describe.each([
+  ["off", "", "/parent"],
+  ["on", "true", "/matchmaking/call?next=%2Fparent%3Ft%3Dchildcare"],
+])("signUp() — quick match with CALL_BOOKING_ENABLED %s (W11)", (_state, flag, target) => {
+  beforeEach(() => vi.stubEnv("CALL_BOOKING_ENABLED", flag));
+  afterEach(() => vi.unstubAllEnvs());
+
+  it(`quick-match parent → ${target}`, async () => {
+    expect(await signUp(buildFormData({ signupSource: "standard_match" }))).toEqual({ success: true, redirectTo: target });
+  });
+
+  it("a cold parent sign-up → /parent", async () => {
+    expect(await signUp(buildFormData({ signupSource: "direct" }))).toEqual({ success: true, redirectTo: "/parent" });
+  });
+
+  it("a quick-match nanny → /nanny; a quick-match parent through an invite → the invite, as today", async () => {
+    expect(await signUp(buildFormData({ role: "nanny", mobile_number: undefined, signupSource: "standard_match" }))).toEqual({
+      success: true,
+      redirectTo: "/nanny",
+    });
+    withPendingInvite();
+    expect(await signUp(buildFormData({ invite_token: INVITE_TOKEN, signupSource: "standard_match" }))).toEqual({
+      success: true,
+      redirectTo: `/invite/${INVITE_TOKEN}?auto=1`,
+    });
   });
 });

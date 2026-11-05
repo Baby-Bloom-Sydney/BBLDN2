@@ -342,3 +342,36 @@ describe("ParentHubClient — babysitting tab while BABYSITTING_ENABLED is off (
     expect(screen.getByText("Find Babysitter")).toBeInTheDocument();
   });
 });
+
+// ── Brief 04 §0a.4 (04b rework W9): the call card sits at the top of the "My childcare" sub-tab. The B7 top-of-hub
+//    slot and its `pt-16 xl:pt-0` are gone. Add-only otherwise. ──
+describe("the call card on the Childcare tab (04b rework W9)", () => {
+  const follows = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  const card = <p data-testid="call-card">CARD</p>;
+
+  it("inside the Childcare tab's panel, after the hub's hero and sub-tabs — not above the hub", () => {
+    const { container } = render(<ParentHubClient position={POSITION} callCard={card} />);
+    const hero = container.querySelector(".rounded-2xl") as Node;
+    const subTab = screen.getByRole("button", { name: "My childcare" });
+    expect(follows(hero, screen.getByTestId("call-card"))).toBe(true);
+    expect(follows(subTab, screen.getByTestId("call-card"))).toBe(true);
+  });
+
+  it("no top-of-hub slot and no 64px offset, with or without the banner", () => {
+    render(<ParentHubClient position={null} callCard={card} />);
+    expect(screen.getByTestId("call-card").closest(".pt-16")).toBeNull();
+    const banner = screen.getByRole("region", { name: "Position incomplete notice" });
+    expect(banner.nextElementSibling?.contains(screen.getByTestId("call-card"))).toBe(false);
+  });
+
+  it("only on the My childcare sub-tab", async () => {
+    render(<ParentHubClient position={POSITION} callCard={card} initialSub="connections" />);
+    expect(screen.queryByTestId("call-card")).toBeNull();
+  });
+
+  it("no card: nothing extra — the banner is still the first thing", () => {
+    const { container } = render(<ParentHubClient position={null} />);
+    expect(screen.queryByTestId("call-card")).toBeNull();
+    expect(container.firstElementChild).toBe(screen.getByRole("region", { name: "Position incomplete notice" }));
+  });
+});

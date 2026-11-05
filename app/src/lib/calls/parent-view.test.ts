@@ -1,0 +1,227 @@
+/**
+ * parent-view.ts (plan B6, B7): what her call page and her hub card show, built server-side as London words so the
+ * device's zone can't matter. Pure.
+ */
+import { describe, expect, it } from "vitest";
+import { bookingRow, entryRow } from "./fake-calls-repo.test-util";
+import { REFUSAL_FOR, bookedViewOf, callOffered, callViewOf, heldViewOf, hubCardFor, isAfterNoAnswer, myBookedCall, nationalMobile, refusalOf } from "./parent-view";
+import type { SlotGrid } from "./slot-grid";
+import type { CallsResult } from "./types";
+
+const HER = "b0400000-0000-4000-8000-000000000001";
+const NOW = new Date("2027-02-04T10:00:00.000Z");
+const TUE_14 = "2027-02-09T14:00:00.000Z";
+const ok = <T>(value: T): CallsResult<T> => ({ ok: true, value });
+const FAILED = { ok: false, error: "error" } as const;
+/** The picker's grid (04b rework W4): every date in the window, every slot with its free flag. */
+const SLOTS: SlotGrid = { dates: ["2027-02-09"], slots: [{ startsAt: TUE_14, endsAt: "2027-02-09T14:30:00.000Z", free: true }] };
+const NONE: SlotGrid = { dates: [], slots: [] };
+
+describe("myBookedCall", () => {
+  it("her booked first call; never a pre-book, a hold or a closed row", () => {
+    const first = bookingRow({ parentUserId: HER, startsAt: TUE_14 });
+    expect(myBookedCall([bookingRow({ parentUserId: HER, startsAt: TUE_14, purpose: "cohort_prebook" }), first])).toBe(first);
+    expect(myBookedCall([bookingRow({ parentUserId: HER, startsAt: TUE_14, status: "held", bookedAt: null })])).toBeNull();
+    expect(myBookedCall([bookingRow({ parentUserId: HER, startsAt: TUE_14, status: "done" })])).toBeNull();
+    expect(myBookedCall([])).toBeNull();
+  });
+});
+
+describe("bookedViewOf / heldViewOf", () => {
+  it("the booked line in London words; changeable only before the start", () => {
+    expect(bookedViewOf({ id: "b-1", startsAt: TUE_14 }, NOW)).toEqual({
+      bookingId: "b-1",
+      startsAt: TUE_14,
+      line: "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00",
+      when: "Tuesday 9 February, 14:00",
+      yourCall: "Your call: Tuesday 9 February at 14:00",
+      changeable: true,
+    });
+    expect(bookedViewOf({ id: "b-1", startsAt: TUE_14 }, new Date(TUE_14)).changeable).toBe(false);
+  });
+
+  it("the held line says how long it is reserved, from the hold's own minutes (W16); the panel above names the time", () => {
+    expect(heldViewOf({ bookingId: "h-1", startsAt: TUE_14, holdMinutes: 5 })).toEqual({
+      holdId: "h-1",
+      startsAt: TUE_14,
+      line: "Your time is being reserved for 5 minutes",
+    });
+  });
+
+  it("not hardcoded: the settings' minutes, singular at one", () => {
+    expect(heldViewOf({ bookingId: "h", startsAt: TUE_14, holdMinutes: 12 }).line).toBe("Your time is being reserved for 12 minutes");
+    expect(heldViewOf({ bookingId: "h", startsAt: TUE_14, holdMinutes: 1 }).line).toBe("Your time is being reserved for 1 minute");
+  });
+});
+
+describe("isAfterNoAnswer (brief §0.10)", () => {
+  const noAnswer = entryRow({ parentUserId: HER, occurredAt: "2027-02-03T14:05:00.000Z", result: "no_answer" });
+
+  it("her latest attempt went unanswered and she hasn't booked since", () => {
+    expect(isAfterNoAnswer([], [noAnswer])).toBe(true);
+    expect(isAfterNoAnswer([], [entryRow({ ...noAnswer, result: "voicemail" })])).toBe(true);
+  });
+
+  it("not after an answered call, Stop calling, no attempt, or a booking made since", () => {
+    expect(isAfterNoAnswer([], [])).toBe(false);
+    expect(isAfterNoAnswer([], [entryRow({ ...noAnswer, result: "answered" })])).toBe(false);
+    expect(isAfterNoAnswer([], [entryRow({ ...noAnswer, result: null, outcome: "stop_calling" })])).toBe(false);
+    const since = bookingRow({ parentUserId: HER, startsAt: TUE_14, status: "cancelled", cancelReason: "parent", bookedAt: "2027-02-03T15:00:00.000Z" });
+    expect(isAfterNoAnswer([since], [noAnswer])).toBe(false);
+    const before = bookingRow({ parentUserId: HER, startsAt: "2027-02-03T14:00:00.000Z", status: "no_answer", bookedAt: "2027-02-01T10:00:00.000Z" });
+    expect(isAfterNoAnswer([before], [noAnswer])).toBe(true);
+  });
+});
+
+describe("nationalMobile (04b rework W5: \"We'll call you on <her mobile, UK national format>\")", () => {
+  it.each([
+    ["+447700900123", "07700 900123"],
+    ["07700900123", "07700 900123"],
+    ["+44 (0) 7700 900 123", "07700 900123"],
+  ])("%s → %s", (raw, national) => {
+    expect(nationalMobile(raw)).toBe(national);
+  });
+
+  it.each([null, "", "12345", "+33 6 12 34 56 78"])("%s → null (no line)", (raw) => {
+    expect(nationalMobile(raw)).toBeNull();
+  });
+});
+
+describe("callViewOf", () => {
+  it("carries her mobile, in national form, on the picking and booked views (W5)", () => {
+    const pick = callViewOf({ bookings: ok([]), entries: ok([]), grid: ok(SLOTS), now: NOW, mobile: "07700 900123" });
+    expect(pick.kind === "pick" && pick.mobile).toBe("07700 900123");
+    const booked = callViewOf({ bookings: ok([bookingRow({ parentUserId: HER, startsAt: TUE_14 })]), entries: ok([]), grid: ok(SLOTS), now: NOW, mobile: null });
+    expect(booked.kind === "booked" && booked.mobile).toBeNull();
+  });
+
+  it("the picker's days are the whole grid: every date, every slot, free or not (04b rework W4)", () => {
+    const grid: SlotGrid = {
+      dates: ["2027-02-09", "2027-02-10"],
+      slots: [{ startsAt: TUE_14, endsAt: "2027-02-09T14:30:00.000Z", free: false }],
+    };
+    const view = callViewOf({ bookings: ok([]), entries: ok([]), grid: ok(grid), now: NOW, mobile: null });
+    expect(view.kind === "pick" && view.days.map((d) => [d.legend, d.slots.map((x) => x.free)])).toEqual([
+      ["Tuesday 9 February", [false]],
+      ["Wednesday 10 February", []],
+    ]);
+  });
+
+  it("booked → her booking, and the free days for Change time", () => {
+    const view = callViewOf({ bookings: ok([bookingRow({ id: "b-1", parentUserId: HER, startsAt: TUE_14 })]), entries: ok([]), grid: ok(SLOTS), now: NOW, mobile: null });
+    expect(view.kind).toBe("booked");
+    expect(view.kind === "booked" && [view.booking.bookingId, view.days?.[0].legend]).toEqual(["b-1", "Tuesday 9 February"]);
+  });
+
+  it("booked with the slots unreadable → still booked, no days", () => {
+    const view = callViewOf({ bookings: ok([bookingRow({ parentUserId: HER, startsAt: TUE_14 })]), entries: ok([]), grid: FAILED, now: NOW, mobile: null });
+    expect(view.kind === "booked" && view.days).toBeNull();
+  });
+
+  it("not booked → the days, grouped, with the after-no-answer flag", () => {
+    const entries = ok([entryRow({ parentUserId: HER, occurredAt: "2027-02-03T14:05:00.000Z", result: "no_answer" })]);
+    const view = callViewOf({ bookings: ok([]), entries, grid: ok(SLOTS), now: NOW, mobile: null });
+    expect(view).toEqual({ kind: "pick", afterNoAnswer: true, days: [expect.objectContaining({ legend: "Tuesday 9 February" })], mobile: null, needsPosition: false });
+    expect(callViewOf({ bookings: ok([]), entries: ok([]), grid: ok(NONE), now: NOW, mobile: null })).toEqual({ kind: "pick", afterNoAnswer: false, days: [], mobile: null, needsPosition: false });
+  });
+
+  it("the bookings or the slots unreadable (without a known booking) → load_failed", () => {
+    expect(callViewOf({ bookings: FAILED, entries: ok([]), grid: ok(SLOTS), now: NOW, mobile: null })).toEqual({ kind: "load_failed" });
+    expect(callViewOf({ bookings: ok([]), entries: ok([]), grid: FAILED, now: NOW, mobile: null })).toEqual({ kind: "load_failed" });
+  });
+
+  it("the attempts unreadable → she can still pick; just no after-no-answer line (review F6)", () => {
+    expect(callViewOf({ bookings: ok([]), entries: FAILED, grid: ok(SLOTS), now: NOW, mobile: null })).toEqual({
+      kind: "pick",
+      afterNoAnswer: false,
+      days: [expect.objectContaining({ legend: "Tuesday 9 February" })],
+      mobile: null,
+      needsPosition: false,
+    });
+  });
+});
+
+describe("refusalOf", () => {
+  it("passes the parent-facing codes through and folds the rest", () => {
+    for (const code of ["taken", "too_soon", "hold_expired", "not_yours", "rate_limited", "invalid", "call_booking_disabled"] as const) {
+      expect(refusalOf(code)).toBe(code);
+    }
+    expect(refusalOf("overlap")).toBe("taken");
+    expect(refusalOf("not_found")).toBe("not_yours");
+    expect(refusalOf("booked_call_exists")).toBe("error");
+    expect(refusalOf("error")).toBe("error");
+  });
+
+  it("is one exhaustive table over every CallError (review F3: a new code won't compile until it is mapped)", () => {
+    expect(Object.keys(REFUSAL_FOR).sort()).toEqual([
+      "booked_call_exists",
+      "call_booking_disabled",
+      "error",
+      "hold_expired",
+      "invalid",
+      "not_found",
+      "not_yours",
+      "overlap",
+      "rate_limited",
+      "taken",
+      "too_soon",
+    ]);
+    expect(Object.isFrozen(REFUSAL_FOR)).toBe(true);
+  });
+});
+
+describe("hubCardFor (plan B7; the Childcare tab card since 04b rework W9, brief §0a.4)", () => {
+  const SWITCH_ON = "2027-02-01T09:00:00.000Z";
+  const inScope = { userId: HER, signupSource: "advanced_match", signedUpAt: "2027-02-03T10:00:00.000Z" };
+  const base = { bookings: [], entries: [], parent: inScope, enabledSince: SWITCH_ON, now: NOW };
+
+  it("booked → '<Day d Mon>, <HH:MM>', changeable before the start (W9)", () => {
+    expect(hubCardFor({ ...base, bookings: [bookingRow({ parentUserId: HER, startsAt: TUE_14 })] })).toEqual({
+      kind: "booked",
+      line: "Tue 9 Feb, 14:00",
+      changeable: true,
+    });
+    expect(hubCardFor({ ...base, now: new Date(TUE_14), bookings: [bookingRow({ parentUserId: HER, startsAt: TUE_14 })] })).toMatchObject({ changeable: false });
+  });
+
+  it("not booked, in scope → not_booked (a NULL source counts); after a no-answer it says so (W9)", () => {
+    expect(hubCardFor(base)).toEqual({ kind: "not_booked", afterNoAnswer: false });
+    expect(hubCardFor({ ...base, parent: { ...inScope, signupSource: null } })).toMatchObject({ kind: "not_booked" });
+    expect(hubCardFor({ ...base, entries: [entryRow({ parentUserId: HER, occurredAt: "2027-02-03T12:00:00.000Z", result: "no_answer" })] })).toEqual({
+      kind: "not_booked",
+      afterNoAnswer: true,
+    });
+  });
+
+  it("hidden after Answered or Stop calling", () => {
+    expect(hubCardFor({ ...base, entries: [entryRow({ parentUserId: HER, occurredAt: "2027-02-03T12:00:00.000Z", result: "answered", outcome: "call_back_later" })] })).toBeNull();
+    expect(hubCardFor({ ...base, entries: [entryRow({ parentUserId: HER, occurredAt: "2027-02-03T12:00:00.000Z", result: null, outcome: "stop_calling" })] })).toBeNull();
+  });
+
+  it("hidden outside the scope: an invite sign-up, before switch-on, switch-on not pressed, no parents row", () => {
+    expect(hubCardFor({ ...base, parent: { ...inScope, signupSource: "nanny_invite" } })).toBeNull();
+    expect(hubCardFor({ ...base, parent: { ...inScope, signupSource: "parent_invite" } })).toBeNull();
+    expect(hubCardFor({ ...base, parent: { ...inScope, signedUpAt: "2027-01-31T09:00:00.000Z" } })).toBeNull();
+    expect(hubCardFor({ ...base, enabledSince: null })).toBeNull();
+    expect(hubCardFor({ ...base, parent: null })).toBeNull();
+  });
+});
+
+describe("callOffered (TS review: the card's rule, shared with the in-app call after a new position)", () => {
+  const inScope = { userId: HER, signupSource: "standard_match", signedUpAt: "2027-02-03T10:00:00.000Z" };
+  const base = { entries: [], parent: inScope, enabledSince: "2027-02-01T09:00:00.000Z" };
+
+  it("in scope and not after an answered call or Stop calling → offered", () => {
+    expect(callOffered(base)).toBe(true);
+    expect(callOffered({ ...base, entries: [entryRow({ parentUserId: HER, occurredAt: "2027-02-03T12:00:00.000Z", result: "no_answer" })] })).toBe(true);
+  });
+
+  it("an invite sign-up, before switch-on, switch-on not pressed, no parents row, answered, Stop calling → not offered", () => {
+    expect(callOffered({ ...base, parent: { ...inScope, signupSource: "nanny_invite" } })).toBe(false);
+    expect(callOffered({ ...base, parent: { ...inScope, signedUpAt: "2027-01-31T09:00:00.000Z" } })).toBe(false);
+    expect(callOffered({ ...base, enabledSince: null })).toBe(false);
+    expect(callOffered({ ...base, parent: null })).toBe(false);
+    expect(callOffered({ ...base, entries: [entryRow({ parentUserId: HER, occurredAt: "2027-02-03T12:00:00.000Z", result: "answered", outcome: "call_back_later" })] })).toBe(false);
+    expect(callOffered({ ...base, entries: [entryRow({ parentUserId: HER, occurredAt: "2027-02-03T12:00:00.000Z", result: null, outcome: "stop_calling" })] })).toBe(false);
+  });
+});

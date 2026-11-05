@@ -13,6 +13,8 @@ import { capitalizeName } from "@/lib/utils";
 import { signupViaInvite } from "@/lib/actions/bapp/child-invites";
 import { isUkMobile, normaliseUkMobile } from "@/lib/uk-contact";
 import { SITE_URL } from "@/lib/constants";
+import { callBookingEnabled } from "@/lib/features/flags";
+import { callPagePath, CHILDCARE_TAB } from "@/lib/calls/next-path";
 
 const INVITE_TOKEN_REGEX = /^[A-HJKMN-Z2-9]{4}-[A-HJKMN-Z2-9]{4}$/;
 
@@ -413,9 +415,11 @@ export async function signUp(formData: FormData): Promise<ActionResult> {
       };
     }
 
+    // Brief 04 §0a.6 (04b rework W11): a quick-match parent goes on to her call while CALL_BOOKING_ENABLED is on.
+    const quickMatchCall = callBookingEnabled() && role === "parent" && signupSource === "standard_match";
     return {
       success: true,
-      redirectTo: getDashboardPath(role),
+      redirectTo: quickMatchCall ? callPagePath(CHILDCARE_TAB) : getDashboardPath(role),
     };
   } catch (error) {
     console.error("Signup error:", error);

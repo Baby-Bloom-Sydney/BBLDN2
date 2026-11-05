@@ -26,7 +26,7 @@ export interface GenerateSlotsInput {
   readonly slotMinutes: number;
 }
 
-function datesBetween(fromDate: string, toDate: string): readonly string[] {
+export function datesBetween(fromDate: string, toDate: string): readonly string[] {
   const dates: string[] = [];
   for (let date = fromDate; date <= toDate; date = addLondonDays(date, 1)) dates.push(date);
   return dates;
