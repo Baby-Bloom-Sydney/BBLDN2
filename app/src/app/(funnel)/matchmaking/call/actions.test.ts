@@ -46,21 +46,25 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 
-describe("the call must be offered to hold or confirm (W17, final review item 12)", () => {
-  it("not offered (stop_calling, answered, out of scope, a nanny) → not_offered; nothing held or confirmed", async () => {
+describe("the call must be offered to hold (W17 items 12, 15)", () => {
+  it("not offered (stop_calling, answered, out of scope, a nanny) → not_offered; nothing held", async () => {
     h.allowed.mockResolvedValue("no");
     expect(await holdMyCallSlot(TUE_14)).toEqual({ ok: false, error: "not_offered" });
-    expect(await confirmMyCallHold(HOLD, "key-1")).toEqual({ ok: false, error: "not_offered" });
     expect(h.hold).not.toHaveBeenCalled();
-    expect(h.confirm).not.toHaveBeenCalled();
     expect(h.allowed).toHaveBeenCalledWith(HER);
   });
 
-  it("the check couldn't be read → the generic error; nothing held or confirmed", async () => {
+  it("the check couldn't be read → the generic error; nothing held", async () => {
     h.allowed.mockResolvedValue("unknown");
     expect(await holdMyCallSlot(TUE_14)).toEqual({ ok: false, error: "error" });
-    expect(await confirmMyCallHold(HOLD, "key-1")).toEqual({ ok: false, error: "error" });
     expect(bookingCalls()).toEqual([]);
+  });
+
+  it("item 15: confirm doesn't run the check — it needs her own live hold, which only an offered parent can get", async () => {
+    h.allowed.mockResolvedValue("no");
+    expect((await confirmMyCallHold(HOLD, "key-1")).ok).toBe(true);
+    expect(h.confirm).toHaveBeenCalledWith(HER, HOLD, "key-1");
+    expect(h.allowed).not.toHaveBeenCalled();
   });
 
   it("only after the switch, the input and the session: a bad input or no parent never runs the check", async () => {

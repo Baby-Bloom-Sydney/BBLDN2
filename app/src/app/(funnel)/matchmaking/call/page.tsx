@@ -17,7 +17,8 @@ import { CallPageClient } from "./CallPageClient";
  * checked (`next-path.ts`): onward never leaves `/parent`. `?change=1` opens straight into changing her time (W5).
  *
  * W17 item 13: the same rule as the hold and confirm actions (`mayBookNow`: the card's rule, or a booked call still
- * ahead she is changing, and no hired or connected nanny), read alongside her view (no extra round trip). "no" —
+ * ahead she is changing, and no hired or connected nanny). It runs alongside her view load (Promise.all), not after
+ * it, though its own reads still add work to the request. "no" —
  * before Start call booking, after Stop calling or an answered call, out of scope, or with a nanny — sends her straight
  * onward to the checked `next`, so the slide never shows a picker whose taps would be refused. "yes" renders as
  * before; so does "unknown" (her view and the actions already handle a read that failed).

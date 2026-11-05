@@ -1,14 +1,16 @@
 /**
- * May she hold or confirm a call time right now? (04b rework W17, final review item 12.) The hold and confirm
- * actions ask this after their own gate (switch, input, session), so a parent the app wouldn't offer the call to can't
- * book one by calling the action directly:
+ * May she hold a call time right now? (04b rework W17, final review items 12, 13, 15.) The hold action and the call
+ * slide's page ask this after their own gate (switch, input, session), so a parent the app wouldn't offer the call to
+ * can't book one by calling the action directly, and isn't shown a picker whose taps would be refused. Confirm doesn't
+ * ask again: it needs her own live hold, which only this rule lets her get.
  *
  *   the card's rule (`callOffered`: in scope; not after an answered call or Stop calling) — or a booked call still
  *   ahead, which the card shows offered or not (she is changing her time) — and no hired or connected nanny (the
  *   page's rule for the card, W9) → "yes"
  *   a definite no from either → "no";  a read that failed or threw → "unknown" (refused with the generic code)
  *
- * Server-only, not `"use server"`: it takes the session's parent id, which its caller has already proved.
+ * Server-only, not `"use server"`: it takes the session's parent id, which its caller has already proved. (No
+ * `import "server-only"`: the package isn't a dependency of this app, and W17 adds none.)
  *
  * BB-wave1-041126/04b-rework, 2026-11-05.
  */
