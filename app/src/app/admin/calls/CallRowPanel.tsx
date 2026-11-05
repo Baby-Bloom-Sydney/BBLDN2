@@ -6,8 +6,9 @@
  * then: contact (the Call control), her matchmaker call (book, move or cancel on her behalf), the outcome form, her
  * position and nannies, the deposit (read-only), and every past attempt. Every time is London, and it says so.
  *
- * After any write `onChanged` refreshes the page (the server re-reads her); the picker and the form start fresh
- * when her booking changes (`key`).
+ * After any write `onChanged` refreshes the page (the server re-reads her). The picker and the form are not remounted
+ * by that refresh, so their status lines ("Booked — the family is emailed.", "Saved.") stay; the picker takes the
+ * fresh days from its props.
  */
 
 import { ADMIN_COPY } from "@/lib/calls/copy";
@@ -37,7 +38,6 @@ function Header({ panel }: { readonly panel: FamilyPanel }) {
 export function CallRowPanel({ panel, renderCallControl, onChanged }: CallRowPanelProps) {
   const booking = panel.booking;
   const target = { parentUserId: panel.parentUserId, bookingId: booking?.bookingId ?? null, contact: panel.contact };
-  const bookingKey = booking ? `${booking.bookingId}:${booking.startsAt}` : "none";
   return (
     <div className="flex h-full flex-col">
       <Header panel={panel} />
@@ -47,9 +47,9 @@ export function CallRowPanel({ panel, renderCallControl, onChanged }: CallRowPan
           <ContactLines contact={panel.contact} call={renderCallControl(target)} />
         </PanelBlock>
         <PanelBlock title={ADMIN_COPY.panelBooking}>
-          <OnBehalfPicker key={bookingKey} parentUserId={panel.parentUserId} booking={booking} days={panel.days} onChanged={onChanged} />
+          <OnBehalfPicker parentUserId={panel.parentUserId} booking={booking} days={panel.days} onChanged={onChanged} />
         </PanelBlock>
-        <OutcomeForm key={`outcome:${bookingKey}`} parentUserId={panel.parentUserId} bookingId={booking?.bookingId ?? null} onSaved={onChanged} />
+        <OutcomeForm parentUserId={panel.parentUserId} bookingId={booking?.bookingId ?? null} onSaved={onChanged} />
         <PanelBlock title={ADMIN_COPY.panelPosition}>
           <PositionCell position={panel.position} />
           {panel.position && <p className="text-sm text-slate-700">{panel.position.nannies}</p>}

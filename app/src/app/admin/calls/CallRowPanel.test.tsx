@@ -5,15 +5,17 @@
  * says the times are London time.
  */
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("./actions", () => ({
+const actions = vi.hoisted(() => ({
   holdCallForFamily: vi.fn(),
   confirmCallForFamily: vi.fn(),
   cancelCallForFamily: vi.fn(),
   reloadFamilySlots: vi.fn(),
   recordCallOutcomeAction: vi.fn(),
 }));
+vi.mock("./actions", () => actions);
 
 import { defaultCallControl } from "./CallRowParts";
 import { CallRowPanel } from "./CallRowPanel";
@@ -75,6 +77,18 @@ describe("CallRowPanel", () => {
     expect(items[0]).toHaveTextContent("Call back Fri 5 Feb, 17:00 (London time)");
     expect(items[1]).toHaveTextContent("Rang twice");
     expect(items[1]).toHaveTextContent("by Bai Admin");
+  });
+
+  it("the page's refresh after a write keeps the drawer's status lines (the picker and the form aren't remounted)", async () => {
+    const user = userEvent.setup();
+    actions.cancelCallForFamily.mockResolvedValue({ ok: true, value: { bookingId: PANEL.booking!.bookingId } });
+    const { rerender } = render(<CallRowPanel panel={PANEL} renderCallControl={defaultCallControl} onChanged={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Cancel booking" }));
+    await user.click(screen.getByRole("button", { name: "Yes, cancel it" }));
+    expect(await screen.findByText("Cancelled — the family is back under Not booked.")).toBeInTheDocument();
+    rerender(<CallRowPanel panel={{ ...PANEL, booking: null, days: [...PANEL.days!] }} renderCallControl={defaultCallControl} onChanged={vi.fn()} />);
+    expect(screen.getByText("Cancelled — the family is back under Not booked.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Book a matchmaker call" })).toBeInTheDocument();
   });
 
   it("no attempts yet says so", () => {

@@ -25,12 +25,17 @@
  * one temporary `call_blocks` row (removed). `call_settings.enabled_since` and `caller_number` get fixture values
  * for the walk and are restored after (plan §12 R11: never stamped on read).
  *
- * BB-wave1-041126/04b-build, 2026-11-04; BB-wave1-041126/04b-rework, 2026-11-05.
+ * 04c-1 adds the staff Calls tab (at the end of this file; `--grep "Calls tab"`): fixture families in every section and
+ * with every tag, read by an admin in the same Sydney-zone browser; the drawer, an outcome and booking, moving and
+ * cancelling on a family's behalf; and the flag-off checks.
+ *
+ * BB-wave1-041126/04b-build, 2026-11-04; BB-wave1-041126/04b-rework, 2026-11-05; BB-wave1-041126/04c1-build, 2026-11-05.
  */
 import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { CALLS_PASSWORD, createCallsFixture, localDb, removeCallsFixture, type CallsFixture } from "./fixtures/call-admin";
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3101";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
@@ -408,5 +413,281 @@ test.describe.serial("call booking — flag off (local stack)", () => {
     const response = await page.goto(`${BASE_URL}/matchmaking/call`, { timeout: 180_000 });
     expect(response?.status()).toBe(404);
     await shoot(page, "flag-off-404");
+  });
+});
+
+// ── 04c-1: the staff Calls tab (plan C7; brief §9.1, §9.8–9.11; BB-wave1-041126/04c1-build) ───────────────────────
+//
+// Fixture families in every section and with every tag (`fixtures/call-admin.ts`, local stack only), read by an admin
+// in an Australia/Sydney browser: every time on /admin/calls must still be London's, and say so (brief §3 admin 1).
+// Run just these with `--grep "Calls tab"`; screenshots go to B04C1_PROOF_DIR.
+
+const C1_PROOF_DIR = process.env.B04C1_PROOF_DIR ?? "test-results/b04c1";
+
+const LONDON_SHORT = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+
+/** "Thu 5 Nov, 14:00 (London time)" — what every admin time must read, whatever the browser's zone. */
+function londonLabelOf(iso: string): string {
+  const parts = LONDON_SHORT.formatToParts(new Date(iso));
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${part("weekday")} ${part("day")} ${part("month")}, ${part("hour")}:${part("minute")} (London time)`;
+}
+
+/** The elements wider than the window (a page that scrolls sideways), or none. */
+async function sideScroll(page: Page): Promise<readonly string[]> {
+  return page.evaluate(() => {
+    const vw = document.documentElement.clientWidth;
+    if (document.documentElement.scrollWidth <= vw) return [];
+    return [...document.querySelectorAll("body *")]
+      .filter((el) => el.getClientRects().length > 0 && el.getBoundingClientRect().right > vw + 1)
+      .slice(0, 8)
+      .map((el) => `${el.tagName.toLowerCase()}.${String(el.className).slice(0, 60)} → ${Math.round(el.getBoundingClientRect().right)}px`);
+  });
+}
+
+/** After the next frame, every running CSS animation and transition has finished (the shell's resize, a slide's fade). */
+async function settled(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    await Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null)));
+  });
+}
+
+/**
+ * Screenshots at 320 / 768 / 1024 / 1440, each checked for no sideways scroll; the cookie bar dismissed first. The
+ * drawer is fixed and scrolls inside itself, so drawer shots are the window (taller), not the page behind it.
+ */
+async function shootTo(page: Page, dir: string, name: string, { drawer = false }: { readonly drawer?: boolean } = {}): Promise<void> {
+  mkdirSync(dir, { recursive: true });
+  await dismissCookies(page);
+  for (const width of WIDTHS) {
+    await page.setViewportSize({ width, height: drawer ? 1600 : 900 });
+    await settled(page); // the admin shell animates its sidebar padding on resize (transition-all, 200 ms)
+    expect(await sideScroll(page), `${name} at ${width}px scrolls sideways`).toEqual([]);
+    await page.screenshot({ path: join(dir, `${name}-${width}.png`), fullPage: !drawer });
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
+}
+
+async function signInSydney(browser: Browser, email: string, to: string): Promise<Page> {
+  const signedIn = await sydneyPage(browser);
+  await signedIn.goto(`${BASE_URL}/login?redirect=${encodeURIComponent(to)}`, { timeout: 180_000, waitUntil: "networkidle" });
+  await signedIn.fill('input[name="email"]', email);
+  await signedIn.fill('input[name="password"]', CALLS_PASSWORD);
+  await signedIn.click('button[type="submit"]');
+  await signedIn.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 180_000 });
+  return signedIn;
+}
+
+const section = (page: Page, name: string) => page.getByRole("table", { name });
+const familyRow = (page: Page, table: string, name: string) => section(page, table).locator("tr", { hasText: name });
+
+test.describe.serial("Calls tab — flag on (local stack)", () => {
+  test.skip(MODE !== "on" || !IS_LOCAL, "set CALL_BOOKING_E2E=on with the local stack's env");
+  test.setTimeout(240_000);
+
+  let db: SupabaseClient;
+  let page: Page;
+  let fx: CallsFixture;
+  const readback: Record<string, unknown> = { run: RUN };
+
+  const openDrawer = async (name: string): Promise<Locator> => {
+    await page.goto(`${BASE_URL}/admin/calls`, { timeout: 180_000 });
+    await page.getByRole("button", { name, exact: true }).first().click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { level: 2, name, exact: true })).toBeVisible({ timeout: 120_000 });
+    return dialog;
+  };
+
+  test.beforeAll(async ({ browser }) => {
+    db = localDb(SUPABASE_URL, SERVICE_KEY);
+    fx = await createCallsFixture(db, RUN);
+    readback.enabledSince = fx.enabledSince;
+    page = await signInSydney(browser, fx.adminEmail, "/admin/calls");
+  });
+
+  test.afterAll(async () => {
+    // Even when the set-up failed part-way (enabled_since is only changed once it is complete).
+    if (db) await removeCallsFixture(db, fx?.enabledSinceBefore);
+    mkdirSync(C1_PROOF_DIR, { recursive: true });
+    writeFileSync(join(C1_PROOF_DIR, "walk-readback.json"), `${JSON.stringify(readback, null, 2)}\n`);
+  });
+
+  test("Calls sits after Contacts; every section and tag; every time London in a Sydney browser", async () => {
+    await page.goto(`${BASE_URL}/admin/calls`, { timeout: 180_000 });
+    expect(await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone)).toBe("Australia/Sydney");
+    const nav = await page.locator("aside a").evaluateAll((links) => links.map((a) => a.getAttribute("href")));
+    expect(nav.indexOf("/admin/calls")).toBe(nav.indexOf("/admin/leads") + 1);
+    await expect(page.getByRole("heading", { level: 1, name: "Calls" })).toBeVisible();
+    await expect(page.getByText(/^Calls still to make this week: \d+ \(\d+ booked · \d+ not booked\)$/)).toBeVisible();
+    const f = fx.families;
+    await expect(familyRow(page, "Overdue", f.priya.name)).toContainText(londonLabelOf(f.priya.startsAt!));
+    await expect(familyRow(page, "Overdue", f.priya.name)).toContainText("Overdue");
+    await expect(familyRow(page, "Today and upcoming", f.olivia.name)).toContainText(londonLabelOf(f.olivia.startsAt!));
+    await expect(familyRow(page, "Today and upcoming", f.olivia.name)).toContainText("5 nannies contacted · 2 replied");
+    await expect(familyRow(page, "Today and upcoming", f.tom.name)).toContainText("Blocked over — move or cancel");
+    await expect(familyRow(page, "Today and upcoming", f.ada.name)).toContainText("Cohort pre-book");
+    await expect(familyRow(page, "Not booked — to call", f.fay.name)).toContainText("No position yet");
+    await expect(familyRow(page, "Not booked — to call", f.fay.name)).toContainText("Quick match");
+    await expect(familyRow(page, "Not booked — to call", f.leo.name)).toContainText("Test");
+    await expect(familyRow(page, "Not booked — to call", f.grace.name)).toContainText(/Call back \w{3} \d{1,2} \w{3}, 17:00 \(London time\)/);
+    await expect(familyRow(page, "History", f.noah.name)).toContainText("Answered · Deposit taken");
+    await expect(familyRow(page, "History", f.mia.name)).toContainText("Stop calling");
+    // The families taken out are in History only; the to-call order is oldest sign-up first.
+    await expect(familyRow(page, "Not booked — to call", f.noah.name)).toHaveCount(0);
+    // Sign-ups: Sarah, Grace, Fay, Leo — but Grace asked to be called back tomorrow, so she is due last.
+    const order = await section(page, "Not booked — to call").locator("tbody tr button").allTextContents();
+    const ours = new Set([f.sarah.name, f.grace.name, f.fay.name, f.leo.name]);
+    expect(order.filter((n) => ours.has(n))).toEqual([f.sarah.name, f.fay.name, f.leo.name, f.grace.name]);
+    readback.counts = await page.getByText(/^Calls still to make this week:/).textContent();
+    readback.overdue = { name: f.priya.name, label: londonLabelOf(f.priya.startsAt!), browserZone: "Australia/Sydney" };
+    await shootTo(page, C1_PROOF_DIR, "calls-tab");
+  });
+
+  test("the four links; Position opens her row expanded on /admin/positions", async () => {
+    await page.goto(`${BASE_URL}/admin/calls`, { timeout: 180_000 });
+    const olivia = fx.families.olivia;
+    const row = familyRow(page, "Today and upcoming", olivia.name);
+    await expect(row.getByRole("link", { name: "Profile" })).toHaveAttribute("href", `/admin/viewer/${olivia.id}`);
+    await expect(row.getByRole("link", { name: "Account" })).toHaveAttribute("href", `/admin/users?openUser=${olivia.id}`);
+    await expect(row.getByRole("link", { name: "Money" })).toHaveAttribute("href", `/admin/users/${olivia.id}/subscription`);
+    await row.getByRole("link", { name: "Position" }).click();
+    await page.waitForURL(`${BASE_URL}/admin/positions?openPosition=${olivia.positionId}`, { timeout: 180_000 });
+    await expect(page.locator(`a[href="/position/${olivia.positionId}"]`)).toBeVisible({ timeout: 120_000 });
+    await expect(page.locator(`#position-row-${olivia.positionId}`)).toBeInViewport();
+    await shootTo(page, C1_PROOF_DIR, "positions-open");
+  });
+
+  test("the drawer: contact, her booked call, the outcome form, position and nannies, the deposit, every attempt", async () => {
+    const dialog = await openDrawer(fx.families.olivia.name);
+    expect(new URL(page.url()).searchParams.get("openCall")).toBe(fx.families.olivia.id);
+    await expect(dialog.getByText("Every time on this page is London time.")).toBeVisible();
+    await expect(dialog.getByText(londonLabelOf(fx.families.olivia.startsAt!))).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Move" })).toBeVisible();
+    await expect(dialog.getByRole("region", { name: "Deposit (read-only)" })).toContainText(/^Deposit \(read-only\)Deposit paid \d{1,2} \w+ \d{4}$/);
+    await expect(dialog.getByText("5 nannies contacted · 2 replied")).toBeVisible();
+    await expect(dialog.getByRole("region", { name: "Record outcome" })).toBeVisible();
+    await shootTo(page, C1_PROOF_DIR, "drawer-booked", { drawer: true });
+  });
+
+  test("on behalf: book Sarah a time — Held for N minutes, Book this time; booked by the admin; her confirmation email", async () => {
+    const sarah = fx.families.sarah;
+    const dialog = await openDrawer(sarah.name);
+    await dialog.getByRole("button", { name: "Book a matchmaker call" }).click();
+    await expect(dialog.getByRole("heading", { name: "Matchmaker's availability (London time)" })).toBeVisible();
+    const startsAt = await pickSlot(dialog);
+    await expect(dialog.getByText(/^Held for \d+ minutes?$/)).toBeVisible();
+    await shootTo(page, C1_PROOF_DIR, "drawer-on-behalf-held", { drawer: true });
+    await dialog.getByRole("button", { name: "Book this time" }).click();
+    await expect(dialog.getByText("Booked — the family is emailed.")).toBeVisible({ timeout: 60_000 });
+    const { data } = await db.from("call_bookings").select("id, status, starts_at, booked_by_kind").eq("parent_user_id", sarah.id).eq("status", "booked").single();
+    expect(data).toMatchObject({ status: "booked", booked_by_kind: "admin" });
+    expect(new Date((data as { starts_at: string }).starts_at).toISOString()).toBe(startsAt);
+    const { data: mail } = await db.from("email_logs").select("email_type").eq("recipient_email", sarah.email);
+    expect((mail ?? []).map((m: { email_type: string }) => m.email_type)).toContain("call_booking_confirmation");
+    readback.bookedOnBehalf = data;
+  });
+
+  test("on behalf: move Olivia's call — Move to this time; the same booking moved; her change email", async () => {
+    const olivia = fx.families.olivia;
+    const dialog = await openDrawer(olivia.name);
+    await dialog.getByRole("button", { name: "Move" }).click();
+    await pickSlot(dialog, { last: true });
+    await dialog.getByRole("button", { name: "Move to this time" }).click();
+    await expect(dialog.getByText("Moved — the family is emailed.")).toBeVisible({ timeout: 60_000 });
+    const { data } = await db.from("call_bookings").select("id, status, moved_at, moved_from_starts_at").eq("parent_user_id", olivia.id).eq("status", "booked").single();
+    expect((data as { id: string }).id).toBe(olivia.bookingId);
+    expect((data as { moved_at: string | null }).moved_at).not.toBeNull();
+    const { data: mail } = await db.from("email_logs").select("email_type").eq("recipient_email", olivia.email);
+    expect((mail ?? []).map((m: { email_type: string }) => m.email_type)).toContain("call_booking_changed");
+    readback.movedOnBehalf = data;
+  });
+
+  test("on behalf: cancel Tom's call (it asks first) — cancelled by the admin; his cancellation email; back under Not booked", async () => {
+    const tom = fx.families.tom;
+    const dialog = await openDrawer(tom.name);
+    await dialog.getByRole("button", { name: "Cancel booking" }).click();
+    await dialog.getByRole("button", { name: "Yes, cancel it" }).click();
+    await expect(dialog.getByText("Cancelled — the family is back under Not booked.")).toBeVisible({ timeout: 60_000 });
+    const { data } = await db.from("call_bookings").select("status, cancel_reason").eq("id", tom.bookingId!).single();
+    expect(data).toEqual({ status: "cancelled", cancel_reason: "admin" });
+    const { data: mail } = await db.from("email_logs").select("email_type").eq("recipient_email", tom.email);
+    expect((mail ?? []).map((m: { email_type: string }) => m.email_type)).toContain("call_booking_cancelled");
+    await page.goto(`${BASE_URL}/admin/calls`, { timeout: 180_000 });
+    await expect(familyRow(page, "Not booked — to call", tom.name)).toHaveCount(1);
+    readback.cancelledOnBehalf = data;
+  });
+
+  test("Stop calling while booked is refused: 'Cancel the booked time first'", async () => {
+    const dialog = await openDrawer(fx.families.ada.name);
+    await dialog.getByRole("button", { name: "Stop calling" }).click();
+    await dialog.getByRole("button", { name: "Save outcome" }).click();
+    await expect(dialog.getByRole("alert")).toHaveText("Cancel the booked time first");
+  });
+
+  test("No answer on Priya's overdue call: closed, she is under Not booked and in History; her page says we tried", async ({ browser }) => {
+    const priya = fx.families.priya;
+    const dialog = await openDrawer(priya.name);
+    await dialog.getByRole("button", { name: "No answer", exact: true }).click();
+    await dialog.getByLabel("Note (optional)").fill("Rang twice, no answer.");
+    await dialog.getByRole("button", { name: "Save outcome" }).click();
+    await expect(dialog.getByText("Saved.")).toBeVisible({ timeout: 60_000 });
+    const { data } = await db.from("call_bookings").select("status, closed_at").eq("id", priya.bookingId!).single();
+    expect((data as { status: string }).status).toBe("no_answer");
+    await expect(dialog.getByRole("region", { name: "Every attempt" })).toContainText("Rang twice, no answer.", { timeout: 60_000 });
+    await shootTo(page, C1_PROOF_DIR, "drawer-after-no-answer", { drawer: true });
+    await page.goto(`${BASE_URL}/admin/calls`, { timeout: 180_000 });
+    await expect(familyRow(page, "Not booked — to call", priya.name)).toHaveCount(1);
+    await expect(familyRow(page, "History", priya.name)).toContainText("No answer");
+    await expect(familyRow(page, "Overdue", priya.name)).toHaveCount(0);
+    await shootTo(page, C1_PROOF_DIR, "calls-tab-after");
+    const hers = await signInSydney(browser, priya.email, "/matchmaking/call");
+    await expect(hers.getByText("We tried to call you — pick another time")).toBeVisible({ timeout: 120_000 });
+    await dismissCookies(hers);
+    await settled(hers);
+    await hers.screenshot({ path: join(C1_PROOF_DIR, "parent-after-no-answer-1440.png"), fullPage: true });
+    await hers.context().close();
+    readback.noAnswer = data;
+  });
+});
+
+test.describe.serial("Calls tab — flag off (local stack)", () => {
+  test.skip(MODE !== "off" || !IS_LOCAL, "set CALL_BOOKING_E2E=off with the local stack's env");
+  test.setTimeout(240_000);
+
+  let db: SupabaseClient;
+  let fx: CallsFixture;
+
+  test.beforeAll(async () => {
+    db = localDb(SUPABASE_URL, SERVICE_KEY);
+    fx = await createCallsFixture(db, RUN);
+  });
+  test.afterAll(async () => {
+    if (db) await removeCallsFixture(db, fx?.enabledSinceBefore);
+  });
+
+  test("signed out: /admin/calls → the login redirect (middleware), as every /admin path", async ({ request }) => {
+    const res = await request.get(`${BASE_URL}/admin/calls`, { maxRedirects: 0 });
+    expect(res.status()).toBe(307);
+    expect(res.headers().location).toContain("/login");
+  });
+
+  test("an admin: /admin/calls is a 404, no Calls entry, ?openPosition ignored", async ({ browser }) => {
+    const page = await signInSydney(browser, fx.adminEmail, "/admin/dashboard");
+    const nav = await page.locator("aside a").evaluateAll((links) => links.map((a) => a.getAttribute("href")));
+    expect(nav).toContain("/admin/leads");
+    expect(nav).not.toContain("/admin/calls");
+    await shootTo(page, C1_PROOF_DIR, "flag-off-nav");
+    const res = await page.goto(`${BASE_URL}/admin/calls`, { timeout: 180_000 });
+    expect(res?.status()).toBe(404);
+    await shootTo(page, C1_PROOF_DIR, "flag-off-404");
+    const olivia = fx.families.olivia;
+    await page.goto(`${BASE_URL}/admin/positions?openPosition=${olivia.positionId}`, { timeout: 180_000 });
+    await expect(page.getByText("Olivia Hartley Family").or(page.getByText("Olivia Hartley")).first()).toBeVisible({ timeout: 120_000 });
+    await expect(page.locator(`a[href="/position/${olivia.positionId}"]`)).toHaveCount(0);
+    await shootTo(page, C1_PROOF_DIR, "flag-off-positions");
+    mkdirSync(C1_PROOF_DIR, { recursive: true });
+    writeFileSync(join(C1_PROOF_DIR, "flag-off-readback.json"), `${JSON.stringify({ run: RUN, adminCalls: res?.status(), navHasCalls: nav.includes("/admin/calls"), openPositionExpanded: false }, null, 2)}\n`);
+    await page.context().close();
   });
 });

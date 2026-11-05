@@ -94,6 +94,17 @@ describe("OnBehalfPicker — not booked", () => {
   });
 });
 
+describe("OnBehalfPicker — fresh props after the page refreshes", () => {
+  it("new days from the server replace the old ones", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<OnBehalfPicker parentUserId={AVA} booking={null} days={PANEL_DAYS} onChanged={vi.fn()} />);
+    rerender(<OnBehalfPicker parentUserId={AVA} booking={null} days={PANEL_DAYS.slice(1)} onChanged={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Book a matchmaker call" }));
+    expect(screen.queryByRole("button", { name: "Tue 9 Feb" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Wed 10 Feb" })).toBeInTheDocument();
+  });
+});
+
 describe("OnBehalfPicker — booked", () => {
   it("her time in London words, with Move and Cancel booking", () => {
     render(<OnBehalfPicker parentUserId={AVA} booking={PANEL.booking} days={PANEL_DAYS} onChanged={vi.fn()} />);

@@ -14,7 +14,7 @@
  * The picker speaks the parent's refusal codes, so the admin codes are mapped onto them (`PICKER_REFUSAL`).
  */
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { SlotPicker, type PickerResult, type SlotPickerActions } from "@/components/calls/SlotPicker";
 import { Button } from "@/components/ui/button";
 import type { AdminCallError, AdminCallResult } from "@/lib/calls/admin-calls";
@@ -141,6 +141,8 @@ function useCancel(parentUserId: string, booking: PanelBooking | null, done: (st
 export function OnBehalfPicker({ parentUserId, booking, days, onChanged }: OnBehalfPickerProps) {
   const [mode, setMode] = useState<Mode>("view");
   const [shownDays, setShownDays] = useState(days);
+  // The page refreshes after a write: take the server's fresh days (the component isn't remounted, so the status stays).
+  useEffect(() => setShownDays(days), [days]);
   const [status, setStatus] = useState("");
   const done = (line: string) => {
     setMode("view");

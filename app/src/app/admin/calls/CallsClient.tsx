@@ -72,7 +72,7 @@ export function CallsClient({ dashboard, openCallId, panel, panelFailed, renderC
           <SheetTitle className="sr-only">{ready ? `${ADMIN_COPY.panelBooking}: ${panel.contact.name}` : ADMIN_COPY.panelBooking}</SheetTitle>
           <SheetDescription className="sr-only">{ADMIN_COPY.pageIntro}</SheetDescription>
           {ready ? (
-            <CallRowPanel panel={panel} renderCallControl={renderCallControl} onChanged={drawer.refresh} />
+            <CallRowPanel key={panel.parentUserId} panel={panel} renderCallControl={renderCallControl} onChanged={drawer.refresh} />
           ) : failed ? (
             <div className="p-4">
               <AlertLine>{ADMIN_COPY.familyFailed}</AlertLine>
