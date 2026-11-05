@@ -5,11 +5,13 @@
  * Supabase URL that isn't localhost, so it can never touch bb-ldn or Sydney. The local stack has no real nanny
  * applicants, which satisfies R4; `EMAIL_DEV_DRY_RUN=true` keeps every email a logged dry run.
  *
- * The browser runs in Australia/Sydney on purpose: every time on the page must still read London (brief §3 parent 6).
+ * The browser runs in Australia/Sydney on purpose: every time on the page must still be London's (brief §3 parent 6).
  *
  * 04b rework: the call is a funnel slide at `/matchmaking/call` (W1–W5), in the app a popup over the Childcare tab
- * (W9, W12); the picker is the meet-and-greet grid (a time-of-day cell, then a time; a tap holds at once, W4); a
- * quick-match parent with no position picks without a hold and completes her position first (W11).
+ * (W9, W12); the picker reveals strictly one step per tap — the day tiles, then four time-of-day tiles, then that time
+ * of day's times — and changing opens with only the days (W14, W15); a tap on a time holds it at once (W4). Nothing
+ * says "London time" to a parent (W14). A quick-match parent with no position picks without a hold, and "Confirm time"
+ * takes her to her position form, which opens on its intro (W11, W15).
  *
  * Two runs, one per flag state (the flag is inlined at build, so the dev server is restarted between them):
  *
@@ -62,11 +64,11 @@ const LONDON = new Intl.DateTimeFormat("en-GB", {
   hourCycle: "h23",
 });
 
-/** What a slot's accessible name must be: the London words for its instant, whatever the browser's zone. */
+/** What a slot's accessible name must be: the London words for its instant, whatever the browser's zone (W14: not labelled). */
 function londonName(iso: string): string {
   const parts = LONDON.formatToParts(new Date(iso));
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? "";
-  return `${part("weekday")} ${part("day")} ${part("month")}, ${part("hour")}:${part("minute")} (London time)`;
+  return `${part("weekday")} ${part("day")} ${part("month")}, ${part("hour")}:${part("minute")}`;
 }
 
 function admin(): SupabaseClient {
@@ -98,17 +100,21 @@ async function signUp(page: Page, path: string, email: string): Promise<void> {
   await page.click('button[type="submit"]');
 }
 
-/** The open time-of-day cells (one radiogroup per day row) and the open times in the chosen cell (W4). */
-const openCells = (scope: Page | Locator, row?: number) =>
-  (row === undefined ? scope.locator('[role="radiogroup"]:not([aria-labelledby])') : scope.locator('[role="radiogroup"]:not([aria-labelledby])').nth(row)).locator(
-    '[role="radio"]:not([disabled])',
-  );
-const openTimes = (scope: Page | Locator) => scope.locator('[role="radiogroup"][aria-labelledby] [role="radio"]:not([disabled])');
+/** The picker's three steps, each its own radiogroup (W14): the days, the times of day, the chosen one's times. */
+type Step = "heading" | "time-of-day" | "select-time";
+const step = (scope: Page | Locator, which: Step) => scope.locator(`[role="radiogroup"][aria-labelledby$="-${which}"]`);
+const openIn = (group: Locator) => group.locator('[role="radio"]:not([disabled])');
 
-/** Pick the way a person does: an open cell (on `row`, if given), then its `n`th open time. Returns its instant. */
-async function pickSlot(scope: Page | Locator, n = 0, row?: number): Promise<string> {
-  await openCells(scope, row).first().click();
-  const time = openTimes(scope).nth(n);
+/**
+ * Pick the way a person does: an open day not already chosen (the first, the last, or the tile at `day`), its first
+ * open time of day, then that one's `n`th open time. Returns its instant.
+ */
+async function pickSlot(scope: Page | Locator, { n = 0, day, last = false }: { readonly n?: number; readonly day?: number; readonly last?: boolean } = {}): Promise<string> {
+  const days = step(scope, "heading");
+  const open = days.locator('[role="radio"][aria-checked="false"]:not([disabled])');
+  await (day !== undefined ? days.locator('[role="radio"]').nth(day) : last ? open.last() : open.first()).click();
+  await openIn(step(scope, "time-of-day")).first().click();
+  const time = openIn(step(scope, "select-time")).nth(n);
   const startsAt = (await time.locator("time").getAttribute("datetime")) ?? "";
   await time.click();
   return startsAt;
@@ -170,19 +176,30 @@ test.describe.serial("call booking — flag on (local stack)", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Your Complimentary matchmaker call" })).toBeVisible();
     await dismissCookies(page);
     expect(await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone)).toBe("Australia/Sydney");
-    await openCells(page).first().click();
-    const first = openTimes(page).first();
+    // Step by step (W14): only the days; a day → the times of day; a time of day → its times.
+    await expect(step(page, "time-of-day")).toHaveCount(0);
+    await shoot(page, "picker-days");
+    await openIn(step(page, "heading")).first().click();
+    await expect(step(page, "select-time")).toHaveCount(0);
+    await shoot(page, "picker-time-of-day");
+    await openIn(step(page, "time-of-day")).first().click();
+    const first = openIn(step(page, "select-time")).first();
     const startsAt = (await first.locator("time").getAttribute("datetime")) ?? "";
     expect(await first.getAttribute("aria-label")).toBe(londonName(startsAt));
+    await expect(page.getByText(/London time/)).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Skip for now" })).toHaveAttribute("href", MATCHES);
     readback.advancedLanding = page.url();
     readback.firstSlot = { startsAt, name: await first.getAttribute("aria-label"), browserZone: "Australia/Sydney" };
-    await shoot(page, "picker");
+    await shoot(page, "picker-times");
+    // Unselecting the day hides what came after it.
+    await step(page, "heading").locator('[role="radio"][aria-checked="true"]').click();
+    await expect(step(page, "time-of-day")).toHaveCount(0);
+    await expect(step(page, "select-time")).toHaveCount(0);
   });
 
   test("book: a tap holds at once, Confirm time → You're booked", async () => {
     await pickSlot(page);
-    await expect(page.getByText(/We're holding .* \(London time\) for you until \d\d:\d\d\./)).toBeVisible();
+    await expect(page.getByText(/^We're holding .+, \d\d:\d\d for you until \d\d:\d\d\.$/)).toBeVisible();
     await shoot(page, "held");
     await page.getByRole("button", { name: "Confirm time" }).click();
     await expect(page.getByRole("heading", { name: "You're booked" })).toBeVisible();
@@ -195,7 +212,8 @@ test.describe.serial("call booking — flag on (local stack)", () => {
 
   test("the Childcare card shows her time · Change time (no nanny hired or connected)", async () => {
     await page.goto(`${BASE_URL}${CHILDCARE}`, { timeout: 180_000 });
-    await expect(page.getByText(/^\w{3} \d{1,2} \w{3}, \d\d:\d\d \(London time\)$/)).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByText(/^\w{3} \d{1,2} \w{3}, \d\d:\d\d$/)).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByText(/London time/)).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Change time" })).toBeVisible();
     await shoot(page, "card-booked");
   });
@@ -205,7 +223,11 @@ test.describe.serial("call booking — flag on (local stack)", () => {
     const dialog = page.getByRole("dialog", { name: "Your Complimentary matchmaker call" });
     await expect(dialog.getByText(/^Your call: /)).toBeVisible({ timeout: 120_000 });
     expect(new URL(page.url()).pathname).toBe("/parent");
-    await pickSlot(dialog); // her own time is never open, so the first open one is a different time
+    // Changing opens with her booking on top and only the days, nothing chosen (W15).
+    await expect(dialog.locator('[role="radiogroup"]')).toHaveCount(1);
+    await expect(step(dialog, "heading").locator('[role="radio"][aria-checked="true"]')).toHaveCount(0);
+    await shoot(page, "popup-change");
+    await pickSlot(dialog, { last: true }); // her time was the first open day's: the last open day is another
     await dialog.getByRole("button", { name: "Confirm time" }).click();
     await expect(page.getByRole("dialog", { name: "You're booked" })).toBeVisible();
     const { data } = await db.from("call_bookings").select("id, status, starts_at, moved_at, moved_from_starts_at").eq("parent_user_id", advancedId).eq("status", "booked").single();
@@ -237,17 +259,23 @@ test.describe.serial("call booking — flag on (local stack)", () => {
     await db.from("call_blocks").delete().eq("reason", block.reason);
   });
 
-  test("quick sign-up lands on the slide (next = her Childcare tab); with no position a pick holds nothing (W11)", async ({ browser }) => {
+  test("quick sign-up lands on the slide (next = her Childcare tab); with no position a pick holds nothing; the intro (W11, W15)", async ({ browser }) => {
     const fresh = await sydneyPage(browser);
     await signUp(fresh, "/signup?src=std", QUICK_EMAIL);
     await fresh.waitForURL(`${BASE_URL}/matchmaking/call?next=${encodeURIComponent(CHILDCARE)}`, { timeout: 180_000 });
     quickId = await userIdOf(db, QUICK_EMAIL);
     const startsAt = await pickSlot(fresh);
     await expect(fresh.getByText("Complete your childcare position so that we can confirm your call with your matchmaker.")).toBeVisible();
-    await expect(fresh.getByRole("link", { name: "Complete my childcare position" })).toHaveAttribute("href", `/parent/request?callAt=${encodeURIComponent(startsAt)}`);
+    const onward = fresh.getByRole("link", { name: "Confirm time" });
+    await expect(onward).toHaveAttribute("href", `/parent/request?callAt=${encodeURIComponent(startsAt)}`);
     const { count } = await db.from("call_bookings").select("id", { count: "exact", head: true }).eq("parent_user_id", quickId);
     expect(count).toBe(0);
     readback.quickLanding = fresh.url();
+    // Confirm time → her position form, which opens on its intro and then moves on to question 1 (W15).
+    await onward.click();
+    await expect(fresh.getByText("Create your childcare position to get your best matches")).toBeVisible({ timeout: 180_000 });
+    await expect(fresh.getByText("How many children will be in your nanny's care?")).toBeVisible({ timeout: 30_000 });
+    await expect(fresh.getByText("Create your childcare position to get your best matches")).toHaveCount(0);
     await fresh.context().close();
   });
 
@@ -280,18 +308,24 @@ test.describe.serial("call booking — flag on (local stack)", () => {
       (await db.from("email_logs").select("id", { count: "exact", head: true }).eq("recipient_user_id", id).eq("email_type", "call_not_booked")).count;
     expect(await count(quickId)).toBe(1);
     expect(await count(advancedId)).toBe(0);
-    const { count: walkWide } = await db.from("email_logs").select("id", { count: "exact", head: true }).eq("email_type", "call_not_booked").gte("created_at", cronStart);
-    expect(walkWide).toBe(1);
+    // Across the stack: other local parents in the scope window may get one too (they never booked either), but never
+    // a parent who ever booked (R2). Asserted on the recipients, not a stack-wide count.
+    const { data: sent } = await db.from("email_logs").select("recipient_user_id").eq("email_type", "call_not_booked").gte("created_at", cronStart);
+    const recipients = [...new Set(((sent ?? []) as Array<{ recipient_user_id: string }>).map((r) => r.recipient_user_id))];
+    const { count: everBooked } = await db.from("call_bookings").select("id", { count: "exact", head: true }).in("parent_user_id", recipients).not("booked_at", "is", null);
+    expect(recipients).toContain(quickId);
+    expect(everBooked).toBe(0);
+    const walkWide = recipients.length;
     const unauthorised = await request.get(`${BASE_URL}/api/cron/call-reminders`, { headers: { authorization: "Bearer wrong" } });
     expect(unauthorised.status()).toBe(401);
-    readback.cron = { statuses, notBookedForNeverBooked: 1, notBookedForBookedThenCancelled: 0, notBookedAcrossTheStack: walkWide, wrongBearer: unauthorised.status() };
+    readback.cron = { statuses, notBookedForNeverBooked: 1, notBookedForBookedThenCancelled: 0, notBookedRecipientsAcrossTheStack: walkWide, recipientsWhoEverBooked: everBooked, wrongBearer: unauthorised.status() };
   });
 
   test("plan §8 row 7: the 24 h parent reminder and the 15 min admin reminder, each once (clock advanced on the fixture)", async ({ request }) => {
     const cron = async () => (await request.get(`${BASE_URL}/api/cron/call-reminders`, { headers: { authorization: `Bearer ${CRON_SECRET}` } })).status();
     await page.goto(`${BASE_URL}/matchmaking/call`, { timeout: 180_000 });
-    // The third day row is at least a day and a half ahead: a time there is ≥ 25 h away.
-    const startsAt = await pickSlot(page, 0, 2);
+    // The third day tile is at least a day and a half ahead: a time there is ≥ 25 h away.
+    const startsAt = await pickSlot(page, { day: 2 });
     expect(Date.parse(startsAt)).toBeGreaterThanOrEqual(Date.now() + 25 * 60 * MINUTE);
     await page.getByRole("button", { name: "Confirm time" }).click();
     await expect(page.getByRole("heading", { name: "You're booked" })).toBeVisible();
