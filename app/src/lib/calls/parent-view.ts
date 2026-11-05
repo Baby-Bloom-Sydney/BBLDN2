@@ -67,6 +67,8 @@ export type MyCallRefusal =
   | "invalid"
   | "not_a_parent"
   | "call_booking_disabled"
+  /** The call isn't offered to her (W17: out of scope, after an answered call or Stop calling, or a nanny). */
+  | "not_offered"
   | "error";
 
 export type MyCallResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: MyCallRefusal };

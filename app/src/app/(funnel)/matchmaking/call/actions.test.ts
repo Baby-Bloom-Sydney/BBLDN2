@@ -13,7 +13,9 @@ const h = vi.hoisted(() => ({
   cancel: vi.fn(),
   load: vi.fn(),
   revalidate: vi.fn(),
+  allowed: vi.fn(),
 }));
+vi.mock("@/lib/calls/call-allowed", () => ({ mayBookNow: h.allowed }));
 vi.mock("@/lib/calls/parent-session", () => ({ sessionParentId: h.session }));
 vi.mock("@/lib/calls/parent-booking", () => ({ parentHoldSlot: h.hold, parentConfirmHold: h.confirm, parentCancelBooking: h.cancel }));
 vi.mock("@/lib/calls/parent-state", () => ({ loadMyCallView: h.load }));
@@ -40,8 +42,41 @@ beforeEach(() => {
   h.confirm.mockResolvedValue({ ok: true, value: { kind: "booked", bookingId: HOLD, startsAt: TUE_14, replay: false } });
   h.cancel.mockResolvedValue({ ok: true, value: { bookingId: HOLD, startsAt: TUE_14 } });
   h.load.mockResolvedValue({ ok: true, value: VIEW });
+  h.allowed.mockResolvedValue("yes");
 });
 afterEach(() => vi.unstubAllEnvs());
+
+describe("the call must be offered to hold or confirm (W17, final review item 12)", () => {
+  it("not offered (stop_calling, answered, out of scope, a nanny) → not_offered; nothing held or confirmed", async () => {
+    h.allowed.mockResolvedValue("no");
+    expect(await holdMyCallSlot(TUE_14)).toEqual({ ok: false, error: "not_offered" });
+    expect(await confirmMyCallHold(HOLD, "key-1")).toEqual({ ok: false, error: "not_offered" });
+    expect(h.hold).not.toHaveBeenCalled();
+    expect(h.confirm).not.toHaveBeenCalled();
+    expect(h.allowed).toHaveBeenCalledWith(HER);
+  });
+
+  it("the check couldn't be read → the generic error; nothing held or confirmed", async () => {
+    h.allowed.mockResolvedValue("unknown");
+    expect(await holdMyCallSlot(TUE_14)).toEqual({ ok: false, error: "error" });
+    expect(await confirmMyCallHold(HOLD, "key-1")).toEqual({ ok: false, error: "error" });
+    expect(bookingCalls()).toEqual([]);
+  });
+
+  it("only after the switch, the input and the session: a bad input or no parent never runs the check", async () => {
+    expect(await holdMyCallSlot("2027-02-09 14:00")).toEqual({ ok: false, error: "invalid" });
+    h.session.mockResolvedValue(null);
+    expect(await holdMyCallSlot(TUE_14)).toEqual({ ok: false, error: "not_a_parent" });
+    expect(h.allowed).not.toHaveBeenCalled();
+  });
+
+  it("cancelling and reloading her view don't need it (she can always cancel, and see her call)", async () => {
+    h.allowed.mockResolvedValue("no");
+    expect((await cancelMyCall(HOLD)).ok).toBe(true);
+    expect((await reloadMyCallSlots()).ok).toBe(true);
+    expect(h.allowed).not.toHaveBeenCalled();
+  });
+});
 
 describe("the gates", () => {
   it("flag off → call_booking_disabled for all four; no session read, no booking call", async () => {

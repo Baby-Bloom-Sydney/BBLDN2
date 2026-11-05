@@ -7,7 +7,9 @@
  * Contract, for each: `callBookingEnabled()` first (off → `call_booking_disabled`), then zod on every input
  * (`invalid`), then the parent **from the session** (`sessionParentId`; anyone else → `not_a_parent`) — each before
  * anything is read. Only then `parent-booking.ts`, which takes nothing but her session id: no parent, actor,
- * position or purpose ever comes from the browser. Refusals are codes only (`refusalOf`), never detail.
+ * position or purpose ever comes from the browser. Refusals are codes only (`refusalOf`), never detail. Holding and
+ * confirming also need the call offered to her (W17, `call-allowed.ts`: the card's rule or a booked call she is
+ * changing, and no nanny) → else `not_offered`, or `error` when that couldn't be read.
  *
  * `confirmMyCallHold` returns the booking id and whether it was a move or a replay: brief 10 adds its `Schedule`
  * event here, on a first booking only (plan §12 R9). After a booking changes, `/parent` is revalidated so the hub
@@ -19,6 +21,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { mayBookNow } from "@/lib/calls/call-allowed";
 import { PARENT_HOME } from "@/lib/calls/next-path";
 import { parentCancelBooking, parentConfirmHold, parentHoldSlot } from "@/lib/calls/parent-booking";
 import { sessionParentId } from "@/lib/calls/parent-session";
@@ -54,9 +57,21 @@ async function gate<T>(input: T | null): Promise<Gate<T>> {
   return parentId === null ? { ok: false, error: "not_a_parent" } : { ok: true, parentId, input };
 }
 
+/**
+ * Holding and confirming also need the call offered to her (W17): the card's rule, or a booked call still ahead she
+ * is changing, and no hired or connected nanny (`call-allowed.ts`). A read that failed → the generic error.
+ */
+async function bookingGate<T>(input: T | null): Promise<Gate<T>> {
+  const g = await gate(input);
+  if (!g.ok) return g;
+  const allowed = await mayBookNow(g.parentId);
+  if (allowed === "yes") return g;
+  return { ok: false, error: allowed === "no" ? "not_offered" : "error" };
+}
+
 /** "Choose this time": hold it for her. */
 export async function holdMyCallSlot(startsAt: unknown): Promise<MyCallResult<HeldCallView>> {
-  const g = await gate(parsed(startsAtInput, startsAt));
+  const g = await bookingGate(parsed(startsAtInput, startsAt));
   if (!g.ok) return g;
   const held = await parentHoldSlot(g.parentId, g.input);
   return held.ok ? { ok: true, value: heldViewOf(held.value) } : { ok: false, error: refusalOf(held.error) };
@@ -64,7 +79,7 @@ export async function holdMyCallSlot(startsAt: unknown): Promise<MyCallResult<He
 
 /** "Confirm this time": her first booking, or her booked call moved there. */
 export async function confirmMyCallHold(holdId: unknown, idempotencyKey: unknown): Promise<MyCallResult<ConfirmedCallView>> {
-  const g = await gate(parsed(confirmInput, { holdId, idempotencyKey }));
+  const g = await bookingGate(parsed(confirmInput, { holdId, idempotencyKey }));
   if (!g.ok) return g;
   const confirmed = await parentConfirmHold(g.parentId, g.input.holdId, g.input.idempotencyKey);
   if (!confirmed.ok) return { ok: false, error: refusalOf(confirmed.error) };

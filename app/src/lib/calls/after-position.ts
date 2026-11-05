@@ -22,8 +22,8 @@
  */
 
 import { revalidatePath } from "next/cache";
-import { getConfirmedConnections, getParentPlacement } from "@/lib/actions/position-funnel";
 import { callBookingEnabled } from "@/lib/features/flags";
+import { hasNannyNow } from "./call-allowed";
 import { callPopupPath, PARENT_HOME, parseCallAt } from "./next-path";
 import { parentConfirmHold, parentHoldSlot } from "./parent-booking";
 import { sessionParentId } from "./parent-session";
@@ -56,13 +56,6 @@ async function offeredNow(): Promise<boolean | null> {
   if (parentId === null) return null;
   const hub = await loadHubCall(parentId);
   return hub.failed ? null : hub.offered;
-}
-
-/** Her placement and this position's confirmed connections, read as her (the session's parent). */
-async function hasNannyNow(positionId: string): Promise<boolean | null> {
-  const [placement, connections] = await Promise.all([getParentPlacement(), getConfirmedConnections(positionId)]);
-  if (placement.error !== null || connections.error !== null) return null;
-  return placement.data !== null || connections.data.length > 0;
 }
 
 /** The existing parent booking path, as her own session: the hold rechecks the time is free; the hold id is the key. */
