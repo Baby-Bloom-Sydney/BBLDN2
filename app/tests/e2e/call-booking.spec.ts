@@ -35,7 +35,7 @@ import { expect, test, type Browser, type Locator, type Page } from "@playwright
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { CALLS_PASSWORD, createCallsFixture, localDb, removeCallsFixture, type CallsFixture } from "./fixtures/call-admin";
+import { createCallsFixture, localDb, removeCallsFixture, type CallsFixture } from "./fixtures/call-admin";
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3101";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
@@ -425,6 +425,8 @@ test.describe.serial("call booking — flag off (local stack)", () => {
 const C1_PROOF_DIR = process.env.B04C1_PROOF_DIR ?? "test-results/b04c1";
 /** The fixture admin's password is typed into this app: only ever a local one (security review L3). */
 const APP_IS_LOCAL = /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(BASE_URL);
+/** The walk books, moves and cancels on families' behalf: only with every email a dry run (review round 2 L12). */
+const DRY_RUN = process.env.EMAIL_DEV_DRY_RUN === "true";
 
 const LONDON_SHORT = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
@@ -471,11 +473,11 @@ async function shootTo(page: Page, dir: string, name: string, { drawer = false }
   await page.setViewportSize({ width: 1280, height: 900 });
 }
 
-async function signInSydney(browser: Browser, email: string, to: string): Promise<Page> {
+async function signInSydney(browser: Browser, email: string, password: string, to: string): Promise<Page> {
   const signedIn = await sydneyPage(browser);
   await signedIn.goto(`${BASE_URL}/login?redirect=${encodeURIComponent(to)}`, { timeout: 180_000, waitUntil: "networkidle" });
   await signedIn.fill('input[name="email"]', email);
-  await signedIn.fill('input[name="password"]', CALLS_PASSWORD);
+  await signedIn.fill('input[name="password"]', password);
   await signedIn.click('button[type="submit"]');
   await signedIn.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 180_000 });
   return signedIn;
@@ -484,8 +486,15 @@ async function signInSydney(browser: Browser, email: string, to: string): Promis
 const section = (page: Page, name: string) => page.getByRole("table", { name });
 const familyRow = (page: Page, table: string, name: string) => section(page, table).locator("tr", { hasText: name });
 
+test("Calls tab — the fixture refuses any client not made by localDb (review round 2 L12)", async () => {
+  test.skip(MODE !== "on" && MODE !== "off", "set CALL_BOOKING_E2E");
+  const remote = createClient("https://example.supabase.co", "x", { auth: { persistSession: false } });
+  await expect(createCallsFixture(remote, RUN)).rejects.toThrow(/local stack only/);
+  await expect(removeCallsFixture(remote)).rejects.toThrow(/local stack only/);
+});
+
 test.describe.serial("Calls tab — flag on (local stack)", () => {
-  test.skip(MODE !== "on" || !IS_LOCAL || !APP_IS_LOCAL, "set CALL_BOOKING_E2E=on with the local stack's env and a local app");
+  test.skip(MODE !== "on" || !IS_LOCAL || !APP_IS_LOCAL || !DRY_RUN, "set CALL_BOOKING_E2E=on with the local stack's env, a local app and EMAIL_DEV_DRY_RUN=true");
   test.setTimeout(240_000);
 
   let db: SupabaseClient;
@@ -505,7 +514,7 @@ test.describe.serial("Calls tab — flag on (local stack)", () => {
     db = localDb(SUPABASE_URL, SERVICE_KEY);
     fx = await createCallsFixture(db, RUN);
     readback.enabledSince = fx.enabledSince;
-    page = await signInSydney(browser, fx.adminEmail, "/admin/calls");
+    page = await signInSydney(browser, fx.adminEmail, fx.password, "/admin/calls");
   });
 
   test.afterAll(async () => {
@@ -643,7 +652,7 @@ test.describe.serial("Calls tab — flag on (local stack)", () => {
     await expect(familyRow(page, "History", priya.name)).toContainText("No answer");
     await expect(familyRow(page, "Overdue", priya.name)).toHaveCount(0);
     await shootTo(page, C1_PROOF_DIR, "calls-tab-after");
-    const hers = await signInSydney(browser, priya.email, "/matchmaking/call");
+    const hers = await signInSydney(browser, priya.email, fx.password, "/matchmaking/call");
     await expect(hers.getByText("We tried to call you — pick another time")).toBeVisible({ timeout: 120_000 });
     await dismissCookies(hers);
     await settled(hers);
@@ -654,7 +663,7 @@ test.describe.serial("Calls tab — flag on (local stack)", () => {
 });
 
 test.describe.serial("Calls tab — flag off (local stack)", () => {
-  test.skip(MODE !== "off" || !IS_LOCAL || !APP_IS_LOCAL, "set CALL_BOOKING_E2E=off with the local stack's env and a local app");
+  test.skip(MODE !== "off" || !IS_LOCAL || !APP_IS_LOCAL || !DRY_RUN, "set CALL_BOOKING_E2E=off with the local stack's env, a local app and EMAIL_DEV_DRY_RUN=true");
   test.setTimeout(240_000);
 
   let db: SupabaseClient;
@@ -675,7 +684,7 @@ test.describe.serial("Calls tab — flag off (local stack)", () => {
   });
 
   test("an admin: /admin/calls is a 404, no Calls entry, ?openPosition ignored", async ({ browser }) => {
-    const page = await signInSydney(browser, fx.adminEmail, "/admin/dashboard");
+    const page = await signInSydney(browser, fx.adminEmail, fx.password, "/admin/dashboard");
     const nav = await page.locator("aside a").evaluateAll((links) => links.map((a) => a.getAttribute("href")));
     expect(nav).toContain("/admin/leads");
     expect(nav).not.toContain("/admin/calls");

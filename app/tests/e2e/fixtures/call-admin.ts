@@ -18,18 +18,32 @@
  * `call_settings.enabled_since` gets a fixture value just before the first fixture sign-up (so only these families
  * are in the to-call scope) and is restored afterwards (plan §12 R11: never stamped on read).
  */
+import { randomBytes } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export const CALLS_EMAIL_PREFIX = "admin+b04c1-";
-export const CALLS_PASSWORD = "B04c1-local-walk-1!";
 export const BLOCK_REASON = "b04c1 walk: school run";
 const DOMAIN = "babybloomnannies.co.uk";
 const MINUTE = 60_000;
 const LOCAL = /^http:\/\/(127\.0\.0\.1|localhost):\d+$/;
 
+/** Clients `localDb` made for a localhost URL: the only ones the fixture functions accept (review round 2 L12). */
+const LOCAL_CLIENTS = new WeakSet<SupabaseClient>();
+
 export function localDb(url: string, serviceKey: string): SupabaseClient {
   if (!LOCAL.test(url)) throw new Error("local stack only — refusing a non-localhost Supabase URL");
-  return createClient(url, serviceKey, { auth: { persistSession: false } });
+  const client = createClient(url, serviceKey, { auth: { persistSession: false } });
+  LOCAL_CLIENTS.add(client);
+  return client;
+}
+
+function assertLocal(db: SupabaseClient): void {
+  if (!LOCAL_CLIENTS.has(db)) throw new Error("local stack only — refusing a client not made by localDb");
+}
+
+/** A fresh password per run, so none is fixed in this public repo (L12). Local-only users, removed after the run. */
+function runPassword(): string {
+  return `B04c1-${randomBytes(12).toString("base64url")}-1!`;
 }
 
 const LONDON_PARTS = new Intl.DateTimeFormat("en-GB", {
@@ -114,6 +128,8 @@ export interface FixtureFamily {
 export interface CallsFixture {
   readonly adminId: string;
   readonly adminEmail: string;
+  /** This run's password for every fixture user. */
+  readonly password: string;
   readonly families: Record<Key, FixtureFamily>;
   readonly enabledSinceBefore: string | null;
   readonly enabledSince: string;
@@ -125,8 +141,17 @@ async function must<T>(label: string, query: PromiseLike<{ data: T; error: { mes
   return data;
 }
 
-async function createUser(db: SupabaseClient, email: string, first: string, last: string, role: "admin" | "parent", test: boolean): Promise<string> {
-  const created = await db.auth.admin.createUser({ email, password: CALLS_PASSWORD, email_confirm: true, user_metadata: { first_name: first, last_name: last, role } });
+interface NewUser {
+  readonly email: string;
+  readonly password: string;
+  readonly first: string;
+  readonly last: string;
+  readonly role: "admin" | "parent";
+  readonly test: boolean;
+}
+
+async function createUser(db: SupabaseClient, { email, password, first, last, role, test }: NewUser): Promise<string> {
+  const created = await db.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { first_name: first, last_name: last, role } });
   if (created.error || !created.data.user) throw new Error(`createUser ${email}: ${created.error?.message}`);
   const id = created.data.user.id;
   await must("user_roles", db.from("user_roles").insert({ user_id: id, role }));
@@ -156,9 +181,16 @@ async function addPosition(db: SupabaseClient, parentId: string, spec: PositionS
   return positionId;
 }
 
-async function addFamily(db: SupabaseClient, spec: FamilySpec, run: string, signedUpAt: string, nannies: readonly string[]): Promise<FixtureFamily> {
+interface FamilyRun {
+  readonly run: string;
+  readonly password: string;
+  readonly signedUpAt: string;
+  readonly nannies: readonly string[];
+}
+
+async function addFamily(db: SupabaseClient, spec: FamilySpec, { run, password, signedUpAt, nannies }: FamilyRun): Promise<FixtureFamily> {
   const email = `${CALLS_EMAIL_PREFIX}${spec.key}-${run}@${DOMAIN}`;
-  const id = await createUser(db, email, spec.first, spec.last, "parent", spec.test === true);
+  const id = await createUser(db, { email, password, first: spec.first, last: spec.last, role: "parent", test: spec.test === true });
   const parent = await must("parents", db.from("parents").insert({ user_id: id, signup_source: spec.source, created_at: signedUpAt }).select("id").single());
   const positionId = spec.position ? await addPosition(db, (parent as { id: string }).id, spec.position, nannies) : null;
   return { id, email, name: `${spec.first} ${spec.last}`, positionId, bookingId: null, startsAt: null };
@@ -221,22 +253,24 @@ async function addBookingsAndAttempts(db: SupabaseClient, f: Record<Key, Fixture
 
 /** Make the whole fixture. */
 export async function createCallsFixture(db: SupabaseClient, run: string, now: Date = new Date()): Promise<CallsFixture> {
+  assertLocal(db);
   await removeCallsFixture(db); // a run that died left rows behind: start clean
   const before = await must("call_settings", db.from("call_settings").select("enabled_since").eq("id", 1).single());
+  const password = runPassword();
   const adminEmail = `${CALLS_EMAIL_PREFIX}admin-${run}@${DOMAIN}`;
-  const adminId = await createUser(db, adminEmail, "Sam", "Admin", "admin", false);
+  const adminId = await createUser(db, { email: adminEmail, password, first: "Sam", last: "Admin", role: "admin", test: false });
   const start = await scopeStart(db, now);
   const nannies = await nannyIds(db);
   const entries: Array<[Key, FixtureFamily]> = [];
   for (const [i, spec] of FAMILIES.entries()) {
     const signedUpAt = new Date(start + (i + 1) * 4 * MINUTE).toISOString();
-    entries.push([spec.key, await addFamily(db, spec, run, signedUpAt, nannies)]);
+    entries.push([spec.key, await addFamily(db, spec, { run, password, signedUpAt, nannies })]);
   }
   const families = Object.fromEntries(entries) as Record<Key, FixtureFamily>;
   await addBookingsAndAttempts(db, families, adminId, now);
   const enabledSince = new Date(start).toISOString();
   await must("call_settings", db.from("call_settings").update({ enabled_since: enabledSince }).eq("id", 1));
-  return { adminId, adminEmail, families, enabledSinceBefore: (before as { enabled_since: string | null }).enabled_since, enabledSince };
+  return { adminId, adminEmail, password, families, enabledSinceBefore: (before as { enabled_since: string | null }).enabled_since, enabledSince };
 }
 
 async function fixtureUserIds(db: SupabaseClient): Promise<string[]> {
@@ -267,6 +301,7 @@ async function removeFamilies(db: SupabaseClient, ids: readonly string[]): Promi
  * inert.
  */
 export async function removeCallsFixture(db: SupabaseClient, enabledSinceBefore?: string | null): Promise<void> {
+  assertLocal(db);
   await must("call_blocks", db.from("call_blocks").delete().eq("reason", BLOCK_REASON));
   const ids = await fixtureUserIds(db);
   if (ids.length > 0) {
