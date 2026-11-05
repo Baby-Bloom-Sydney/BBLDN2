@@ -236,12 +236,12 @@ function lastOf(root: HTMLElement | null, selector: string): HTMLElement | null 
 
 /**
  * Where focus goes back to (after the notice closes, or a reload): her chosen tile in the deepest step, else that
- * step's tab stop, else Retry, else the heading — never the page body (React re-review LOW).
+ * step's first open tile, else Retry, else the heading — never the page body (React re-review LOW).
  */
 function focusBack(section: HTMLElement | null, steps: HTMLElement | null, heading: HTMLElement | null) {
   const target =
-    lastOf(steps, '[aria-checked="true"]:not([disabled])') ??
-    lastOf(steps, '[tabindex="0"]:not([disabled])') ??
+    lastOf(steps, '[aria-pressed="true"]:not([disabled])') ??
+    lastOf(steps, '[role="group"]')?.querySelector<HTMLElement>("button:not([disabled])") ??
     section?.querySelector<HTMLElement>("[data-retry]") ??
     heading;
   target?.focus();

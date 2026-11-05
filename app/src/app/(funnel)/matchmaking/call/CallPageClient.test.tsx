@@ -40,9 +40,9 @@ const page = (initial: MyCallView, next = NEXT, startChanging = false) =>
   render(<CallPageClient initial={initial} nextHref={next} startChanging={startChanging} />);
 /** W4: a time-of-day cell, then a time in it (a tap holds at once). */
 async function pickTue14(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole("radio", { name: "Tue 9 Feb" }));
-  await user.click(screen.getByRole("radio", { name: /^Afternoon / }));
-  await user.click(screen.getByRole("radio", { name: "Tuesday 9 February, 14:00" }));
+  await user.click(await screen.findByRole("button", { name: "Tue 9 Feb" }));
+  await user.click(screen.getByRole("button", { name: /^Afternoon / }));
+  await user.click(screen.getByRole("button", { name: "Tuesday 9 February, 14:00" }));
 }
 const youreBooked = () => screen.findByRole("heading", { level: 1, name: "You're booked" });
 
@@ -66,7 +66,7 @@ describe("the funnel slide (04b rework W3)", () => {
 describe("the seven states", () => {
   it("times shown: the picker, and Skip for now → next", () => {
     page(PICK);
-    expect(screen.getByRole("radio", { name: "Tue 9 Feb" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tue 9 Feb" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Skip for now" })).toHaveAttribute("href", NEXT);
   });
 
@@ -92,7 +92,7 @@ describe("the seven states", () => {
     expect(onward.className).toContain("bg-violet-500");
     expect(screen.getByRole("button", { name: "Change time" }).className).toContain("text-slate-500");
     expect(screen.getByRole("button", { name: "Cancel" }).className).toContain("text-slate-500");
-    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
   });
 
   it("booked with no number on file: no 'We'll call you on' line", async () => {
@@ -112,7 +112,7 @@ describe("the seven states", () => {
   it("after a no-answer: 'We tried to call you — pick another time', with the picker", () => {
     page({ kind: "pick", afterNoAnswer: true, days: DAYS, mobile: null, needsPosition: false });
     expect(screen.getByText("We tried to call you — pick another time")).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Tue 9 Feb" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tue 9 Feb" })).toBeInTheDocument();
   });
 
   it("no times: the §0.13 line, and Skip for now", () => {
@@ -130,7 +130,7 @@ describe("the seven states", () => {
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(screen.getByTestId("slot-picker-loading")).toBeInTheDocument();
     finish({ ok: true, value: PICK });
-    expect(await screen.findByRole("radio", { name: "Tue 9 Feb" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Tue 9 Feb" })).toBeInTheDocument();
   });
 
   it("a reload that finds her booked (another tab) shows the booking", async () => {
@@ -168,18 +168,18 @@ describe("change and cancel", () => {
     h.reload.mockResolvedValueOnce({ ok: true, value: BOOKED_VIEW });
     page({ ...BOOKED_VIEW, days: null });
     await user.click(screen.getByRole("button", { name: "Change time" }));
-    expect(await screen.findByRole("radio", { name: "Tue 9 Feb" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Tue 9 Feb" })).toBeInTheDocument();
     expect(screen.getByText(BOOKED.yourCall)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Keep my time" }));
-    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
     expect(await youreBooked()).toBeInTheDocument();
   });
 
   it("?change=1 opens straight into picking a new time for her booking: only the days, nothing chosen (W15)", async () => {
     page(BOOKED_VIEW, NEXT, true);
     expect(screen.getByText(BOOKED.yourCall)).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Tue 9 Feb" })).toHaveAttribute("aria-checked", "false");
-    expect(screen.queryByRole("radiogroup", { name: "Time of day" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tue 9 Feb" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("group", { name: "Time of day" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Keep my time" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Skip for now" })).not.toBeInTheDocument();
     expect(h.reload).not.toHaveBeenCalled();
@@ -200,7 +200,7 @@ describe("change and cancel", () => {
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     await user.click(screen.getByRole("button", { name: "Yes, cancel it" }));
     expect(h.cancel).toHaveBeenCalledWith("b-1");
-    expect(await screen.findByRole("radio", { name: "Tue 9 Feb" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Tue 9 Feb" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Your call is cancelled");
   });
 
@@ -254,7 +254,7 @@ describe("a rejected or refused action never sticks (review F1, F2)", () => {
     page(BOOKED_VIEW);
     await user.click(screen.getByRole("button", { name: "Change time" }));
     expect(await screen.findByRole("button", { name: "Retry" })).toBeEnabled();
-    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
     expect(screen.getByText(BOOKED.yourCall)).toBeInTheDocument();
   });
 
@@ -265,7 +265,7 @@ describe("a rejected or refused action never sticks (review F1, F2)", () => {
     page(PICK);
     await pickTue14(user);
     expect(await screen.findByText("We couldn't load the times — we'll still call you for your Complimentary matchmaker call")).toBeInTheDocument();
-    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
   });
 
   it("Cancel rejecting: the alert, the booking and its links stay, nothing pending", async () => {

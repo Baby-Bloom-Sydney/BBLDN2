@@ -100,10 +100,10 @@ async function signUp(page: Page, path: string, email: string): Promise<void> {
   await page.click('button[type="submit"]');
 }
 
-/** The picker's three steps, each its own radiogroup (W14): the days, the times of day, the chosen one's times. */
+/** The picker's three steps (W14), each a group of toggle buttons (W17): the days, the times of day, the chosen one's times. */
 type Step = "heading" | "time-of-day" | "select-time";
-const step = (scope: Page | Locator, which: Step) => scope.locator(`[role="radiogroup"][aria-labelledby$="-${which}"]`);
-const openIn = (group: Locator) => group.locator('[role="radio"]:not([disabled])');
+const step = (scope: Page | Locator, which: Step) => scope.locator(`[role="group"][aria-labelledby$="-${which}"]`);
+const openIn = (group: Locator) => group.locator("button[aria-pressed]:not([disabled])");
 
 /**
  * Pick the way a person does: an open day not already chosen (the first, the last, or the tile at `day`), its first
@@ -111,8 +111,8 @@ const openIn = (group: Locator) => group.locator('[role="radio"]:not([disabled])
  */
 async function pickSlot(scope: Page | Locator, { n = 0, day, last = false }: { readonly n?: number; readonly day?: number; readonly last?: boolean } = {}): Promise<string> {
   const days = step(scope, "heading");
-  const open = days.locator('[role="radio"][aria-checked="false"]:not([disabled])');
-  await (day !== undefined ? days.locator('[role="radio"]').nth(day) : last ? open.last() : open.first()).click();
+  const open = days.locator('button[aria-pressed="false"]:not([disabled])');
+  await (day !== undefined ? days.locator("button[aria-pressed]").nth(day) : last ? open.last() : open.first()).click();
   await openIn(step(scope, "time-of-day")).first().click();
   const time = openIn(step(scope, "select-time")).nth(n);
   const startsAt = (await time.locator("time").getAttribute("datetime")) ?? "";
@@ -192,7 +192,7 @@ test.describe.serial("call booking — flag on (local stack)", () => {
     readback.firstSlot = { startsAt, name: await first.getAttribute("aria-label"), browserZone: "Australia/Sydney" };
     await shoot(page, "picker-times");
     // Unselecting the day hides what came after it.
-    await step(page, "heading").locator('[role="radio"][aria-checked="true"]').click();
+    await step(page, "heading").locator('[aria-pressed="true"]').click();
     await expect(step(page, "time-of-day")).toHaveCount(0);
     await expect(step(page, "select-time")).toHaveCount(0);
   });
@@ -227,8 +227,8 @@ test.describe.serial("call booking — flag on (local stack)", () => {
     await expect(dialog.getByText(/^Your call: /)).toBeVisible({ timeout: 120_000 });
     expect(new URL(page.url()).pathname).toBe("/parent");
     // Changing opens with her booking on top and only the days, nothing chosen (W15).
-    await expect(dialog.locator('[role="radiogroup"]')).toHaveCount(1);
-    await expect(step(dialog, "heading").locator('[role="radio"][aria-checked="true"]')).toHaveCount(0);
+    await expect(dialog.locator('[role="group"]')).toHaveCount(1);
+    await expect(step(dialog, "heading").locator('[aria-pressed="true"]')).toHaveCount(0);
     await shoot(page, "popup-change");
     await pickSlot(dialog, { last: true }); // her time was the first open day's: the last open day is another
     await dialog.getByRole("button", { name: "Confirm time" }).click();

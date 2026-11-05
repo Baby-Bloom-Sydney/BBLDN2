@@ -11,20 +11,20 @@
  * 2. `BracketStep` — once a day is chosen: Morning / Midday / Afternoon / Evening with their sublabels.
  * 3. `TimeStep` — once a time of day is chosen: "Select a time" and that bracket's call slots.
  *
- * Every step is its own radiogroup in ScheduleTimeGrid's cell styles (`components/position/ScheduleTimeGrid.tsx`): open
- * violet-50, chosen violet-600, closed slate-50 and disabled — greyed, never hidden. Arrow keys move within a step and
- * skip what is closed; they never choose. A step that appears fades and slides in under the last (motion-safe only) and
- * scrolls itself into view. What a tap does (choose, unselect, hold) is the picker's (`use-slot-picker.ts`).
+ * Every step is a group of toggle buttons (`aria-pressed`), labelled by its heading — a second tap unselects, so they
+ * are not radios (W17 final review) — in ScheduleTimeGrid's cell styles (`components/position/ScheduleTimeGrid.tsx`):
+ * open violet-50, chosen violet-600, closed slate-50 and disabled — greyed, never hidden. Each open tile is a tab stop
+ * in the page's normal order. A step that appears fades and slides in under the last (motion-safe only) and scrolls
+ * itself into view. What a tap does (choose, unselect, hold) is the picker's (`use-slot-picker.ts`).
  *
  * BB-wave1-041126/04b-rework, 2026-11-05.
  */
 
-import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { PARENT_COPY } from "@/lib/calls/copy";
 import type { SlotDay, SlotOption } from "@/lib/calls/group-slots-by-day";
 import { BRACKET_KEYS, TIME_BRACKETS, type BracketKey } from "@/lib/timezone";
-import { isMoveKey, moveInList } from "./picker-keys";
 
 const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1";
 const LOOK = {
@@ -88,8 +88,8 @@ export function Reveal({ children }: { readonly children: ReactNode }) {
   );
 }
 
-export interface Tile {
-  readonly key: string;
+export interface Tile<K extends string = string> {
+  readonly key: K;
   readonly content: ReactNode;
   /** Its accessible name, when the visible text isn't enough. */
   readonly name?: string;
@@ -100,16 +100,14 @@ export interface Tile {
   readonly hers?: boolean;
 }
 
-interface RadioTilesProps {
-  readonly tiles: readonly Tile[];
+interface ToggleTilesProps<K extends string> {
+  readonly tiles: readonly Tile<K>[];
   readonly look: keyof typeof LOOK;
   readonly gridClass: string;
   readonly tileClass?: string;
-  /** Arrow Up/Down move this many tiles (the visual columns); 1 = Up/Down step like Left/Right. */
-  readonly columns: number;
   readonly labelledBy: string;
   readonly busy: boolean;
-  readonly onPick: (key: string) => void;
+  readonly onPick: (key: K) => void;
 }
 
 /** Chosen and still open (or hers) → violet; a chosen tile that has since closed greys out like any closed one. */
@@ -118,34 +116,19 @@ function lookOf(tile: Tile, style: (typeof LOOK)[keyof typeof LOOK]): string {
   return tile.open ? style.open : style.closed;
 }
 
-/** One step's radiogroup: one tab stop (the chosen tile while it is open, else the first open one). */
-function RadioTiles({ tiles, look, gridClass, tileClass, columns, labelledBy, busy, onPick }: RadioTilesProps) {
-  const open = tiles.map((t) => t.open);
-  const chosenAt = tiles.findIndex((t) => t.chosen);
-  const stop = chosenAt >= 0 && open[chosenAt] ? chosenAt : open.indexOf(true);
+/** One step: a group of toggle buttons labelled by its heading; closed ones disabled (greyed, never hidden). */
+function ToggleTiles<K extends string>({ tiles, look, gridClass, tileClass, labelledBy, busy, onPick }: ToggleTilesProps<K>) {
   const style = LOOK[look];
-  const onKey = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
-    // Alt/Ctrl/Meta + arrow is the browser's (Alt+Left is Back).
-    if (!isMoveKey(event.key) || event.altKey || event.ctrlKey || event.metaKey) return;
-    event.preventDefault();
-    const to = moveInList(event.key, index, open, columns);
-    if (to !== null) event.currentTarget.parentElement?.querySelector<HTMLElement>(`[data-tile="${to}"]`)?.focus();
-  };
   return (
-    <div role="radiogroup" aria-labelledby={labelledBy} className={gridClass}>
-      {tiles.map((tile, index) => (
+    <div role="group" aria-labelledby={labelledBy} className={gridClass}>
+      {tiles.map((tile) => (
         <button
           key={tile.key}
           type="button"
-          role="radio"
-          aria-checked={tile.chosen}
-          aria-disabled={!tile.open}
+          aria-pressed={tile.chosen}
           aria-label={tile.name}
-          data-tile={index}
-          tabIndex={index === stop ? 0 : -1}
           disabled={!tile.open || busy}
           onClick={() => onPick(tile.key)}
-          onKeyDown={(event) => onKey(event, index)}
           className={cn(style.base, FOCUS, tileClass, lookOf(tile, style), tile.struck && "line-through")}
         >
           {tile.content}
@@ -175,7 +158,7 @@ export function DayStep({ uid, days, chosen, gone, current, busy, onPick }: Step
     ),
   }));
   const wide = DAYS_FROM_640[days.length > 7 ? 8 : 7];
-  return <RadioTiles tiles={tiles} look="cell" gridClass={`${CENTRED} gap-2`} tileClass={`h-14 ${QUARTER_OF_DAYS} ${wide}`} columns={1} labelledBy={`${uid}-heading`} busy={busy} onPick={onPick} />;
+  return <ToggleTiles tiles={tiles} look="cell" gridClass={`${CENTRED} gap-2`} tileClass={`h-14 ${QUARTER_OF_DAYS} ${wide}`} labelledBy={`${uid}-heading`} busy={busy} onPick={onPick} />;
 }
 
 export function BracketStep({ uid, day, chosen, gone, current, busy, onPick }: StepProps & { readonly day: SlotDay; readonly chosen: BracketKey | null; readonly onPick: (bracket: BracketKey) => void }) {
@@ -185,7 +168,7 @@ export function BracketStep({ uid, day, chosen, gone, current, busy, onPick }: S
     chosen: bracket === chosen,
     content: (
       <>
-        <span className="block text-xs font-semibold">{TIME_BRACKETS[bracket].label}</span>{" "}
+        <span className="block text-[11px] font-semibold tracking-tight">{TIME_BRACKETS[bracket].label}</span>{" "}
         <span className="block text-[10px] leading-tight opacity-80">{TIME_BRACKETS[bracket].sublabel}</span>
       </>
     ),
@@ -195,7 +178,8 @@ export function BracketStep({ uid, day, chosen, gone, current, busy, onPick }: S
       <p id={`${uid}-time-of-day`} className={LABEL}>
         {PARENT_COPY.timeOfDay}
       </p>
-      <RadioTiles tiles={tiles} look="cell" gridClass="grid grid-cols-4 gap-2" tileClass="h-14" columns={1} labelledBy={`${uid}-time-of-day`} busy={busy} onPick={(key) => onPick(key as BracketKey)} />
+      {/* No side padding and an 11px, tight label: "Afternoon" fits a 320px phone's popup (W17, measured at 320×568). */}
+      <ToggleTiles tiles={tiles} look="cell" gridClass="grid grid-cols-4 gap-2" tileClass="h-14 px-0" labelledBy={`${uid}-time-of-day`} busy={busy} onPick={onPick} />
     </div>
   );
 }
@@ -221,7 +205,7 @@ export function TimeStep({ uid, slots, chosen, gone, current, busy, onTap }: Ste
         {PARENT_COPY.selectTime}
       </p>
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <RadioTiles tiles={tiles} look="time" gridClass={`${CENTRED} gap-1.5`} tileClass={QUARTER_OF_TIMES} columns={4} labelledBy={`${uid}-select-time`} busy={busy} onPick={onTap} />
+        <ToggleTiles tiles={tiles} look="time" gridClass={`${CENTRED} gap-1.5`} tileClass={QUARTER_OF_TIMES} labelledBy={`${uid}-select-time`} busy={busy} onPick={onTap} />
       </div>
     </div>
   );

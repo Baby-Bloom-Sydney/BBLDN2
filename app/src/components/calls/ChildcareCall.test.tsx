@@ -60,7 +60,7 @@ describe("ChildcareCall — opening", () => {
     const dialog = await popup();
     expect(dialog.className).toContain("rounded-2xl");
     expect(dialog.className).toContain("max-h-[80dvh]"); // W16 (was 90dvh)
-    expect(await within(dialog).findByRole("radio", { name: "Tue 9 Feb" })).toBeInTheDocument();
+    expect(await within(dialog).findByRole("button", { name: "Tue 9 Feb" })).toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("link", { name: "Skip for now" })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Keep my time" })).not.toBeInTheDocument();
@@ -93,7 +93,7 @@ describe("ChildcareCall — opening", () => {
     render(<ChildcareCall card={{ kind: "not_booked", afterNoAnswer: false }} openWith={null} goneWhen={null} failed={false} />);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Book a time" }));
-    expect(await within(await popup()).findByRole("radio", { name: "Tue 9 Feb" })).toBeInTheDocument();
+    expect(await within(await popup()).findByRole("button", { name: "Tue 9 Feb" })).toBeInTheDocument();
     expect(h.replace).not.toHaveBeenCalled();
   });
 
@@ -104,10 +104,10 @@ describe("ChildcareCall — opening", () => {
     await user.click(screen.getByRole("button", { name: "Change time" }));
     const dialog = await popup();
     expect(await within(dialog).findByText(BOOKED.yourCall)).toBeInTheDocument();
-    expect(within(dialog).getAllByRole("radiogroup")).toHaveLength(1);
-    await user.click(within(dialog).getByRole("radio", { name: "Tue 9 Feb" }));
-    await user.click(within(dialog).getByRole("radio", { name: /^Afternoon / }));
-    expect(within(dialog).getByRole("radio", { name: "Tuesday 9 February, 15:00 — your current time" })).toHaveAttribute("aria-checked", "true");
+    expect(within(dialog).getAllByRole("group")).toHaveLength(1);
+    await user.click(within(dialog).getByRole("button", { name: "Tue 9 Feb" }));
+    await user.click(within(dialog).getByRole("button", { name: /^Afternoon / }));
+    expect(within(dialog).getByRole("button", { name: "Tuesday 9 February, 15:00 — your current time" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("no param and no card → nothing at all", () => {
@@ -168,9 +168,9 @@ describe("ChildcareCall — her booking, for changes (BAI 2026-11-05)", () => {
     await user.click(within(dialog).getByRole("button", { name: "Change time" }));
     const picking = await popup();
     expect(within(picking).getByText(BOOKED.yourCall)).toBeInTheDocument();
-    await user.click(await within(picking).findByRole("radio", { name: "Tue 9 Feb" }));
-    await user.click(within(picking).getByRole("radio", { name: /^Afternoon / }));
-    await user.click(within(picking).getByRole("radio", { name: "Tuesday 9 February, 14:00" }));
+    await user.click(await within(picking).findByRole("button", { name: "Tue 9 Feb" }));
+    await user.click(within(picking).getByRole("button", { name: /^Afternoon / }));
+    await user.click(within(picking).getByRole("button", { name: "Tuesday 9 February, 14:00" }));
     await user.click(await within(picking).findByRole("button", { name: "Confirm time" }));
     const booked = await screen.findByRole("dialog", { name: "You're booked" });
     expect(within(booked).getByText(MOVED.yourCall)).toBeInTheDocument();
@@ -184,9 +184,9 @@ describe("ChildcareCall — her booking, for changes (BAI 2026-11-05)", () => {
     h.reload.mockResolvedValue({ ok: true, value: { ...PICK, needsPosition: true } });
     render(<ChildcareCall card={null} openWith="open" goneWhen={null} failed={false} />);
     const dialog = await popup();
-    await user.click(await within(dialog).findByRole("radio", { name: "Tue 9 Feb" }));
-    await user.click(within(dialog).getByRole("radio", { name: /^Afternoon / }));
-    await user.click(within(dialog).getByRole("radio", { name: "Tuesday 9 February, 14:00" }));
+    await user.click(await within(dialog).findByRole("button", { name: "Tue 9 Feb" }));
+    await user.click(within(dialog).getByRole("button", { name: /^Afternoon / }));
+    await user.click(within(dialog).getByRole("button", { name: "Tuesday 9 February, 14:00" }));
     expect(h.hold).not.toHaveBeenCalled();
     expect(within(dialog).getByText("Complete your childcare position so that we can confirm your call with your matchmaker.")).toBeInTheDocument();
     expect(within(dialog).getByRole("link", { name: "Confirm time" })).toHaveAttribute(
@@ -231,9 +231,9 @@ describe("React re-review fixes (the popup)", () => {
     await user.click(within(notice).getByRole("button", { name: "Pick another time" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "This time has just been booked" })).not.toBeInTheDocument());
     const dialog = await popup();
-    await user.click(await within(dialog).findByRole("radio", { name: "Tue 9 Feb" }));
-    await user.click(within(dialog).getByRole("radio", { name: /^Afternoon / }));
-    await user.click(within(dialog).getByRole("radio", { name: "Tuesday 9 February, 14:00" }));
+    await user.click(await within(dialog).findByRole("button", { name: "Tue 9 Feb" }));
+    await user.click(within(dialog).getByRole("button", { name: /^Afternoon / }));
+    await user.click(within(dialog).getByRole("button", { name: "Tuesday 9 February, 14:00" }));
     await user.click(await within(dialog).findByRole("button", { name: "Confirm time" }));
     const booked = await screen.findByRole("dialog", { name: "You're booked" });
     h.reload.mockResolvedValue({ ok: true, value: { ...BOOKED_VIEW, booking: MOVED } });

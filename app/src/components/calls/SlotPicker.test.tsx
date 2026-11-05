@@ -2,14 +2,15 @@
  * SlotPicker (plan B6; brief §2 picker semantics, §3 parent 2–3; 04b rework W4, W14). Since BAI 2026-11-05 (W14) it
  * reveals one step at a time: the day tiles; once a day is chosen, four time-of-day tiles; once one is chosen, its
  * times. Each is a selector she can unselect, which hides the later steps. 04b's intents carried over:
- *  - each step is its own radiogroup; arrow keys move within it, skip what is closed, and never choose;
+ *  - each step is a group of toggle buttons (aria-pressed) labelled by its heading, in the normal tab order (W17: a
+ *    second tap unselects, so they are not radios; no arrow-key roving);
  *  - a tap (or Space) on a free time holds it at once; Confirm takes focus only once nothing is in flight;
  *  - a refusal never sticks (throws settle); a failed confirm reloads (a lost reply may have booked);
  *  - the no-times and load-failed states with Retry; a skeleton while the list reloads; reduced motion respected.
  * Unavailable days, times of day and times are greyed and can't be chosen, never hidden; a time taken by someone else
  * opens the "This time has just been booked" notice while the list refreshes. Nothing says "London time" (W14).
  */
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -18,10 +19,10 @@ import { groupSlotGridByDay } from "@/lib/calls/group-slots-by-day";
 import type { MyCallRefusal } from "@/lib/calls/parent-view";
 import { SlotPicker } from "./SlotPicker";
 
-const day = (name: string) => screen.getByRole("radio", { name });
+const day = (name: string) => screen.getByRole("button", { name });
 const tue = () => day("Tue 9 Feb");
-const bracket = (label: string) => screen.getByRole("radio", { name: new RegExp(`^${label} `) });
-const time = (name: string) => screen.getByRole("radio", { name });
+const bracket = (label: string) => screen.getByRole("button", { name: new RegExp(`^${label} `) });
+const time = (name: string) => screen.getByRole("button", { name });
 const tue14 = () => time("Tuesday 9 February, 14:00");
 const confirmButton = () => screen.getByRole("button", { name: "Confirm time" });
 const NOTICE = "Someone else booked Tuesday 9 February at 14:00 a moment ago. Please pick another time.";
@@ -40,8 +41,8 @@ describe("SlotPicker — step 1: the days only", () => {
   it("the header, then day tiles alone ('Tue' over '9 Feb'); no times of day, no times; Confirm disabled", () => {
     render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />);
     expect(screen.getByRole("heading", { name: "Your matchmaker's availability" })).toBeInTheDocument();
-    const days = screen.getByRole("radiogroup", { name: "Your matchmaker's availability" });
-    expect(within(days).getAllByRole("radio").map((r) => r.textContent)).toEqual(["Tue 9 Feb", "Wed 10 Feb", "Thu 11 Feb"]);
+    const days = screen.getByRole("group", { name: "Your matchmaker's availability" });
+    expect(within(days).getAllByRole("button").map((r) => r.textContent)).toEqual(["Tue 9 Feb", "Wed 10 Feb", "Thu 11 Feb"]);
     expect(screen.queryByText("Time of day")).not.toBeInTheDocument();
     expect(screen.queryByText("Select a time")).not.toBeInTheDocument();
     expect(confirmButton()).toBeDisabled();
@@ -56,7 +57,7 @@ describe("SlotPicker — step 1: the days only", () => {
 
   it("W15: the day tiles are centred — four across on a phone (a short last row centred), seven from 640px", () => {
     render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />);
-    expect(screen.getByRole("radiogroup", { name: "Your matchmaker's availability" }).className).toContain("flex flex-wrap justify-center gap-2");
+    expect(screen.getByRole("group", { name: "Your matchmaker's availability" }).className).toContain("flex flex-wrap justify-center gap-2");
     expect(tue().className).toContain("w-[calc((100%-1.5rem)/4)] sm:w-[calc((100%-3rem)/7)]");
   });
 
@@ -64,15 +65,15 @@ describe("SlotPicker — step 1: the days only", () => {
     const dates = ["2027-02-04", "2027-02-05", "2027-02-06", "2027-02-07", "2027-02-08", "2027-02-09", "2027-02-10", "2027-02-11"];
     const slots = dates.map((date) => ({ startsAt: `${date}T10:00:00.000Z`, endsAt: `${date}T10:30:00.000Z`, free: true }));
     render(<SlotPicker days={groupSlotGridByDay({ dates, slots })} actions={actionsWith()} onConfirmed={vi.fn()} />);
-    const days = screen.getByRole("radiogroup", { name: "Your matchmaker's availability" });
-    expect(within(days).getAllByRole("radio")).toHaveLength(8);
-    expect(within(days).getAllByRole("radio")[0].className).toContain("sm:w-[calc((100%-3.5rem)/8)]");
-    expect(within(days).getAllByRole("radio")[0].className).not.toContain("/7)]");
+    const days = screen.getByRole("group", { name: "Your matchmaker's availability" });
+    expect(within(days).getAllByRole("button")).toHaveLength(8);
+    expect(within(days).getAllByRole("button")[0].className).toContain("sm:w-[calc((100%-3.5rem)/8)]");
+    expect(within(days).getAllByRole("button")[0].className).not.toContain("/7)]");
   });
 
   it("a single day (03's pre-book) is one tile", () => {
     render(<SlotPicker days={gridDays().slice(0, 1)} actions={actionsWith()} onConfirmed={vi.fn()} />);
-    expect(within(screen.getByRole("radiogroup")).getAllByRole("radio")).toHaveLength(1);
+    expect(within(screen.getByRole("group")).getAllByRole("button")).toHaveLength(1);
   });
 });
 
@@ -81,9 +82,9 @@ describe("SlotPicker — step 2 and step 3 appear in turn", () => {
     const user = userEvent.setup();
     render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />);
     await user.click(tue());
-    expect(tue()).toHaveAttribute("aria-checked", "true");
-    const brackets = screen.getByRole("radiogroup", { name: "Time of day" });
-    expect(within(brackets).getAllByRole("radio").map((r) => r.textContent)).toEqual([
+    expect(tue()).toHaveAttribute("aria-pressed", "true");
+    const brackets = screen.getByRole("group", { name: "Time of day" });
+    expect(within(brackets).getAllByRole("button").map((r) => r.textContent)).toEqual([
       "Morning 08:00 – 11:00",
       "Midday 11:00 – 14:00",
       "Afternoon 14:00 – 17:00",
@@ -94,19 +95,19 @@ describe("SlotPicker — step 2 and step 3 appear in turn", () => {
     expect(screen.queryByText("Select a time")).not.toBeInTheDocument();
   });
 
-  it("a time of day → 'Select a time' with every slot in it — those not free greyed, disabled and aria-disabled", async () => {
+  it("a time of day → 'Select a time' with every slot in it — those not free greyed and disabled (no aria-disabled, W17)", async () => {
     const user = userEvent.setup();
     const actions = actionsWith();
     render(<SlotPicker days={DAYS} actions={actions} onConfirmed={vi.fn()} />);
     await toAfternoon(user);
-    const box = screen.getByRole("radiogroup", { name: "Select a time" });
-    expect(within(box).getAllByRole("radio").map((r) => r.textContent)).toEqual(["14:00", "14:30", "15:00"]);
+    const box = screen.getByRole("group", { name: "Select a time" });
+    expect(within(box).getAllByRole("button").map((r) => r.textContent)).toEqual(["14:00", "14:30", "15:00"]);
     // W15: a short row of times is centred too, each time a quarter of the box.
     expect(box.className).toContain("flex flex-wrap justify-center gap-1.5");
     expect(tue14().className).toContain("w-[calc((100%-1.125rem)/4)]");
     const t15 = time("Tuesday 9 February, 15:00");
     expect(t15).toBeDisabled();
-    expect(t15).toHaveAttribute("aria-disabled", "true");
+    expect(t15).not.toHaveAttribute("aria-disabled");
     expect(t15.className).toContain("bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed");
     await user.click(t15);
     expect(actions.hold).not.toHaveBeenCalled();
@@ -126,7 +127,7 @@ describe("SlotPicker — step 2 and step 3 appear in turn", () => {
 });
 
 describe("SlotPicker — strictly one step at a time, like a form unhiding (W15)", () => {
-  const steps = () => screen.getAllByRole("radiogroup").length;
+  const steps = () => screen.getAllByRole("group").length;
 
   it.each([
     ["picking", undefined],
@@ -151,7 +152,7 @@ describe("SlotPicker — unselecting hides what comes after (W14)", () => {
     render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />);
     await toAfternoon(user);
     await user.click(tue());
-    expect(tue()).toHaveAttribute("aria-checked", "false");
+    expect(tue()).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByText("Time of day")).not.toBeInTheDocument();
     expect(screen.queryByText("Select a time")).not.toBeInTheDocument();
   });
@@ -161,7 +162,7 @@ describe("SlotPicker — unselecting hides what comes after (W14)", () => {
     render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />);
     await toAfternoon(user);
     await user.click(bracket("Afternoon"));
-    expect(bracket("Afternoon")).toHaveAttribute("aria-checked", "false");
+    expect(bracket("Afternoon")).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByText("Select a time")).not.toBeInTheDocument();
   });
 
@@ -172,7 +173,7 @@ describe("SlotPicker — unselecting hides what comes after (W14)", () => {
     await holdTue14(user);
     await screen.findByText(HOLD.line);
     await user.click(tue14());
-    expect(tue14()).toHaveAttribute("aria-checked", "false");
+    expect(tue14()).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByText(HOLD.line)).not.toBeInTheDocument();
     expect(confirmButton()).toBeDisabled();
     expect(actions.hold).toHaveBeenCalledTimes(1);
@@ -184,8 +185,8 @@ describe("SlotPicker — unselecting hides what comes after (W14)", () => {
     await holdTue14(user);
     await screen.findByText(HOLD.line);
     await user.click(day("Wed 10 Feb"));
-    expect(screen.getByRole("radiogroup", { name: "Time of day" })).toBeInTheDocument();
-    expect(within(screen.getByRole("radiogroup", { name: "Time of day" })).queryByRole("radio", { checked: true })).toBeNull();
+    expect(screen.getByRole("group", { name: "Time of day" })).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "Time of day" })).queryByRole("button", { pressed: true })).toBeNull();
     expect(screen.queryByText("Select a time")).not.toBeInTheDocument();
     expect(confirmButton()).toBeDisabled();
   });
@@ -196,64 +197,54 @@ describe("SlotPicker — unselecting hides what comes after (W14)", () => {
     await holdTue14(user);
     await screen.findByText(HOLD.line);
     await user.click(bracket("Morning"));
-    expect(within(screen.getByRole("radiogroup", { name: "Select a time" })).queryByRole("radio", { checked: true })).toBeNull();
+    expect(within(screen.getByRole("group", { name: "Select a time" })).queryByRole("button", { pressed: true })).toBeNull();
     expect(confirmButton()).toBeDisabled();
   });
 });
 
-describe("SlotPicker — keyboard, step by step", () => {
-  it("days: arrows move between open days only and never choose", async () => {
+describe("SlotPicker — toggle buttons in the normal tab order (W17 final review)", () => {
+  it("each step is a group of toggle buttons labelled by its heading; aria-pressed, not radios; no aria-disabled", async () => {
     const user = userEvent.setup();
     render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />);
-    tue().focus();
-    await user.keyboard("{ArrowRight}");
-    expect(day("Wed 10 Feb")).toHaveFocus();
-    await user.keyboard("{ArrowRight}");
-    expect(tue()).toHaveFocus();
-    expect(tue()).toHaveAttribute("aria-checked", "false");
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
+    await toAfternoon(user);
+    for (const name of ["Your matchmaker's availability", "Time of day", "Select a time"]) {
+      const group = screen.getByRole("group", { name });
+      for (const tile of within(group).getAllByRole("button")) {
+        expect(tile).toHaveAttribute("aria-pressed");
+        expect(tile).not.toHaveAttribute("aria-disabled");
+      }
+    }
+    expect(tue()).toHaveAttribute("aria-pressed", "true");
+    expect(bracket("Afternoon")).toHaveAttribute("aria-pressed", "true");
+    expect(time("Tuesday 9 February, 15:00")).toBeDisabled();
   });
 
-  it("times of day: arrows skip a greyed one; Space chooses", async () => {
-    const user = userEvent.setup();
-    render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />);
-    await user.click(tue());
-    bracket("Morning").focus();
-    await user.keyboard("{ArrowRight}");
-    expect(bracket("Afternoon")).toHaveFocus();
-    await user.keyboard(" ");
-    expect(bracket("Afternoon")).toHaveAttribute("aria-checked", "true");
-  });
-
-  it("times: arrows skip a greyed time and never hold; Space holds the focused one", async () => {
+  it("every open tile is a tab stop in order; a closed one is skipped; arrow keys don't move focus or choose", async () => {
     const user = userEvent.setup();
     const actions = actionsWith();
     render(<SlotPicker days={DAYS} actions={actions} onConfirmed={vi.fn()} />);
     await toAfternoon(user);
+    for (const tile of screen.getAllByRole("button", { pressed: false })) expect(tile).not.toHaveAttribute("tabindex", "-1");
     tue14().focus();
-    await user.keyboard("{ArrowRight}");
+    await user.tab();
     expect(time("Tuesday 9 February, 14:30")).toHaveFocus();
-    await user.keyboard("{ArrowRight}");
-    expect(tue14()).toHaveFocus();
+    await user.keyboard("{ArrowLeft}");
+    expect(time("Tuesday 9 February, 14:30")).toHaveFocus();
     expect(actions.hold).not.toHaveBeenCalled();
     await user.keyboard(" ");
-    expect(actions.hold).toHaveBeenCalledWith(TUE_14);
+    expect(actions.hold).toHaveBeenCalledWith(TUE_1430);
   });
 
-  it("each step is one tab stop", async () => {
+  it("Space or Enter on a focused tile chooses it, and again unselects it", async () => {
     const user = userEvent.setup();
     render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />);
-    await toAfternoon(user);
-    const stops = screen.getAllByRole("radio").filter((r) => r.getAttribute("tabindex") === "0");
-    expect(stops.map((r) => r.textContent)).toEqual(["Tue 9 Feb", "Afternoon 14:00 – 17:00", "14:00"]);
-  });
-
-  it("arrow keys with Alt, Ctrl or Meta are left to the browser (e.g. Alt+Left is Back)", () => {
-    render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />);
     tue().focus();
-    for (const modifier of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }]) {
-      expect(fireEvent.keyDown(tue(), { key: "ArrowRight", ...modifier })).toBe(true);
-      expect(tue()).toHaveFocus();
-    }
+    await user.keyboard(" ");
+    expect(tue()).toHaveAttribute("aria-pressed", "true");
+    await user.keyboard("{Enter}");
+    expect(tue()).toHaveAttribute("aria-pressed", "false");
   });
 });
 
@@ -267,7 +258,7 @@ describe("SlotPicker — hold and confirm", () => {
     expect(actions.hold).toHaveBeenCalledWith(TUE_14);
     expect(await screen.findByText("Tuesday 9 February at 14:00")).toBeInTheDocument();
     expect(screen.getByText(HOLD.line)).toBeInTheDocument();
-    expect(tue14()).toHaveAttribute("aria-checked", "true");
+    expect(tue14()).toHaveAttribute("aria-pressed", "true");
     await waitFor(() => expect(confirmButton()).toHaveFocus());
     await user.click(confirmButton());
     expect(actions.confirm).toHaveBeenCalledWith(expect.objectContaining({ startsAt: TUE_14 }));
@@ -302,19 +293,19 @@ describe("SlotPicker — hold and confirm", () => {
     const user = userEvent.setup();
     const keep = vi.fn();
     render(<SlotPicker days={gridDays({ [TUE_15]: false })} actions={actionsWith()} onConfirmed={vi.fn()} current={TUE_15} onKeepTime={keep} />);
-    expect(screen.getAllByRole("radiogroup")).toHaveLength(1);
-    expect(tue()).toHaveAttribute("aria-checked", "false");
+    expect(screen.getAllByRole("group")).toHaveLength(1);
+    expect(tue()).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByText("Time of day")).not.toBeInTheDocument();
     await user.click(tue());
     expect(screen.queryByText("Select a time")).not.toBeInTheDocument();
     await user.click(bracket("Afternoon"));
     const hers = time("Tuesday 9 February, 15:00 — your current time");
-    expect(hers).toHaveAttribute("aria-checked", "true");
+    expect(hers).toHaveAttribute("aria-pressed", "true");
     expect(hers.className).toContain("bg-violet-600");
     await user.click(tue14());
-    expect(hers).toHaveAttribute("aria-checked", "false");
+    expect(hers).toHaveAttribute("aria-pressed", "false");
     await user.click(day("Wed 10 Feb"));
-    expect(day("Wed 10 Feb")).toHaveAttribute("aria-checked", "true");
+    expect(day("Wed 10 Feb")).toHaveAttribute("aria-pressed", "true");
     await user.click(screen.getByRole("button", { name: "Keep my time" }));
     expect(keep).toHaveBeenCalled();
   });
@@ -339,8 +330,8 @@ describe("SlotPicker — taken by someone else: the notice (BAI 2026-11-05)", ()
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     await user.click(within(notice).getByRole("button", { name: "Pick another time" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(screen.getByRole("radio", { name: /14:00 — no longer available/ })).toBeDisabled();
-    await waitFor(() => expect(document.activeElement?.getAttribute("role")).toBe("radio"));
+    expect(screen.getByRole("button", { name: /14:00 — no longer available/ })).toBeDisabled();
+    await waitFor(() => expect(document.activeElement?.hasAttribute("aria-pressed")).toBe(true));
   });
 
   it("a taken confirm: the notice, and the list refreshes", async () => {
@@ -430,7 +421,7 @@ describe("SlotPicker — no times, failed, loading", () => {
     const none = gridDays({ [TUE_09]: false, [TUE_14]: false, [TUE_1430]: false, [WED_09]: false });
     render(<SlotPicker days={none} actions={actions} onConfirmed={vi.fn()} />);
     expect(screen.getByText("No times free right now — we'll still call you for your Complimentary matchmaker call.")).toBeInTheDocument();
-    expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(actions.reload).toHaveBeenCalled();
   });
@@ -463,8 +454,8 @@ describe("SlotPicker — reuse (04c on-behalf, 03 pre-book)", () => {
         <SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />
       </>,
     );
-    for (const tile of screen.getAllByRole("radio", { name: "Tue 9 Feb" })) await user.click(tile);
-    for (const tile of screen.getAllByRole("radio", { name: /^Afternoon / })) await user.click(tile);
+    for (const tile of screen.getAllByRole("button", { name: "Tue 9 Feb" })) await user.click(tile);
+    for (const tile of screen.getAllByRole("button", { name: /^Afternoon / })) await user.click(tile);
     const ids = [...document.querySelectorAll("[id]")].map((e) => e.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(new Set(screen.getAllByRole("region").map((r) => r.getAttribute("aria-labelledby"))).size).toBe(2);
@@ -518,7 +509,7 @@ describe("SlotPicker — a parent with no position yet (W11)", () => {
     expect(screen.getByRole("button", { name: "Confirm time" })).toBeDisabled();
     await holdTue14(user);
     expect(actions.hold).not.toHaveBeenCalled();
-    expect(tue14()).toHaveAttribute("aria-checked", "true");
+    expect(tue14()).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("Tuesday 9 February at 14:00")).toBeInTheDocument();
     expect(screen.getByText("Complete your childcare position so that we can confirm your call with your matchmaker.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Confirm time" })).toHaveAttribute("href", `/parent/request?callAt=${encodeURIComponent(TUE_14)}`);
@@ -597,7 +588,7 @@ describe("SlotPicker — React re-review fixes", () => {
     await user.click(await screen.findByRole("button", { name: "Confirm time" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't do that — try again");
     expect(screen.getByText(HOLD.line)).toBeInTheDocument();
-    expect(tue14()).toHaveAttribute("aria-checked", "true");
+    expect(tue14()).toHaveAttribute("aria-pressed", "true");
     expect(confirmButton()).toBeEnabled();
     await user.click(confirmButton());
     expect(confirm).toHaveBeenCalledTimes(2);
@@ -627,7 +618,7 @@ describe("SlotPicker — React re-review fixes", () => {
     const notice = await screen.findByRole("dialog", { name: "This time has just been booked" });
     await user.click(within(notice).getByRole("button", { name: "Pick another time" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(tue14()).toHaveAttribute("aria-checked", "true");
+    expect(tue14()).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText(HOLD.line)).toBeInTheDocument();
     expect(confirmButton()).toBeEnabled();
     await waitFor(() => expect(tue14()).toHaveFocus());
@@ -658,5 +649,20 @@ describe("SlotPicker — React re-review fixes", () => {
     render(<Owner />);
     await user.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(tue()).toHaveFocus());
+  });
+});
+
+describe("SlotPicker — the four time-of-day labels fit inside the popup at 320px (W17)", () => {
+  it("those tiles drop their side padding and the label is 11px (measured: scrollWidth ≤ clientWidth at 320×568)", async () => {
+    const user = userEvent.setup();
+    render(<SlotPicker days={DAYS} actions={actionsWith()} onConfirmed={vi.fn()} />);
+    await user.click(tue());
+    const brackets = within(screen.getByRole("group", { name: "Time of day" })).getAllByRole("button");
+    for (const bracket of brackets) {
+      expect(bracket.className.split(/\s+/)).toContain("px-0");
+      expect(bracket.className.split(/\s+/)).not.toContain("px-1");
+      expect(bracket.firstElementChild?.className).toContain("text-[11px] font-semibold tracking-tight");
+    }
+    expect(tue().className.split(/\s+/)).toContain("px-1"); // the day tiles keep theirs
   });
 });
