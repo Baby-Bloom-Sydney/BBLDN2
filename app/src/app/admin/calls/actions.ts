@@ -11,24 +11,39 @@
  * admin gets that far. Refusals are closed codes (`AdminCallError`), never detail.
  *
  * Booking, moving and cancelling on a family's behalf email her as her own would (`booking.ts` → `notify.ts`); an
- * outcome sends nothing. Only these five async functions are exported — every async export of a "use server" file
- * is callable.
+ * outcome sends nothing.
+ *
+ * 04c-2 adds the Calendar tab's five (plan C5, §13; brief §3 admin 5; BB-wave1-041126/04c2-build): save the settings
+ * (the native inputs' digit strings; the call length must be one of the fixed list, brief §0a.13 — the server refuses
+ * any other), save the weekly hours, add a block (its London date and time strings are read on the server), remove a
+ * block, and Start call booking (irreversible; the page asks first). Same contract; their refusals are
+ * `CalendarCallError` (overlapping hours keep their own code). Only these ten async functions are exported — every
+ * async export of a "use server" file is callable.
  */
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
+  addCallBlock,
   adminRefusalOf,
+  calendarRefusalOf,
   cancelBookingOnBehalf,
   confirmHoldOnBehalf,
   familySlotGrid,
   holdSlotOnBehalf,
+  removeCallBlock,
+  replaceWeeklyHours,
+  startCallBooking,
+  updateCallSettings,
   type AdminCallError,
   type AdminCallResult,
+  type CalendarCallResult,
 } from "@/lib/calls/admin-calls";
 import { proveAdmin, type AdminProof } from "@/lib/calls/admin-proof";
 import { recordCallOutcome } from "@/lib/calls/booking";
+import { blockFormInput, CLOCK_PATTERN, hoursFormInput, hoursFromForm } from "@/lib/calls/calendar";
 import { adminHeldLine } from "@/lib/calls/copy";
+import { londonDayWords } from "@/lib/calls/dashboard-row";
 import { groupSlotGridByDay, type SlotDay } from "@/lib/calls/group-slots-by-day";
 import { CALL_OUTCOMES, CALL_RESULTS, checkOutcome } from "@/lib/calls/outcomes";
 import type { CallOutcomeCode, CallResultCode, CallsResult } from "@/lib/calls/types";
@@ -37,7 +52,7 @@ import { callBookingEnabled } from "@/lib/features/flags";
 import { localToUTC, wallClockExists } from "@/lib/timezone";
 
 const PAGE = "/admin/calls";
-const CLOCK = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const CLOCK = CLOCK_PATTERN;
 
 const parentUserId = z.uuid();
 const isResult = (v: unknown): v is CallResultCode => typeof v === "string" && (CALL_RESULTS as readonly string[]).includes(v);
@@ -64,6 +79,10 @@ const holdInput = z.strictObject({ parentUserId, startsAt: z.iso.datetime({ offs
 const confirmInput = z.strictObject({ parentUserId, holdId: z.uuid(), idempotencyKey: z.string().min(1).max(200) });
 const cancelInput = z.strictObject({ parentUserId, bookingId: z.uuid() });
 const familyInput = z.strictObject({ parentUserId });
+/** A native number input's value: digits only (an empty field is refused, never read as 0). */
+const digits = z.string().regex(/^\d{1,5}$/).transform(Number);
+const settingsInput = z.strictObject({ slotMinutes: digits, noticeMinutes: digits, holdMinutes: digits, callerNumber: z.string().max(40) });
+const removeBlockInput = z.strictObject({ blockId: z.uuid() });
 
 type Gate<T> = { readonly ok: true; readonly proof: AdminProof; readonly input: T } | { readonly ok: false; readonly error: AdminCallError };
 
@@ -144,4 +163,51 @@ export async function reloadFamilySlots(input: unknown): Promise<AdminCallResult
   if (!g.ok) return g;
   const grid = await familySlotGrid(g.proof, g.input.parentUserId);
   return answer(grid, groupSlotGridByDay, false);
+}
+
+// ── The Calendar tab (04c-2) ──────────────────────────────────────────────────────────────────────────────────
+
+/** A Calendar write's result as staff may see it; the page is revalidated after a write that landed. */
+function calendarAnswer<T, R>(result: CallsResult<T>, value: (v: T) => R): CalendarCallResult<R> {
+  if (!result.ok) return { ok: false, error: calendarRefusalOf(result.error) };
+  revalidatePath(PAGE);
+  return { ok: true, value: value(result.value) };
+}
+
+/** Call length (15/20/30/45/60 only), notice and hold in minutes, and the caller number (empty clears it). */
+export async function saveCallSettingsAction(input: unknown): Promise<CalendarCallResult<true>> {
+  const g = await gate(settingsInput, input);
+  if (!g.ok) return g;
+  return calendarAnswer(await updateCallSettings(g.proof, g.input), () => true as const);
+}
+
+/** The whole week of call hours: several ranges a weekday; touching is fine, overlapping is refused. The gate's zod
+ *  checks the shape, `hoursFromForm` turns the clocks into minutes (defence in depth, as `replaceWeeklyHours`). */
+export async function saveWeeklyHoursAction(input: unknown): Promise<CalendarCallResult<true>> {
+  const g = await gate(hoursFormInput, input);
+  if (!g.ok) return g;
+  const hours = hoursFromForm(g.input);
+  if (!hours.ok) return hours;
+  return calendarAnswer(await replaceWeeklyHours(g.proof, hours.value), () => true as const);
+}
+
+/** A block from London date and time strings, with a reason; a booked call under it stays booked (flagged). */
+export async function addCallBlockAction(input: unknown): Promise<CalendarCallResult<{ readonly blockId: string }>> {
+  const g = await gate(blockFormInput, input);
+  if (!g.ok) return g;
+  return calendarAnswer(await addCallBlock(g.proof, g.input), (b) => ({ blockId: b.id }));
+}
+
+/** Remove a block; its times are offered again. */
+export async function removeCallBlockAction(input: unknown): Promise<CalendarCallResult<{ readonly blockId: string }>> {
+  const g = await gate(removeBlockInput, input);
+  if (!g.ok) return g;
+  return calendarAnswer(await removeCallBlock(g.proof, g.input.blockId), (b) => ({ blockId: b.id }));
+}
+
+/** "Start call booking" (plan §12 R11): sets `enabled_since` once — it can't be undone; a second press keeps the first. */
+export async function startCallBookingAction(input?: unknown): Promise<CalendarCallResult<{ readonly startedOn: string; readonly startedNow: boolean }>> {
+  const g = await gate(z.undefined(), input);
+  if (!g.ok) return g;
+  return calendarAnswer(await startCallBooking(g.proof), (s) => ({ startedOn: londonDayWords(s.enabledSince), startedNow: s.startedNow }));
 }

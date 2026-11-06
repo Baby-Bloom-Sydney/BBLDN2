@@ -5,6 +5,7 @@
  * the to-call scope). Writers record their input and answer from `results` (or a plain success). Every method
  * call is recorded in `calls`, so a test can prove "zero repo calls" with the switch off.
  * The SQL itself (locks, overlap, ownership) is proven against Postgres by the amendment 19 harness.
+ * 04c-2 (BB-wave1-041126/04c2-build), add-only: the Calendar writers `updateSettings`, `insertBlock`, `deleteBlock`.
  */
 import type { CallsRepo } from "./repo";
 import { CALL_SETTINGS_DEFAULTS } from "./settings";
@@ -21,6 +22,8 @@ import type {
 } from "./types";
 
 type Method = keyof CallsRepo;
+type Writer = "holdSlot" | "confirmHold" | "bookSlot" | "cancelBooking" | "recordOutcome" | "replaceWeeklyHours" | "startCallBooking";
+type CalendarWriter = "updateSettings" | "insertBlock" | "deleteBlock";
 type Results = { [K in Method]?: Awaited<ReturnType<CallsRepo[K]>> };
 
 export interface FakeCallsState {
@@ -95,7 +98,7 @@ export function entryRow(over: Partial<CallLogEntry> & Pick<CallLogEntry, "paren
 const overlaps = (a: TimeSpan, b: TimeSpan) => a.startsAt < b.endsAt && b.startsAt < a.endsAt;
 const INVITES = new Set(["nanny_invite", "parent_invite"]);
 
-function reads(state: FakeCallsState): Omit<CallsRepo, "holdSlot" | "confirmHold" | "bookSlot" | "cancelBooking" | "recordOutcome" | "replaceWeeklyHours" | "startCallBooking"> {
+function reads(state: FakeCallsState): Omit<CallsRepo, Writer | CalendarWriter> {
   const ok = <T>(value: T): CallsResult<T> => ({ ok: true, value });
   return {
     readSettings: async () => ok(state.settings),
@@ -128,7 +131,7 @@ function reads(state: FakeCallsState): Omit<CallsRepo, "holdSlot" | "confirmHold
   };
 }
 
-function writers(state: FakeCallsState): Pick<CallsRepo, "holdSlot" | "confirmHold" | "bookSlot" | "cancelBooking" | "recordOutcome" | "replaceWeeklyHours" | "startCallBooking"> {
+function writers(state: FakeCallsState): Pick<CallsRepo, Writer> {
   return {
     holdSlot: async () => state.results.holdSlot ?? { ok: true, value: { bookingId: "hold-1", holdExpiresAt: "2027-02-04T10:05:00.000Z" } },
     confirmHold: async () =>
@@ -141,6 +144,19 @@ function writers(state: FakeCallsState): Pick<CallsRepo, "holdSlot" | "confirmHo
     replaceWeeklyHours: async () => state.results.replaceWeeklyHours ?? { ok: true, value: true },
     startCallBooking: async () =>
       state.results.startCallBooking ?? { ok: true, value: { enabledSince: "2027-02-01T09:00:00.000Z", startedNow: true } },
+  };
+}
+
+/** The Calendar writers: the settings with the change applied, the block as given (id "block-1"), or `results`. */
+function calendarWriters(state: FakeCallsState): Pick<CallsRepo, CalendarWriter> {
+  return {
+    updateSettings: async (update) => state.results.updateSettings ?? { ok: true, value: { ...state.settings, ...update } },
+    insertBlock: async (block) => state.results.insertBlock ?? { ok: true, value: { id: "block-1", ...block } },
+    deleteBlock: async (blockId) => {
+      if (state.results.deleteBlock) return state.results.deleteBlock;
+      const block = state.blocks.find((b) => b.id === blockId);
+      return block ? { ok: true, value: block } : { ok: false, error: "not_found" };
+    },
   };
 }
 
@@ -159,7 +175,7 @@ export function fakeCallsRepo(seed: Partial<FakeCallsState> = {}): FakeCallsRepo
     ...seed,
   };
   const calls: FakeCallsRepo["calls"] = [];
-  const impl: CallsRepo = { ...reads(state), ...writers(state) };
+  const impl: CallsRepo = { ...reads(state), ...writers(state), ...calendarWriters(state) };
   const repo = new Proxy(impl, {
     get(target, prop: string | symbol) {
       const method = prop as Method;

@@ -4,10 +4,15 @@
  *
  * `enabledSince` is not editable here: only "Start call booking" sets it, once (plan §12 R11; `repo.ts`).
  *
- * BB-wave1-041126/04a-core, 2026-11-04.
+ * The call length is a fixed choice (brief §0a.13, BAI 2026-11-06: "the fixed list"): an **update** takes 15, 20, 30, 45
+ * or 60 minutes only. The **row** keeps the database's own 5–240 check (amendment 19, unchanged), so a stored value off
+ * the list still reads — a read never fails on it.
+ *
+ * BB-wave1-041126/04a-core, 2026-11-04; BB-wave1-041126/04c2-build, 2026-11-06.
  */
 
 import { z } from "zod";
+import { CALL_LENGTH_CHOICES, HOLD_MINUTES_MAX, HOLD_MINUTES_MIN, NOTICE_MINUTES_MAX, NOTICE_MINUTES_MIN } from "./calendar-limits";
 import type { CallSettings, CallsResult } from "./types";
 import { instant } from "./zod-parts";
 
@@ -24,6 +29,8 @@ export const CALL_SETTINGS_DEFAULTS: CallSettings = Object.freeze({
   enabledSince: null,
 });
 
+export { CALL_LENGTH_CHOICES };
+
 /** `call_settings_caller_number_check`. */
 const CALLER_NUMBER = /^\+44[0-9]{9,10}$/;
 
@@ -36,16 +43,18 @@ const callerNumber = z
 const BOUNDS = {
   slotMinutes: z.int().min(5).max(240),
   windowDays: z.int().min(1).max(28),
-  noticeMinutes: z.int().min(0).max(10080),
-  holdMinutes: z.int().min(1).max(60),
+  noticeMinutes: z.int().min(NOTICE_MINUTES_MIN).max(NOTICE_MINUTES_MAX),
+  holdMinutes: z.int().min(HOLD_MINUTES_MIN).max(HOLD_MINUTES_MAX),
   parentReminderMinutes: z.int().min(1),
   adminReminderMinutes: z.int().min(1),
   overdueGraceMinutes: z.int().min(0),
   notBookedDelayMinutes: z.int().min(1),
 } as const;
 
+const callLength = BOUNDS.slotMinutes.refine((minutes) => CALL_LENGTH_CHOICES.includes(minutes));
+
 const updateSchema = z.strictObject({
-  slotMinutes: BOUNDS.slotMinutes.optional(),
+  slotMinutes: callLength.optional(),
   windowDays: BOUNDS.windowDays.optional(),
   noticeMinutes: BOUNDS.noticeMinutes.optional(),
   holdMinutes: BOUNDS.holdMinutes.optional(),
@@ -58,7 +67,7 @@ const updateSchema = z.strictObject({
 
 export type CallSettingsUpdate = Partial<Omit<CallSettings, "enabledSince">>;
 
-/** A partial settings change from the Calendar tab, checked against the SQL bounds. */
+/** A partial settings change from the Calendar tab, checked against the SQL bounds and the fixed call lengths. */
 export function parseSettingsUpdate(input: unknown): CallsResult<CallSettingsUpdate, "invalid"> {
   const parsed = updateSchema.safeParse(input);
   return parsed.success ? { ok: true, value: parsed.data } : { ok: false, error: "invalid" };

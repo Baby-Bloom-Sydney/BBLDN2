@@ -10,7 +10,8 @@
  * BB-wave1-041126/04a-core, 2026-11-04.
  */
 
-import type { AdminCallError } from "./admin-calls";
+import type { AdminCallError, CalendarCallError } from "./admin-calls";
+import { CALL_LENGTH_CHOICES, HOLD_MINUTES_MAX, HOLD_MINUTES_MIN, NOTICE_MINUTES_MAX, NOTICE_MINUTES_MIN } from "./calendar-limits";
 import type { SlotWords } from "./slot-words";
 
 export const CALL_NAME = "Complimentary matchmaker call";
@@ -157,6 +158,60 @@ export const ADMIN_COPY = Object.freeze({
   errorInvalid: "Check the result, outcome and time, then try again.",
   errorNotFound: "That call has changed — reload to see it.",
   errorFailed: "That didn't save — try again.",
+  // 04c-2: the Calendar tab (BB-wave1-041126/04c2-build; brief §3 admin 5, §0a.13). London time kept for admin.
+  callsTab: "Calls",
+  calendarIntro: "When you can take matchmaker calls. Parents' pickers show these the next time they load.",
+  calendarFailed: "The calendar could not be read — reload to try again.",
+  settingsHeading: "Call settings",
+  callLengthLabel: "Call length",
+  noticeLabel: "Notice (minutes)",
+  noticeHint: "How far ahead a parent must book.",
+  holdLabel: "Hold (minutes)",
+  holdHint: "How long a picked time is kept for her while she confirms.",
+  callerNumberLabel: "Caller number shown in emails",
+  callerNumberHint: "In the +44 form, e.g. +44 20 7946 0000. Leave empty to leave the line out.",
+  saveSettings: "Save settings",
+  settingsInvalid: `Check the call length (${CALL_LENGTH_CHOICES.slice(0, -1).join(", ")} or ${CALL_LENGTH_CHOICES.at(-1)} minutes), the notice (${NOTICE_MINUTES_MIN}–${NOTICE_MINUTES_MAX}), the hold (${HOLD_MINUTES_MIN}–${HOLD_MINUTES_MAX}) and the caller number (+44 form).`,
+  offListLength: "not on the list",
+  hoursHeading: "Weekly hours (London time)",
+  hoursHint: "Several ranges a day are fine; ranges may touch but not overlap.",
+  noHours: "No calls",
+  addHours: "Add hours",
+  removeHours: "Remove",
+  fromLabel: "From",
+  toLabel: "To",
+  saveHours: "Save weekly hours",
+  hoursInvalid: "Check each range: a start and an end, the end after the start.",
+  blocksHeading: "Blocks (London time)",
+  blocksHint: "Times you can't take calls. A booked call under a block stays booked and is flagged on the Calls tab.",
+  blockFromDate: "From date",
+  blockFromTime: "From time",
+  blockToDate: "To date",
+  blockToTime: "To time",
+  blockReason: "Reason",
+  addBlock: "Add block",
+  removeBlock: "Remove",
+  noBlocks: "No blocks ahead.",
+  blockInvalid: "Check the block: a start and an end that exist in London time, the end after the start and still to come, and a reason.",
+  blockGone: "That block has already gone — reload to see the calendar.",
+  blockAdded: "Block added.",
+  blockRemoved: "Block removed.",
+  cellFree: "Free",
+  cellBooked: "Booked",
+  cellHeld: "Held",
+  cellBlocked: "Blocked",
+  noTimesDay: "No times",
+  startQuestion: "Start call booking?",
+  startBody:
+    "From now on, every parent who signs up is offered a matchmaker call and is listed on the Calls tab, booked or not. This can't be undone.",
+  startConfirm: "Yes, start call booking",
+  startNotYet: "Not yet",
+  notStarted: "Call booking hasn't started: no parent is offered a matchmaker call yet.",
+  starting: "Starting…",
+  // 04c-2 review round 1: names for the tab list, the grid's key and the block list
+  tabsLabel: "Calls and calendar",
+  gridKey: "Key",
+  blocksAhead: "Blocks ahead",
 });
 
 /** Parent-facing (W14: no "London time"): "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00" */
@@ -272,6 +327,30 @@ const ADMIN_ERROR_LINES: Readonly<Record<AdminCallError, string>> = Object.freez
 /** One line per refusal code on /admin/calls (a full `Record`: a new code fails to compile until it has words). */
 export function adminErrorLine(error: AdminCallError): string {
   return ADMIN_ERROR_LINES[error];
+}
+
+// ── 04c-2: the Calendar tab (BB-wave1-041126/04c2-build) ──────────────────────────────────────────────────────
+
+/** The grid's heading: "Next 7 days (London time)". */
+export function weekGridHeading(days: number): string {
+  return `Next ${days} days ${LONDON_TIME_SUFFIX}`;
+}
+
+/** A call length choice: "30 minutes". */
+export function callLengthOption(minutes: number): string {
+  return `${minutes} minutes`;
+}
+
+/** Once Start call booking was pressed, only this: "Call booking started on 6 November 2026." */
+export function startedOnLine(date: string): string {
+  return `Call booking started on ${date}.`;
+}
+
+/** A Calendar refusal as one line: `invalid` → the form's own line; overlapping hours; a block already gone; else the Calls tab's. */
+export function calendarErrorLine(error: CalendarCallError, invalidLine: string): string {
+  if (error === "invalid") return invalidLine;
+  if (error === "overlap") return ADMIN_COPY.overlappingHours;
+  return error === "not_found" ? ADMIN_COPY.blockGone : adminErrorLine(error);
 }
 
 /** The Call control's accessible name: "Call Jane Smith on +44 (0) 7700 900 123". */

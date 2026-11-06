@@ -13,8 +13,12 @@
  *   Nothing is thrown to callers; failures are logged here with a code and message (never contact details).
  * - 04b adds `ReminderRepo` (the call-reminders cron's claims, plan B2 / §12 R3): plain service-role writes of the
  *   two reminder stamps and the `call_nudges` row, each guarded so only one run can claim a send.
+ * - 04c-2 adds the Calendar tab's three plain writes (plan C5, §13): the settings update, a block added, a block
+ *   removed — each followed by its `activity_logs` row (`call.settings_updated`, `call.block_added`,
+ *   `call.block_removed`, already in amendment 19's CHECK). The `actions/admin/dfy.ts` pattern: the write stands, and
+ *   a lost audit row is logged, never swallowed. Callers (`admin-calls.ts`) check the switch, the admin and the input.
  *
- * BB-wave1-041126/04a-core, 2026-11-04.
+ * BB-wave1-041126/04a-core, 2026-11-04; BB-wave1-041126/04c2-build, 2026-11-06.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -43,7 +47,7 @@ import {
   scopeParentsFromRows,
   statusOf,
 } from "./repo-map";
-import { settingsFromRow } from "./settings";
+import { settingsFromRow, type CallSettingsUpdate } from "./settings";
 import type {
   BookInput,
   BookingStatus,
@@ -101,6 +105,19 @@ export interface CallsRepo {
   replaceWeeklyHours(hours: readonly WeeklyHoursRange[], actor: CallActor): Promise<CallsResult<true>>;
   /** Brief 14's "Start call booking": sets `enabled_since` once; later presses keep the first time. */
   startCallBooking(actor: CallActor): Promise<CallsResult<StartedCallBooking>>;
+  /** The Calendar tab's settings change (never `enabled_since`): the row as stored after it. */
+  updateSettings(update: CallSettingsUpdate, actor: CallActor): Promise<CallsResult<CallSettings>>;
+  /** Add a block BAI can't take calls in; the block as stored. */
+  insertBlock(block: NewCallBlock, actor: CallActor): Promise<CallsResult<CallBlock>>;
+  /** Remove one block; `not_found` when there is none with that id (already removed). */
+  deleteBlock(blockId: string, actor: CallActor): Promise<CallsResult<CallBlock>>;
+}
+
+/** A block from the Calendar tab, already checked by `admin-calls.ts` (London input parsed on the server). */
+export interface NewCallBlock {
+  readonly startsAt: string;
+  readonly endsAt: string;
+  readonly reason: string;
 }
 
 export interface CallsRepoOptions {
@@ -116,6 +133,7 @@ interface DbReply {
 }
 
 const FAILED = Object.freeze({ ok: false, error: "error" } as const);
+const NOT_FOUND = Object.freeze({ ok: false, error: "not_found" } as const);
 const ok = <T>(value: T): CallsResult<T> => ({ ok: true, value });
 
 /** The scope filter (plan D7): `NOT IN` alone would drop the NULL rows. */
@@ -466,15 +484,110 @@ async function startCallBooking(db: Db, now: () => Date, actor: CallActor): Prom
   return ok({ enabledSince: after.value.enabledSince, startedNow });
 }
 
+/** The start's audit row; a throw is logged, never a failure of the stamp that landed (04c-2 security review LOW-1). */
 async function logStarted(db: Db, actor: CallActor, stamp: string): Promise<void> {
-  const { error } = (await db()
-    .from("activity_logs")
-    .insert({
-      user_id: actor.userId,
-      action_type: "call.settings_updated",
-      action_details: { enabled_since: stamp, started_call_booking: true },
-    })) as DbReply;
-  if (error) logFailure("startCallBooking(activity_logs)", error);
+  try {
+    const { error } = (await db()
+      .from("activity_logs")
+      .insert({
+        user_id: actor.userId,
+        action_type: "call.settings_updated",
+        action_details: { enabled_since: stamp, started_call_booking: true },
+      })) as DbReply;
+    if (error) logFailure("startCallBooking(activity_logs)", error);
+  } catch (thrown) {
+    logFailure("startCallBooking(activity_logs)", thrown);
+  }
+}
+
+// ── The Calendar tab's writers (04c-2, plan C5, §13) ───────────────────────────────────────────────────────────
+
+type SettingsKey = keyof CallSettingsUpdate;
+
+const SETTINGS_COLUMN: Readonly<Record<SettingsKey, string>> = Object.freeze({
+  slotMinutes: "slot_minutes",
+  windowDays: "window_days",
+  noticeMinutes: "notice_minutes",
+  holdMinutes: "hold_minutes",
+  parentReminderMinutes: "parent_reminder_minutes",
+  adminReminderMinutes: "admin_reminder_minutes",
+  overdueGraceMinutes: "overdue_grace_minutes",
+  notBookedDelayMinutes: "not_booked_delay_minutes",
+  callerNumber: "caller_number",
+});
+
+/** These settings as their columns: `{ slot_minutes: 45, … }`. */
+function settingsColumns(settings: CallSettingsUpdate, keys: readonly SettingsKey[]): Readonly<Record<string, unknown>> {
+  return Object.freeze(Object.fromEntries(keys.map((key) => [SETTINGS_COLUMN[key], settings[key] ?? null])));
+}
+
+/**
+ * The audit row after a Calendar write. The write stands either way: a lost row — an error answer or a throw — is
+ * logged, never turned into a failure of the write that landed (security review LOW-1; the dfy.ts pattern).
+ */
+async function audit(db: Db, label: string, actor: CallActor, actionType: string, details: Readonly<Record<string, unknown>>): Promise<void> {
+  try {
+    const { error } = (await db().from("activity_logs").insert({ user_id: actor.userId, action_type: actionType, action_details: details })) as DbReply;
+    if (error) logFailure(`${label}(activity_logs)`, error);
+  } catch (thrown) {
+    logFailure(`${label}(activity_logs)`, thrown);
+  }
+}
+
+/**
+ * One update of the one row (its row lock serialises with the booking functions' `FOR UPDATE`), then
+ * `call.settings_updated` with the changed columns before and after. "Before" is read just ahead of the update: one
+ * admin edits these, so it is the value he saw.
+ */
+async function updateSettings(db: Db, update: CallSettingsUpdate, actor: CallActor): Promise<CallsResult<CallSettings>> {
+  const keys = (Object.keys(SETTINGS_COLUMN) as SettingsKey[]).filter((key) => update[key] !== undefined);
+  const before = await readSettings(db);
+  if (!before.ok) return before;
+  const after = await rows(
+    "updateSettings",
+    db().from("call_settings").update({ ...settingsColumns(update, keys), updated_by: actor.userId }).eq("id", 1).select(SETTINGS_COLUMNS).maybeSingle(),
+    settingsFromRow,
+  );
+  if (!after.ok) return after;
+  await audit(db, "updateSettings", actor, "call.settings_updated", { before: settingsColumns(before.value, keys), after: settingsColumns(after.value, keys) });
+  return after;
+}
+
+const blockDetails = (block: CallBlock) => ({ block_id: block.id, starts_at: block.startsAt, ends_at: block.endsAt, reason: block.reason });
+
+/** One stored block, or null if the row isn't one (`rows` fails it). */
+const oneBlock = (data: unknown): CallBlock | null => blocksFromRows(data === null || data === undefined ? [] : [data])?.[0] ?? null;
+
+async function insertBlock(db: Db, block: NewCallBlock, actor: CallActor): Promise<CallsResult<CallBlock>> {
+  const added = await rows(
+    "insertBlock",
+    db()
+      .from("call_blocks")
+      .insert({ starts_at: block.startsAt, ends_at: block.endsAt, reason: block.reason, created_by: actor.userId })
+      .select(BLOCK_COLUMNS)
+      .single(),
+    oneBlock,
+  );
+  if (!added.ok) return added;
+  await audit(db, "insertBlock", actor, "call.block_added", blockDetails(added.value));
+  return added;
+}
+
+async function deleteBlock(db: Db, blockId: string, actor: CallActor): Promise<CallsResult<CallBlock>> {
+  const removed = await rows("deleteBlock", db().from("call_blocks").delete().eq("id", blockId).select(BLOCK_COLUMNS), blocksFromRows);
+  if (!removed.ok) return removed;
+  const block = removed.value[0];
+  if (block === undefined) return NOT_FOUND;
+  await audit(db, "deleteBlock", actor, "call.block_removed", blockDetails(block));
+  return ok(block);
+}
+
+function calendarWriters(db: Db): Pick<CallsRepo, "updateSettings" | "insertBlock" | "deleteBlock"> {
+  return {
+    updateSettings: (update, actor) => guarded("updateSettings", () => updateSettings(db, update, actor)),
+    insertBlock: (block, actor) => guarded("insertBlock", () => insertBlock(db, block, actor)),
+    deleteBlock: (blockId, actor) => guarded("deleteBlock", () => deleteBlock(db, blockId, actor)),
+  };
 }
 
 export function createCallsRepo(options: CallsRepoOptions = {}): CallsRepo {
@@ -491,6 +604,7 @@ export function createCallsRepo(options: CallsRepoOptions = {}): CallsRepo {
     ...familyQueries(db),
     ...bookingWriters(caller(db)),
     ...logAndHoursWriters(caller(db)),
+    ...calendarWriters(db),
     startCallBooking: (actor: CallActor) => guarded("startCallBooking", () => startCallBooking(db, now, actor)),
   });
 }

@@ -17,12 +17,17 @@
  *
  * `call_settings.enabled_since` gets a fixture value just before the first fixture sign-up (so only these families
  * are in the to-call scope) and is restored afterwards (plan §12 R11: never stamped on read).
+ *
+ * 04c-2 (BB-wave1-041126/04c2-build) adds the Calendar tab's: the weekly hours and settings saved before the walk and
+ * put back after it (`readCalendarState` / `restoreCalendarState`), a known week to start from, one live hold, and the
+ * walk's own block (`CALENDAR_BLOCK_REASON`, removed with the rest).
  */
 import { randomBytes } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export const CALLS_EMAIL_PREFIX = "admin+b04c1-";
 export const BLOCK_REASON = "b04c1 walk: school run";
+export const CALENDAR_BLOCK_REASON = "b04c2 walk: dentist";
 const DOMAIN = "babybloomnannies.co.uk";
 const MINUTE = 60_000;
 const LOCAL = /^http:\/\/(127\.0\.0\.1|localhost):\d+$/;
@@ -302,7 +307,7 @@ async function removeFamilies(db: SupabaseClient, ids: readonly string[]): Promi
  */
 export async function removeCallsFixture(db: SupabaseClient, enabledSinceBefore?: string | null): Promise<void> {
   assertLocal(db);
-  await must("call_blocks", db.from("call_blocks").delete().eq("reason", BLOCK_REASON));
+  await must("call_blocks", db.from("call_blocks").delete().in("reason", [BLOCK_REASON, CALENDAR_BLOCK_REASON]));
   const ids = await fixtureUserIds(db);
   if (ids.length > 0) {
     await must("activity_logs", db.from("activity_logs").delete().in("user_id", ids));
@@ -314,4 +319,54 @@ export async function removeCallsFixture(db: SupabaseClient, enabledSinceBefore?
   }
   await must("email_logs", db.from("email_logs").delete().like("recipient_email", `${CALLS_EMAIL_PREFIX}%`));
   if (enabledSinceBefore !== undefined) await must("call_settings", db.from("call_settings").update({ enabled_since: enabledSinceBefore }).eq("id", 1));
+}
+
+// ── 04c-2: the Calendar tab's walk ────────────────────────────────────────────────────────────────────────────
+
+interface HoursRow {
+  readonly weekday: number;
+  readonly start_minute: number;
+  readonly end_minute: number;
+}
+
+const SETTINGS_KEPT = "slot_minutes, notice_minutes, hold_minutes, caller_number";
+
+export interface CalendarState {
+  readonly hours: readonly HoursRow[];
+  readonly settings: Readonly<Record<string, unknown>>;
+}
+
+/** The weekly hours and the four Calendar settings as they are before the walk. */
+export async function readCalendarState(db: SupabaseClient): Promise<CalendarState> {
+  assertLocal(db);
+  const hours = (await must("call_weekly_hours", db.from("call_weekly_hours").select("weekday, start_minute, end_minute").order("weekday"))) as HoursRow[];
+  const settings = (await must("call_settings", db.from("call_settings").select(SETTINGS_KEPT).eq("id", 1).single())) as Record<string, unknown>;
+  return { hours, settings };
+}
+
+/** Replace the weekly hours (a WHERE on the delete: the API role refuses one without, pg-safeupdate). */
+export async function setWeeklyHours(db: SupabaseClient, hours: readonly HoursRow[]): Promise<void> {
+  assertLocal(db);
+  await must("call_weekly_hours", db.from("call_weekly_hours").delete().gte("weekday", 1));
+  if (hours.length) await must("call_weekly_hours", db.from("call_weekly_hours").insert(hours.map((h) => ({ ...h }))));
+}
+
+/** Put the hours and the four settings back as they were. */
+export async function restoreCalendarState(db: SupabaseClient, state: CalendarState): Promise<void> {
+  await setWeeklyHours(db, state.hours);
+  await must("call_settings", db.from("call_settings").update(state.settings).eq("id", 1));
+}
+
+/** Every day 09:00–19:00, the amendment's seed: a known week to start the walk from. */
+export const EVERY_DAY_9_TO_7: readonly HoursRow[] = [1, 2, 3, 4, 5, 6, 7].map((weekday) => ({ weekday, start_minute: 540, end_minute: 1140 }));
+
+/** A live hold for a family (an hour to run), so the grid has a held time; removed with her other rows. */
+export async function addHeldCall(db: SupabaseClient, family: FixtureFamily, startsAt: string): Promise<void> {
+  assertLocal(db);
+  const endsAt = new Date(Date.parse(startsAt) + 30 * MINUTE).toISOString();
+  const holdExpiresAt = new Date(Date.now() + 60 * MINUTE).toISOString();
+  await must(
+    "call_bookings",
+    db.from("call_bookings").insert({ parent_user_id: family.id, starts_at: startsAt, ends_at: endsAt, status: "held", purpose: "first_call", booked_by_kind: "admin", hold_expires_at: holdExpiresAt }),
+  );
 }

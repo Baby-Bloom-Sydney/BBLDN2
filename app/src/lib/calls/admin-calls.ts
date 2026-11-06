@@ -11,7 +11,12 @@
  * admin), `confirmHoldOnBehalf` (her first booking, or her booked call moved there), and `familySlotGrid` (her
  * picker's grid). Her first call only; the server recomputes every time against the live grid (`booking.ts`).
  *
- * BB-wave1-041126/04a-core, 2026-11-04; BB-wave1-041126/04c1-build, 2026-11-05.
+ * 04c-2 adds the Calendar tab's (plan C5, §13): `updateCallSettings` (call length from the fixed list, brief §0a.13;
+ * notice, hold, caller number), `addCallBlock` (the form's London date and time strings read here, on the server),
+ * `removeCallBlock`, and `calendarWeek` (the 7-day grid's one read, `calendar.ts`). Each: the switch, then the proof,
+ * then the input, as the ones above.
+ *
+ * BB-wave1-041126/04a-core, 2026-11-04; BB-wave1-041126/04c1-build, 2026-11-05; BB-wave1-041126/04c2-build, 2026-11-06.
  */
 
 import { callBookingEnabled } from "@/lib/features/flags";
@@ -25,10 +30,24 @@ import {
   type CancelRequest,
   type HeldTime,
 } from "./booking";
+import { addLondonDays, localToUTC, londonToday } from "@/lib/timezone";
+import { calendarViewOf, GRID_DAYS, parseBlockForm, type CalendarView } from "./calendar";
+import { contactWords } from "./dashboard-row";
 import { CALL_BOOKING_DISABLED, CALLS_INVALID, defaultCallsDeps, type CallsDeps } from "./deps";
 import { validateWeeklyHours } from "./hours";
+import { parseSettingsUpdate } from "./settings";
 import { loadSlotGrid, type SlotGrid } from "./slot-grid";
-import type { CallError, CallsResult, CancelledBooking, ConfirmedBooking, StartedCallBooking } from "./types";
+import type {
+  CallBlock,
+  CallError,
+  CallSettings,
+  CallsResult,
+  CancelledBooking,
+  ConfirmedBooking,
+  ParentContact,
+  StartedCallBooking,
+  TimeSpan,
+} from "./types";
 import { uuid } from "./zod-parts";
 
 const NOT_FOUND = Object.freeze({ ok: false, error: "not_found" } as const);
@@ -117,6 +136,73 @@ export async function familySlotGrid(proof: AdminProof, parentUserId: string, de
   return loadSlotGrid({ purpose: "first_call", parentUserId }, deps);
 }
 
+// ── The Calendar tab (04c-2) ──────────────────────────────────────────────────────────────────────────────────
+
+/** The block list reads every block still to come, however far ahead (a holiday booked months out). */
+const FAR_FUTURE = "9999-12-31T00:00:00.000Z";
+
+/** The Calendar tab's settings: call length (15/20/30/45/60 only), notice, hold, caller number. Never `enabled_since`. */
+export async function updateCallSettings(proof: AdminProof, update: unknown, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<CallSettings>> {
+  if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
+  if (!isAdminProof(proof)) return CALLS_INVALID;
+  const parsed = parseSettingsUpdate(update);
+  if (!parsed.ok) return parsed;
+  return deps.repo.updateSettings(parsed.value, actingAdmin(proof));
+}
+
+/** A block from the form's London date and time strings (read here, by the server's clock); a booking under it stays. */
+export async function addCallBlock(proof: AdminProof, form: unknown, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<CallBlock>> {
+  if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
+  if (!isAdminProof(proof)) return CALLS_INVALID;
+  const block = parseBlockForm(form, deps.now());
+  if (!block.ok) return block;
+  return deps.repo.insertBlock(block.value, actingAdmin(proof));
+}
+
+/** Remove a block (LDN1 never built removal, brief §3 admin 5); its times are offered again. */
+export async function removeCallBlock(proof: AdminProof, blockId: string, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<CallBlock>> {
+  if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
+  if (!isAdminProof(proof)) return CALLS_INVALID;
+  if (!uuid.safeParse(blockId).success) return CALLS_INVALID;
+  return deps.repo.deleteBlock(blockId, actingAdmin(proof));
+}
+
+/** The booked families' names; none read when nobody is booked. */
+async function bookedNames(parentUserIds: readonly string[], deps: CallsDeps): Promise<CallsResult<ReadonlyMap<string, string>>> {
+  const ids = [...new Set(parentUserIds)];
+  const contacts: CallsResult<readonly ParentContact[]> = ids.length === 0 ? { ok: true, value: [] } : await deps.repo.readContacts(ids);
+  if (!contacts.ok) return contacts;
+  return { ok: true, value: new Map(contacts.value.map((c) => [c.userId, contactWords(c).name])) };
+}
+
+/**
+ * The Calendar tab in one read: the settings, the hours, the blocks from the grid's first day on, the held and booked
+ * rows over the grid's seven London days, and the booked families' names. Fails closed: any read failing → `error`.
+ */
+export async function calendarWeek(proof: AdminProof, deps: CallsDeps = defaultCallsDeps()): Promise<CallsResult<CalendarView>> {
+  if (!callBookingEnabled()) return CALL_BOOKING_DISABLED;
+  if (!isAdminProof(proof)) return CALLS_INVALID;
+  const now = deps.now();
+  const today = londonToday(now);
+  const grid: TimeSpan = { startsAt: localToUTC(today, 0, 0), endsAt: localToUTC(addLondonDays(today, GRID_DAYS), 0, 0) };
+  const [settings, hours, blocks, bookings] = await Promise.all([
+    deps.repo.readSettings(),
+    deps.repo.readWeeklyHours(),
+    deps.repo.readBlocks({ startsAt: grid.startsAt, endsAt: FAR_FUTURE }),
+    deps.repo.readOccupyingBookings(grid),
+  ]);
+  if (!settings.ok) return settings;
+  if (!hours.ok) return hours;
+  if (!blocks.ok) return blocks;
+  if (!bookings.ok) return bookings;
+  const names = await bookedNames(bookings.value.filter((b) => b.status === "booked").map((b) => b.parentUserId), deps);
+  if (!names.ok) return names;
+  return {
+    ok: true,
+    value: calendarViewOf({ settings: settings.value, hours: hours.value, blocks: blocks.value, bookings: bookings.value, names: names.value, now }),
+  };
+}
+
 /**
  * What /admin/calls' actions answer when they refuse: closed codes only, never detail (brief §9.15). The gate adds
  * `not_authorized`; the rest are the call operations' own, with an overlap read as taken.
@@ -153,4 +239,14 @@ const ADMIN_REFUSAL: Readonly<Record<CallError, AdminCallError>> = Object.freeze
 
 export function adminRefusalOf(error: CallError): AdminCallError {
   return ADMIN_REFUSAL[error];
+}
+
+/** The Calendar tab's refusals: the Calls tab's, plus overlapping hours, which keep their own words. */
+export type CalendarCallError = AdminCallError | "overlap";
+
+export type CalendarCallResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: CalendarCallError };
+
+/** Overlapping hours stay `overlap` ("Those hours overlap — change one range"); the rest as `adminRefusalOf`. */
+export function calendarRefusalOf(error: CallError): CalendarCallError {
+  return error === "overlap" ? "overlap" : adminRefusalOf(error);
 }

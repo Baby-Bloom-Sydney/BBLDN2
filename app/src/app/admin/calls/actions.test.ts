@@ -34,7 +34,18 @@ vi.mock("@/lib/calls/deps", async (importOriginal) => ({
 
 import { callsTo, fakeCallsRepo } from "@/lib/calls/fake-calls-repo.test-util";
 import { CALL_SETTINGS_DEFAULTS } from "@/lib/calls/settings";
-import { cancelCallForFamily, confirmCallForFamily, holdCallForFamily, recordCallOutcomeAction, reloadFamilySlots } from "./actions";
+import {
+  addCallBlockAction,
+  cancelCallForFamily,
+  confirmCallForFamily,
+  holdCallForFamily,
+  recordCallOutcomeAction,
+  reloadFamilySlots,
+  removeCallBlockAction,
+  saveCallSettingsAction,
+  saveWeeklyHoursAction,
+  startCallBookingAction,
+} from "./actions";
 
 const ADMIN = "a0400000-0000-4000-8000-000000000001";
 const JANE = "b0400000-0000-4000-8000-000000000001";
@@ -78,6 +89,11 @@ const EVERY = [
   ["confirmCallForFamily", () => confirmCallForFamily({ parentUserId: JANE, holdId: BOOKING, idempotencyKey: BOOKING })],
   ["cancelCallForFamily", () => cancelCallForFamily({ parentUserId: JANE, bookingId: BOOKING })],
   ["reloadFamilySlots", () => reloadFamilySlots({ parentUserId: JANE })],
+  ["saveCallSettingsAction", () => saveCallSettingsAction({ slotMinutes: "45", noticeMinutes: "120", holdMinutes: "5", callerNumber: "" })],
+  ["saveWeeklyHoursAction", () => saveWeeklyHoursAction([{ weekday: 6, start: "10:00", end: "14:00" }])],
+  ["addCallBlockAction", () => addCallBlockAction({ fromDate: "2027-02-12", fromTime: "09:00", toDate: "2027-02-12", toTime: "13:00", reason: "dentist" })],
+  ["removeCallBlockAction", () => removeCallBlockAction({ blockId: BOOKING })],
+  ["startCallBookingAction", () => startCallBookingAction()],
 ] as const;
 
 describe("every action: the switch, the admin, the input — before anything is read", () => {
@@ -102,6 +118,13 @@ describe("every action: the switch, the admin, the input — before anything is 
     ["confirmCallForFamily", () => confirmCallForFamily({ parentUserId: JANE, holdId: "h", idempotencyKey: "" })],
     ["cancelCallForFamily", () => cancelCallForFamily({ parentUserId: JANE })],
     ["reloadFamilySlots", () => reloadFamilySlots(null)],
+    ["saveCallSettingsAction (a decimal)", () => saveCallSettingsAction({ slotMinutes: "45.5", noticeMinutes: "120", holdMinutes: "5", callerNumber: "" })],
+    ["saveCallSettingsAction (an empty notice)", () => saveCallSettingsAction({ slotMinutes: "45", noticeMinutes: "", holdMinutes: "5", callerNumber: "" })],
+    ["saveCallSettingsAction (extra field)", () => saveCallSettingsAction({ slotMinutes: "45", noticeMinutes: "120", holdMinutes: "5", callerNumber: "", enabledSince: "now" })],
+    ["saveWeeklyHoursAction", () => saveWeeklyHoursAction({ weekday: 6 })],
+    ["addCallBlockAction", () => addCallBlockAction({ fromDate: "2027-02-12" })],
+    ["removeCallBlockAction", () => removeCallBlockAction({ blockId: 42 })],
+    ["startCallBookingAction", () => startCallBookingAction({ enabledSince: "2020-01-01T00:00:00Z" })],
   ])("%s: bad input → invalid, zero repo calls", async (_n, act) => {
     expect(await act()).toEqual({ ok: false, error: "invalid" });
     expect(fake.calls).toEqual([]);
@@ -223,5 +246,110 @@ describe("on behalf (brief §3 admin 4, §0.11)", () => {
   it("reload: the grid can't be read → error", async () => {
     fake.state.failing = ["readWeeklyHours"];
     expect(await reloadFamilySlots({ parentUserId: JANE })).toEqual({ ok: false, error: "error" });
+  });
+});
+
+describe("the Calendar tab (04c-2, plan C5; brief §3 admin 5, §9.12; BB-wave1-041126/04c2-build)", () => {
+  const SETTINGS = { slotMinutes: "45", noticeMinutes: "60", holdMinutes: "10", callerNumber: " +44 20 7946 0000 " };
+
+  it("settings: the native inputs' strings → numbers; saved as the admin; revalidated", async () => {
+    expect(await saveCallSettingsAction(SETTINGS)).toEqual({ ok: true, value: true });
+    expect(callsTo(fake, "updateSettings")[0].args).toEqual([
+      { slotMinutes: 45, noticeMinutes: 60, holdMinutes: 10, callerNumber: "+442079460000" },
+      { userId: ADMIN, kind: "admin" },
+    ]);
+    expect(h.revalidated).toEqual(["/admin/calls"]);
+  });
+
+  it("settings: an empty caller number clears it (the email line is left out)", async () => {
+    await saveCallSettingsAction({ ...SETTINGS, callerNumber: "" });
+    expect(callsTo(fake, "updateSettings")[0].args[0]).toMatchObject({ callerNumber: null });
+  });
+
+  it.each(["25", "5", "240", "90"])("settings: a call length of %s (off the fixed list) is refused by the server, nothing written", async (minutes) => {
+    expect(await saveCallSettingsAction({ ...SETTINGS, slotMinutes: minutes })).toEqual({ ok: false, error: "invalid" });
+    expect(callsTo(fake, "updateSettings")).toEqual([]);
+    expect(h.revalidated).toEqual([]);
+  });
+
+  it("weekly hours: several ranges a day, touching allowed → replaced as the admin, sorted", async () => {
+    const week = [
+      { weekday: 6, start: "10:00", end: "14:00" },
+      { weekday: 1, start: "12:00", end: "17:00" },
+      { weekday: 1, start: "09:00", end: "12:00" },
+    ];
+    expect(await saveWeeklyHoursAction(week)).toEqual({ ok: true, value: true });
+    expect(callsTo(fake, "replaceWeeklyHours")[0].args).toEqual([
+      [
+        { weekday: 1, startMinute: 540, endMinute: 720 },
+        { weekday: 1, startMinute: 720, endMinute: 1020 },
+        { weekday: 6, startMinute: 600, endMinute: 840 },
+      ],
+      { userId: ADMIN, kind: "admin" },
+    ]);
+    expect(h.revalidated).toEqual(["/admin/calls"]);
+  });
+
+  it("weekly hours: overlapping ranges are refused as 'overlap' (its own words), nothing written", async () => {
+    const overlapping = [
+      { weekday: 2, start: "10:00", end: "14:00" },
+      { weekday: 2, start: "13:00", end: "15:00" },
+    ];
+    expect(await saveWeeklyHoursAction(overlapping)).toEqual({ ok: false, error: "overlap" });
+    expect(callsTo(fake, "replaceWeeklyHours")).toEqual([]);
+  });
+
+  it("weekly hours: the database's overlap answer is 'overlap' too", async () => {
+    fake.state.results.replaceWeeklyHours = { ok: false, error: "overlap" };
+    expect(await saveWeeklyHoursAction([{ weekday: 2, start: "10:00", end: "14:00" }])).toEqual({ ok: false, error: "overlap" });
+    expect(h.revalidated).toEqual([]);
+  });
+
+  it("weekly hours: an end before its start, or a 12-hour time → invalid", async () => {
+    expect(await saveWeeklyHoursAction([{ weekday: 2, start: "14:00", end: "10:00" }])).toEqual({ ok: false, error: "invalid" });
+    expect(await saveWeeklyHoursAction([{ weekday: 2, start: "2pm", end: "15:00" }])).toEqual({ ok: false, error: "invalid" });
+    expect(callsTo(fake, "replaceWeeklyHours")).toEqual([]);
+  });
+
+  it("add block: the date and time strings read as London on the server (BST), added as the admin", async () => {
+    const added = await addCallBlockAction({ fromDate: "2027-07-02", fromTime: "09:00", toDate: "2027-07-02", toTime: "13:00", reason: "dentist" });
+    expect(added).toEqual({ ok: true, value: { blockId: "block-1" } });
+    expect(callsTo(fake, "insertBlock")[0].args[0]).toEqual({ startsAt: "2027-07-02T08:00:00.000Z", endsAt: "2027-07-02T12:00:00.000Z", reason: "dentist" });
+    expect(h.revalidated).toEqual(["/admin/calls"]);
+  });
+
+  it("add block: the end before the start, or no reason → invalid, nothing written", async () => {
+    expect(await addCallBlockAction({ fromDate: "2027-02-12", fromTime: "13:00", toDate: "2027-02-12", toTime: "09:00", reason: "x" })).toEqual({ ok: false, error: "invalid" });
+    expect(await addCallBlockAction({ fromDate: "2027-02-12", fromTime: "09:00", toDate: "2027-02-12", toTime: "13:00", reason: " " })).toEqual({ ok: false, error: "invalid" });
+    expect(callsTo(fake, "insertBlock")).toEqual([]);
+  });
+
+  it("remove block: removed as the admin; already gone → not_found, nothing revalidated", async () => {
+    fake.state.blocks = [{ id: BOOKING, startsAt: "2027-02-12T09:00:00.000Z", endsAt: "2027-02-12T13:00:00.000Z", reason: "dentist" }];
+    expect(await removeCallBlockAction({ blockId: BOOKING })).toEqual({ ok: true, value: { blockId: BOOKING } });
+    expect(callsTo(fake, "deleteBlock")[0].args).toEqual([BOOKING, { userId: ADMIN, kind: "admin" }]);
+    h.revalidated = [];
+    fake.state.blocks = [];
+    expect(await removeCallBlockAction({ blockId: BOOKING })).toEqual({ ok: false, error: "not_found" });
+    expect(h.revalidated).toEqual([]);
+  });
+
+  it("Start call booking: started as the admin; answers the London start date; revalidated", async () => {
+    expect(await startCallBookingAction()).toEqual({ ok: true, value: { startedOn: "1 February 2027", startedNow: true } });
+    expect(callsTo(fake, "startCallBooking")[0].args).toEqual([{ userId: ADMIN, kind: "admin" }]);
+    expect(h.revalidated).toEqual(["/admin/calls"]);
+  });
+
+  it("Start call booking pressed again: the first date is kept (startedNow false)", async () => {
+    fake.state.results.startCallBooking = { ok: true, value: { enabledSince: "2027-01-20T08:00:00.000Z", startedNow: false } };
+    expect(await startCallBookingAction()).toEqual({ ok: true, value: { startedOn: "20 January 2027", startedNow: false } });
+  });
+
+  it("a Calendar write that failed → error, never detail", async () => {
+    fake.state.failing = ["updateSettings", "insertBlock", "startCallBooking"];
+    expect(await saveCallSettingsAction(SETTINGS)).toEqual({ ok: false, error: "error" });
+    expect(await addCallBlockAction({ fromDate: "2027-02-12", fromTime: "09:00", toDate: "2027-02-12", toTime: "13:00", reason: "dentist" })).toEqual({ ok: false, error: "error" });
+    expect(await startCallBookingAction()).toEqual({ ok: false, error: "error" });
+    expect(h.revalidated).toEqual([]);
   });
 });
