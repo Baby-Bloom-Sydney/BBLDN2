@@ -4,7 +4,11 @@
  *
  * `enabledSince` is not editable here: only "Start call booking" sets it, once (plan §12 R11; `repo.ts`).
  *
- * BB-wave1-041126/04a-core, 2026-11-04.
+ * The call length is a fixed choice (brief §0a.13, BAI 2026-11-06: "the fixed list"): an **update** takes 15, 20, 30, 45
+ * or 60 minutes only. The **row** keeps the database's own 5–240 check (amendment 19, unchanged), so a stored value off
+ * the list still reads — a read never fails on it.
+ *
+ * BB-wave1-041126/04a-core, 2026-11-04; BB-wave1-041126/04c2-build, 2026-11-06.
  */
 
 import { z } from "zod";
@@ -23,6 +27,9 @@ export const CALL_SETTINGS_DEFAULTS: CallSettings = Object.freeze({
   callerNumber: null,
   enabledSince: null,
 });
+
+/** The call lengths the Calendar tab offers and the server accepts (brief §0a.13). */
+export const CALL_LENGTH_CHOICES: readonly number[] = Object.freeze([15, 20, 30, 45, 60]);
 
 /** `call_settings_caller_number_check`. */
 const CALLER_NUMBER = /^\+44[0-9]{9,10}$/;
@@ -44,8 +51,10 @@ const BOUNDS = {
   notBookedDelayMinutes: z.int().min(1),
 } as const;
 
+const callLength = BOUNDS.slotMinutes.refine((minutes) => CALL_LENGTH_CHOICES.includes(minutes));
+
 const updateSchema = z.strictObject({
-  slotMinutes: BOUNDS.slotMinutes.optional(),
+  slotMinutes: callLength.optional(),
   windowDays: BOUNDS.windowDays.optional(),
   noticeMinutes: BOUNDS.noticeMinutes.optional(),
   holdMinutes: BOUNDS.holdMinutes.optional(),
@@ -58,7 +67,7 @@ const updateSchema = z.strictObject({
 
 export type CallSettingsUpdate = Partial<Omit<CallSettings, "enabledSince">>;
 
-/** A partial settings change from the Calendar tab, checked against the SQL bounds. */
+/** A partial settings change from the Calendar tab, checked against the SQL bounds and the fixed call lengths. */
 export function parseSettingsUpdate(input: unknown): CallsResult<CallSettingsUpdate, "invalid"> {
   const parsed = updateSchema.safeParse(input);
   return parsed.success ? { ok: true, value: parsed.data } : { ok: false, error: "invalid" };
