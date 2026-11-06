@@ -20,10 +20,12 @@ import { wholeUnlessLong } from "./theme";
 import { vatRateLabel } from "./sections/totals";
 import {
   CORRECTION_INVOICE,
+  expenseOf,
   HARTLEY_INVOICE,
   LTD_VAT_ADDED,
   MAX_INVOICE,
   PARTNERSHIP_INVOICE,
+  shiftOf,
   TRIAL_INVOICE,
   VAT_INCLUDED,
 } from "./fixtures.test-util";
@@ -83,7 +85,28 @@ describe("InvoicePdf — the worked example (sole trader, no VAT: 14.5)", () => 
     expect(table.slice(0, 6)).toEqual(["Childcare, week of 8–14 Feb 2027", "Date", "Description", "Hours", "Rate", "Amount"]);
     expect(table.slice(6, 11)).toEqual(["Mon 8 Feb", "", "6", "£18.00", "£108.00"]);
     expect(table.filter((l) => l === "Wed 10 Feb")).toHaveLength(2);
-    expect(table.slice(-5)).toEqual(["Wed 10 Feb", "evening, agreed rate", "2", "£22.00", "£44.00"]);
+    expect(table.slice(-5)).toEqual(["Fri 12 Feb", "", "6", "£18.00", "£108.00"]);
+  });
+
+  it("prints the shifts in date order: the Wed 2 h line, entered after Fri, follows the Wed 6 h row (coordinator, 06b-2)", () => {
+    expect(HARTLEY_INVOICE.shifts.map((s) => s.date)).toEqual(["2027-02-08", "2027-02-09", "2027-02-10", "2027-02-11", "2027-02-12", "2027-02-10"]);
+    const rows = between(lines, "Childcare, week of 8–14 Feb 2027", "Expenses").slice(6);
+    expect(rows.filter((l) => /^\w{3} \d+ Feb$/.test(l))).toEqual(["Mon 8 Feb", "Tue 9 Feb", "Wed 10 Feb", "Wed 10 Feb", "Thu 11 Feb", "Fri 12 Feb"]);
+    const wed = rows.indexOf("Wed 10 Feb");
+    expect(rows.slice(wed, wed + 10)).toEqual(["Wed 10 Feb", "", "6", "£18.00", "£108.00", "Wed 10 Feb", "evening, agreed rate", "2", "£22.00", "£44.00"]);
+  });
+
+  it("keeps her order for shifts on one date, and for the expenses (a stable sort by date only)", () => {
+    const data = {
+      ...HARTLEY_INVOICE,
+      shifts: [shiftOf("2027-02-09", 2, 2200, "evening"), shiftOf("2027-02-08", 6, 1800), shiftOf("2027-02-09", 6, 1800, "day")],
+      expenses: [expenseOf("travel", 640, "Bus"), expenseOf("food", 900, "Lunch"), expenseOf("activities", 1250, "Soft play")],
+    };
+    const shown = linesOf(InvoicePdf(data));
+    const rows = between(shown, "Childcare, week of 8–14 Feb 2027", "Expenses").slice(6);
+    expect(rows.filter((l) => /^\w{3} \d+ Feb$|^(evening|day)$/.test(l))).toEqual(["Mon 8 Feb", "Tue 9 Feb", "evening", "Tue 9 Feb", "day"]);
+    expect(between(shown, "Expenses", "Childcare").slice(4)).toEqual(["Travel", "Bus", "£6.40", "Food", "Lunch", "£9.00", "Activities", "Soft play", "£12.50"]);
+    expect(data.shifts.map((s) => s.description)).toEqual(["evening", null, "day"]);
   });
 
   it("prints the expenses: type, description, amount", () => {

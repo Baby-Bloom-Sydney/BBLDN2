@@ -1,10 +1,11 @@
 /**
  * The invoice's lines (plan 06 §14.8; brief §0a D): **childcare** — "Childcare, week of 8–14 Feb 2027" (or "Trial
- * Shift, Wed 3 Feb 2027") over Date · Description · Hours · Rate · Amount, one row per shift in her order (several on
- * one date, at their own rates) — then **expenses**, Type · Description · Amount, when she has any. A long table
- * runs on to the next page row by row; a row is never split. Called as functions, never mounted.
+ * Shift, Wed 3 Feb 2027") over Date · Description · Hours · Rate · Amount, one row per shift in date order (several
+ * on one date, at their own rates, keep her order) — then **expenses**, Type · Description · Amount, in her order, when
+ * she has any. A long table runs on to the next page row by row; a row is never split. Called as functions, never
+ * mounted.
  *
- * BB-wave1-041126/06b2-build, 2026-11-06.
+ * BB-wave1-041126/06b2-build, 2026-11-06 (shifts in date order: coordinator follow-up).
  */
 
 import { Text, View } from "@react-pdf/renderer";
@@ -28,6 +29,13 @@ const head = (cells: readonly (readonly [string, CellStyle])[]): ReactElement =>
     {cells.map(([text, style]) => <Text key={text} style={[style, styles.label]}>{text}</Text>)}
   </View>
 );
+
+/**
+ * Her shifts by date, earliest first, so a line she added later prints with its day (coordinator, 06b-2). The sort is
+ * stable: shifts on one date keep her order. Only the PDF's order: the data, line numbers and readers keep hers.
+ */
+export const inDateOrder = (shifts: readonly InvoicePdfShift[]): InvoicePdfShift[] =>
+  [...shifts].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
 /** One shift's row; never split across pages. */
 function shiftRow(s: InvoicePdfShift, i: number): ReactElement {
@@ -70,12 +78,12 @@ function table(title: string, cells: readonly (readonly [string, CellStyle])[], 
   );
 }
 
-/** The shift table: every shift, in her order. */
+/** The shift table: every shift, in date order. */
 export function shiftTable(data: InvoicePdfData): ReactElement {
   return table(
     describeLine(data.kind, data.periodStart),
     [["Date", styles.cellDate], ["Description", styles.cellDescription], ["Hours", styles.cellHours], ["Rate", styles.cellRate], ["Amount", styles.cellAmount]],
-    data.shifts.map(shiftRow),
+    inDateOrder(data.shifts).map(shiftRow),
   );
 }
 
