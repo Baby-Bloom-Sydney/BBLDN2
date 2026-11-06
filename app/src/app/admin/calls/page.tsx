@@ -1,24 +1,32 @@
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { calendarWeek } from "@/lib/calls/admin-calls";
 import { proveAdmin } from "@/lib/calls/admin-proof";
 import { ADMIN_COPY } from "@/lib/calls/copy";
 import { loadCallsDashboard } from "@/lib/calls/dashboard";
 import { loadFamilyPanel } from "@/lib/calls/family-panel";
 import { callBookingEnabled } from "@/lib/features/flags";
-import { AlertLine } from "../cohorts/parts";
-import { CallsClient } from "./CallsClient";
+import { CallsClient, type CallsPageTab } from "./CallsClient";
 
 /**
  * `/admin/calls` — the matchmaker calls still to make, booked or not (brief 04 §0.8–0.11, §3 admin 1–4, 6; plan C3,
  * C4, §13; BB-wave1-041126/04c1-build). The `/admin/cohorts` shape with the switch in front: `CALL_BOOKING_ENABLED`
  * off → 404 before the admin check or any read; not an admin → 404; then the Calls tab's one read and, for
  * `?openCall=<parent user id>`, her drawer. Admin only (middleware `/admin` + `proveAdmin`). Every time is London.
- * The Calendar tab (`?tab=calendar`) is 04c-2's.
+ *
+ * 04c-2 (BB-wave1-041126/04c2-build): the Calendar tab's one read (`calendarWeek`) runs alongside, after the switch and
+ * the proof; `?tab=calendar` opens that tab, anything else Calls. Each tab says when its own read failed.
  */
 export const dynamic = "force-dynamic";
 
 interface AdminCallsPageProps {
   readonly searchParams?: Record<string, string | string[] | undefined>;
+}
+
+/** `?tab=`, first value: "calendar" opens the Calendar tab; anything else is Calls. */
+function tabParam(searchParams: AdminCallsPageProps["searchParams"]): CallsPageTab {
+  const raw = searchParams?.tab;
+  return (Array.isArray(raw) ? raw[0] : raw) === "calendar" ? "calendar" : "calls";
 }
 
 /** `?openCall=`, first value, only if it is a user id. */
@@ -34,24 +42,24 @@ export default async function AdminCallsPage({ searchParams }: AdminCallsPagePro
   const proof = await proveAdmin();
   if (!proof) notFound();
   const openCallId = openCallParam(searchParams);
-  const [dashboard, panel] = await Promise.all([loadCallsDashboard(proof), openCallId ? loadFamilyPanel(proof, openCallId) : Promise.resolve(null)]);
+  const [dashboard, panel, calendar] = await Promise.all([
+    loadCallsDashboard(proof),
+    openCallId ? loadFamilyPanel(proof, openCallId) : Promise.resolve(null),
+    calendarWeek(proof),
+  ]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10">
       <h1 className="text-2xl font-bold text-slate-900">{ADMIN_COPY.pageHeading}</h1>
       <p className="mt-1 text-sm text-slate-500">{`${ADMIN_COPY.pageIntro} ${ADMIN_COPY.londonNote}`}</p>
-      {dashboard.ok ? (
-        <CallsClient
-          dashboard={dashboard.value}
-          openCallId={openCallId}
-          panel={panel?.ok ? panel.value : null}
-          panelFailed={panel !== null && !panel.ok}
-        />
-      ) : (
-        <div className="mt-6">
-          <AlertLine>{ADMIN_COPY.loadFailed}</AlertLine>
-        </div>
-      )}
+      <CallsClient
+        dashboard={dashboard.ok ? dashboard.value : null}
+        calendar={calendar.ok ? calendar.value : null}
+        tab={tabParam(searchParams)}
+        openCallId={openCallId}
+        panel={panel?.ok ? panel.value : null}
+        panelFailed={panel !== null && !panel.ok}
+      />
     </div>
   );
 }

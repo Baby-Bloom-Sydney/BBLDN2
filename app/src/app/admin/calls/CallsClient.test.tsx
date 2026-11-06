@@ -2,6 +2,10 @@
  * The /admin/calls client (plan C3, C4; BB-wave1-041126/04c1-build): the Calls tab, and the row drawer as the
  * `/admin/leads` drawer — `Sheet side="right"`, opened by `?openCall=<parentUserId>` (shareable, refreshable), open
  * at once on a click while the server reads her (a skeleton), closed by a click outside.
+ *
+ * 04c-2 (BB-wave1-041126/04c2-build): the page is two tabs, Calls · Calendar (the `/admin/users` `Tabs`);
+ * `?tab=calendar` opens the Calendar tab, anything else Calls; choosing a tab puts it in the URL (no reload). Each tab
+ * says when its own read failed.
  */
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -14,9 +18,15 @@ vi.mock("./actions", () => ({
   cancelCallForFamily: vi.fn(),
   reloadFamilySlots: vi.fn(),
   recordCallOutcomeAction: vi.fn(),
+  saveCallSettingsAction: vi.fn(),
+  saveWeeklyHoursAction: vi.fn(),
+  addCallBlockAction: vi.fn(),
+  removeCallBlockAction: vi.fn(),
+  startCallBookingAction: vi.fn(),
 }));
 
 import { CallsClient } from "./CallsClient";
+import { CALENDAR } from "./calendar-fixtures.test-util";
 import { AVA, DASHBOARD, FAY, PANEL } from "./calls-fixtures.test-util";
 
 beforeEach(() => {
@@ -130,5 +140,48 @@ describe("CallsClient", () => {
     fireEvent.keyDown(drawer()!, { key: "Escape" });
     expect(drawer()).toBeNull();
     expect(nav.push).toHaveBeenCalledWith("/admin/calls", { scroll: false });
+  });
+});
+
+describe("CallsClient — the two tabs (04c-2)", () => {
+  const tab = (name: string) => screen.getByRole("tab", { name });
+
+  it("Calls · Calendar; with no ?tab, Calls is open", () => {
+    render(<CallsClient dashboard={DASHBOARD} calendar={CALENDAR} openCallId={null} panel={null} panelFailed={false} />);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Calls", "Calendar"]);
+    expect(tab("Calls")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { name: /Today and upcoming/ })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Next 7 days (London time)" })).toBeNull();
+  });
+
+  it("?tab=calendar opens the Calendar tab", () => {
+    render(<CallsClient dashboard={DASHBOARD} calendar={CALENDAR} tab="calendar" openCallId={null} panel={null} panelFailed={false} />);
+    expect(tab("Calendar")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { level: 2, name: "Next 7 days (London time)" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Today and upcoming/ })).toBeNull();
+  });
+
+  it("choosing a tab shows it and puts it in the URL without a reload; back to Calls drops ?tab", () => {
+    const replace = vi.spyOn(window.history, "replaceState");
+    render(<CallsClient dashboard={DASHBOARD} calendar={CALENDAR} openCallId={null} panel={null} panelFailed={false} />);
+    fireEvent.mouseDown(tab("Calendar"), { button: 0 });
+    expect(screen.getByRole("heading", { level: 2, name: "Next 7 days (London time)" })).toBeInTheDocument();
+    expect(replace).toHaveBeenLastCalledWith(null, "", "/admin/calls?tab=calendar");
+    fireEvent.mouseDown(tab("Calls"), { button: 0 });
+    expect(replace).toHaveBeenLastCalledWith(null, "", "/admin/calls");
+    expect(nav.push).not.toHaveBeenCalled();
+    replace.mockRestore();
+  });
+
+  it("the calls couldn't be read → the Calls tab says so; the Calendar tab still works", () => {
+    render(<CallsClient dashboard={null} calendar={CALENDAR} openCallId={null} panel={null} panelFailed={false} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("The calls could not be read — reload to try again.");
+    fireEvent.mouseDown(tab("Calendar"), { button: 0 });
+    expect(screen.getByRole("heading", { level: 2, name: "Next 7 days (London time)" })).toBeInTheDocument();
+  });
+
+  it("the calendar couldn't be read → the Calendar tab says so", () => {
+    render(<CallsClient dashboard={DASHBOARD} calendar={null} tab="calendar" openCallId={null} panel={null} panelFailed={false} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("The calendar could not be read — reload to try again.");
   });
 });

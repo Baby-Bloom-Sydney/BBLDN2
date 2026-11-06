@@ -6,25 +6,38 @@
  * mirrored to `?openCall=<parentUserId>` so it is shareable and survives a refresh. A click opens it at once
  * (optimistic) with a skeleton while the server reads her; a click outside or Escape closes it at once too.
  *
- * Only Calls in 04c-1; the Calendar tab (`?tab=calendar`) is 04c-2's.
+ * 04c-2 (BB-wave1-041126/04c2-build): two tabs, Calls · Calendar (the `/admin/users` `Tabs`). `?tab=calendar` opens
+ * the Calendar tab, anything else Calls; choosing a tab writes it to the URL with `history.replaceState` (Next 14.2
+ * keeps the router in step), so a refresh keeps it and the tab switch costs no server read. Each tab says when its
+ * own read failed, so a failed calls read never hides the Calendar (and the reverse).
  */
 
 import { type MouseEvent, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { CalendarView } from "@/lib/calls/calendar";
 import { ADMIN_COPY } from "@/lib/calls/copy";
 import type { CallsDashboard } from "@/lib/calls/dashboard";
 import type { FamilyPanel } from "@/lib/calls/family-panel";
 import { AlertLine } from "../cohorts/parts";
 import { defaultCallControl, type RenderCallControl } from "./CallRowParts";
 import { CallRowPanel } from "./CallRowPanel";
+import { CalendarTab } from "./CalendarTab";
 import { CallsTab } from "./CallsTab";
 
 const PAGE = "/admin/calls";
 
+export type CallsPageTab = "calls" | "calendar";
+
 export interface CallsClientProps {
-  readonly dashboard: CallsDashboard;
+  /** Null: the Calls tab's read failed (its tab says so). */
+  readonly dashboard: CallsDashboard | null;
+  /** The Calendar tab's read; null when it failed (its tab says so). */
+  readonly calendar?: CalendarView | null;
+  /** `?tab=` as the server read it. */
+  readonly tab?: CallsPageTab;
   /** `?openCall=` as the server read it (a user id), or null. */
   readonly openCallId: string | null;
   /** Her drawer, read by the server for `openCallId`; null while none, or when it failed (`panelFailed`). */
@@ -105,13 +118,51 @@ function useDrawer(openCallId: string | null) {
   return { wanted, shown: wanted ?? last.current, open, close, restoreFocus, noteClick, refresh: () => router.refresh() };
 }
 
-export function CallsClient({ dashboard, openCallId, panel, panelFailed, renderCallControl = defaultCallControl }: CallsClientProps) {
+/** The open tab: the server's `?tab=` first, then a choice, mirrored to the URL without a reload. */
+function usePageTab(initial: CallsPageTab) {
+  const [tab, setTab] = useState<CallsPageTab>(initial);
+  useEffect(() => setTab(initial), [initial]);
+  const choose = (value: string) => {
+    const next: CallsPageTab = value === "calendar" ? "calendar" : "calls";
+    setTab(next);
+    window.history.replaceState(null, "", next === "calendar" ? `${PAGE}?tab=calendar` : PAGE);
+  };
+  return { tab, choose };
+}
+
+interface PageTabsProps {
+  readonly tab: ReturnType<typeof usePageTab>;
+  readonly dashboard: CallsDashboard | null;
+  readonly calendar: CalendarView | null;
+  readonly onOpen: (parentUserId: string) => void;
+  readonly renderCallControl: RenderCallControl;
+}
+
+function PageTabs({ tab, dashboard, calendar, onOpen, renderCallControl }: PageTabsProps) {
+  return (
+    <Tabs value={tab.tab} onValueChange={tab.choose} className="space-y-6">
+      <TabsList>
+        <TabsTrigger value="calls">{ADMIN_COPY.callsTab}</TabsTrigger>
+        <TabsTrigger value="calendar">{ADMIN_COPY.calendarTab}</TabsTrigger>
+      </TabsList>
+      <TabsContent value="calls">
+        {dashboard ? <CallsTab dashboard={dashboard} onOpen={onOpen} renderCallControl={renderCallControl} /> : <AlertLine>{ADMIN_COPY.loadFailed}</AlertLine>}
+      </TabsContent>
+      <TabsContent value="calendar">
+        <CalendarTab calendar={calendar} />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+export function CallsClient({ dashboard, calendar = null, tab = "calls", openCallId, panel, panelFailed, renderCallControl = defaultCallControl }: CallsClientProps) {
   const drawer = useDrawer(openCallId);
+  const pageTab = usePageTab(tab);
   const ready = panel !== null && panel.parentUserId === drawer.shown;
   const failed = panelFailed && drawer.shown === openCallId;
   return (
     <div className="mt-6" onClickCapture={drawer.noteClick}>
-      <CallsTab dashboard={dashboard} onOpen={drawer.open} renderCallControl={renderCallControl} />
+      <PageTabs tab={pageTab} dashboard={dashboard} calendar={calendar} onOpen={drawer.open} renderCallControl={renderCallControl} />
       <Sheet open={drawer.wanted !== null} onOpenChange={(isOpen) => !isOpen && drawer.close()}>
         {/* [&>button]:z-20 — the Sheet's own close button stays above the drawer's sticky header. */}
         <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-2xl [&>button]:z-20" onCloseAutoFocus={drawer.restoreFocus}>
