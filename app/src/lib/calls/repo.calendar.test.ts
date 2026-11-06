@@ -167,3 +167,40 @@ describe("deleteBlock — remove one block by id, then call.block_removed", () =
     expect(audit(f)).toEqual([]);
   });
 });
+
+describe("review round 1 (04c-2, security LOW-1): a thrown audit insert never makes a landed write look failed", () => {
+  function throwingAudit(f: ReturnType<typeof fakeAdmin>) {
+    const from = f.client.from.bind(f.client);
+    (f.client as unknown as { from: (t: string) => unknown }).from = (table: string) =>
+      table === "activity_logs"
+        ? {
+            insert: () => {
+              throw new Error("fetch failed");
+            },
+          }
+        : from(table);
+  }
+
+  it("updateSettings, insertBlock, deleteBlock and Start call booking stay ok; the lost row is logged", async () => {
+    const f = fakeAdmin({ call_settings: { ...ROW, enabled_since: null } });
+    f.writeResults.call_settings = { ...ROW, slot_minutes: 45 };
+    f.writeResults.call_blocks = BLOCK_ROW;
+    throwingAudit(f);
+    const repo = createCallsRepo({ client: f.client });
+    expect((await repo.updateSettings({ slotMinutes: 45 }, ADMIN_ACTOR)).ok).toBe(true);
+    expect((await repo.insertBlock({ startsAt: "2027-02-12T09:00:00.000Z", endsAt: "2027-02-12T13:00:00.000Z", reason: "dentist" }, ADMIN_ACTOR)).ok).toBe(true);
+    f.writeResults.call_blocks = [BLOCK_ROW];
+    expect((await repo.deleteBlock(BLOCK, ADMIN_ACTOR)).ok).toBe(true);
+    expect(errorLog).toHaveBeenCalledWith(expect.stringContaining("activity_logs"), expect.anything());
+  });
+
+  it("Start call booking: the stamp landed, the audit insert threw → ok (startedNow), not error", async () => {
+    const f = fakeAdmin();
+    Object.defineProperty(f.reads, "call_settings", {
+      get: () => ({ ...ROW, enabled_since: f.ops.some((o) => o.kind === "update") ? "2027-02-01T09:00:00+00:00" : null }),
+    });
+    throwingAudit(f);
+    const started = await createCallsRepo({ client: f.client, now: () => new Date("2027-02-01T09:00:00.000Z") }).startCallBooking(ADMIN_ACTOR);
+    expect(started).toEqual({ ok: true, value: { enabledSince: "2027-02-01T09:00:00.000Z", startedNow: true } });
+  });
+});

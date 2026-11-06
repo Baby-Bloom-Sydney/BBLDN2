@@ -484,15 +484,20 @@ async function startCallBooking(db: Db, now: () => Date, actor: CallActor): Prom
   return ok({ enabledSince: after.value.enabledSince, startedNow });
 }
 
+/** The start's audit row; a throw is logged, never a failure of the stamp that landed (04c-2 security review LOW-1). */
 async function logStarted(db: Db, actor: CallActor, stamp: string): Promise<void> {
-  const { error } = (await db()
-    .from("activity_logs")
-    .insert({
-      user_id: actor.userId,
-      action_type: "call.settings_updated",
-      action_details: { enabled_since: stamp, started_call_booking: true },
-    })) as DbReply;
-  if (error) logFailure("startCallBooking(activity_logs)", error);
+  try {
+    const { error } = (await db()
+      .from("activity_logs")
+      .insert({
+        user_id: actor.userId,
+        action_type: "call.settings_updated",
+        action_details: { enabled_since: stamp, started_call_booking: true },
+      })) as DbReply;
+    if (error) logFailure("startCallBooking(activity_logs)", error);
+  } catch (thrown) {
+    logFailure("startCallBooking(activity_logs)", thrown);
+  }
 }
 
 // ── The Calendar tab's writers (04c-2, plan C5, §13) ───────────────────────────────────────────────────────────
@@ -516,10 +521,17 @@ function settingsColumns(settings: CallSettingsUpdate, keys: readonly SettingsKe
   return Object.freeze(Object.fromEntries(keys.map((key) => [SETTINGS_COLUMN[key], settings[key] ?? null])));
 }
 
-/** The audit row after a Calendar write. The write stands either way; a lost row is logged (the dfy.ts pattern). */
+/**
+ * The audit row after a Calendar write. The write stands either way: a lost row — an error answer or a throw — is
+ * logged, never turned into a failure of the write that landed (security review LOW-1; the dfy.ts pattern).
+ */
 async function audit(db: Db, label: string, actor: CallActor, actionType: string, details: Readonly<Record<string, unknown>>): Promise<void> {
-  const { error } = (await db().from("activity_logs").insert({ user_id: actor.userId, action_type: actionType, action_details: details })) as DbReply;
-  if (error) logFailure(`${label}(activity_logs)`, error);
+  try {
+    const { error } = (await db().from("activity_logs").insert({ user_id: actor.userId, action_type: actionType, action_details: details })) as DbReply;
+    if (error) logFailure(`${label}(activity_logs)`, error);
+  } catch (thrown) {
+    logFailure(`${label}(activity_logs)`, thrown);
+  }
 }
 
 /**

@@ -9,3 +9,11 @@ export const CALL_LENGTH_CHOICES: readonly number[] = Object.freeze([15, 20, 30,
 
 /** `call_blocks_reason_check`: a block's reason is 1–200 characters. */
 export const BLOCK_REASON_MAX = 200;
+
+/** `call_settings_notice_minutes_check`: 0 to a week. */
+export const NOTICE_MINUTES_MIN = 0;
+export const NOTICE_MINUTES_MAX = 10080;
+
+/** `call_settings_hold_minutes_check`: 1 to 60. */
+export const HOLD_MINUTES_MIN = 1;
+export const HOLD_MINUTES_MAX = 60;

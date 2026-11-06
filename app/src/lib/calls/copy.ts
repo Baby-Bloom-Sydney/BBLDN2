@@ -11,6 +11,7 @@
  */
 
 import type { AdminCallError, CalendarCallError } from "./admin-calls";
+import { CALL_LENGTH_CHOICES, HOLD_MINUTES_MAX, HOLD_MINUTES_MIN, NOTICE_MINUTES_MAX, NOTICE_MINUTES_MIN } from "./calendar-limits";
 import type { SlotWords } from "./slot-words";
 
 export const CALL_NAME = "Complimentary matchmaker call";
@@ -170,7 +171,7 @@ export const ADMIN_COPY = Object.freeze({
   callerNumberLabel: "Caller number shown in emails",
   callerNumberHint: "In the +44 form, e.g. +44 20 7946 0000. Leave empty to leave the line out.",
   saveSettings: "Save settings",
-  settingsInvalid: "Check the call length (15, 20, 30, 45 or 60 minutes), the notice (0–10080), the hold (1–60) and the caller number (+44 form).",
+  settingsInvalid: `Check the call length (${CALL_LENGTH_CHOICES.slice(0, -1).join(", ")} or ${CALL_LENGTH_CHOICES.at(-1)} minutes), the notice (${NOTICE_MINUTES_MIN}–${NOTICE_MINUTES_MAX}), the hold (${HOLD_MINUTES_MIN}–${HOLD_MINUTES_MAX}) and the caller number (+44 form).`,
   offListLength: "not on the list",
   hoursHeading: "Weekly hours (London time)",
   hoursHint: "Several ranges a day are fine; ranges may touch but not overlap.",
@@ -207,6 +208,10 @@ export const ADMIN_COPY = Object.freeze({
   startNotYet: "Not yet",
   notStarted: "Call booking hasn't started: no parent is offered a matchmaker call yet.",
   starting: "Starting…",
+  // 04c-2 review round 1: names for the tab list, the grid's key and the block list
+  tabsLabel: "Calls and calendar",
+  gridKey: "Key",
+  blocksAhead: "Blocks ahead",
 });
 
 /** Parent-facing (W14: no "London time"): "Your Complimentary matchmaker call is on Tuesday 9 February at 14:00" */

@@ -9,7 +9,7 @@
  *   browser's zone — refusing the hour the clocks skip;
  * - the block form and the weekly-hours form, checked.
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { bookingRow, EVERY_DAY_9_TO_7 } from "./fake-calls-repo.test-util";
@@ -285,11 +285,46 @@ describe("calendar-limits — what the client forms show, with no zod in the bro
     expect(source).not.toMatch(/^import (?!type )/m);
   });
 
-  it.each(["CallSettingsForm.tsx", "BlocksForm.tsx", "WeeklyHoursForm.tsx", "WeekGrid.tsx", "CalendarTab.tsx", "StartCallBooking.tsx"])(
-    "%s takes no run-time import from settings.ts or calendar.ts (zod would follow)",
-    (file) => {
-      const source = readFileSync(join(__dirname, "../../app/admin/calls", file), "utf8");
-      expect(source).not.toMatch(/^import (?!type )[^;]*from "@\/lib\/calls\/(settings|calendar)";/m);
-    },
-  );
+  it("every /admin/calls file the browser loads takes run-time imports only from zod-free call modules (review round 1)", () => {
+    const dir = join(__dirname, "../../app/admin/calls");
+    const SERVER_ONLY = new Set(["page.tsx", "actions.ts"]);
+    const ALLOWED = new Set(["calendar-limits", "copy", "dashboard-row", "outcomes", "weekday"]);
+    const files = readdirSync(dir).filter((f) => /\.tsx?$/.test(f) && !/\.test\.|test-util/.test(f) && !SERVER_ONLY.has(f));
+    expect(files.length).toBeGreaterThan(10);
+    const offending = files.flatMap((file) =>
+      [...readFileSync(join(dir, file), "utf8").matchAll(/^import (?!type )[^;]*from "@\/lib\/calls\/([^"]+)";/gm)]
+        .map((m) => m[1])
+        .filter((name) => !ALLOWED.has(name))
+        .map((name) => `${file} → ${name}`),
+    );
+    expect(offending).toEqual([]);
+  });
+
+  it("the allowed modules themselves import no zod at run time", () => {
+    for (const name of ["calendar-limits", "copy", "dashboard-row", "outcomes", "weekday"]) {
+      expect(readFileSync(join(__dirname, `${name}.ts`), "utf8")).not.toMatch(/^import (?!type )[^;]*from "zod";/m);
+    }
+  });
+});
+
+describe("review round 1 (04c-2)", () => {
+  it("a range ending at midnight round-trips: the view says 24:00 and the form's 24:00 is 1440 (end only)", () => {
+    const view = calendarViewOf(input({ hours: [{ weekday: 7, startMinute: 1080, endMinute: 1440 }] }));
+    expect(view.hours[0]).toMatchObject({ start: "18:00", end: "24:00" });
+    expect(hoursFromForm([{ weekday: 7, start: view.hours[0].start, end: view.hours[0].end }])).toEqual({ ok: true, value: [{ weekday: 7, startMinute: 1080, endMinute: 1440 }] });
+    expect(hoursFromForm([{ weekday: 7, start: "24:00", end: "24:00" }])).toEqual({ ok: false, error: "invalid" });
+  });
+
+  it("a block may run at most 366 days, and end at most 730 days ahead (security review LOW-2)", () => {
+    const FORM = { fromDate: "2027-02-12", fromTime: "09:00", toDate: "2027-02-12", toTime: "13:00", reason: "holiday" };
+    expect(parseBlockForm({ ...FORM, toDate: "2028-02-12" }, NOW).ok).toBe(true);
+    expect(parseBlockForm({ ...FORM, toDate: "2028-02-14" }, NOW)).toEqual({ ok: false, error: "invalid" });
+    expect(parseBlockForm({ ...FORM, fromDate: "2029-01-01", toDate: "2029-02-05" }, NOW)).toEqual({ ok: false, error: "invalid" });
+    expect(parseBlockForm({ ...FORM, fromDate: "0001-01-01", toDate: "2027-02-12" }, NOW)).toEqual({ ok: false, error: "invalid" });
+  });
+
+  it("the notice and hold limits the form shows are the server's own (one source, calendar-limits.ts)", async () => {
+    const limits = await import("./calendar-limits");
+    expect([limits.NOTICE_MINUTES_MIN, limits.NOTICE_MINUTES_MAX, limits.HOLD_MINUTES_MIN, limits.HOLD_MINUTES_MAX]).toEqual([0, 10080, 1, 60]);
+  });
 });

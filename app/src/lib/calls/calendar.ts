@@ -27,16 +27,24 @@ import type { NewCallBlock } from "./repo";
 import { dayWords, slotWords } from "./slot-words";
 import { occupiesSlot } from "./status";
 import type { CallBlock, CallBooking, CallSettings, CallsResult, Slot, TimeSpan, WeeklyHoursRange } from "./types";
-import { weekdayName, type IsoWeekday } from "./weekday";
+import { isIsoWeekday, weekdayName, type IsoWeekday } from "./weekday";
 
 /** The grid's length (brief §3 admin 5: "a 7-day grid"). */
 export const GRID_DAYS = 7;
 export { BLOCK_REASON_MAX };
 /** Ten ranges a weekday is more than a week of call hours needs. */
 export const MAX_HOURS_ROWS = 70;
+/** A block runs at most a year, and ends at most two years ahead (security review LOW-2: one mistyped block can't
+ *  take every time out for decades). */
+export const BLOCK_SPAN_MAX_DAYS = 366;
+export const BLOCK_AHEAD_MAX_DAYS = 730;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const INVALID = Object.freeze({ ok: false, error: "invalid" } as const);
-const CLOCK = /^([01]\d|2[0-3]):([0-5]\d)$/;
+/** A 24-hour "HH:MM" (shared with the Calls tab's call-back time, `actions.ts`). */
+export const CLOCK_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+/** A range may end at midnight: "24:00" is 1440, as an end only (`clockOf(1440)` writes it). */
+const MIDNIGHT_END = "24:00";
 const londonDate = z.iso.date();
 
 export type CalendarCellKind = "free" | "booked" | "held" | "blocked";
@@ -46,6 +54,9 @@ export interface CalendarCell extends TimeSpan {
   readonly kind: CalendarCellKind;
   /** "09:00–09:30", London. */
   readonly time: string;
+  /** "09:00" and "09:30", London (the grid marks each as a <time>). */
+  readonly startTime: string;
+  readonly endTime: string;
   /** A booked call's family; null otherwise. */
   readonly name: string | null;
   /** The block over this time (a blocked time, or a booked call or hold inside a block). */
@@ -74,7 +85,11 @@ export interface CalendarDaysInput {
 }
 
 const byStart = (a: TimeSpan, b: TimeSpan): number => a.startsAt.localeCompare(b.startsAt);
-const timeRange = (span: TimeSpan): string => `${slotWords(span.startsAt).time}–${slotWords(span.endsAt).time}`;
+const clocksOf = (span: TimeSpan) => {
+  const startTime = slotWords(span.startsAt).time;
+  const endTime = slotWords(span.endsAt).time;
+  return { time: `${startTime}–${endTime}`, startTime, endTime };
+};
 
 function bookingCell(booking: CallBooking, input: CalendarDaysInput): CalendarCell {
   const booked = booking.status === "booked";
@@ -84,7 +99,7 @@ function bookingCell(booking: CallBooking, input: CalendarDaysInput): CalendarCe
     kind: booked ? "booked" : "held",
     startsAt: booking.startsAt,
     endsAt: booking.endsAt,
-    time: timeRange(booking),
+    ...clocksOf(booking),
     name: booked ? input.names.get(booking.parentUserId) ?? contactWords(null).name : null,
     blockReason: over?.reason ?? null,
     blockedOver: over !== null,
@@ -98,7 +113,7 @@ function slotCell(slot: Slot, blocks: readonly CallBlock[]): CalendarCell {
     kind: over === null ? "free" : "blocked",
     startsAt: slot.startsAt,
     endsAt: slot.endsAt,
-    time: timeRange(slot),
+    ...clocksOf(slot),
     name: null,
     blockReason: over?.reason ?? null,
     blockedOver: false,
@@ -128,7 +143,7 @@ export function calendarDays(input: CalendarDaysInput): readonly CalendarDay[] {
 
 /** "09:30" → 570; anything that isn't a 24-hour "HH:MM" → null. */
 export function clockMinutes(clock: string): number | null {
-  const match = CLOCK.exec(clock);
+  const match = CLOCK_PATTERN.exec(clock);
   return match ? Number(match[1]) * 60 + Number(match[2]) : null;
 }
 
@@ -157,7 +172,8 @@ export const blockFormInput = z.strictObject({
   reason: z.string().max(1000),
 });
 
-/** A block from the Calendar tab: London from and to, ending after it starts and after now; a 1–200 character reason. */
+/** A block from the Calendar tab: London from and to, ending after it starts and after now, at most a year long and
+ *  two years ahead; a 1–200 character reason. */
 export function parseBlockForm(input: unknown, now: Date): CallsResult<NewCallBlock, "invalid"> {
   const parsed = blockFormInput.safeParse(input);
   if (!parsed.success) return INVALID;
@@ -166,6 +182,8 @@ export function parseBlockForm(input: unknown, now: Date): CallsResult<NewCallBl
   const endsAt = londonInstantOf(form.toDate, form.toTime);
   const reason = form.reason.trim();
   if (startsAt === null || endsAt === null || endsAt <= startsAt || Date.parse(endsAt) <= now.getTime()) return INVALID;
+  if (Date.parse(endsAt) - Date.parse(startsAt) > BLOCK_SPAN_MAX_DAYS * DAY_MS) return INVALID;
+  if (Date.parse(endsAt) > now.getTime() + BLOCK_AHEAD_MAX_DAYS * DAY_MS) return INVALID;
   if (reason.length === 0 || reason.length > BLOCK_REASON_MAX) return INVALID;
   return { ok: true, value: Object.freeze({ startsAt, endsAt, reason }) };
 }
@@ -175,13 +193,21 @@ export const hoursFormInput = z
   .array(z.strictObject({ weekday: z.int().min(1).max(7), start: z.string().max(5), end: z.string().max(5) }))
   .max(MAX_HOURS_ROWS);
 
+/** One form row → a range in London minutes, or null if a clock isn't one ("24:00" is allowed as an end). */
+function rangeOfRow(row: { readonly weekday: number; readonly start: string; readonly end: string }): WeeklyHoursRange | null {
+  const startMinute = clockMinutes(row.start);
+  const endMinute = row.end === MIDNIGHT_END ? 1440 : clockMinutes(row.end);
+  if (!isIsoWeekday(row.weekday) || startMinute === null || endMinute === null) return null;
+  return Object.freeze({ weekday: row.weekday, startMinute, endMinute });
+}
+
 /** The form's rows → ranges in London minutes (overlap and order are `hours.ts`'s to check). */
 export function hoursFromForm(rows: unknown): CallsResult<readonly WeeklyHoursRange[], "invalid"> {
   const parsed = hoursFormInput.safeParse(rows);
   if (!parsed.success) return INVALID;
-  const ranges = parsed.data.map((row) => ({ weekday: row.weekday as IsoWeekday, startMinute: clockMinutes(row.start), endMinute: clockMinutes(row.end) }));
-  if (ranges.some((r) => r.startMinute === null || r.endMinute === null)) return INVALID;
-  return { ok: true, value: Object.freeze(ranges.map((r) => Object.freeze({ weekday: r.weekday, startMinute: r.startMinute ?? 0, endMinute: r.endMinute ?? 0 }))) };
+  const ranges = parsed.data.map(rangeOfRow);
+  if (ranges.some((r) => r === null)) return INVALID;
+  return { ok: true, value: Object.freeze(ranges.filter((r): r is WeeklyHoursRange => r !== null)) };
 }
 
 export interface HoursRow {

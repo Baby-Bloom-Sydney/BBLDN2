@@ -12,7 +12,7 @@
  */
 
 import { z } from "zod";
-import { CALL_LENGTH_CHOICES } from "./calendar-limits";
+import { CALL_LENGTH_CHOICES, HOLD_MINUTES_MAX, HOLD_MINUTES_MIN, NOTICE_MINUTES_MAX, NOTICE_MINUTES_MIN } from "./calendar-limits";
 import type { CallSettings, CallsResult } from "./types";
 import { instant } from "./zod-parts";
 
@@ -43,8 +43,8 @@ const callerNumber = z
 const BOUNDS = {
   slotMinutes: z.int().min(5).max(240),
   windowDays: z.int().min(1).max(28),
-  noticeMinutes: z.int().min(0).max(10080),
-  holdMinutes: z.int().min(1).max(60),
+  noticeMinutes: z.int().min(NOTICE_MINUTES_MIN).max(NOTICE_MINUTES_MAX),
+  holdMinutes: z.int().min(HOLD_MINUTES_MIN).max(HOLD_MINUTES_MAX),
   parentReminderMinutes: z.int().min(1),
   adminReminderMinutes: z.int().min(1),
   overdueGraceMinutes: z.int().min(0),

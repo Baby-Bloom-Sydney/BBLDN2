@@ -41,7 +41,7 @@ import {
 } from "@/lib/calls/admin-calls";
 import { proveAdmin, type AdminProof } from "@/lib/calls/admin-proof";
 import { recordCallOutcome } from "@/lib/calls/booking";
-import { blockFormInput, hoursFormInput, hoursFromForm } from "@/lib/calls/calendar";
+import { blockFormInput, CLOCK_PATTERN, hoursFormInput, hoursFromForm } from "@/lib/calls/calendar";
 import { adminHeldLine } from "@/lib/calls/copy";
 import { londonDayWords } from "@/lib/calls/dashboard-row";
 import { groupSlotGridByDay, type SlotDay } from "@/lib/calls/group-slots-by-day";
@@ -52,7 +52,7 @@ import { callBookingEnabled } from "@/lib/features/flags";
 import { localToUTC, wallClockExists } from "@/lib/timezone";
 
 const PAGE = "/admin/calls";
-const CLOCK = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const CLOCK = CLOCK_PATTERN;
 
 const parentUserId = z.uuid();
 const isResult = (v: unknown): v is CallResultCode => typeof v === "string" && (CALL_RESULTS as readonly string[]).includes(v);
@@ -181,7 +181,8 @@ export async function saveCallSettingsAction(input: unknown): Promise<CalendarCa
   return calendarAnswer(await updateCallSettings(g.proof, g.input), () => true as const);
 }
 
-/** The whole week of call hours: several ranges a weekday; touching is fine, overlapping is refused. */
+/** The whole week of call hours: several ranges a weekday; touching is fine, overlapping is refused. The gate's zod
+ *  checks the shape, `hoursFromForm` turns the clocks into minutes (defence in depth, as `replaceWeeklyHours`). */
 export async function saveWeeklyHoursAction(input: unknown): Promise<CalendarCallResult<true>> {
   const g = await gate(hoursFormInput, input);
   if (!g.ok) return g;
