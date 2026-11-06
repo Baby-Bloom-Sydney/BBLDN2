@@ -6,7 +6,7 @@
  * Dates are London calendar dates ("YYYY-MM-DD"). Labels format a calendar date on a fixed noon-UTC instant with
  * `timeZone: "UTC"`, so the host's zone can't move a date (the `formatClockHourMinute` rule for wall clocks).
  *
- * BB-wave1-041126/06a-build, 2026-11-04.
+ * BB-wave1-041126/06a-build, 2026-11-04; 06b2-build, 2026-11-06 (dayLabel).
  */
 
 import { APP_LOCALE } from "@/lib/constants";
@@ -86,6 +86,12 @@ export function weekOfLabel(monday: string): string {
 export function shiftDateLabel(date: string): string {
   const at = requireNoonOf(date);
   return `${WEEKDAY.format(at)} ${DAY_MONTH_YEAR.format(at)}`;
+}
+
+/** "Mon 8 Feb" — a shift's date in the invoice's table, under its "week of …" heading (06b-2). */
+export function dayLabel(date: string): string {
+  const at = requireNoonOf(date);
+  return `${WEEKDAY.format(at)} ${DAY_MONTH.format(at)}`;
 }
 
 /** "15 Feb 2027" — the London date an invoice was issued. */
