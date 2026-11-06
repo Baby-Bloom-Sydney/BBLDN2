@@ -12,6 +12,7 @@
  */
 
 import { z } from "zod";
+import { CALL_LENGTH_CHOICES } from "./calendar-limits";
 import type { CallSettings, CallsResult } from "./types";
 import { instant } from "./zod-parts";
 
@@ -28,8 +29,7 @@ export const CALL_SETTINGS_DEFAULTS: CallSettings = Object.freeze({
   enabledSince: null,
 });
 
-/** The call lengths the Calendar tab offers and the server accepts (brief §0a.13). */
-export const CALL_LENGTH_CHOICES: readonly number[] = Object.freeze([15, 20, 30, 45, 60]);
+export { CALL_LENGTH_CHOICES };
 
 /** `call_settings_caller_number_check`. */
 const CALLER_NUMBER = /^\+44[0-9]{9,10}$/;

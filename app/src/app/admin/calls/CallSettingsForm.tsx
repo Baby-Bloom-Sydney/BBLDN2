@@ -15,7 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ADMIN_COPY, callLengthOption } from "@/lib/calls/copy";
-import { CALL_LENGTH_CHOICES } from "@/lib/calls/settings";
+import { CALL_LENGTH_CHOICES } from "@/lib/calls/calendar-limits";
 import type { CallSettings } from "@/lib/calls/types";
 import { ACTION_BUTTON, AlertLine } from "../cohorts/parts";
 import { saveCallSettingsAction } from "./actions";

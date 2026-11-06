@@ -19,6 +19,7 @@
 
 import { z } from "zod";
 import { addLondonDays, localToUTC, londonDateOf, londonToday, wallClockExists } from "@/lib/timezone";
+import { BLOCK_REASON_MAX } from "./calendar-limits";
 import { LONDON_TIME_SUFFIX } from "./copy";
 import { contactWords, londonDayWords } from "./dashboard-row";
 import { candidateSlots, overlaps } from "./free-slots";
@@ -30,8 +31,7 @@ import { weekdayName, type IsoWeekday } from "./weekday";
 
 /** The grid's length (brief §3 admin 5: "a 7-day grid"). */
 export const GRID_DAYS = 7;
-/** `call_blocks_reason_check`: 1–200 characters. */
-export const BLOCK_REASON_MAX = 200;
+export { BLOCK_REASON_MAX };
 /** Ten ranges a weekday is more than a week of call hours needs. */
 export const MAX_HOURS_ROWS = 70;
 

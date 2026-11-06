@@ -9,6 +9,8 @@
  *   browser's zone — refusing the hour the clocks skip;
  * - the block form and the weekly-hours form, checked.
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { bookingRow, EVERY_DAY_9_TO_7 } from "./fake-calls-repo.test-util";
 import {
@@ -266,4 +268,28 @@ describe("calendarViewOf — what the tab draws", () => {
     expect(view.settings).toBe(CALL_SETTINGS_DEFAULTS);
     expect(view.days).toHaveLength(7);
   });
+});
+
+describe("calendar-limits — what the client forms show, with no zod in the browser bundle", () => {
+  it("the fixed call lengths and the reason limit are the server's own (re-exported, the same objects)", async () => {
+    const limits = await import("./calendar-limits");
+    const settings = await import("./settings");
+    const calendar = await import("./calendar");
+    expect(limits.CALL_LENGTH_CHOICES).toBe(settings.CALL_LENGTH_CHOICES);
+    expect(limits.BLOCK_REASON_MAX).toBe(calendar.BLOCK_REASON_MAX);
+    expect(limits.BLOCK_REASON_MAX).toBe(200);
+  });
+
+  it("imports nothing at run time (the Calendar forms import it in the browser)", () => {
+    const source = readFileSync(join(__dirname, "calendar-limits.ts"), "utf8");
+    expect(source).not.toMatch(/^import (?!type )/m);
+  });
+
+  it.each(["CallSettingsForm.tsx", "BlocksForm.tsx", "WeeklyHoursForm.tsx", "WeekGrid.tsx", "CalendarTab.tsx", "StartCallBooking.tsx"])(
+    "%s takes no run-time import from settings.ts or calendar.ts (zod would follow)",
+    (file) => {
+      const source = readFileSync(join(__dirname, "../../app/admin/calls", file), "utf8");
+      expect(source).not.toMatch(/^import (?!type )[^;]*from "@\/lib\/calls\/(settings|calendar)";/m);
+    },
+  );
 });
