@@ -37,7 +37,7 @@ export const WORDMARK_SIZE = 22;
 /** Emails and the invoice number never break with a hyphen. */
 export const keepWhole = (word: string): string[] => [word];
 
-/** The longest word kept whole: a longer one can't fit the narrowest column a name prints in (the pay-to value). */
+/** The longest word kept whole: a longer one can't fit the narrowest columns a name prints in (From, at 12 pt; the pay-to value). */
 const LONG_WORD = 18;
 
 /**
@@ -64,12 +64,12 @@ export const styles = StyleSheet.create({
   replaces: { color: COLOUR.violetDeep, marginTop: 4 },
   label: { fontSize: 7.5, color: COLOUR.muted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 5 },
   parties: { flexDirection: "row", marginBottom: 22 },
-  party: { flex: 1, paddingRight: 16 },
-  // Bill to, the last of three columns (BAI 2026-11-07): wider, so a 38-character email stays on one line
-  billTo: { flex: 1.4, paddingRight: 0 },
+  // three columns (BAI 2026-11-07): yoga counts a column's padding inside its share, so From and Business hold ~132 pt
+  // of text each and Bill to ~211 pt, room for a 36-character email (`sections/issuer.tsx` breaks a longer one at "@")
+  party: { flex: 1, paddingRight: 12 },
+  billTo: { flex: 1.6, paddingRight: 0 },
   partyName: { fontSize: 12, color: COLOUR.ink, marginBottom: 4 },
   partyLine: { color: COLOUR.text, marginBottom: 3 },
-  businessLine: { fontSize: 8.5, color: COLOUR.muted, marginBottom: 2.5 },
   section: { marginBottom: 14 },
   sectionTitle: { fontSize: 10.5, color: COLOUR.ink, marginBottom: 6 },
   headRow: { flexDirection: "row", backgroundColor: COLOUR.panel, borderRadius: 6, paddingTop: 7, paddingBottom: 2, paddingHorizontal: 10 },

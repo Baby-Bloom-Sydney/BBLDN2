@@ -4,7 +4,8 @@
  * The text is read back out of the PDF bytes with `pdf-parse` (already a dependency; its library entry, so the
  * package's own self-test never runs), page by page. At the most lines (28 shifts, 20 expenses) the PDF runs to two
  * pages, with the footer on each and the totals and pay-to box whole on the last (plan 14.3, X7).
- * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06;
+ * BB-wave1-041126 (three-column parties: where Bill to's email sits on the page), 2026-11-07.
  */
 import { createRequire } from "node:module";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,7 +13,7 @@ import { renderInvoicePdf } from "./render";
 import { CORRECTION_INVOICE, HARTLEY_INVOICE, LTD_VAT_ADDED, MAX_INVOICE, TRIAL_INVOICE, VAT_INCLUDED, WORST_INVOICE } from "./fixtures.test-util";
 
 interface PdfPage {
-  getTextContent(): Promise<{ readonly items: readonly { readonly str: string }[] }>;
+  getTextContent(): Promise<{ readonly items: readonly { readonly str: string; readonly transform: readonly number[]; readonly width: number }[] }>;
 }
 type PdfParse = (
   data: Buffer,
@@ -60,13 +61,40 @@ describe("renderInvoicePdf", () => {
     expect(bytes.toString("latin1")).toContain("/BaseFont /Helvetica-Bold");
   }, 30_000);
 
-  it("a limited company with VAT added: its company lines, the registered office as the one address, VAT at 20% and the higher total", async () => {
+  it("a limited company with VAT added: its trading name, number, the registered office as the one address, VAT at 20% and the higher total", async () => {
     const { text } = await rendered(LTD_VAT_ADDED);
-    for (const s of ["Taylor Childcare Ltd", "Company no. 12345678", "20 Market Road", "VAT no. GB 123 4567 89",
+    for (const s of ["Taylor Childcare", "Company no. 12345678", "20 Market Road", "VAT no. GB 123 4567 89",
       "VAT at 20%", "£116.80", "£713.30"]) {
       expect(text).toContain(s);
     }
-    for (const s of ["Registered office", "1 Upper Street"]) expect(text).not.toContain(s); // BAI 2026-11-07
+    for (const s of ["Taylor Childcare Ltd", "Registered office", "1 Upper Street"]) expect(text).not.toContain(s); // BAI 2026-11-07
+  }, 30_000);
+
+  it("Bill to keeps an email inside the page's content box: 36 characters on one line, a longer one broken before its @ (three columns, 2026-11-07)", async () => {
+    const right = 595.28 - 48; // A4 less the page's side padding
+    /** Bill to's text (it starts in the page's right half) as printed lines: pieces at one height, joined, with the right edge. */
+    const placed = async (email: string) => {
+      const r = await renderInvoicePdf({ ...HARTLEY_INVOICE, billTo: { name: "Olivia Hartley", email } });
+      if (!r.ok) throw new Error(r.error);
+      const lines = new Map<number, { str: string; right: number }>();
+      await pdfParse(r.value, {
+        pagerender: async (page) => {
+          for (const i of (await page.getTextContent()).items) {
+            if (i.transform[4] < 595.28 / 2) continue;
+            const y = Math.round(i.transform[5]);
+            const line = lines.get(y) ?? { str: "", right: 0 };
+            lines.set(y, { str: line.str + i.str, right: Math.max(line.right, i.transform[4] + i.width) });
+          }
+          return "";
+        },
+      });
+      return [...lines.values()];
+    };
+    const one = (await placed("olivia.hartley.featherston@gmail.com")).filter((l) => l.str.includes("@"));
+    expect(one.map((l) => l.str)).toEqual(["olivia.hartley.featherston@gmail.com"]);
+    const two = (await placed("olivia.hartley-featherstonehaugh.family@protonmail.com")).filter((l) => /featherstonehaugh|@/.test(l.str));
+    expect(two.map((l) => l.str)).toEqual(["olivia.hartley-featherstonehaugh.family", "@protonmail.com"]);
+    for (const l of [...one, ...two]) expect(l.right).toBeLessThanOrEqual(right);
   }, 30_000);
 
   it("VAT included: the childcare including VAT, of which VAT at 20%", async () => {
