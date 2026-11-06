@@ -24,7 +24,7 @@ import {
   type InvoiceStatus,
   type VatMode,
 } from "./types";
-import { ADDRESS_BAD, isNotBabyBloom, ONE_LINE_BAD } from "./validation";
+import { isNotBabyBloom, PRINTED_ADDRESS_BAD, PRINTED_BAD } from "./validation";
 import { isLondonDate } from "./week";
 
 const id = z.string().min(1);
@@ -38,8 +38,8 @@ const delivery = z.enum(["sent", "failed"]).nullable();
  * Text that prints on her PDF, re-checked whatever the database answered (security review M2: R8 and the character
  * rules hold for every printed string, not only for what she typed): one line, or an address's lines.
  */
-export const printedLine = z.string().min(1).refine((v) => !ONE_LINE_BAD.test(v) && isNotBabyBloom(v));
-export const printedAddress = z.string().min(1).refine((v) => !ADDRESS_BAD.test(v) && isNotBabyBloom(v));
+export const printedLine = z.string().min(1).refine((v) => !PRINTED_BAD.test(v) && isNotBabyBloom(v));
+export const printedAddress = z.string().min(1).refine((v) => !PRINTED_ADDRESS_BAD.test(v) && isNotBabyBloom(v));
 
 /** One stored line, as the screens and the PDF use it (in her order). */
 export type StoredLine =

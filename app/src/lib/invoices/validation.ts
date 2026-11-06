@@ -36,21 +36,36 @@ const M = VALIDATION_MESSAGES;
  * the line/paragraph separators, every default-ignorable character (Hangul fillers, variation selectors, the grapheme
  * joiner) and the braille blank — `\p{C}`, `\p{Zl}`, `\p{Zp}`, `\p{Default_Ignorable_Code_Point}`, U+2800: none in a
  * one-line field; an address keeps only its line breaks (\n). These print on a BabyBloom-sent PDF (security review
- * L8, N1; 06b-2 review L2). Known limit: ZWNJ / ZWJ, which some scripts use in names, are refused too (the database
- * refuses the same: amendment 21's `nanny_invoice_text_ok`).
+ * L8, N1; 06b-2 review L2). Known limit: ZWNJ / ZWJ, which some scripts use in names, are refused too in what she
+ * types (the database refuses the same: amendment 21's `nanny_invoice_text_ok`; names it reads from profiles drop them).
  */
 export const ONE_LINE_BAD = /[\p{C}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}\u2800]/u;
 export const ADDRESS_BAD = /(?!\n)[\p{C}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}\u2800]/u;
 
-/** Cyrillic and Greek letters that look like Latin ones, and digits and symbols typed for letters (R8's skeleton). */
+/**
+ * The same classes for text read back from the database (the store's re-check before printing): without the
+ * unassigned code points, which the database's rule can't name, so a row it accepted and committed is never refused
+ * afterwards (06b-2 verification L1: that stranded the row and used its number).
+ */
+export const PRINTED_BAD = /[\p{Cc}\p{Cf}\p{Co}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}\u2800]/u;
+export const PRINTED_ADDRESS_BAD = /(?!\n)[\p{Cc}\p{Cf}\p{Co}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}\u2800]/u;
+
+/**
+ * Cyrillic and Greek letters that look like Latin ones, Latin small capitals and stroked or hooked letters, and digits
+ * and symbols typed for letters (R8's skeleton; the lower-case half of amendment 21's map — `toLowerCase` folds
+ * capitals here whatever the locale, where the database maps them itself).
+ */
 const LOOK_ALIKES: Readonly<Record<string, string>> = Object.freeze({
   "\u0430": "a", "\u0432": "b", "\u0435": "e", "\u043a": "k", "\u043c": "m", "\u043d": "h", "\u043e": "o", "\u0440": "p",
   "\u0441": "c", "\u0442": "t", "\u0443": "y", "\u0445": "x", "\u044c": "b", "\u0455": "s", "\u0456": "i", "\u0458": "j",
   "\u0501": "d", "\u04af": "y", "\u04cf": "l", "\u03b1": "a", "\u03b2": "b", "\u03b3": "y", "\u03b5": "e", "\u03b9": "i",
   "\u03ba": "k", "\u03bd": "v", "\u03bf": "o", "\u03c1": "p", "\u03c3": "o", "\u03c4": "t", "\u03c5": "y", "\u03c7": "x",
+  "\u03bc": "m", "\u00f8": "o", "\u0142": "l", "\u026b": "l", "\u0253": "b", "\u01b4": "y", "\u0131": "i", "\u0299": "b",
+  "\u1d00": "a", "\u028f": "y", "\u029f": "l", "\u1d0f": "o", "\u1d0d": "m",
   "0": "o", "1": "l", "3": "e", "4": "a", "5": "s", "6": "b", "8": "b", "@": "a", "|": "l", "!": "l", "$": "s",
 });
-const BABY_BLOOM = "babybloom";
+/** BabyBloom as it reads, with a capital I typed for an l and "rn" for an m (06b-2 verification). */
+const BABY_BLOOM = /babyb[il]oo(?:m|rn)/;
 
 /**
  * What a reader sees: compatibility forms folded (full-width), marks dropped, lower case, look-alikes mapped, and
@@ -63,10 +78,10 @@ export function readsAs(value: string): string {
     .replace(/[^a-z0-9]/g, "");
 }
 
-/** BabyBloom is never a party on her invoice, however it's spelled (plan R8; security review M1). */
+/** BabyBloom is never a party on her invoice, in any of its common look-alikes (plan R8; security review M1). */
 export const isNotBabyBloom = (value: string): boolean => {
   const seen = readsAs(value);
-  return !seen.includes(BABY_BLOOM) && !seen.includes(readsAs(SITE_NAME));
+  return !BABY_BLOOM.test(seen) && !seen.includes(readsAs(SITE_NAME));
 };
 
 /** UK bank digits: spaces and hyphens stripped, then exactly `count` digits. */

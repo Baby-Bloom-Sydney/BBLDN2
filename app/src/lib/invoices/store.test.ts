@@ -361,6 +361,12 @@ describe("createInvoice (p_lines and the reviewed total: 14.4)", () => {
     f.rpcResults.nanny_invoice_create = { data: null, error: { message: "Failing row contains (admin+b06-11@babybloomnannies.co.uk)", code: "XX000" } };
     expect(await createInvoice(nanny, DRAFT, "4321", EXPECTED, NOW)).toEqual({ ok: false, error: "error" });
   });
+
+  it("reads back what the database's text rule accepted: an unassigned code point never strands a created row (06b-2 verification L1)", async () => {
+    f.rpcResults.nanny_invoice_create = { data: { ...CREATED, family_name: `Olivia Hartley${String.fromCodePoint(0x378)}` }, error: null };
+    const r = await createInvoice(nanny, DRAFT, "4321", EXPECTED, NOW);
+    expect(r.ok && r.value.familyName).toBe(`Olivia Hartley${String.fromCodePoint(0x378)}`);
+  });
 });
 
 describe("finishInvoice", () => {

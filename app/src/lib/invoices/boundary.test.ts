@@ -9,15 +9,15 @@
  *   (`@/lib/invoices`): never a deep path, never the config. Today nothing outside imports it at all, so with the
  *   switch off the rest of the app is exactly as before; 07 and 08 will come through the entry point.
  *
- * BB-wave1-041126/06a-build, 2026-11-04; 06b2-build, 2026-11-06 (store-business).
+ * BB-wave1-041126/06a-build, 2026-11-04; 06b2-build, 2026-11-06 (store-business; pdf/model, which logs through db).
  */
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const SRC = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
-const SERVER_MODULES = ["store", "store-business", "families", "nanny-proof", "db", "gate", "readers", "index", "pdf/render", "pdf/font"];
-const SERVER_MODULE = "(?:/(?:store|store-business|families|nanny-proof|db|gate|readers|index|pdf/render|pdf/font))?";
+const SERVER_MODULES = ["store", "store-business", "families", "nanny-proof", "db", "gate", "readers", "index", "pdf/render", "pdf/font", "pdf/model"];
+const SERVER_MODULE = "(?:/(?:store|store-business|families|nanny-proof|db|gate|readers|index|pdf/render|pdf/font|pdf/model))?";
 /** An import of a server module: by alias, or by any relative path ending in `invoices` (a sibling in src/lib too). */
 const SERVER_IMPORT = new RegExp(`from\\s+["'](?:@/lib/invoices|(?:\\.\\.?/)+(?:lib/)?invoices)${SERVER_MODULE}["']`);
 /** A deep import of the invoice code or its config, or any relative import of them — allowed only inside the feature. */
@@ -63,6 +63,15 @@ describe("src/lib/invoices boundaries", () => {
     expect(USE_CLIENT.test(sibling) && SERVER_IMPORT.test(sibling)).toBe(true);
     // 06b-2: her business details' store is a server module too
     expect(SERVER_IMPORT.test('import { saveBusiness } from "@/lib/invoices/store-business";')).toBe(true);
+  });
+
+  it("every module that reaches the service role is a listed server module (06b-2 verification L6)", () => {
+    const dir = path.join(SRC, "lib/invoices");
+    const reaching = files(dir)
+      .filter((f) => !/\.test(?:-util)?\.tsx?$/.test(f))
+      .filter((f) => /from\s+["'](?:(?:\.\.?\/)+db|@\/lib\/invoices\/db|@\/lib\/supabase\/admin)["']/.test(readFileSync(f, "utf8")))
+      .map((f) => path.relative(dir, f).split(path.sep).join("/").replace(/\.tsx?$/, ""));
+    expect(reaching.filter((m) => !SERVER_MODULES.includes(m))).toEqual([]);
   });
 
   it("outside the feature, nothing deep-imports the invoice code or its config", () => {

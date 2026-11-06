@@ -130,4 +130,17 @@ describe("isNotBabyBloom (the R8 skeleton, the same rule as amendment 21's nanny
     }
     for (const v of ["Baby Blue Childcare", "Abby Bloomfield", "Bloom Babysitting", "Sophie Taylor"]) expect(isNotBabyBloom(v)).toBe(true);
   });
+
+  it("folds the look-alikes the verification pass found: small capitals, stroked and hooked letters, mu, I for l, rn for m (06b-2 verification)", () => {
+    const smallCaps = [0x299, 0x1d00, 0x299, 0x28f, 0x20, 0x299, 0x29f, 0x1d0f, 0x1d0f, 0x1d0d].map(cp).join("");
+    for (const v of [
+      smallCaps, `Baby Bl${cp(0xf8)}${cp(0xf8)}m`, `Baby B${cp(0x142)}oom`, `${cp(0x253)}aby Bloom`, `Bab${cp(0x1b4)} Bloom`,
+      `Bab${cp(0x28f)} B${cp(0x26b)}oom`, `Baby Bloo${cp(0x3bc)}`, `BABY BLOO${cp(0x39c)}`, `Baby B${cp(0x131)}oom`, "BabyBIoom", "Baby Bloorn",
+    ]) {
+      expect(isNotBabyBloom(v)).toBe(false);
+    }
+    for (const v of [`Bj${cp(0xf8)}rn Olsen`, `${cp(0x141)}ucja Wi${cp(0x15b)}niewska`, "Babylon Bloomsbury", "Byrne Childcare"]) {
+      expect(isNotBabyBloom(v)).toBe(true);
+    }
+  });
 });
