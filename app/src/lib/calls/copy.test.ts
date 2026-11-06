@@ -10,7 +10,9 @@ import {
   PARENT_COPY,
   adminErrorLine,
   adminHeldLine,
+  calendarErrorLine,
   callControlLabel,
+  callLengthOption,
   cohortPlacesLine,
   depositLine,
   hoursLine,
@@ -23,7 +25,9 @@ import {
   noFreeTimesLine,
   prebookFullLine,
   slotAtLine,
+  startedOnLine,
   takenNoticeLine,
+  weekGridHeading,
   yourCallLine,
 } from "./copy";
 
@@ -201,5 +205,46 @@ describe("adminErrorLine: every refusal code as one admin line, never detail (04
 describe("the Call control's name (04c-1)", () => {
   it("names the family and the number", () => {
     expect(callControlLabel("Jane Smith", "+44 (0) 7700 900 123")).toBe("Call Jane Smith on +44 (0) 7700 900 123");
+  });
+});
+
+describe("the Calendar tab's admin lines (04c-2; brief §3 admin 5, §0a.13; BB-wave1-041126/04c2-build)", () => {
+  it("names the tab and its parts; London time kept for admin", () => {
+    expect(ADMIN_COPY).toMatchObject({
+      calendarTab: "Calendar",
+      startCallBooking: "Start call booking",
+      settingsHeading: "Call settings",
+      callLengthLabel: "Call length",
+      hoursHeading: "Weekly hours (London time)",
+      blocksHeading: "Blocks (London time)",
+      cellFree: "Free",
+      cellBooked: "Booked",
+      cellHeld: "Held",
+      cellBlocked: "Blocked",
+    });
+    expect(weekGridHeading(7)).toBe("Next 7 days (London time)");
+  });
+
+  it("the call length choices read as minutes", () => {
+    expect(callLengthOption(30)).toBe("30 minutes");
+    expect(callLengthOption(45)).toBe("45 minutes");
+  });
+
+  it("Start call booking: asks first, says it can't be undone, then only the date", () => {
+    expect(ADMIN_COPY.startQuestion).toBe("Start call booking?");
+    expect(ADMIN_COPY.startBody).toMatch(/can't be undone/);
+    expect(ADMIN_COPY.startBody).toMatch(/matchmaker call/);
+    expect(ADMIN_COPY.startConfirm).toBe("Yes, start call booking");
+    expect(ADMIN_COPY.startNotYet).toBe("Not yet");
+    expect(startedOnLine("6 November 2026")).toBe("Call booking started on 6 November 2026.");
+  });
+
+  it("calendarErrorLine: invalid → the form's own line; overlapping hours; a block already gone; the rest as adminErrorLine", () => {
+    expect(calendarErrorLine("invalid", ADMIN_COPY.settingsInvalid)).toBe(ADMIN_COPY.settingsInvalid);
+    expect(ADMIN_COPY.settingsInvalid).toMatch(/15, 20, 30, 45 or 60 minutes/);
+    expect(calendarErrorLine("overlap", ADMIN_COPY.hoursInvalid)).toBe("Those hours overlap — change one range");
+    expect(calendarErrorLine("not_found", ADMIN_COPY.blockInvalid)).toBe(ADMIN_COPY.blockGone);
+    expect(calendarErrorLine("not_authorized", ADMIN_COPY.blockInvalid)).toBe("Admins only.");
+    expect(calendarErrorLine("error", ADMIN_COPY.blockInvalid)).toBe("That didn't save — try again.");
   });
 });
