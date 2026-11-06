@@ -19,7 +19,7 @@ import { Page, Text, View } from "@react-pdf/renderer";
 import { isValidElement, type ReactNode } from "react";
 import { SITE_NAME } from "@/lib/constants";
 import { InvoicePdf } from "./InvoicePdf";
-import { formatVatNumber } from "./sections/issuer";
+import { emailText, formatVatNumber } from "./sections/issuer";
 import { wholeUnlessLong } from "./theme";
 import { vatRateLabel } from "./sections/totals";
 import {
@@ -229,6 +229,11 @@ describe("InvoicePdf — the issuer by business type (§0a D, 14.8)", () => {
     };
     expect(billTo("olivia.hartley.featherston@gmail.com")).toBe("olivia.hartley.featherston@gmail.com");
     expect(billTo("olivia.hartley-featherstonehaugh.family@protonmail.com")).toBe("olivia.hartley-featherstonehaugh.family\n@protonmail.com");
+  });
+
+  it("an email with no @, or with @ first, prints whole whatever its length", () => {
+    const long = "o".repeat(40);
+    expect([emailText(long), emailText(`@${long}`), emailText("a@b.co")]).toEqual([long, `@${long}`, "a@b.co"]);
   });
 
   it("three columns, always: From, Business (kept empty when there is nothing to show, so Bill to never moves), Bill to the widest", () => {

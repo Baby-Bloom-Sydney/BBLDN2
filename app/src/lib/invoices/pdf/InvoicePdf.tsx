@@ -5,11 +5,11 @@
  * her full bank details appear (brief D12). Families get name and email only (brief §11 Q10).
  *
  * 06b-2: an invoice is a header plus lines. The page: the wordmark and "INVOICE"; the number, issue date and
- * "Replaces …"; From (by business type) and Bill to (`sections/issuer`); the shift table and the expenses
- * (`sections/lines`); the closing block — childcare, VAT per her mode, expenses and the total, with Pay to beside
- * them — kept whole together (`sections/totals`). At the most lines (28 shifts, 20 expenses) it runs to two A4
- * pages, with the violet band and the footer on each. Everything comes from the created row's snapshot, so a later
- * Settings change never alters it.
+ * "Replaces …"; three columns, From, Business and Bill to (`sections/issuer`, BAI 2026-11-07); the shift table and
+ * the expenses (`sections/lines`); the closing block — childcare, VAT per her mode, expenses and the total, with Pay
+ * to beside them — kept whole together (`sections/totals`). At the most lines (28 shifts, 20 expenses) it runs to two
+ * A4 pages, with the violet band and the footer on each; a longer invoice's footer says "Page X of Y". Everything
+ * comes from the created row's snapshot, so a later Settings change never alters it.
  *
  * Built from react-pdf primitives only (helpers are called, never mounted as components), so a test can walk every
  * string without rendering — the `client-hire-summary` pattern. The look (BAI 2026-11-04, 06b-1) is kept: an opaque
@@ -18,7 +18,9 @@
  * nanny or family typed prints in the Unicode font (`font.ts`, plan R7), whose variable face prints one weight.
  *
  * `@pending:legal` — brief 11's invoice wording (the sole-trader statement; `11-legal-text.md` §3) drops in at the
- * footer slot below. BB-wave1-041126/06a-build, 2026-11-04; 06b-1 (the look), 2026-11-04; 06b2-build, 2026-11-06.
+ * footer slot below; when it does, move the page label off the footer's first line (it sits at `top: 10`).
+ * BB-wave1-041126/06a-build, 2026-11-04; 06b-1 (the look), 2026-11-04; 06b2-build, 2026-11-06; three columns and
+ * page numbers, 2026-11-07.
  */
 
 import { Document, Page, Text, View, type DocumentProps } from "@react-pdf/renderer";
