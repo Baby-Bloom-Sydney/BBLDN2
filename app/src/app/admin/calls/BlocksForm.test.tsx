@@ -81,3 +81,16 @@ describe("BlocksForm", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("That block has already gone — reload to see the calendar."));
   });
 });
+
+describe("BlocksForm — review round 1 (04c-2: React M3, L4)", () => {
+  it("after a block is removed, focus goes to the Blocks heading (its button is gone)", async () => {
+    render(<BlocksForm blocks={CALENDAR.blocks} defaultDate="2027-02-04" />);
+    fireEvent.click(screen.getByRole("button", { name: /^Remove block: Fri 5 Feb/ }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("heading", { level: 2, name: "Blocks (London time)" })));
+  });
+
+  it("the dates, times and reason are marked required", () => {
+    render(<BlocksForm blocks={[]} defaultDate="2027-02-04" />);
+    for (const label of ["From date", "From time", "To date", "To time", "Reason"]) expect(screen.getByLabelText(label)).toHaveAttribute("aria-required", "true");
+  });
+});

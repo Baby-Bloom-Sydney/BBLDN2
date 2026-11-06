@@ -67,3 +67,46 @@ describe("StartCallBooking", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 });
+
+describe("StartCallBooking — review round 1 (04c-2: React H1, M4, L5)", () => {
+  it("Not yet puts focus back on the Start button", async () => {
+    render(<StartCallBooking startedOn={null} />);
+    fireEvent.click(start());
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Not yet" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(start()));
+  });
+
+  it("after Yes, focus moves to the started line, which is a live status", async () => {
+    render(<StartCallBooking startedOn={null} />);
+    fireEvent.click(start());
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Yes, start call booking" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Call booking started on 6 November 2026."));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("status")));
+  });
+
+  it("Yes stays focusable while it starts (aria-disabled, not disabled)", async () => {
+    let finish: (v: unknown) => void = () => {};
+    actions.startCallBookingAction.mockReturnValue(new Promise((r) => (finish = r)));
+    render(<StartCallBooking startedOn={null} />);
+    fireEvent.click(start());
+    const yes = within(dialog()).getByRole("button", { name: "Yes, start call booking" });
+    fireEvent.click(yes);
+    await waitFor(() => expect(within(dialog()).getByRole("button", { name: "Starting…" })).toHaveAttribute("aria-disabled", "true"));
+    expect(within(dialog()).getByRole("button", { name: "Starting…" })).toBeEnabled();
+    finish({ ok: false, error: "error" });
+    await waitFor(() => expect(within(dialog()).getByRole("alert")).toBeInTheDocument());
+  });
+
+  it("opened again after a failure, the dialog starts without the old error", async () => {
+    actions.startCallBookingAction.mockResolvedValue({ ok: false, error: "error" });
+    render(<StartCallBooking startedOn={null} />);
+    fireEvent.click(start());
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Yes, start call booking" }));
+    await waitFor(() => expect(within(dialog()).getByRole("alert")).toBeInTheDocument());
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Not yet" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.click(start());
+    expect(within(dialog()).queryByRole("alert")).toBeNull();
+  });
+});

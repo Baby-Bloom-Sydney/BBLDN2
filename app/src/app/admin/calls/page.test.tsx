@@ -18,12 +18,14 @@ const h = vi.hoisted(() => ({
   panelCalls: [] as string[],
   calendar: null as unknown,
   calendarCalls: 0,
+  search: "",
 }));
 vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NEXT_NOT_FOUND");
   },
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(h.search),
 }));
 vi.mock("@/lib/admin/require-admin", () => ({
   requireAdmin: async () => {
@@ -76,6 +78,7 @@ beforeEach(() => {
   h.panelCalls = [];
   h.calendar = { ok: true, value: CALENDAR };
   h.calendarCalls = 0;
+  h.search = "";
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 afterEach(() => {
@@ -159,6 +162,7 @@ describe("/admin/calls — the Calendar tab (04c-2)", () => {
 
   it.each([["calendar"], [["calendar", "calls"]]])("?tab=%j opens the Calendar tab", async (tab) => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    h.search = new URLSearchParams([tab].flat().map((t) => ["tab", t])).toString();
     render(await AdminCallsPage({ searchParams: { tab } }));
     expect(screen.getByRole("tab", { name: "Calendar" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("heading", { level: 2, name: "Next 7 days (London time)" })).toBeInTheDocument();
@@ -166,6 +170,7 @@ describe("/admin/calls — the Calendar tab (04c-2)", () => {
 
   it("any other ?tab is the Calls tab", async () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    h.search = "tab=%3Cscript%3E";
     render(await AdminCallsPage({ searchParams: { tab: "<script>" } }));
     expect(screen.getByRole("tab", { name: "Calls" })).toHaveAttribute("aria-selected", "true");
   });
@@ -173,6 +178,7 @@ describe("/admin/calls — the Calendar tab (04c-2)", () => {
   it("the calendar couldn't be read → its tab says so; the calls read stands", async () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "true");
     h.calendar = { ok: false, error: "error" };
+    h.search = "tab=calendar";
     render(await AdminCallsPage({ searchParams: { tab: "calendar" } }));
     expect(screen.getByRole("alert")).toHaveTextContent("The calendar could not be read — reload to try again.");
   });
@@ -180,6 +186,7 @@ describe("/admin/calls — the Calendar tab (04c-2)", () => {
   it("the calls couldn't be read → the Calendar tab still opens", async () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "true");
     h.dashboard = { ok: false, error: "error" };
+    h.search = "tab=calendar";
     render(await AdminCallsPage({ searchParams: { tab: "calendar" } }));
     expect(screen.getByRole("heading", { level: 2, name: "Next 7 days (London time)" })).toBeInTheDocument();
   });

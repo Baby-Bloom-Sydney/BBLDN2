@@ -38,9 +38,9 @@ function cellLabel(cell: CalendarCell): string {
 function Cell({ cell }: { readonly cell: CalendarCell }) {
   return (
     <li data-kind={cell.kind} className={`rounded-md border px-2 py-1.5 text-xs ${KIND_LOOK[cell.kind]}`}>
-      <time dateTime={cell.startsAt} className="block font-semibold tabular-nums">
-        {cell.time}
-      </time>
+      <span className="block font-semibold tabular-nums">
+        <time dateTime={cell.startsAt}>{cell.startTime}</time>–<time dateTime={cell.endsAt}>{cell.endTime}</time>
+      </span>
       <span className="block break-words">{cellLabel(cell)}</span>
       {cell.blockedOver && <TagBadges tags={["blocked_over"]} />}
     </li>
@@ -69,7 +69,7 @@ function Day({ day }: { readonly day: CalendarDay }) {
 
 function Key() {
   return (
-    <ul aria-label="Key" className="flex flex-wrap gap-2 text-xs text-slate-600">
+    <ul aria-label={ADMIN_COPY.gridKey} className="flex flex-wrap gap-2 text-xs text-slate-600">
       {KEY_ORDER.map((kind) => (
         <li key={kind} className="flex items-center gap-1.5">
           <span aria-hidden="true" className={`inline-block h-3 w-3 rounded-sm border ${KIND_LOOK[kind]}`} />

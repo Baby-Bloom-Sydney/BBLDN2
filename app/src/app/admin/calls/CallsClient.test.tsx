@@ -11,7 +11,8 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const nav = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: () => nav }));
+const search = vi.hoisted(() => ({ current: new URLSearchParams() }));
+vi.mock("next/navigation", () => ({ useRouter: () => nav, useSearchParams: () => search.current }));
 vi.mock("./actions", () => ({
   holdCallForFamily: vi.fn(),
   confirmCallForFamily: vi.fn(),
@@ -32,6 +33,7 @@ import { AVA, DASHBOARD, FAY, PANEL } from "./calls-fixtures.test-util";
 beforeEach(() => {
   nav.push.mockReset();
   nav.refresh.mockReset();
+  search.current = new URLSearchParams();
 });
 
 const drawer = () => screen.queryByRole("dialog");
@@ -155,7 +157,8 @@ describe("CallsClient — the two tabs (04c-2)", () => {
   });
 
   it("?tab=calendar opens the Calendar tab", () => {
-    render(<CallsClient dashboard={DASHBOARD} calendar={CALENDAR} tab="calendar" openCallId={null} panel={null} panelFailed={false} />);
+    search.current = new URLSearchParams("tab=calendar");
+    render(<CallsClient dashboard={DASHBOARD} calendar={CALENDAR} openCallId={null} panel={null} panelFailed={false} />);
     expect(tab("Calendar")).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("heading", { level: 2, name: "Next 7 days (London time)" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /Today and upcoming/ })).toBeNull();
@@ -181,7 +184,38 @@ describe("CallsClient — the two tabs (04c-2)", () => {
   });
 
   it("the calendar couldn't be read → the Calendar tab says so", () => {
-    render(<CallsClient dashboard={DASHBOARD} calendar={null} tab="calendar" openCallId={null} panel={null} panelFailed={false} />);
+    search.current = new URLSearchParams("tab=calendar");
+    render(<CallsClient dashboard={DASHBOARD} calendar={null} openCallId={null} panel={null} panelFailed={false} />);
     expect(screen.getByRole("alert")).toHaveTextContent("The calendar could not be read — reload to try again.");
+  });
+});
+
+describe("CallsClient — review round 1 (04c-2: React M1, M2, L8)", () => {
+  const tab = (name: string) => screen.getByRole("tab", { name });
+
+  it("the open tab follows the URL: Back to a URL without ?tab (or the drawer's push) shows Calls", () => {
+    search.current = new URLSearchParams("tab=calendar");
+    const { rerender } = render(<CallsClient dashboard={DASHBOARD} calendar={CALENDAR} openCallId={null} panel={null} panelFailed={false} />);
+    expect(tab("Calendar")).toHaveAttribute("aria-selected", "true");
+    search.current = new URLSearchParams(`openCall=${AVA}`);
+    rerender(<CallsClient dashboard={DASHBOARD} calendar={CALENDAR} openCallId={AVA} panel={PANEL} panelFailed={false} />);
+    // The drawer is modal (the page behind it is hidden from assistive tech), so look past that.
+    expect(screen.getByRole("tab", { name: "Calls", hidden: true })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("a half-typed block survives a look at the Calls tab; the hidden Calendar panel is out of the way", () => {
+    render(<CallsClient dashboard={DASHBOARD} calendar={CALENDAR} openCallId={null} panel={null} panelFailed={false} />);
+    fireEvent.mouseDown(tab("Calendar"), { button: 0 });
+    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "school run" } });
+    fireEvent.mouseDown(tab("Calls"), { button: 0 });
+    expect(screen.queryByRole("heading", { name: "Next 7 days (London time)" })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Reason" })).toBeNull();
+    fireEvent.mouseDown(tab("Calendar"), { button: 0 });
+    expect(screen.getByLabelText("Reason")).toHaveValue("school run");
+  });
+
+  it("the tab list is named", () => {
+    render(<CallsClient dashboard={DASHBOARD} calendar={CALENDAR} openCallId={null} panel={null} panelFailed={false} />);
+    expect(screen.getByRole("tablist", { name: "Calls and calendar" })).toBeInTheDocument();
   });
 });

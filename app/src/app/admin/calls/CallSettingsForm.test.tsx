@@ -58,7 +58,7 @@ describe("CallSettingsForm", () => {
     expect(nav.refresh).not.toHaveBeenCalled();
   });
 
-  it("a double click sends one save; the button is disabled while it saves", async () => {
+  it("a double click sends one save; while it saves the button says so and stays focusable (aria-disabled, review M4)", async () => {
     let finish: (v: unknown) => void = () => {};
     actions.saveCallSettingsAction.mockReturnValue(new Promise((r) => (finish = r)));
     render(<CallSettingsForm settings={CALL_SETTINGS_DEFAULTS} />);
@@ -66,8 +66,19 @@ describe("CallSettingsForm", () => {
     fireEvent.click(button);
     fireEvent.click(button);
     expect(actions.saveCallSettingsAction).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Saving…" })).toHaveAttribute("aria-disabled", "true"));
+    expect(screen.getByRole("button", { name: "Saving…" })).toBeEnabled();
     finish({ ok: true, value: true });
-    await waitFor(() => expect(save()).toBeEnabled());
+    await waitFor(() => expect(save()).not.toHaveAttribute("aria-disabled", "true"));
+  });
+});
+
+describe("CallSettingsForm — review round 1 (04c-2: the form's limits are the server's)", () => {
+  it("notice 0–10080 and hold 1–60, from calendar-limits", () => {
+    render(<CallSettingsForm settings={CALL_SETTINGS_DEFAULTS} />);
+    expect(screen.getByLabelText("Notice (minutes)")).toHaveAttribute("min", "0");
+    expect(screen.getByLabelText("Notice (minutes)")).toHaveAttribute("max", "10080");
+    expect(screen.getByLabelText("Hold (minutes)")).toHaveAttribute("min", "1");
+    expect(screen.getByLabelText("Hold (minutes)")).toHaveAttribute("max", "60");
   });
 });

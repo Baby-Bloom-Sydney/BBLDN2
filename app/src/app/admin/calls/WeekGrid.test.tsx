@@ -54,12 +54,20 @@ describe("WeekGrid", () => {
     render(<WeekGrid days={CALENDAR.days} />);
     const items = within(day("Friday 5 February")).getAllByRole("listitem");
     expect(items.slice(0, 3).map((li) => li.getAttribute("data-kind"))).toEqual(["blocked", "blocked", "booked"]);
-    expect(items[2].querySelector("time")?.getAttribute("dateTime")).toBe("2027-02-05T10:00:00.000Z");
+    expect(items[2].querySelector("time")?.getAttribute("dateTime")).toBe("2027-02-05T10:00:00.000Z"); // the start
   });
 
   it("a key says what each colour means", () => {
     render(<WeekGrid days={CALENDAR.days} />);
     const key = screen.getByRole("list", { name: "Key" });
     expect(within(key).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Free", "Booked", "Held", "Blocked"]);
+  });
+});
+
+describe("WeekGrid — review round 1 (04c-2: React L6)", () => {
+  it("a cell's start and end are each a <time>, so the range reads as one", () => {
+    render(<WeekGrid days={CALENDAR.days} />);
+    const cell = within(day("Friday 5 February")).getAllByRole("listitem")[2];
+    expect([...cell.querySelectorAll("time")].map((t) => t.getAttribute("dateTime"))).toEqual(["2027-02-05T10:00:00.000Z", "2027-02-05T10:30:00.000Z"]);
   });
 });

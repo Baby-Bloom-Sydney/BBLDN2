@@ -91,3 +91,34 @@ describe("WeeklyHoursForm", () => {
     await waitFor(() => expect(actions.saveWeeklyHoursAction).toHaveBeenCalledWith([]));
   });
 });
+
+describe("WeeklyHoursForm — review round 1 (04c-2: React M3, M4, L3)", () => {
+  it("removing a range puts focus on that day's Add hours (it never falls to the page)", () => {
+    render(<WeeklyHoursForm hours={CALENDAR.hours} />);
+    fireEvent.click(within(day("Monday")).getByRole("button", { name: "Remove Monday 2" }));
+    expect(document.activeElement).toBe(within(day("Monday")).getByRole("button", { name: "Add hours on Monday" }));
+  });
+
+  it("Add hours puts focus on the new range's start", () => {
+    render(<WeeklyHoursForm hours={CALENDAR.hours} />);
+    fireEvent.click(within(day("Sunday")).getByRole("button", { name: "Add hours on Sunday" }));
+    expect(document.activeElement).toBe(screen.getByLabelText("Sunday 1 from"));
+  });
+
+  it("the week is a form: Enter in a time saves it", async () => {
+    const { container } = render(<WeeklyHoursForm hours={CALENDAR.hours} />);
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => expect(actions.saveWeeklyHoursAction).toHaveBeenCalledTimes(1));
+  });
+
+  it("while it saves, Save stays focusable (aria-disabled) and the time inputs stay enabled", async () => {
+    let finish: (v: unknown) => void = () => {};
+    actions.saveWeeklyHoursAction.mockReturnValue(new Promise((r) => (finish = r)));
+    render(<WeeklyHoursForm hours={CALENDAR.hours} />);
+    fireEvent.click(save());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Saving…" })).toHaveAttribute("aria-disabled", "true"));
+    expect(screen.getByLabelText("Monday 1 from")).toBeEnabled();
+    finish({ ok: true, value: true });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Saved."));
+  });
+});

@@ -15,24 +15,24 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ADMIN_COPY, callLengthOption } from "@/lib/calls/copy";
-import { CALL_LENGTH_CHOICES } from "@/lib/calls/calendar-limits";
+import { CALL_LENGTH_CHOICES, HOLD_MINUTES_MAX, HOLD_MINUTES_MIN, NOTICE_MINUTES_MAX, NOTICE_MINUTES_MIN } from "@/lib/calls/calendar-limits";
 import type { CallSettings } from "@/lib/calls/types";
 import { ACTION_BUTTON, AlertLine } from "../cohorts/parts";
 import { saveCallSettingsAction } from "./actions";
-import { useCalendarSave } from "./use-calendar-save";
+import { BUSY_LOOK, useCalendarSave } from "./use-calendar-save";
 
 /** The `Input` look, for a native <select> (plan §12 R16). */
-export const SELECT_CLASS =
+const SELECT_CLASS =
   "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm";
 
 const HINT = "text-xs text-slate-500";
 
-function LengthField({ id, value, stored, disabled, onChange }: { readonly id: string; readonly value: string; readonly stored: number; readonly disabled: boolean; readonly onChange: (v: string) => void }) {
+function LengthField({ id, value, stored, onChange }: { readonly id: string; readonly value: string; readonly stored: number; readonly onChange: (v: string) => void }) {
   const offList = !CALL_LENGTH_CHOICES.includes(stored);
   return (
     <div className="space-y-1">
       <Label htmlFor={id}>{ADMIN_COPY.callLengthLabel}</Label>
-      <select id={id} className={SELECT_CLASS} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+      <select id={id} className={SELECT_CLASS} value={value} onChange={(e) => onChange(e.target.value)}>
         {offList && <option value={String(stored)}>{`${callLengthOption(stored)} (${ADMIN_COPY.offListLength})`}</option>}
         {CALL_LENGTH_CHOICES.map((minutes) => (
           <option key={minutes} value={String(minutes)}>
@@ -51,15 +51,14 @@ interface NumberProps {
   readonly min: number;
   readonly max: number;
   readonly value: string;
-  readonly disabled: boolean;
   readonly onChange: (v: string) => void;
 }
 
-function MinutesField({ id, label, hint, min, max, value, disabled, onChange }: NumberProps) {
+function MinutesField({ id, label, hint, min, max, value, onChange }: NumberProps) {
   return (
     <div className="space-y-1">
       <Label htmlFor={id}>{label}</Label>
-      <Input id={id} type="number" inputMode="numeric" min={min} max={max} step={1} value={value} disabled={disabled} aria-describedby={`${id}-hint`} onChange={(e) => onChange(e.target.value)} />
+      <Input id={id} type="number" inputMode="numeric" min={min} max={max} step={1} value={value} aria-describedby={`${id}-hint`} onChange={(e) => onChange(e.target.value)} />
       <p id={`${id}-hint`} className={HINT}>
         {hint}
       </p>
@@ -90,18 +89,18 @@ export function CallSettingsForm({ settings }: { readonly settings: CallSettings
               void submit();
             }}
           >
-            <LengthField id={`${id}-length`} value={length} stored={settings.slotMinutes} disabled={save.saving} onChange={setLength} />
-            <MinutesField id={`${id}-notice`} label={ADMIN_COPY.noticeLabel} hint={ADMIN_COPY.noticeHint} min={0} max={10080} value={notice} disabled={save.saving} onChange={setNotice} />
-            <MinutesField id={`${id}-hold`} label={ADMIN_COPY.holdLabel} hint={ADMIN_COPY.holdHint} min={1} max={60} value={hold} disabled={save.saving} onChange={setHold} />
+            <LengthField id={`${id}-length`} value={length} stored={settings.slotMinutes} onChange={setLength} />
+            <MinutesField id={`${id}-notice`} label={ADMIN_COPY.noticeLabel} hint={ADMIN_COPY.noticeHint} min={NOTICE_MINUTES_MIN} max={NOTICE_MINUTES_MAX} value={notice} onChange={setNotice} />
+            <MinutesField id={`${id}-hold`} label={ADMIN_COPY.holdLabel} hint={ADMIN_COPY.holdHint} min={HOLD_MINUTES_MIN} max={HOLD_MINUTES_MAX} value={hold} onChange={setHold} />
             <div className="space-y-1">
               <Label htmlFor={`${id}-caller`}>{ADMIN_COPY.callerNumberLabel}</Label>
-              <Input id={`${id}-caller`} type="tel" inputMode="tel" autoComplete="off" maxLength={40} value={caller} disabled={save.saving} aria-describedby={`${id}-caller-hint`} onChange={(e) => setCaller(e.target.value)} />
+              <Input id={`${id}-caller`} type="tel" inputMode="tel" autoComplete="off" maxLength={40} value={caller} aria-describedby={`${id}-caller-hint`} onChange={(e) => setCaller(e.target.value)} />
               <p id={`${id}-caller-hint`} className={HINT}>
                 {ADMIN_COPY.callerNumberHint}
               </p>
             </div>
             <div className="sm:col-span-2">
-              <button type="submit" className={ACTION_BUTTON} disabled={save.saving}>
+              <button type="submit" className={`${ACTION_BUTTON} ${BUSY_LOOK}`} aria-disabled={save.saving}>
                 {save.saving ? ADMIN_COPY.saving : ADMIN_COPY.saveSettings}
               </button>
             </div>

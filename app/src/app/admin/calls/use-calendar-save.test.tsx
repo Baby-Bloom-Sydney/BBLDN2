@@ -100,3 +100,24 @@ describe("useCalendarSave", () => {
     expect(result.current.error).toBeNull();
   });
 });
+
+describe("useCalendarSave — review round 1 (04c-2)", () => {
+  it("not_found means the page is stale: it is refreshed (a block removed elsewhere leaves the list)", async () => {
+    const { result } = renderHook(() => useCalendarSave(INVALID));
+    await act(async () => {
+      await result.current.run(async (): Promise<CalendarCallResult<true>> => ({ ok: false, error: "not_found" }));
+    });
+    expect(result.current.error).toBe("That block has already gone — reload to see the calendar.");
+    expect(nav.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("reset clears the error and the status (a dialog opened again starts clean)", async () => {
+    const { result } = renderHook(() => useCalendarSave(INVALID));
+    await act(async () => {
+      await result.current.run(async (): Promise<CalendarCallResult<true>> => ({ ok: false, error: "error" }));
+    });
+    act(() => result.current.reset());
+    expect(result.current.error).toBeNull();
+    expect(result.current.status).toBe("");
+  });
+});
