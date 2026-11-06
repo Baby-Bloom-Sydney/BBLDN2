@@ -306,6 +306,20 @@ describe("InvoicePdf — corrections, Trial Shifts and the most lines", () => {
     expect(views.filter((e) => e.props.fixed)).toHaveLength(2); // the violet band and the footer
   });
 
+  it("numbers the pages of a longer invoice, 'Page X of Y' in the footer of each, and a one-page invoice not at all (BAI 2026-11-07)", () => {
+    type PageLabel = (p: { pageNumber: number; totalPages: number }) => string;
+    const renderOf = (e: Found) => (e.props as { render?: PageLabel }).render;
+    const elements = elementsOf(InvoicePdf(MAX_INVOICE));
+    const numbered = elements.filter((e) => e.type === Text && typeof renderOf(e) === "function");
+    expect(numbered).toHaveLength(1);
+    const label = renderOf(numbered[0]) as PageLabel;
+    expect([label({ pageNumber: 1, totalPages: 2 }), label({ pageNumber: 2, totalPages: 2 }), label({ pageNumber: 1, totalPages: 1 })]).toEqual([
+      "Page 1 of 2", "Page 2 of 2", "",
+    ]);
+    const footer = elements.find((e) => e.type === View && e.props.fixed && linesOf(e.props.children).includes(`Generated with ${SITE_NAME}`));
+    expect(footer && elementsOf(footer.props.children).some((e) => renderOf(e) === label)).toBe(true);
+  });
+
   it("never splits a row, and never leaves a table's title and head without its first row (review React M2, M4)", () => {
     const elements = elementsOf(InvoicePdf(MAX_INVOICE));
     const rows = elements.filter((e) => e.type === View && flat(e.props.style).borderBottom !== undefined && flat(e.props.style).flexDirection === "row");

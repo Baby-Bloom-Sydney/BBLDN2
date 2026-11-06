@@ -131,6 +131,14 @@ describe("renderInvoicePdf", () => {
     expect((text.match(/Receipt \d+/g) ?? []).length).toBe(20);
   }, 30_000);
 
+  it("a two-page invoice prints 'Page 1 of 2' and 'Page 2 of 2'; a one-page invoice prints no page number (BAI 2026-11-07)", async () => {
+    const { pages } = await rendered(MAX_INVOICE);
+    expect(pages).toHaveLength(2);
+    expect(pages[0]).toContain("Page 1 of 2");
+    expect(pages[1]).toContain("Page 2 of 2");
+    expect((await rendered(HARTLEY_INVOICE)).text).not.toMatch(/Page \d/);
+  }, 30_000);
+
   it("with every field at its longest (120-character descriptions, the longest business details): long text adds pages, never splits a row or the closing block (review React H1)", async () => {
     const { pages, text } = await rendered(WORST_INVOICE);
     expect(pages.length).toBeGreaterThanOrEqual(2);

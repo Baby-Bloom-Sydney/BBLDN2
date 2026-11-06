@@ -100,6 +100,10 @@ function meta(data: InvoicePdfData): ReactElement {
   );
 }
 
+/** "Page X of Y" in the footer of each page of a longer invoice; nothing on a one-page invoice (BAI 2026-11-07). */
+export const pageLabel = ({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }): string =>
+  totalPages > 1 ? `Page ${pageNumber} of ${totalPages}` : "";
+
 export function InvoicePdf(data: InvoicePdfData): ReactElement<DocumentProps> {
   return (
     <Document
@@ -119,6 +123,7 @@ export function InvoicePdf(data: InvoicePdfData): ReactElement<DocumentProps> {
         <View style={styles.footer} fixed>
           {/* @pending:legal — brief 11's sole-trader statement goes here, above the line below (11-legal-text.md §3). */}
           <Text>{`Generated with ${SITE_NAME}`}</Text>
+          <Text style={styles.pageNumber} render={pageLabel} />
         </View>
       </Page>
     </Document>

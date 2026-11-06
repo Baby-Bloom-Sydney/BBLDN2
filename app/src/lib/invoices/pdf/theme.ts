@@ -94,4 +94,5 @@ export const styles = StyleSheet.create({
   payLabel: { width: 86, color: COLOUR.muted }, // "Account number" is the longest label (review React M3)
   payValue: { flex: 1, color: COLOUR.ink }, // a long account name wraps inside the box
   footer: { position: "absolute", bottom: 32, left: 48, right: 48, paddingTop: 10, borderTop: `1 solid ${COLOUR.rule}`, fontSize: 8, color: COLOUR.faint, textAlign: "center" },
+  pageNumber: { position: "absolute", top: 10, right: 0 }, // on the footer's line, at its right end (top = its padding)
 });
