@@ -223,6 +223,8 @@ describe("the Calendar tab's admin lines (04c-2; brief §3 admin 5, §0a.13; BB-
       cellBlocked: "Blocked",
     });
     expect(weekGridHeading(7)).toBe("Next 7 days (London time)");
+    expect(ADMIN_COPY.blockAdded).toBe("Block added.");
+    expect(ADMIN_COPY.blockRemoved).toBe("Block removed.");
   });
 
   it("the call length choices read as minutes", () => {

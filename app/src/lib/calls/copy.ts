@@ -193,6 +193,8 @@ export const ADMIN_COPY = Object.freeze({
   noBlocks: "No blocks ahead.",
   blockInvalid: "Check the block: a start and an end that exist in London time, the end after the start and still to come, and a reason.",
   blockGone: "That block has already gone — reload to see the calendar.",
+  blockAdded: "Block added.",
+  blockRemoved: "Block removed.",
   cellFree: "Free",
   cellBooked: "Booked",
   cellHeld: "Held",
