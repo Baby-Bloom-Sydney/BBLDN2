@@ -1,23 +1,23 @@
 /**
- * The shared zod schemas for her payment details and an invoice draft (plan 06 step 5; brief §0.1, §3 nanny 4–5).
- * Client-safe (no I/O): 06b's form and actions parse with the same schemas, and the store parses again.
+ * The shared text rules and her bank details' zod schema (plan 06 step 5, §14.4 b2.3; brief §0.1, §0a B).
+ * Client-safe (no I/O): 06b's forms and actions parse with the same schemas, and the store parses again. An invoice
+ * draft's schema is `validation-lines.ts`; her business details' is `validation-business.ts` — both build on the
+ * text rules here.
  *
  * - Plain messages, and **no message ever echoes what was typed** (a rejected sort code must not come back in a
  *   reply or a log): every message below is a fixed string.
- * - BabyBloom is never the party paid or the issuer (plan R8, brief D7): account and trading names refuse it.
- * - Every limit comes from `src/config/invoices.ts`; the rate message prints the bounds through `formatPence`.
+ * - BabyBloom is never the party paid or the issuer (plan R8, brief D7): every name built here refuses it.
+ * - Every limit comes from `src/config/invoices.ts`.
+ * - Bank details are 3 fields (14.4): the trading name and address are business details now.
  *
- * BB-wave1-041126/06a-build, 2026-11-04.
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
  */
 
 import { z } from "zod";
 import { INVOICE_RULES } from "@/config/invoices";
 import { SITE_NAME } from "@/lib/constants";
-import { formatInvoiceMoney } from "./money";
-import { INVOICE_KINDS } from "./types";
-import { isFutureLondonDate, isLondonDate, isLondonMonday } from "./week";
 
-const { text, ratePence, maxHours, hourStep } = INVOICE_RULES;
+const { text } = INVOICE_RULES;
 
 export const VALIDATION_MESSAGES = Object.freeze({
   accountName: "Enter the name on the account",
@@ -26,15 +26,6 @@ export const VALIDATION_MESSAGES = Object.freeze({
   tooLong: "That's too long — please shorten it",
   oneLine: "Use plain text, without special characters",
   ownName: `Use your own name or business name — ${SITE_NAME} can't be the one paid`,
-  hours: "Enter the hours worked",
-  hourStep: "Enter the hours in quarter-hour steps",
-  hoursMax: `Enter at most ${maxHours} hours`,
-  rate: `Enter a rate between ${formatInvoiceMoney(ratePence.min)} and ${formatInvoiceMoney(ratePence.max)} an hour`,
-  kind: "Choose Regular week or Trial Shift",
-  family: "Choose a family",
-  date: "Choose a date",
-  monday: "Choose the Monday the week starts on",
-  future: "You can't invoice a week or date that hasn't happened yet",
   invalid: "Something's missing — please start again",
 } as const);
 const M = VALIDATION_MESSAGES;
@@ -119,43 +110,12 @@ export function requiredAddress(max: number, missing: string) {
 }
 
 const accountName = requiredName(text.accountNameMax, M.accountName);
-const tradingName = optionalName(text.tradingNameMax);
-const invoiceAddress = optionalAddress(text.addressMax);
 
-/** Her payment details as she types them (brief §0.1). Output is what the database stores. */
+/** Her bank details as she types them (brief §0.1; 3 fields, 14.4). Output is what the database stores. */
 export const paymentDetailsSchema = z.object({
   accountName,
   sortCode: bankDigits(6, M.sortCode),
   accountNumber: bankDigits(8, M.accountNumber),
-  tradingName,
-  invoiceAddress,
 });
 export type PaymentDetailsInput = z.input<typeof paymentDetailsSchema>;
 export type PaymentDetails = z.output<typeof paymentDetailsSchema>;
-
-/** An invoice draft (brief §3 nanny 3–5). `now` decides what is "future" (London's today). */
-export function invoiceDraftSchema(now: Date) {
-  return z
-    .object({
-      invoiceId: z.guid({ error: M.invalid }),
-      kind: z.enum(INVOICE_KINDS, { error: M.kind }),
-      targetId: z.guid({ error: M.family }),
-      periodStart: z.string({ error: M.date }).refine(isLondonDate, M.date),
-      hours: z
-        .number({ error: M.hours })
-        .positive(M.hours)
-        .max(maxHours, M.hoursMax)
-        .refine((hours) => Number.isInteger(hours / hourStep), M.hourStep),
-      ratePence: z.number({ error: M.rate }).int(M.rate).min(ratePence.min, M.rate).max(ratePence.max, M.rate),
-      replacesInvoiceId: z.guid({ error: M.invalid }).nullable(),
-    })
-    .superRefine((draft, ctx) => {
-      if (draft.kind === "regular_week" && !isLondonMonday(draft.periodStart)) {
-        ctx.addIssue({ code: "custom", path: ["periodStart"], message: M.monday });
-      }
-      if (isFutureLondonDate(draft.periodStart, now)) {
-        ctx.addIssue({ code: "custom", path: ["periodStart"], message: M.future });
-      }
-    });
-}
-export type InvoiceDraft = z.output<ReturnType<typeof invoiceDraftSchema>>;

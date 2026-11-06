@@ -9,14 +9,17 @@ import { invoicePdfData } from "./model";
 const created: CreatedInvoice = {
   invoiceId: "b0600000-0000-4000-8000-000000009003", seq: 3, number: "BB-SophieTaylor-270215-0003", status: "sending",
   kind: "regular_week", placementId: "b0600000-0000-4000-8000-000000000411", connectionRequestId: null,
-  periodStart: "2027-02-08", hours: 28, ratePence: 1800, totalPence: 50400, parentUserId: "b0600000-0000-4000-8000-000000000011",
+  periodStart: "2027-02-08", hours: 28, shiftsPence: 50400, expensesPence: 0, vat: { mode: "none", rateBp: null, pence: 0 },
+  totalPence: 50400, parentUserId: "b0600000-0000-4000-8000-000000000011",
   familyName: "Olivia Hartley", familyEmail: "admin+b06-11@babybloomnannies.co.uk", nannyName: "Sophie Taylor",
   nannyEmail: "admin+b06-1@babybloomnannies.co.uk", accountLast4: "4321", pdfPath: "n/i.pdf",
   replacesInvoiceId: "b0600000-0000-4000-8000-000000009001", replacesNumber: "BB-SophieTaylor-270212-0001", createdAt: "2027-02-15T09:30:00.000Z",
+  issuer: { businessType: "sole_trader", tradingName: "Taylor Childcare", address: "1 Upper Street", companyName: null, companyNumber: null,
+    registeredOffice: null, partnershipName: null, vatNumber: null },
+  lines: [{ lineNo: 1, kind: "shift", date: "2027-02-08", hours: 28, ratePence: 1800, description: null, amountPence: 50400 }],
 };
 const details: StoredPaymentDetails = {
   accountName: "Sophie Taylor", sortCode: "112233", accountNumber: "87654321", accountLast4: "4321",
-  tradingName: "Taylor Childcare", invoiceAddress: "1 Upper Street",
 };
 
 describe("invoicePdfData", () => {

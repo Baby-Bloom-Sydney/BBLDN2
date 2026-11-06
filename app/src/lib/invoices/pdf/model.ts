@@ -18,13 +18,17 @@ export function invoicePdfData(created: CreatedInvoice, details: StoredPaymentDe
   return invoiceOk({
     number: created.number,
     issuedAt: created.createdAt,
-    issuer: { name: created.nannyName, tradingName: details.tradingName, address: details.invoiceAddress },
+    issuer: {
+      name: created.nannyName,
+      tradingName: created.issuer.tradingName === created.nannyName ? null : created.issuer.tradingName,
+      address: created.issuer.address,
+    },
     billTo: { name: created.familyName, email: created.familyEmail },
     line: {
       kind: created.kind,
       periodStart: created.periodStart,
       hours: created.hours,
-      ratePence: created.ratePence,
+      ratePence: created.lines.flatMap((l) => (l.kind === "shift" ? [l.ratePence] : []))[0] ?? created.totalPence, // b2.6 prints every line
       totalPence: created.totalPence,
     },
     payTo: { accountName: details.accountName, sortCode: details.sortCode, accountNumber: details.accountNumber },

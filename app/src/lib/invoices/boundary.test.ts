@@ -9,15 +9,15 @@
  *   (`@/lib/invoices`): never a deep path, never the config. Today nothing outside imports it at all, so with the
  *   switch off the rest of the app is exactly as before; 07 and 08 will come through the entry point.
  *
- * BB-wave1-041126/06a-build, 2026-11-04.
+ * BB-wave1-041126/06a-build, 2026-11-04; 06b2-build, 2026-11-06 (store-business).
  */
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const SRC = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
-const SERVER_MODULES = ["store", "families", "nanny-proof", "db", "gate", "readers", "index", "pdf/render", "pdf/font"];
-const SERVER_MODULE = "(?:/(?:store|families|nanny-proof|db|gate|readers|index|pdf/render|pdf/font))?";
+const SERVER_MODULES = ["store", "store-business", "families", "nanny-proof", "db", "gate", "readers", "index", "pdf/render", "pdf/font"];
+const SERVER_MODULE = "(?:/(?:store|store-business|families|nanny-proof|db|gate|readers|index|pdf/render|pdf/font))?";
 /** An import of a server module: by alias, or by any relative path ending in `invoices` (a sibling in src/lib too). */
 const SERVER_IMPORT = new RegExp(`from\\s+["'](?:@/lib/invoices|(?:\\.\\.?/)+(?:lib/)?invoices)${SERVER_MODULE}["']`);
 /** A deep import of the invoice code or its config, or any relative import of them — allowed only inside the feature. */
@@ -61,6 +61,8 @@ describe("src/lib/invoices boundaries", () => {
     expect(DEEP_IMPORT.test('import { INVOICE_RULES } from "./invoices";')).toBe(true);
     const sibling = '"use client";\nimport { saveDetails } from "../invoices/store";';
     expect(USE_CLIENT.test(sibling) && SERVER_IMPORT.test(sibling)).toBe(true);
+    // 06b-2: her business details' store is a server module too
+    expect(SERVER_IMPORT.test('import { saveBusiness } from "@/lib/invoices/store-business";')).toBe(true);
   });
 
   it("outside the feature, nothing deep-imports the invoice code or its config", () => {
