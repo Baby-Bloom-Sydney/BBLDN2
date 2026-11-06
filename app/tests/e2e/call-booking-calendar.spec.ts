@@ -97,15 +97,18 @@ test.describe.serial("Calendar tab — flag on (local stack)", () => {
     db = localDb(SUPABASE_URL, SERVICE_KEY);
     before = await readCalendarState(db);
     await setWeeklyHours(db, EVERY_DAY_9_TO_7);
-    await db.from("call_settings").update({ slot_minutes: 30, notice_minutes: 120, hold_minutes: 5 }).eq("id", 1);
+    expect((await db.from("call_settings").update({ slot_minutes: 30, notice_minutes: 120, hold_minutes: 5 }).eq("id", 1)).error).toBeNull();
     fx = await createCallsFixture(db, RUN, now);
     await addHeldCall(db, fx.families.sarah, londonInstant(tomorrow, 16, 0));
     page = await signInSydney(browser, fx.adminEmail, fx.password, "/admin/calls?tab=calendar");
   });
 
   test.afterAll(async () => {
-    if (db) await removeCallsFixture(db, fx?.enabledSinceBefore);
-    if (db && before) await restoreCalendarState(db, before);
+    try {
+      if (db) await removeCallsFixture(db, fx?.enabledSinceBefore);
+    } finally {
+      if (db && before) await restoreCalendarState(db, before);
+    }
     mkdirSync(C2_PROOF_DIR, { recursive: true });
     writeFileSync(join(C2_PROOF_DIR, "walk-readback.json"), `${JSON.stringify(readback, null, 2)}\n`);
   });
@@ -158,7 +161,8 @@ test.describe.serial("Calendar tab — flag on (local stack)", () => {
     await expect(region("Call settings").getByRole("status")).toHaveText("Saved.", { timeout: 60_000 });
     expect((await settings()).slot_minutes).toBe(45);
     const ada = fx.families.ada;
-    expect((await cellsOn(page, adaDay)).slice(0, 3)).toEqual(["09:00–09:45Free", `10:00–10:30Booked · ${ada.name}`, "10:30–11:15Free"]);
+    // "Saved." comes back with the write; the grid follows the page's refresh a moment later.
+    await expect.poll(async () => (await cellsOn(page, adaDay)).slice(0, 3), { timeout: 60_000 }).toEqual(["09:00–09:45Free", `10:00–10:30Booked · ${ada.name}`, "10:30–11:15Free"]);
     const { data } = await db.from("call_bookings").select("starts_at, ends_at, status").eq("id", ada.bookingId!).single();
     expect(new Date((data as { starts_at: string }).starts_at).toISOString()).toBe(ada.startsAt);
     readback.length45 = { adaBooking: data, cells: (await cellsOn(page, adaDay)).slice(0, 4) };
@@ -210,7 +214,7 @@ test.describe.serial("Calendar tab — flag on (local stack)", () => {
   });
 
   test("Start call booking: before it no parent is offered the call; it asks first; then enabled_since is set once and only the date shows", async ({ browser }) => {
-    await db.from("call_settings").update({ enabled_since: null }).eq("id", 1);
+    expect((await db.from("call_settings").update({ enabled_since: null }).eq("id", 1)).error).toBeNull();
     const fay = await signInSydney(browser, fx.families.fay.email, fx.password, "/matchmaking/call");
     await fay.waitForURL((url) => !url.pathname.startsWith("/matchmaking/call"), { timeout: 120_000 });
     readback.beforeStart = { fayLandedOn: new URL(fay.url()).pathname };
