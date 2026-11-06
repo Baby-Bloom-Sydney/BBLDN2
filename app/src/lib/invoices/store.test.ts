@@ -280,8 +280,8 @@ describe("createInvoice", () => {
 
   it("refuses a future period, a bad draft or a bad last-4 before the database", async () => {
     expect(await createInvoice(nanny, { ...DRAFT, periodStart: "2027-02-22" }, "4321", NOW)).toEqual({ ok: false, error: "future" });
-    expect(await createInvoice(nanny, { ...DRAFT, hours: 0.25 }, "4321", NOW)).toEqual({ ok: false, error: "invalid" });
-    expect(await createInvoice(nanny, { ...DRAFT, ratePence: 999 }, "4321", NOW)).toEqual({ ok: false, error: "invalid" });
+    expect(await createInvoice(nanny, { ...DRAFT, hours: 0.1 }, "4321", NOW)).toEqual({ ok: false, error: "invalid" });
+    expect(await createInvoice(nanny, { ...DRAFT, ratePence: 0 }, "4321", NOW)).toEqual({ ok: false, error: "invalid" });
     expect(await createInvoice(nanny, DRAFT, "87654321", NOW)).toEqual({ ok: false, error: "invalid" });
     expect(f.rpcCalls).toEqual([]);
   });

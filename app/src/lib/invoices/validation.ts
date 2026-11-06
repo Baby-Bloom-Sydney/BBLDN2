@@ -27,7 +27,7 @@ export const VALIDATION_MESSAGES = Object.freeze({
   oneLine: "Use plain text, without special characters",
   ownName: `Use your own name or business name — ${SITE_NAME} can't be the one paid`,
   hours: "Enter the hours worked",
-  hourStep: "Enter the hours in half-hour steps",
+  hourStep: "Enter the hours in quarter-hour steps",
   hoursMax: `Enter at most ${maxHours} hours`,
   rate: `Enter a rate between ${formatInvoiceMoney(ratePence.min)} and ${formatInvoiceMoney(ratePence.max)} an hour`,
   kind: "Choose Regular week or Trial Shift",

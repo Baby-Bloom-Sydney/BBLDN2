@@ -3,7 +3,7 @@
  * BB-wave1-041126/06a-build, 2026-11-04.
  */
 import type { InvoiceKind } from "../types";
-import { invoiceTotalPence } from "../money";
+import { lineAmountPence } from "../totals";
 import type { InvoicePdfData } from "./InvoicePdf";
 
 /** One invoice line; the rate is passed positionally so no money literal is written into this non-test file. */
@@ -12,7 +12,7 @@ const lineOf = (kind: InvoiceKind, periodStart: string, hours: number, rate: num
   periodStart,
   hours,
   ratePence: rate,
-  totalPence: invoiceTotalPence(hours, rate),
+  totalPence: lineAmountPence(hours, rate),
 });
 
 export const HARTLEY_INVOICE: InvoicePdfData = {

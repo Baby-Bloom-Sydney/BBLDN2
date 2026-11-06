@@ -113,11 +113,11 @@ describe("invoiceDraftSchema", () => {
     ["tomorrow's shift", { kind: "trial_shift", periodStart: "2027-02-16" }, M.future],
     ["not a date", { periodStart: "2027-02-30" }, M.date],
     ["0 hours", { hours: 0 }, M.hours],
-    ["0.25 hours", { hours: 0.25 }, M.hourStep],
+    ["0.1 hours", { hours: 0.1 }, M.hourStep],
     ["168.5 hours", { hours: 168.5 }, M.hoursMax],
     ["hours as text", { hours: "30" }, M.hours],
-    ["a rate below the bounds", { ratePence: 1499 }, M.rate],
-    ["a rate above the bounds", { ratePence: 3001 }, M.rate],
+    ["a rate of nothing", { ratePence: 0 }, M.rate],
+    ["a rate above the typo ceiling", { ratePence: 25_001 }, M.rate],
     ["a rate in fractions of a penny", { ratePence: 1800.5 }, M.rate],
     ["a meet-and-greet", { kind: "meet_and_greet" }, M.kind],
     ["no family", { targetId: "hartley" }, M.family],
@@ -128,11 +128,11 @@ describe("invoiceDraftSchema", () => {
   });
 
   it("says the rate bounds in pounds from config, not from a literal", () => {
-    expect(M.rate).toBe("Enter a rate between £15.00 and £30.00 an hour");
+    expect(M.rate).toBe("Enter a rate between £0.01 and £250.00 an hour");
   });
 
-  it("allows the edge values (0.5 h, 168 h, £15.00, £30.00)", () => {
-    for (const change of [{ hours: 0.5 }, { hours: 168 }, { ratePence: 1500 }, { ratePence: 3000 }]) {
+  it("allows the edge values (0.25 h, 168 h, 1 p, £250.00)", () => {
+    for (const change of [{ hours: 0.25 }, { hours: 168 }, { ratePence: 1 }, { ratePence: 25_000 }]) {
       expect(schema.safeParse({ ...draft, ...change }).success).toBe(true);
     }
   });

@@ -2,10 +2,11 @@
  * Invoice money (plan 06 step 4). Amounts are integer pence (the Stage 4 rule, `src/config/prices.ts`); the one
  * money format is the guarantees page's `formatPence` (plan R23: imported, never copied).
  *
- * BB-wave1-041126/06a-build, 2026-11-04.
+ * A line's amount is `totals.ts`'s `lineAmountPence` (06b-2: quarter hours, integer half-up).
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
  */
 
-import { INVOICE_RULES } from "@/config/invoices";
 import { formatPence } from "@/app/admin/guarantees/format";
 
 const PENCE_PER_POUND = 100;
@@ -15,18 +16,6 @@ const DRIFT_PLACES = 6;
 /** Pence as pounds and pence in the configured currency — `Intl.NumberFormat(APP_LOCALE, PRICES.currency)`, through `formatPence`. */
 export const formatInvoiceMoney = formatPence;
 
-/**
- * Hours × rate in whole pence. Hours come in half steps and the rate in whole pence, so the product is a whole or
- * half penny; a half rounds up, as Postgres `round()` does in amendment 21's total CHECK (0.5 h × 1801 p = 901 p).
- */
-export function invoiceTotalPence(hours: number, ratePence: number): number {
-  if (!Number.isFinite(hours) || hours <= 0 || !Number.isInteger(hours / INVOICE_RULES.hourStep)
-      || !Number.isInteger(ratePence) || ratePence <= 0) {
-    throw new RangeError("hours in half steps and a whole-pence rate, both positive");
-  }
-  return Math.round(hours * ratePence);
-}
-
 /** A placement's or position's hourly rate (pounds, `numeric`) in pence; null when there's no usable rate. */
 export function poundsToPence(pounds: unknown): number | null {
   const value = typeof pounds === "string" && pounds.trim() !== "" ? Number(pounds) : pounds;
@@ -34,7 +23,7 @@ export function poundsToPence(pounds: unknown): number | null {
   return Math.round(Number((value * PENCE_PER_POUND).toFixed(DRIFT_PLACES)));
 }
 
-/** "30", "0.5", "37.5". */
+/** "30", "0.5", "8.75" — quarter hours print as typed, with no trailing zeros. */
 export function formatHours(hours: number): string {
   return String(hours);
 }
