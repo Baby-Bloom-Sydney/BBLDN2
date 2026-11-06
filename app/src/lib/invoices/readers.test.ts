@@ -5,7 +5,11 @@
  * Admin proof first (the 04a lesson); switch off → null / []; a read failure throws InvoiceReadError; no reader
  * returns an email, a bank field, a PDF path or a link.
  *
- * BB-wave1-041126/06a-build, 2026-11-04.
+ * 06b-2 (plan 14.7): an invoice is a header plus lines; `getPlacementWeekHours` is unchanged (header hours, which
+ * the database keeps equal to the shift lines); `FamilyInvoice.ratePence` is null when the rates differ, and it
+ * gains `shiftsPence`, `expensesPence` and `vatPence`; `totalPence` includes expenses and VAT.
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -33,14 +37,14 @@ const PLACEMENT = u(411);
 
 const row = (n: number, extra: Record<string, unknown>) => ({
   id: u(9000 + n), invoice_seq: n, invoice_number: `BB-SophieTaylor-270215-${String(n).padStart(4, "0")}`, nanny_id: SOPHIE, nanny_name: "Sophie Taylor", parent_user_id: HARTLEY,
-  placement_id: PLACEMENT, kind: "regular_week", period_start: "2027-02-08", hours: 30, rate_pence: 1800, total_pence: 54000,
-  status: "sent", pdf_path: `${SOPHIE}/${u(9000 + n)}.pdf`, sent_at: `2027-02-1${n}T09:00:00+00:00`, cancelled_at: null,
+  placement_id: PLACEMENT, kind: "regular_week", period_start: "2027-02-08", hours: 30, shifts_pence: 54000, expenses_pence: 0,
+  vat_pence: 0, total_pence: 54000, nanny_invoice_lines: [{ kind: "shift", rate_pence: 1800 }], status: "sent", pdf_path: `${SOPHIE}/${u(9000 + n)}.pdf`, sent_at: `2027-02-1${n}T09:00:00+00:00`, cancelled_at: null,
   cancel_reason: null, replaces_invoice_id: null, family_email: "admin+b06-11@babybloomnannies.co.uk", account_last4: "4321",
   ...extra,
 });
 const INV1 = row(1, { status: "cancelled", cancelled_at: "2027-02-15T12:00:00+00:00", cancel_reason: "wrong_hours" });
-const INV2 = row(2, { parent_user_id: u(12), placement_id: null, kind: "trial_shift", period_start: "2027-02-03", hours: 4, total_pence: 7200 });
-const INV3 = row(3, { hours: 28, total_pence: 50400, replaces_invoice_id: u(9001), sent_at: "2027-02-15T13:00:00+00:00" });
+const INV2 = row(2, { parent_user_id: u(12), placement_id: null, kind: "trial_shift", period_start: "2027-02-03", hours: 4, shifts_pence: 7200, total_pence: 7200 });
+const INV3 = row(3, { hours: 28, shifts_pence: 50400, total_pence: 50400, replaces_invoice_id: u(9001), sent_at: "2027-02-15T13:00:00+00:00" });
 const FAILED = row(4, { status: "failed", sent_at: null });
 const SENDING = row(5, { status: "sending", sent_at: null });
 
@@ -84,10 +88,15 @@ describe("getPlacementWeekHours — sets 07's first-week hours", () => {
   });
 
   it("adds two live invoices for the same week together (brief §11 Q9) and names the latest", async () => {
-    f.reads.nanny_invoices = table([INV3, row(6, { hours: 4.5, total_pence: 8100 })]);
+    f.reads.nanny_invoices = table([INV3, row(6, { hours: 4.5, shifts_pence: 8100, total_pence: 8100 })]);
     const week = await getPlacementWeekHours(admin, PLACEMENT, "2027-02-08");
     expect(week).toMatchObject({ hours: 32.5, number: "BB-SophieTaylor-270215-0006" });
     expect(week?.invoices.map((i) => i.number)).toEqual(["BB-SophieTaylor-270215-0003", "BB-SophieTaylor-270215-0006"]);
+  });
+
+  it("adds the week's shift hours only: an invoice's expenses add no hours (14.7)", async () => {
+    f.reads.nanny_invoices = table([INV3, row(8, { hours: 4, shifts_pence: 7200, expenses_pence: 1250, total_pence: 8450 })]);
+    expect(await getPlacementWeekHours(admin, PLACEMENT, "2027-02-08")).toMatchObject({ hours: 32 });
   });
 
   it("is null when the week has no live Regular-week invoice (failed, sending, Trial Shift and cancelled are ignored)", async () => {
@@ -134,11 +143,30 @@ describe("listFamilyInvoices", () => {
     ]);
     expect(list[1]).toEqual({
       invoiceId: u(9001), number: "BB-SophieTaylor-270215-0001", nannyId: SOPHIE, nannyName: "Sophie Taylor", kind: "regular_week",
-      periodStart: "2027-02-08", hours: 30, ratePence: 1800, totalPence: 54000, status: "cancelled",
+      periodStart: "2027-02-08", hours: 30, ratePence: 1800, shiftsPence: 54000, expensesPence: 0, vatPence: 0, totalPence: 54000, status: "cancelled",
       sentAt: "2027-02-11T09:00:00.000Z", cancelledAt: "2027-02-15T12:00:00.000Z", cancelReason: "wrong_hours",
       replacesNumber: null, replacedByNumber: "BB-SophieTaylor-270215-0003",
     });
     expect(JSON.stringify(list)).not.toMatch(/@|4321|\.pdf|pdf_path|account/);
+  });
+
+  it("an invoice with two rates, an expense and VAT added: ratePence null; the total includes expenses and VAT (14.7)", async () => {
+    const mixed = row(9, {
+      hours: 32, shifts_pence: 58_400, expenses_pence: 1250, vat_pence: 11_680, total_pence: 71_330,
+      nanny_invoice_lines: [{ kind: "shift", rate_pence: 1800 }, { kind: "shift", rate_pence: 2200 }, { kind: "expense", rate_pence: null }],
+    });
+    f.reads.nanny_invoices = table([mixed]);
+    const [invoice] = await listFamilyInvoices(admin, HARTLEY);
+    expect(invoice).toMatchObject({ ratePence: null, shiftsPence: 58_400, expensesPence: 1250, vatPence: 11_680, totalPence: 71_330, hours: 32 });
+    expect(await getFamilyInvoiceSummary(admin, HARTLEY)).toMatchObject({ hours: 32, totalPence: 71_330 });
+  });
+
+  it("returns exactly these keys — no bank, email, PDF, link or issuer field (R21, 14.7)", async () => {
+    const [invoice] = await listFamilyInvoices(admin, HARTLEY);
+    expect(Object.keys(invoice ?? {}).sort()).toEqual([
+      "cancelReason", "cancelledAt", "expensesPence", "hours", "invoiceId", "kind", "nannyId", "nannyName", "number", "periodStart",
+      "ratePence", "replacedByNumber", "replacesNumber", "sentAt", "shiftsPence", "status", "totalPence", "vatPence",
+    ]);
   });
 
   it("each nanny's numbering is her own (her name is in the number)", async () => {

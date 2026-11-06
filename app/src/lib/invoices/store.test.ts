@@ -489,11 +489,12 @@ describe("the readers' rows (an admin proof first; R1: what went out, with its P
     expect(await readPlacementWeekRows(admin, PLACEMENT, "2027-02-08")).toEqual({ ok: false, error: "error" });
   });
 
-  it("a family's invoices: sent and cancelled with a PDF, oldest first, no email or bank field", async () => {
+  it("a family's invoices: sent and cancelled with a PDF, oldest first, no email or bank field; the lines' rates embedded (14.7)", async () => {
     const row = {
       id: INVOICE, invoice_seq: 1, invoice_number: "BB-SophieTaylor-270215-0001", nanny_id: NANNY_ID, nanny_name: "Sophie Taylor", kind: "regular_week", period_start: "2027-02-08",
-      hours: 30, rate_pence: 1800, total_pence: 54000, status: "cancelled", pdf_path: "p", sent_at: "2027-02-15T10:00:00+00:00",
-      cancelled_at: "2027-02-15T11:00:00+00:00", cancel_reason: "wrong_hours", replaces_invoice_id: null,
+      hours: "30.00", shifts_pence: 54000, expenses_pence: 0, vat_pence: 0, total_pence: 54000, status: "cancelled", pdf_path: "p",
+      sent_at: "2027-02-15T10:00:00+00:00", cancelled_at: "2027-02-15T11:00:00+00:00", cancel_reason: "wrong_hours", replaces_invoice_id: null,
+      nanny_invoice_lines: [{ kind: "shift", rate_pence: 1800 }, { kind: "shift", rate_pence: 1800 }],
     };
     f.reads.nanny_invoices = [row, { ...row, id: "f", status: "failed", sent_at: null, cancelled_at: null, cancel_reason: null }];
     const r = await readFamilyRows(admin, PARENT_USER);
@@ -501,7 +502,7 @@ describe("the readers' rows (an admin proof first; R1: what went out, with its P
       ok: true,
       value: [{
         invoiceId: INVOICE, seq: 1, number: "BB-SophieTaylor-270215-0001", nannyId: NANNY_ID, nannyName: "Sophie Taylor", kind: "regular_week", periodStart: "2027-02-08",
-        hours: 30, ratePence: 1800, totalPence: 54000, status: "cancelled", sentAt: "2027-02-15T10:00:00.000Z",
+        hours: 30, ratePence: 1800, shiftsPence: 54000, expensesPence: 0, vatPence: 0, totalPence: 54000, status: "cancelled", sentAt: "2027-02-15T10:00:00.000Z",
         cancelledAt: "2027-02-15T11:00:00.000Z", cancelReason: "wrong_hours", replacesInvoiceId: null,
       }],
     });
@@ -510,6 +511,9 @@ describe("the readers' rows (an admin proof first; R1: what went out, with its P
       ["in", "status", ["sent", "cancelled"]],
       ["not", "pdf_path", "is"],
     ]);
-    expect(columnsOn("nanny_invoices")).not.toMatch(/email|account|family_name/);
+    expect(columnsOn("nanny_invoices")).not.toMatch(/email|account|family_name|\brate_pence, total|issuer/);
+    expect(columnsOn("nanny_invoices")).toMatch(/nanny_invoice_lines\(kind, rate_pence\)/);
+    f.reads.nanny_invoices = [{ ...row, nanny_invoice_lines: [{ kind: "shift", rate_pence: "lots" }] }];
+    expect(await readFamilyRows(admin, PARENT_USER)).toEqual({ ok: false, error: "error" });
   });
 });

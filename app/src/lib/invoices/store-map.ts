@@ -12,12 +12,13 @@
 import { z } from "zod";
 import type { DetailMasks } from "./masking";
 import { isInvoiceNumber } from "./numbering";
-import { hoursValue, instant, lineRow, linesInOrder, londonDate, pence, type StoredLine } from "./store-map-lines";
+import { hoursValue, instant, lineRow, linesInOrder, londonDate, pence, singleRate, type StoredLine } from "./store-map-lines";
 import {
   BUSINESS_TYPE_KEYS,
   CANCEL_REASONS,
   INVOICE_KINDS,
   INVOICE_STATUSES,
+  LINE_KINDS,
   VAT_MODES,
   type BusinessType,
   type CancelReason,
@@ -32,9 +33,10 @@ export const MASK_COLUMNS = "account_name, sort_code_last2, account_last4, updat
 export const FULL_COLUMNS = "account_name, sort_code, account_number, account_last4";
 /** 07's week reader: no email, bank or PDF field leaves (pdf_path is read only to re-check R1). */
 export const WEEK_COLUMNS = "id, invoice_seq, invoice_number, nanny_id, nanny_name, hours, status, pdf_path, sent_at";
-/** The family readers: no email, bank or PDF field leaves. */
+/** The family readers: no email, bank, issuer or PDF field leaves; the lines' kinds and rates give 07 its rate (14.7). */
 export const FAMILY_COLUMNS =
-  "id, invoice_seq, invoice_number, nanny_id, nanny_name, kind, period_start, hours, rate_pence, total_pence, status, pdf_path, sent_at, cancelled_at, cancel_reason, replaces_invoice_id";
+  "id, invoice_seq, invoice_number, nanny_id, nanny_name, kind, period_start, hours, shifts_pence, expenses_pence, vat_pence, " +
+  "total_pence, status, pdf_path, sent_at, cancelled_at, cancel_reason, replaces_invoice_id, nanny_invoice_lines(kind, rate_pence)";
 
 const id = z.string().min(1);
 const hours = hoursValue;
@@ -121,7 +123,11 @@ export interface FamilyRow {
   readonly kind: InvoiceKind;
   readonly periodStart: string;
   readonly hours: number;
-  readonly ratePence: number;
+  /** The single rate when every shift has it; null when the rates differ (14.7). */
+  readonly ratePence: number | null;
+  readonly shiftsPence: number;
+  readonly expensesPence: number;
+  readonly vatPence: number;
   readonly totalPence: number;
   readonly status: "sent" | "cancelled";
   readonly sentAt: string;
@@ -277,8 +283,11 @@ export const familyRow = z.object({
   kind: z.enum(INVOICE_KINDS),
   period_start: londonDate,
   hours,
-  rate_pence: pence,
+  shifts_pence: pence,
+  expenses_pence: pence,
+  vat_pence: pence,
   total_pence: pence,
+  nanny_invoice_lines: z.array(z.object({ kind: z.enum(LINE_KINDS), rate_pence: pence.positive().nullable() })),
   status: z.enum(INVOICE_STATUSES),
   pdf_path: z.string().nullable(),
   sent_at: instant.nullable(),
@@ -306,7 +315,10 @@ export const toFamilyRow = (r: z.output<typeof familyRow>, status: "sent" | "can
   kind: r.kind,
   periodStart: r.period_start,
   hours: r.hours,
-  ratePence: r.rate_pence,
+  ratePence: singleRate(r.nanny_invoice_lines),
+  shiftsPence: r.shifts_pence,
+  expensesPence: r.expenses_pence,
+  vatPence: r.vat_pence,
   totalPence: r.total_pence,
   status,
   sentAt,

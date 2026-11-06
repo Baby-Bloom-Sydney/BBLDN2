@@ -12,7 +12,12 @@
  *   the 37.5-hour cap and the flat rate.
  * - A read failure throws `InvoiceReadError` — never a silent null that 07 could mistake for "no invoice".
  *
- * BB-wave1-041126/06a-build, 2026-11-04.
+ * 06b-2 (plan 14.7): an invoice is a header plus lines. A week's hours are still the headers' `hours`, which the
+ * database keeps equal to the sum of each invoice's shift lines (so Trial Shifts and expenses never add hours to a
+ * placement's week). A family's invoice carries its childcare, expenses and VAT; `totalPence` is the whole total;
+ * `ratePence` is null when its shifts' rates differ. The issuer snapshot is not returned (07 doesn't need it).
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
  */
 
 import { NO_PENCE } from "@/config/invoices";
@@ -27,7 +32,7 @@ export interface WeekHoursInvoice {
   readonly invoiceId: string;
   readonly number: string; // "BB-SophieTaylor-270215-0003", as stored at insert
   readonly nannyName: string;
-  readonly hours: number; // 0.5 steps
+  readonly hours: number; // quarter-hour steps: the sum of the invoice's shifts
 }
 
 /**
@@ -50,7 +55,14 @@ export interface FamilyInvoice {
   readonly kind: InvoiceKind;
   readonly periodStart: string;
   readonly hours: number;
-  readonly ratePence: number;
+  /** The single hourly rate when every shift on the invoice has it; null when the rates differ (14.7). */
+  readonly ratePence: number | null;
+  /** The childcare subtotal (VAT inside it when she includes VAT). */
+  readonly shiftsPence: number;
+  /** Reimbursed expenses: never a line on the family's BabyBloom bill (brief §0a A). */
+  readonly expensesPence: number;
+  readonly vatPence: number;
+  /** The invoice's total: childcare, any VAT on top, and expenses. */
   readonly totalPence: number;
   readonly status: IssuedStatus;
   readonly sentAt: string;
@@ -110,6 +122,9 @@ function toFamilyInvoices(rows: readonly FamilyRow[]): FamilyInvoice[] {
       periodStart: r.periodStart,
       hours: r.hours,
       ratePence: r.ratePence,
+      shiftsPence: r.shiftsPence,
+      expensesPence: r.expensesPence,
+      vatPence: r.vatPence,
       totalPence: r.totalPence,
       status: r.status,
       sentAt: r.sentAt,
