@@ -8,14 +8,19 @@ const { requireAdmin } = vi.hoisted(() => ({ requireAdmin: vi.fn() }));
 vi.mock("@/lib/admin/require-admin", () => ({ requireAdmin }));
 
 import {
+  addCallBlock,
   adminRefusalOf,
   bookSlotOnBehalf,
+  calendarRefusalOf,
+  calendarWeek,
   cancelBookingOnBehalf,
   confirmHoldOnBehalf,
   familySlotGrid,
   holdSlotOnBehalf,
+  removeCallBlock,
   replaceWeeklyHours,
   startCallBooking,
+  updateCallSettings,
 } from "./admin-calls";
 import { proveAdmin, type AdminProof } from "./admin-proof";
 import type { CallsDeps } from "./deps";
@@ -64,19 +69,23 @@ const ALL = (proof: AdminProof, deps: CallsDeps) => [
   holdSlotOnBehalf(proof, { parentUserId: PARENT, startsAt: TUE_14 }, deps),
   confirmHoldOnBehalf(proof, { parentUserId: PARENT, holdId: BOOKING, idempotencyKey: "k" }, deps),
   familySlotGrid(proof, PARENT, deps),
+  updateCallSettings(proof, { slotMinutes: 45 }, deps),
+  addCallBlock(proof, { fromDate: "2027-02-12", fromTime: "09:00", toDate: "2027-02-12", toTime: "13:00", reason: "dentist" }, deps),
+  removeCallBlock(proof, BOOKING, deps),
+  calendarWeek(proof, deps),
 ];
 
 describe("the gates", () => {
   it("switch off → call_booking_disabled, zero repo calls", async () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "");
     const { fake, deps } = setup();
-    expect(await Promise.all(ALL(PROOF, deps))).toEqual(Array(7).fill({ ok: false, error: "call_booking_disabled" }));
+    expect(await Promise.all(ALL(PROOF, deps))).toEqual(Array(11).fill({ ok: false, error: "call_booking_disabled" }));
     expect(fake.calls).toEqual([]);
   });
 
   it("a forged proof → invalid, zero repo calls", async () => {
     const { fake, deps } = setup();
-    expect(await Promise.all(ALL(FORGED, deps))).toEqual(Array(7).fill({ ok: false, error: "invalid" }));
+    expect(await Promise.all(ALL(FORGED, deps))).toEqual(Array(11).fill({ ok: false, error: "invalid" }));
     expect(fake.calls).toEqual([]);
   });
 });
@@ -212,5 +221,98 @@ describe("adminRefusalOf: every call error as a code staff may see (04c-1)", () 
     expect(adminRefusalOf("hold_expired")).toBe("hold_expired");
     expect(adminRefusalOf("call_booking_disabled")).toBe("call_booking_disabled");
     expect(adminRefusalOf("error")).toBe("error");
+  });
+});
+
+describe("the Calendar tab (04c-2, plan C5; BB-wave1-041126/04c2-build)", () => {
+  const BLOCK_FORM = { fromDate: "2027-02-12", fromTime: "09:00", toDate: "2027-02-12", toTime: "13:00", reason: " dentist " };
+  const JANE = { userId: PARENT, firstName: "Jane", lastName: "Smith", email: "jane@example.com", mobile: null, isTestUser: false };
+
+  it("updateCallSettings: call length 45, notice, hold, caller number → the repository, as the admin", async () => {
+    const { fake, deps } = setup();
+    const update = { slotMinutes: 45, noticeMinutes: 60, holdMinutes: 10, callerNumber: "+44 20 7946 0000" };
+    const saved = await updateCallSettings(PROOF, update, deps);
+    expect(saved).toMatchObject({ ok: true, value: { slotMinutes: 45, noticeMinutes: 60, holdMinutes: 10, callerNumber: "+442079460000" } });
+    expect(callsTo(fake, "updateSettings")[0].args).toEqual([
+      { slotMinutes: 45, noticeMinutes: 60, holdMinutes: 10, callerNumber: "+442079460000" },
+      { userId: ADMIN, kind: "admin" },
+    ]);
+  });
+
+  it.each([
+    ["a length off the fixed list (25)", { slotMinutes: 25 }],
+    ["the database's own bounds but not the list (5)", { slotMinutes: 5 }],
+    ["enabledSince (Start call booking's alone)", { enabledSince: "2027-02-01T09:00:00Z" }],
+    ["a notice past a week", { noticeMinutes: 10081 }],
+    ["a caller number not in the +44 form", { callerNumber: "020 7946 0000" }],
+  ])("updateCallSettings refuses %s, with no write", async (_label, update) => {
+    const { fake, deps } = setup();
+    expect(await updateCallSettings(PROOF, update, deps)).toEqual({ ok: false, error: "invalid" });
+    expect(callsTo(fake, "updateSettings")).toEqual([]);
+  });
+
+  it("addCallBlock reads the form as London time on the server, then adds it as the admin", async () => {
+    const { fake, deps } = setup();
+    const added = await addCallBlock(PROOF, { ...BLOCK_FORM, fromDate: "2027-06-30", fromTime: "23:00", toDate: "2027-07-01", toTime: "08:00" }, deps);
+    expect(added.ok).toBe(true);
+    expect(callsTo(fake, "insertBlock")[0].args).toEqual([
+      { startsAt: "2027-06-30T22:00:00.000Z", endsAt: "2027-07-01T07:00:00.000Z", reason: "dentist" },
+      { userId: ADMIN, kind: "admin" },
+    ]);
+  });
+
+  it("addCallBlock refuses a block already over (by the server's clock), with no write", async () => {
+    const { fake, deps } = setup();
+    expect(await addCallBlock(PROOF, { ...BLOCK_FORM, fromDate: "2027-02-03", toDate: "2027-02-03" }, deps)).toEqual({ ok: false, error: "invalid" });
+    expect(callsTo(fake, "insertBlock")).toEqual([]);
+  });
+
+  it("removeCallBlock removes that block as the admin; already gone → not_found; not an id → invalid before any call", async () => {
+    const blocks = [{ id: BOOKING, startsAt: "2027-02-12T09:00:00.000Z", endsAt: "2027-02-12T13:00:00.000Z", reason: "dentist" }];
+    const { fake, deps } = setup({ blocks });
+    expect(await removeCallBlock(PROOF, BOOKING, deps)).toEqual({ ok: true, value: blocks[0] });
+    expect(callsTo(fake, "deleteBlock")[0].args).toEqual([BOOKING, { userId: ADMIN, kind: "admin" }]);
+    expect(await removeCallBlock(PROOF, "c0400000-0000-4000-8000-000000000099", deps)).toEqual({ ok: false, error: "not_found" });
+    const before = fake.calls.length;
+    expect(await removeCallBlock(PROOF, "../blocks", deps)).toEqual({ ok: false, error: "invalid" });
+    expect(fake.calls.length).toBe(before);
+  });
+
+  it("calendarWeek: the grid over today's London date and six more, blocks from its start on, booked names", async () => {
+    const { bookingRow } = await import("./fake-calls-repo.test-util");
+    const booked = bookingRow({ parentUserId: PARENT, startsAt: TUE_14 });
+    const { fake, deps } = setup({ bookings: [booked], contacts: [JANE] });
+    const week = await calendarWeek(PROOF, deps);
+    expect(week.ok).toBe(true);
+    if (!week.ok) return;
+    expect(week.value.days.map((d) => d.londonDate)[0]).toBe("2027-02-04");
+    expect(week.value.days.flatMap((d) => d.cells).find((c) => c.kind === "booked")).toMatchObject({ name: "Jane Smith", time: "14:00–14:30" });
+    expect(callsTo(fake, "readOccupyingBookings")[0].args).toEqual([{ startsAt: "2027-02-04T00:00:00.000Z", endsAt: "2027-02-11T00:00:00.000Z" }]);
+    expect(callsTo(fake, "readBlocks")[0].args[0]).toMatchObject({ startsAt: "2027-02-04T00:00:00.000Z" });
+    expect(callsTo(fake, "readContacts")[0].args).toEqual([[PARENT]]);
+  });
+
+  it("calendarWeek reads no contacts when nobody is booked (a live hold carries no name)", async () => {
+    const { bookingRow } = await import("./fake-calls-repo.test-util");
+    const held = bookingRow({ parentUserId: PARENT, startsAt: TUE_14, status: "held", holdExpiresAt: "2027-02-04T10:05:00.000Z", bookedAt: null });
+    const { fake, deps } = setup({ bookings: [held] });
+    expect((await calendarWeek(PROOF, deps)).ok).toBe(true);
+    expect(callsTo(fake, "readContacts")).toEqual([]);
+  });
+
+  it.each(["readSettings", "readWeeklyHours", "readBlocks", "readOccupyingBookings", "readContacts"] as const)(
+    "calendarWeek fails closed when %s fails",
+    async (method) => {
+      const { bookingRow } = await import("./fake-calls-repo.test-util");
+      const { deps } = setup({ bookings: [bookingRow({ parentUserId: PARENT, startsAt: TUE_14 })], failing: [method] });
+      expect(await calendarWeek(PROOF, deps)).toEqual({ ok: false, error: "error" });
+    },
+  );
+
+  it("calendarRefusalOf: overlapping hours stay 'overlap' (their own words); the rest as adminRefusalOf", () => {
+    expect(calendarRefusalOf("overlap")).toBe("overlap");
+    expect(calendarRefusalOf("invalid")).toBe("invalid");
+    expect(calendarRefusalOf("not_found")).toBe("not_found");
+    expect(calendarRefusalOf("taken")).toBe("taken");
   });
 });
