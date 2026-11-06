@@ -45,12 +45,12 @@ const M = VALIDATION_MESSAGES;
  * line breaks (\n). These print on a BabyBloom-sent PDF (security review L8, N1). Known limit: ZWNJ / ZWJ, which
  * some scripts use in names, are refused too (the database refuses the same).
  */
-const ONE_LINE_BAD = /[\p{C}\p{Zl}\p{Zp}]/u;
-const ADDRESS_BAD = /(?!\n)[\p{C}\p{Zl}\p{Zp}]/u;
+export const ONE_LINE_BAD = /[\p{C}\p{Zl}\p{Zp}]/u;
+export const ADDRESS_BAD = /(?!\n)[\p{C}\p{Zl}\p{Zp}]/u;
 const BABY_BLOOM = /baby\s*bloom/i;
 
-/** Tested after NFKC, which folds full-width and other look-alike letters to plain ones. */
-const isNotBabyBloom = (value: string): boolean => {
+/** Tested after NFKC, which folds full-width and other look-alike letters to plain ones (plan R8). */
+export const isNotBabyBloom = (value: string): boolean => {
   const folded = value.normalize("NFKC");
   return !BABY_BLOOM.test(folded) && !folded.toLowerCase().includes(SITE_NAME.toLowerCase());
 };
@@ -62,7 +62,7 @@ const bankDigits = (count: number, message: string) =>
     .transform((value) => value.replace(/[\s-]/g, ""))
     .pipe(z.string().regex(new RegExp(`^\\d{${count}}$`), message));
 
-const normaliseAddress = (value: string): string =>
+export const normaliseAddress = (value: string): string =>
   value
     .replace(/\r\n?/g, "\n")
     .split("\n")
@@ -70,42 +70,57 @@ const normaliseAddress = (value: string): string =>
     .join("\n")
     .trim();
 
-const accountName = z
-  .string({ error: M.accountName })
-  .transform((value) => value.trim())
-  .pipe(
-    z
-      .string()
-      .min(1, M.accountName)
-      .max(text.accountNameMax, M.tooLong)
-      .refine((value) => !ONE_LINE_BAD.test(value), M.oneLine)
-      .refine(isNotBabyBloom, M.ownName),
-  );
+const blankToEmpty = (value: string | null | undefined): string => (value ?? "").trim();
+const oneLine = (value: string): boolean => !ONE_LINE_BAD.test(value);
 
-const tradingName = z
-  .string({ error: M.oneLine })
-  .nullish()
-  .transform((value) => (value ?? "").trim() || null)
-  .pipe(
-    z
-      .string()
-      .max(text.tradingNameMax, M.tooLong)
-      .refine((value) => !ONE_LINE_BAD.test(value), M.oneLine)
-      .refine(isNotBabyBloom, M.ownName)
-      .nullable(),
-  );
+/** A one-line name she must give (06b-2 b2.3: shared by the bank and business fields): trimmed, 1–max, never BabyBloom. */
+export function requiredName(max: number, missing: string) {
+  return z
+    .string({ error: missing })
+    .nullish()
+    .transform(blankToEmpty)
+    .pipe(z.string().min(1, missing).max(max, M.tooLong).refine(oneLine, M.oneLine).refine(isNotBabyBloom, M.ownName));
+}
 
-const invoiceAddress = z
-  .string({ error: M.oneLine })
-  .nullish()
-  .transform((value) => normaliseAddress(value ?? "") || null)
-  .pipe(
-    z
-      .string()
-      .max(text.addressMax, M.tooLong)
-      .refine((value) => !ADDRESS_BAD.test(value), M.oneLine)
-      .nullable(),
-  );
+/** A one-line name she may leave blank (null): trimmed, at most `max`, never BabyBloom. */
+export function optionalName(max: number) {
+  return z
+    .string({ error: M.oneLine })
+    .nullish()
+    .transform((value) => blankToEmpty(value) || null)
+    .pipe(z.string().max(max, M.tooLong).refine(oneLine, M.oneLine).refine(isNotBabyBloom, M.ownName).nullable());
+}
+
+/** One line of plain text she may leave blank (null), e.g. a line's description: trimmed, at most `max`. */
+export function optionalText(max: number) {
+  return z
+    .string({ error: M.oneLine })
+    .nullish()
+    .transform((value) => blankToEmpty(value) || null)
+    .pipe(z.string().max(max, M.tooLong).refine(oneLine, M.oneLine).nullable());
+}
+
+/** An address she may leave blank (null): lines trimmed, Windows line ends normalised, at most `max`. */
+export function optionalAddress(max: number) {
+  return z
+    .string({ error: M.oneLine })
+    .nullish()
+    .transform((value) => normaliseAddress(value ?? "") || null)
+    .pipe(z.string().max(max, M.tooLong).refine((value) => !ADDRESS_BAD.test(value), M.oneLine).nullable());
+}
+
+/** An address she must give. */
+export function requiredAddress(max: number, missing: string) {
+  return z
+    .string({ error: missing })
+    .nullish()
+    .transform((value) => normaliseAddress(value ?? ""))
+    .pipe(z.string().min(1, missing).max(max, M.tooLong).refine((value) => !ADDRESS_BAD.test(value), M.oneLine));
+}
+
+const accountName = requiredName(text.accountNameMax, M.accountName);
+const tradingName = optionalName(text.tradingNameMax);
+const invoiceAddress = optionalAddress(text.addressMax);
 
 /** Her payment details as she types them (brief §0.1). Output is what the database stores. */
 export const paymentDetailsSchema = z.object({
