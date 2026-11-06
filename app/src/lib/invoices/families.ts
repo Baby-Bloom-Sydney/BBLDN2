@@ -6,21 +6,26 @@
  *   except the ones she dismissed (`[NANNY_DISMISSED]`, the `getNannyPlacements` rule in `position-funnel.ts`).
  * - **Trial Shift:** each of her connections with a trial date, at any stage (cancelled 50/51 after a worked trial
  *   included). A connection with no trial date and no placement is not listed.
- * - Each family shows the parent's name and the position's area (`suburb`, for every status). Pre-fill: the
- *   placement's hours and rate, or for a trial the position's rate; nothing here is capped or changed.
+ * - Each family shows the parent's name and the position's area (`suburb`, for every status).
+ * - **Pre-fill** (06b-2, plan 14.3; the rules are `prefill.ts`): shift rows for the chosen week from her usual days
+ *   (the position's schedule, else its days) with the placement's weekly hours split over them, or a Trial Shift's
+ *   one row; her rate from the placement, the position, then her profile (`nannies.hourly_rate_min`). Nothing here
+ *   is capped or changed: the form shows it and she edits it.
  * - Every read is the proof's nanny's; rows a query should never have returned are dropped again here. Reads are
  *   paged and chunked (`db.ts`). The database re-checks ownership when an invoice is created (amendment 21).
  *
- * Nothing is added to `position-funnel.ts` (brief §8). BB-wave1-041126/06a-build, 2026-11-04.
+ * Nothing is added to `position-funnel.ts` (brief §8). BB-wave1-041126/06a-build, 2026-11-04; 06b2-build, 2026-11-06.
  */
 
 import { z } from "zod";
+import { londonMondayOf, londonToday } from "@/lib/timezone";
 import { allPages, allPagesByIds, parseRows, readOne, serviceClient, type AdminClient } from "./db";
 import { nannyGate } from "./gate";
 import { poundsToPence } from "./money";
 import type { NannyProof } from "./nanny-proof";
+import { pickRate, trialPrefill, usualDays, weekPrefill, type Prefill } from "./prefill";
 import { FAILED, INVALID, INVOICE_KINDS, invoiceOk, refused, type InvoiceKind, type InvoiceResult } from "./types";
-import { isLondonDate } from "./week";
+import { isFutureLondonDate, isLondonDate, isLondonMonday } from "./week";
 
 export interface FamilyPlacement {
   readonly placementId: string;
@@ -55,7 +60,7 @@ export interface InvoiceTarget {
   readonly familyName: string;
   readonly familyEmailHint: string;
   readonly area: string | null;
-  readonly prefill: { readonly hours: number | null; readonly ratePence: number | null; readonly date: string | null };
+  readonly prefill: Prefill;
 }
 
 const DISMISSED = "[NANNY_DISMISSED]";
@@ -74,7 +79,11 @@ const parentRow = z.object({ id, user_id: id });
 const profileRow = z.object({ user_id: id, first_name: z.string(), last_name: z.string() });
 const contactRow = profileRow.extend({ email: z.string().min(1) });
 const positionRow = z.object({ id, suburb: z.string().nullable(), hourly_rate: numeric });
+const targetPositionRow = positionRow.extend({ days_required: z.array(z.string()).nullable() });
+const scheduleRow = z.object({ position_id: id, schedule: z.unknown() });
+const nannyRateRow = z.object({ id, hourly_rate_min: numeric });
 type PlacementRow = z.output<typeof placementRow>;
+type TargetPositionRow = z.output<typeof targetPositionRow>;
 type ConnectionRow = z.output<typeof connectionRow>;
 type PositionRow = z.output<typeof positionRow>;
 
@@ -183,8 +192,15 @@ export async function listInvoiceableFamilies(proof: NannyProof): Promise<Invoic
   return people.ok ? invoiceOk(groupFamilies(placements, trials, people.value)) : people;
 }
 
+interface Link {
+  readonly parentId: string;
+  readonly positionId: string | null;
+  readonly placement: PlacementRow | null;
+  readonly trialDate: string | null;
+}
+
 /** Her placement (not dismissed) or her trial connection (with a date): its family and position. */
-async function readLink(admin: AdminClient, kind: InvoiceKind, targetId: string, nannyId: string): Promise<InvoiceResult<{ parentId: string; positionId: string | null; placement: PlacementRow | null; trialDate: string | null }>> {
+async function readLink(admin: AdminClient, kind: InvoiceKind, targetId: string, nannyId: string): Promise<InvoiceResult<Link>> {
   if (kind === "regular_week") {
     const r = await readOne("families.placement", () =>
       admin.from("nanny_placements").select(PLACEMENT_COLUMNS).eq("id", targetId).eq("nanny_id", nannyId).maybeSingle(), placementRow);
@@ -200,15 +216,68 @@ async function readLink(admin: AdminClient, kind: InvoiceKind, targetId: string,
   return invoiceOk({ parentId: c.value.parent_id, positionId: c.value.position_id, placement: null, trialDate: c.value.trial_date });
 }
 
+interface PrefillRows {
+  readonly position: TargetPositionRow | null;
+  readonly schedule: unknown;
+  readonly profileRate: number | string | null;
+}
+
+/** The position (area, rate, days), its schedule and her profile rate: the pre-fill's two extra reads (14.6 b2.5). */
+async function readPrefillRows(admin: AdminClient, positionId: string | null, nannyId: string): Promise<InvoiceResult<PrefillRows>> {
+  const none = <T>() => Promise.resolve(invoiceOk<T | null>(null));
+  const [position, schedule, nanny] = await Promise.all([
+    positionId === null ? none<TargetPositionRow>() : readOne("families.position", () =>
+      admin.from("nanny_positions").select("id, suburb, hourly_rate, days_required").eq("id", positionId).maybeSingle(), targetPositionRow),
+    positionId === null ? none<z.output<typeof scheduleRow>>() : readOne("families.schedule", () =>
+      admin.from("position_schedule").select("position_id, schedule").eq("position_id", positionId).maybeSingle(), scheduleRow),
+    readOne("families.rate", () => admin.from("nannies").select("id, hourly_rate_min").eq("id", nannyId).maybeSingle(), nannyRateRow),
+  ]);
+  if (!position.ok) return position;
+  if (!schedule.ok) return schedule;
+  if (!nanny.ok) return nanny;
+  return invoiceOk({ position: position.value, schedule: schedule.value?.schedule ?? null, profileRate: nanny.value?.hourly_rate_min ?? null });
+}
+
+/** The form's starting rows and rate (14.3). */
+function buildPrefill(kind: InvoiceKind, link: Link, rows: PrefillRows, weekStart: string, now: Date): Prefill {
+  const rate = pickRate(kind, { placement: link.placement?.hourly_rate ?? null, position: rows.position?.hourly_rate ?? null, profile: rows.profileRate });
+  const shifts = kind === "trial_shift" && link.trialDate !== null
+    ? trialPrefill(link.trialDate, rate.ratePence)
+    : weekPrefill({
+        weekStart,
+        days: usualDays(rows.schedule, rows.position?.days_required ?? null),
+        weeklyHours: hoursOf(link.placement?.weekly_hours ?? null),
+        ratePence: rate.ratePence,
+        now,
+      });
+  return { shifts, ...rate };
+}
+
+/** The week a Regular week's rows fill: the one given (a London Monday, not future) or, by default, this week. */
+function weekFor(weekStart: string | null, now: Date): InvoiceResult<string> {
+  const week = weekStart ?? londonMondayOf(londonToday(now));
+  if (!isLondonMonday(week)) return INVALID;
+  return isFutureLondonDate(week, now) ? refused("future") : invoiceOk(week);
+}
+
 /**
- * Check one target is hers and resolve its family (plan step 7's `assertFamilyIsHers`) for the review screen. The
- * database applies the same rules again, under her lock, when it creates the invoice (ownership, a dismissed
- * placement, a trial's date), so a caller that skipped this can't get past them.
+ * Check one target is hers and resolve its family (plan step 7's `assertFamilyIsHers`) for the review screen, with the
+ * form's pre-fill for `weekStart` (a Regular week; default this London week) or the trial date. The database applies
+ * the ownership rules again, under her lock, when it creates the invoice (a dismissed placement, a trial's date), so a
+ * caller that skipped this can't get past them.
  */
-export async function resolveInvoiceTarget(proof: NannyProof, kind: InvoiceKind, targetId: string): Promise<InvoiceResult<InvoiceTarget>> {
+export async function resolveInvoiceTarget(
+  proof: NannyProof,
+  kind: InvoiceKind,
+  targetId: string,
+  weekStart: string | null = null,
+  now: Date = new Date(),
+): Promise<InvoiceResult<InvoiceTarget>> {
   const refusal = nannyGate(proof);
   if (refusal) return refusal;
   if (!INVOICE_KINDS.includes(kind) || !z.guid().safeParse(targetId).success) return INVALID;
+  const week = weekFor(weekStart, now);
+  if (kind === "regular_week" && !week.ok) return week;
   const admin = serviceClient();
   if (!admin) return FAILED;
   const link = await readLink(admin, kind, targetId, proof.nannyId);
@@ -217,25 +286,20 @@ export async function resolveInvoiceTarget(proof: NannyProof, kind: InvoiceKind,
   if (!parent.ok) return parent;
   if (parent.value === null) return refused("not_hers");
   const userId = parent.value.user_id;
-  const [contact, position] = await Promise.all([
+  const [contact, rows] = await Promise.all([
     readOne("families.contact", () => admin.from("user_profiles").select("user_id, first_name, last_name, email").eq("user_id", userId).maybeSingle(), contactRow),
-    link.value.positionId === null
-      ? Promise.resolve(invoiceOk<PositionRow | null>(null))
-      : readOne("families.position", () => admin.from("nanny_positions").select("id, suburb, hourly_rate").eq("id", link.value.positionId).maybeSingle(), positionRow),
+    readPrefillRows(admin, link.value.positionId, proof.nannyId),
   ]);
   if (!contact.ok) return contact;
-  if (!position.ok) return position;
+  if (!rows.ok) return rows;
   if (contact.value === null || fullName(contact.value) === "") return refused("no_contact");
-  const placement = link.value.placement;
   return invoiceOk({
     kind,
     targetId,
     parentUserId: userId,
     familyName: fullName(contact.value),
     familyEmailHint: emailHint(contact.value.email),
-    area: position.value?.suburb ?? null,
-    prefill: placement
-      ? { hours: hoursOf(placement.weekly_hours), ratePence: poundsToPence(placement.hourly_rate), date: null }
-      : { hours: null, ratePence: poundsToPence(position.value?.hourly_rate ?? null), date: link.value.trialDate },
+    area: rows.value.position?.suburb ?? null,
+    prefill: buildPrefill(kind, link.value, rows.value, week.ok ? week.value : londonMondayOf(londonToday(now)), now),
   });
 }
