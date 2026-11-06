@@ -8,7 +8,7 @@
  * Everything a nanny or family typed prints in the Unicode font (`font.ts`, plan R7, the page's default); only
  * ASCII labels use the built-in Helvetica Bold.
  *
- * BB-wave1-041126/06b-1, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
+ * BB-wave1-041126/06b-1, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126 (three-column parties), 2026-11-07.
  */
 
 import { StyleSheet } from "@react-pdf/renderer";
@@ -65,8 +65,11 @@ export const styles = StyleSheet.create({
   label: { fontSize: 7.5, color: COLOUR.muted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 5 },
   parties: { flexDirection: "row", marginBottom: 22 },
   party: { flex: 1, paddingRight: 16 },
+  // Bill to, the last of three columns (BAI 2026-11-07): wider, so a 38-character email stays on one line
+  billTo: { flex: 1.4, paddingRight: 0 },
   partyName: { fontSize: 12, color: COLOUR.ink, marginBottom: 4 },
   partyLine: { color: COLOUR.text, marginBottom: 3 },
+  businessLine: { fontSize: 8.5, color: COLOUR.muted, marginBottom: 2.5 },
   section: { marginBottom: 14 },
   sectionTitle: { fontSize: 10.5, color: COLOUR.ink, marginBottom: 6 },
   headRow: { flexDirection: "row", backgroundColor: COLOUR.panel, borderRadius: 6, paddingTop: 7, paddingBottom: 2, paddingHorizontal: 10 },

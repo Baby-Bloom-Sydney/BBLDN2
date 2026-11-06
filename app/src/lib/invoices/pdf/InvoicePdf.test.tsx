@@ -6,6 +6,8 @@
  * different rates); the expenses (type, description, amount); childcare, expenses, VAT per mode, total; pay to.
  * The look (BAI 2026-11-04, 06b-1): the website header's wordmark heads an opaque white page; the nanny stays the
  * issuer — those tests are kept exactly as 06b-1 wrote them (the last describe).
+ * The parties block (BAI 2026-11-07): From | Business | Bill to; the business details smaller and slate in the middle;
+ * a limited company's registered office is the one address under her name.
  * BB-wave1-041126/06a-build, 2026-11-04; 06b-1, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
  */
 import { readFileSync } from "node:fs";
@@ -16,7 +18,7 @@ import { isValidElement, type ReactNode } from "react";
 import { SITE_NAME } from "@/lib/constants";
 import { InvoicePdf } from "./InvoicePdf";
 import { formatVatNumber } from "./sections/issuer";
-import { wholeUnlessLong } from "./theme";
+import { COLOUR, wholeUnlessLong } from "./theme";
 import { vatRateLabel } from "./sections/totals";
 import {
   CORRECTION_INVOICE,
@@ -153,25 +155,69 @@ describe("InvoicePdf — VAT per mode (14.5, 14.8)", () => {
 });
 
 describe("InvoicePdf — the issuer by business type (§0a D, 14.8)", () => {
-  it("a limited company: trading name, her name, address, company name, number, registered office, VAT number", () => {
+  it("a limited company: From is her name and the registered office, never a second address (BAI 2026-11-07)", () => {
     const lines = linesOf(InvoicePdf(LTD_VAT_ADDED));
-    expect(between(lines, "From", "Bill to")).toEqual([
-      "From", "Taylor Childcare", "Sophie Taylor", "1 Upper Street\nLondon N1 0AA", "Taylor Childcare Ltd", "Company no. 12345678",
-      "Registered office: 20 Market Road\nLondon N7 9PW", "VAT no. GB 123 4567 89",
+    expect(between(lines, "From", "Business")).toEqual(["From", "Sophie Taylor", "20 Market Road\nLondon N7 9PW"]);
+    expect(lines.join("\n")).not.toContain("1 Upper Street");
+    expect(lines.join("\n")).not.toContain("Registered office");
+  });
+
+  it("a limited company: the Business column has the trading name, company name and number, and the VAT number", () => {
+    const lines = linesOf(InvoicePdf(LTD_VAT_ADDED));
+    expect(between(lines, "Business", "Bill to")).toEqual([
+      "Business", "Taylor Childcare", "Taylor Childcare Ltd", "Company no. 12345678", "VAT no. GB 123 4567 89",
     ]);
   });
 
-  it("a partnership: its trading name, her name, address and the partnership's name", () => {
-    const lines = linesOf(InvoicePdf(PARTNERSHIP_INVOICE));
-    expect(between(lines, "From", "Bill to")).toEqual(["From", "Taylor & Shah", "Sophie Taylor", "1 Upper Street\nLondon N1 0AA", "Taylor & Shah Childcare"]);
+  it("a limited company with no registered office yet prints the business address", () => {
+    const data = { ...LTD_VAT_ADDED, issuer: { ...LTD_VAT_ADDED.issuer, registeredOffice: null } };
+    expect(between(linesOf(InvoicePdf(data)), "From", "Business")).toEqual(["From", "Sophie Taylor", "1 Upper Street\nLondon N1 0AA"]);
   });
 
-  it("a sole trader registered for VAT (a 12-digit number); a partnership with no expenses has no expenses table or row", () => {
+  it("a partnership: her name and address; its trading name and the partnership's name under Business", () => {
+    const lines = linesOf(InvoicePdf(PARTNERSHIP_INVOICE));
+    expect(between(lines, "From", "Business")).toEqual(["From", "Sophie Taylor", "1 Upper Street\nLondon N1 0AA"]);
+    expect(between(lines, "Business", "Bill to")).toEqual(["Business", "Taylor & Shah", "Taylor & Shah Childcare"]);
+  });
+
+  it("a sole trader registered for VAT (a 12-digit number) shows it under Business; a partnership with no expenses has no expenses table or row", () => {
     const included = linesOf(InvoicePdf(VAT_INCLUDED));
-    expect(between(included, "From", "Bill to")).toContain("VAT no. GB 123 4567 89 012");
+    expect(between(included, "From", "Business")).toEqual(["From", "Sophie Taylor", "1 Upper Street\nLondon N1 0AA"]);
+    expect(between(included, "Business", "Bill to")).toEqual(["Business", "VAT no. GB 123 4567 89 012"]);
     const partnership = linesOf(InvoicePdf(PARTNERSHIP_INVOICE));
     expect(partnership).not.toContain("Expenses");
     expect(partnership).toEqual(expect.arrayContaining(["Mon 8 Feb", "8.75", "£18.00", "£157.50"]));
+  });
+
+  it("a sole trader with no business details has no Business column text, and its trading name equal to her name prints once", () => {
+    const lines = linesOf(InvoicePdf(HARTLEY_INVOICE));
+    expect(lines).not.toContain("Business");
+    expect(lines.filter((l) => l === "Sophie Taylor")).toHaveLength(2); // From, and the Pay to account name
+  });
+
+  it("three columns, always: From, Business (kept empty when there is nothing to show, so Bill to never moves), Bill to the widest", () => {
+    for (const data of [HARTLEY_INVOICE, LTD_VAT_ADDED]) {
+      const block = elementsOf(InvoicePdf(data)).find((e) => e.type === View && linesOf(e.props.children)[0] === "From" && linesOf(e.props.children).includes("Bill to"));
+      const columns = (Array.isArray(block?.props.children) ? block.props.children : []).filter(isValidElement) as unknown as Found[];
+      expect(columns).toHaveLength(3);
+      const [from, business, billTo] = columns.map((c) => flat(c.props.style));
+      expect(from.flex).toBe(business.flex);
+      expect(Number(billTo.flex)).toBeGreaterThan(Number(from.flex));
+      expect(billTo.paddingRight ?? 0).toBe(0);
+    }
+  });
+
+  it("prints the business details smaller than her details, in slate (BAI 2026-11-07: \"smaller, in a fainter colour like our slate grey\")", () => {
+    const elements = elementsOf(InvoicePdf(LTD_VAT_ADDED));
+    const textOf = (e: Found) => linesOf(e.props.children).join("");
+    const styleOf = (line: string) => flat(elements.find((e) => e.type === Text && textOf(e) === line)?.props.style);
+    const from = styleOf("20 Market Road\nLondon N7 9PW");
+    for (const line of ["Taylor Childcare", "Taylor Childcare Ltd", "Company no. 12345678", "VAT no. GB 123 4567 89"]) {
+      const style = styleOf(line);
+      expect(style.color).toBe(COLOUR.muted);
+      expect(Number(style.fontSize)).toBeLessThan(10); // the page's 10 pt, which her address prints at
+    }
+    expect(from.fontSize ?? 10).toBe(10);
   });
 
   it("formats VAT numbers in their printed groups, and rates as a percent", () => {
@@ -183,11 +229,11 @@ describe("InvoicePdf — the issuer by business type (§0a D, 14.8)", () => {
 });
 
 describe("InvoicePdf — corrections, Trial Shifts and the most lines", () => {
-  it("a correction prints its own number, 'Replaces <number>' and her trading name above her name, accents exact (R7)", () => {
+  it("a correction prints its own number, 'Replaces <number>', and her trading name under Business, accents exact (R7)", () => {
     const correction = linesOf(InvoicePdf(CORRECTION_INVOICE));
     expect(correction).toContain("BB-LucjaWisniewska-270215-0003");
     expect(correction).toContain("Replaces BB-LucjaWisniewska-270212-0001");
-    expect(between(correction, "From", "Bill to")).toEqual(["From", "Zoë Ó Briain Childcare", "Łucja Wiśniewska", "22 Mare Street\nLondon E8 1HY"]);
+    expect(between(correction, "From", "Bill to")).toEqual(["From", "Łucja Wiśniewska", "22 Mare Street\nLondon E8 1HY", "Business", "Zoë Ó Briain Childcare"]);
     expect(correction).toEqual(expect.arrayContaining(["Kateřina Dvořák", "Café, then Łazienki-style park walk", "£252.00"]));
   });
 

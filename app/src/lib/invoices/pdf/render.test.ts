@@ -60,12 +60,13 @@ describe("renderInvoicePdf", () => {
     expect(bytes.toString("latin1")).toContain("/BaseFont /Helvetica-Bold");
   }, 30_000);
 
-  it("a limited company with VAT added: its company lines, VAT at 20% and the higher total", async () => {
+  it("a limited company with VAT added: its company lines, the registered office as the one address, VAT at 20% and the higher total", async () => {
     const { text } = await rendered(LTD_VAT_ADDED);
-    for (const s of ["Taylor Childcare Ltd", "Company no. 12345678", "Registered office: 20 Market Road", "VAT no. GB 123 4567 89",
+    for (const s of ["Taylor Childcare Ltd", "Company no. 12345678", "20 Market Road", "VAT no. GB 123 4567 89",
       "VAT at 20%", "£116.80", "£713.30"]) {
       expect(text).toContain(s);
     }
+    for (const s of ["Registered office", "1 Upper Street"]) expect(text).not.toContain(s); // BAI 2026-11-07
   }, 30_000);
 
   it("VAT included: the childcare including VAT, of which VAT at 20%", async () => {
