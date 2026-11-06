@@ -22,6 +22,7 @@ import { INVOICE_RULES } from "@/config/invoices";
 import { addLondonDays } from "@/lib/timezone";
 import { poundsToPence } from "./money";
 import type { StoredLine } from "./store-map-lines";
+import { QUARTERS_PER_HOUR } from "./totals";
 import type { ExpenseType, InvoiceKind } from "./types";
 import { isFutureLondonDate, isLondonMonday } from "./week";
 
@@ -47,11 +48,12 @@ export interface Prefill {
   readonly rateSource: RateSource | null;
 }
 
-const QUARTERS_PER_HOUR = Math.round(1 / INVOICE_RULES.hourStep);
 const MAX_DAY_QUARTERS = INVOICE_RULES.maxShiftHours * QUARTERS_PER_HOUR;
-/** Monday-first weekday names, as their first three letters (`buildScheduleJson` keys; `days_required` values). */
-const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
-const DAY_NAME = /^(mon|tue|wed|thu|fri|sat|sun)[a-z]*$/;
+/** Monday-first weekday names, full or short (`buildScheduleJson` keys; `days_required` values), any case. */
+const WEEKDAYS: readonly (readonly string[])[] = [
+  ["monday", "mon"], ["tuesday", "tue", "tues"], ["wednesday", "wed"], ["thursday", "thu", "thur", "thurs"],
+  ["friday", "fri"], ["saturday", "sat"], ["sunday", "sun"],
+];
 
 /** The rate for every new shift row, and where it came from (14.3). The inputs are pounds as the rows hold them. */
 export function pickRate(
@@ -59,17 +61,20 @@ export function pickRate(
   rates: { readonly placement?: unknown; readonly position?: unknown; readonly profile?: unknown },
 ): { readonly ratePence: number | null; readonly rateSource: RateSource | null } {
   const order: readonly RateSource[] = kind === "regular_week" ? ["placement", "position", "profile"] : ["position", "profile"];
+  const { min, max } = INVOICE_RULES.ratePence;
   for (const source of order) {
     const pence = poundsToPence(rates[source]);
-    if (pence !== null) return { ratePence: pence, rateSource: source };
+    // a rate the form would refuse (under a penny, over the typo ceiling) is skipped like a missing one
+    if (pence !== null && pence >= min && pence <= max) return { ratePence: pence, rateSource: source };
   }
   return { ratePence: null, rateSource: null };
 }
 
-/** "Monday", "mon", "THU" → 0…6; anything else → null. */
+/** "Monday", "mon", "THU" → 0…6; anything else ("month", "sunshine") → null. */
 function weekdayOf(name: string): number | null {
-  const m = DAY_NAME.exec(name.trim().toLowerCase());
-  return m ? WEEKDAYS.indexOf(m[1] as (typeof WEEKDAYS)[number]) : null;
+  const key = name.trim().toLowerCase();
+  const day = WEEKDAYS.findIndex((names) => names.includes(key));
+  return day === -1 ? null : day;
 }
 
 const toSorted = (days: Iterable<number>): readonly number[] => [...new Set(days)].sort((a, b) => a - b);
@@ -78,7 +83,7 @@ const toSorted = (days: Iterable<number>): readonly number[] => [...new Set(days
 export function usualDays(schedule: unknown, daysRequired: readonly string[] | null): readonly number[] {
   const fromSchedule =
     typeof schedule === "object" && schedule !== null && !Array.isArray(schedule)
-      ? Object.entries(schedule).flatMap(([day, times]) => {
+      ? Object.entries(schedule as Record<string, unknown>).flatMap(([day, times]) => {
           const d = Array.isArray(times) && times.length > 0 ? weekdayOf(day) : null;
           return d === null ? [] : [d];
         })

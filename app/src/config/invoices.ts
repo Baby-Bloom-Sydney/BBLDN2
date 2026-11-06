@@ -16,8 +16,8 @@ export const INVOICE_RULES = Object.freeze({
   dailySendCap: 10, // brief §11 Q11: invoices one nanny can send in a London day (anti-spam)
   ratePence: Object.freeze({ min: 1, max: 25_000 } as const), // 14.3: catches pence typed as pounds ("1800" → £1,800 an hour)
   expensePence: Object.freeze({ min: 1, max: 100_000 } as const), // 14.3: catches pence typed as pounds on a receipt
-  maxShiftLines: 28, // 14.3: four shifts a day for seven days; keeps the PDF to two pages
-  maxExpenseLines: 20, // 14.3: a week's receipts; keeps the PDF to two pages
+  maxShiftLines: 28, // 14.3: four shifts a day for seven days; two PDF pages with one-line descriptions
+  maxExpenseLines: 20, // 14.3: a week's receipts; long descriptions may add a page, never split a row
   vatRateBp: Object.freeze({ default: 2_000, min: 1, max: 2_000 } as const), // §0a B: 20% unless she changes it; none is above 20%
   pdfLinkSeconds: 60, // plan §9 surface 6: a signed PDF link lives this long
   numberPrefix: "BB", // BAI 2026-11-04: BB-<NannyName>-<YYMMDD>-<Number>, e.g. BB-SophieTaylor-270215-0001
@@ -26,7 +26,7 @@ export const INVOICE_RULES = Object.freeze({
   numberNameFallback: "Nanny", // BAI 2026-11-04: when no letter is left
   numberMaxLength: 52, // amendment 21's CHECK on nanny_invoices.invoice_number
   staleSendingMinutes: 10, // plan R1: a row still sending after this long shows as failed
-  // plan §4, §9 surface 5, 14.3: a description fits one PDF row; Companies House names run to 160 characters
+  // plan §4, §9 surface 5, 14.3: a description fits one table row (it wraps); Companies House names run to 160 characters
   text: Object.freeze({
     accountNameMax: 70,
     tradingNameMax: 70,
@@ -34,6 +34,7 @@ export const INVOICE_RULES = Object.freeze({
     descriptionMax: 120,
     companyNameMax: 160,
     partnershipNameMax: 160,
+    addressMaxLines: 6, // security review L3: an address is a few lines, never a page of blank ones
   } as const),
 } as const);
 
@@ -42,6 +43,8 @@ export const NO_PENCE = 0;
 
 /** 100% in basis points (14.3): a VAT rate is stored and computed in basis points, 2000 = 20%. */
 export const BASIS_POINTS = 10_000;
+/** Basis points in one percent: a typed "17.5" is 1,750 bp, and 2,000 bp prints as "20%". */
+export const BASIS_POINTS_PER_PERCENT = 100;
 
 /** The expense types an invoice line can carry, in the form's order, with their labels (brief §0a A). */
 export const EXPENSE_TYPES = Object.freeze({

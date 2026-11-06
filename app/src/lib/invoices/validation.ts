@@ -26,24 +26,47 @@ export const VALIDATION_MESSAGES = Object.freeze({
   tooLong: "That's too long — please shorten it",
   oneLine: "Use plain text, without special characters",
   ownName: `Use your own name or business name — ${SITE_NAME} can't be the one paid`,
+  tooManyLines: `Use at most ${text.addressMaxLines} lines`,
   invalid: "Something's missing — please start again",
 } as const);
 const M = VALIDATION_MESSAGES;
 
 /**
- * Control, format (zero-width, bidi overrides and isolates, soft hyphen), private-use and unassigned characters and
- * the line/paragraph separators — `\p{C}`, `\p{Zl}`, `\p{Zp}`: none in a one-line field; an address keeps only its
- * line breaks (\n). These print on a BabyBloom-sent PDF (security review L8, N1). Known limit: ZWNJ / ZWJ, which
- * some scripts use in names, are refused too (the database refuses the same).
+ * Control, format (zero-width, bidi overrides and isolates, soft hyphen, tags), private-use and unassigned characters,
+ * the line/paragraph separators, every default-ignorable character (Hangul fillers, variation selectors, the grapheme
+ * joiner) and the braille blank — `\p{C}`, `\p{Zl}`, `\p{Zp}`, `\p{Default_Ignorable_Code_Point}`, U+2800: none in a
+ * one-line field; an address keeps only its line breaks (\n). These print on a BabyBloom-sent PDF (security review
+ * L8, N1; 06b-2 review L2). Known limit: ZWNJ / ZWJ, which some scripts use in names, are refused too (the database
+ * refuses the same: amendment 21's `nanny_invoice_text_ok`).
  */
-export const ONE_LINE_BAD = /[\p{C}\p{Zl}\p{Zp}]/u;
-export const ADDRESS_BAD = /(?!\n)[\p{C}\p{Zl}\p{Zp}]/u;
-const BABY_BLOOM = /baby\s*bloom/i;
+export const ONE_LINE_BAD = /[\p{C}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}\u2800]/u;
+export const ADDRESS_BAD = /(?!\n)[\p{C}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}\u2800]/u;
 
-/** Tested after NFKC, which folds full-width and other look-alike letters to plain ones (plan R8). */
+/** Cyrillic and Greek letters that look like Latin ones, and digits and symbols typed for letters (R8's skeleton). */
+const LOOK_ALIKES: Readonly<Record<string, string>> = Object.freeze({
+  "\u0430": "a", "\u0432": "b", "\u0435": "e", "\u043a": "k", "\u043c": "m", "\u043d": "h", "\u043e": "o", "\u0440": "p",
+  "\u0441": "c", "\u0442": "t", "\u0443": "y", "\u0445": "x", "\u044c": "b", "\u0455": "s", "\u0456": "i", "\u0458": "j",
+  "\u0501": "d", "\u04af": "y", "\u04cf": "l", "\u03b1": "a", "\u03b2": "b", "\u03b3": "y", "\u03b5": "e", "\u03b9": "i",
+  "\u03ba": "k", "\u03bd": "v", "\u03bf": "o", "\u03c1": "p", "\u03c3": "o", "\u03c4": "t", "\u03c5": "y", "\u03c7": "x",
+  "0": "o", "1": "l", "3": "e", "4": "a", "5": "s", "6": "b", "8": "b", "@": "a", "|": "l", "!": "l", "$": "s",
+});
+const BABY_BLOOM = "babybloom";
+
+/**
+ * What a reader sees: compatibility forms folded (full-width), marks dropped, lower case, look-alikes mapped, and
+ * everything that isn't a Latin letter or digit removed — the same steps as amendment 21's `nanny_invoice_text_ok`.
+ */
+export function readsAs(value: string): string {
+  return [...value.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase()]
+    .map((c) => LOOK_ALIKES[c] ?? c)
+    .join("")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+/** BabyBloom is never a party on her invoice, however it's spelled (plan R8; security review M1). */
 export const isNotBabyBloom = (value: string): boolean => {
-  const folded = value.normalize("NFKC");
-  return !BABY_BLOOM.test(folded) && !folded.toLowerCase().includes(SITE_NAME.toLowerCase());
+  const seen = readsAs(value);
+  return !seen.includes(BABY_BLOOM) && !seen.includes(readsAs(SITE_NAME));
 };
 
 /** UK bank digits: spaces and hyphens stripped, then exactly `count` digits. */
@@ -53,13 +76,17 @@ const bankDigits = (count: number, message: string) =>
     .transform((value) => value.replace(/[\s-]/g, ""))
     .pipe(z.string().regex(new RegExp(`^\\d{${count}}$`), message));
 
+/** Windows line ends normalised, each line trimmed, blank lines dropped (security review L3). */
 export const normaliseAddress = (value: string): string =>
   value
     .replace(/\r\n?/g, "\n")
     .split("\n")
     .map((line) => line.trim())
-    .join("\n")
-    .trim();
+    .filter((line) => line !== "")
+    .join("\n");
+
+const fewLines = (value: string): boolean => value.split("\n").length <= text.addressMaxLines;
+const addressOk = (value: string): boolean => !ADDRESS_BAD.test(value);
 
 const blankToEmpty = (value: string | null | undefined): string => (value ?? "").trim();
 const oneLine = (value: string): boolean => !ONE_LINE_BAD.test(value);
@@ -82,22 +109,24 @@ export function optionalName(max: number) {
     .pipe(z.string().max(max, M.tooLong).refine(oneLine, M.oneLine).refine(isNotBabyBloom, M.ownName).nullable());
 }
 
-/** One line of plain text she may leave blank (null), e.g. a line's description: trimmed, at most `max`. */
+/** One line of plain text she may leave blank (null), e.g. a line's description: trimmed, at most `max`, and — as
+ * everything on her PDF — never naming BabyBloom (security review M2). */
 export function optionalText(max: number) {
   return z
     .string({ error: M.oneLine })
     .nullish()
     .transform((value) => blankToEmpty(value) || null)
-    .pipe(z.string().max(max, M.tooLong).refine(oneLine, M.oneLine).nullable());
+    .pipe(z.string().max(max, M.tooLong).refine(oneLine, M.oneLine).refine(isNotBabyBloom, M.ownName).nullable());
 }
 
-/** An address she may leave blank (null): lines trimmed, Windows line ends normalised, at most `max`. */
+/** An address she may leave blank (null): lines trimmed, blank lines dropped, at most `max` and 6 lines. */
 export function optionalAddress(max: number) {
   return z
     .string({ error: M.oneLine })
     .nullish()
     .transform((value) => normaliseAddress(value ?? "") || null)
-    .pipe(z.string().max(max, M.tooLong).refine((value) => !ADDRESS_BAD.test(value), M.oneLine).nullable());
+    .pipe(z.string().max(max, M.tooLong).refine(fewLines, M.tooManyLines).refine(addressOk, M.oneLine)
+      .refine(isNotBabyBloom, M.ownName).nullable());
 }
 
 /** An address she must give. */
@@ -106,7 +135,8 @@ export function requiredAddress(max: number, missing: string) {
     .string({ error: missing })
     .nullish()
     .transform((value) => normaliseAddress(value ?? ""))
-    .pipe(z.string().min(1, missing).max(max, M.tooLong).refine((value) => !ADDRESS_BAD.test(value), M.oneLine));
+    .pipe(z.string().min(1, missing).max(max, M.tooLong).refine(fewLines, M.tooManyLines).refine(addressOk, M.oneLine)
+      .refine(isNotBabyBloom, M.ownName));
 }
 
 const accountName = requiredName(text.accountNameMax, M.accountName);

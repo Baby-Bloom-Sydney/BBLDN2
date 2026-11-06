@@ -34,8 +34,19 @@ export const BOLD = { fontFamily: "Helvetica", fontWeight: "bold" } as const;
 /** The wordmark's size; the halves sit a fifth of it apart, as `gap-1` does at `text-xl` in the site header. */
 export const WORDMARK_SIZE = 22;
 
-/** Names, emails and numbers never break with a hyphen. */
+/** Emails and the invoice number never break with a hyphen. */
 export const keepWhole = (word: string): string[] => [word];
+
+/** The longest word kept whole: a longer one can't fit the narrowest column a name prints in (the pay-to value). */
+const LONG_WORD = 18;
+
+/**
+ * Names keep their words whole (no "Soph-ie"), except a word too long for its column, which textkit's own hyphenation
+ * may break — a hyphen is better than a name running out of its box over the totals (review React M3). textkit passes
+ * its hyphenator as the second argument (`@react-pdf/textkit` `hyphenate(word, builtinHyphenate)`).
+ */
+export const wholeUnlessLong = (word: string, hyphenate?: (word: string) => string[]): string[] =>
+  word.length > LONG_WORD && hyphenate ? hyphenate(word) : [word];
 
 export const styles = StyleSheet.create({
   page: { paddingTop: 52, paddingHorizontal: 48, paddingBottom: 72, backgroundColor: COLOUR.white, fontFamily: INVOICE_FONT_FAMILY, fontSize: 10, color: COLOUR.text },
@@ -68,7 +79,7 @@ export const styles = StyleSheet.create({
   cellAmount: { width: 66, textAlign: "right" },
   // the closing block: the totals on the right (under the amounts), her bank details beside them, kept whole together
   closing: { flexDirection: "row-reverse", alignItems: "flex-start", marginTop: 6 },
-  totals: { width: 240, marginRight: 10 },
+  totals: { width: 230, marginRight: 10 },
   totalsRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
   totalsLabel: { color: COLOUR.muted },
   totalsValue: { color: COLOUR.ink },
@@ -77,7 +88,7 @@ export const styles = StyleSheet.create({
   total: { ...BOLD, fontSize: 16, color: COLOUR.ink },
   payTo: { flex: 1, marginRight: 24, paddingVertical: 12, paddingHorizontal: 16, backgroundColor: COLOUR.panel, borderLeft: `3 solid ${COLOUR.violet}`, borderRadius: 4 },
   payRow: { flexDirection: "row", marginBottom: 4 },
-  payLabel: { width: 120, color: COLOUR.muted },
+  payLabel: { width: 86, color: COLOUR.muted }, // "Account number" is the longest label (review React M3)
   payValue: { flex: 1, color: COLOUR.ink }, // a long account name wraps inside the box
   footer: { position: "absolute", bottom: 32, left: 48, right: 48, paddingTop: 10, borderTop: `1 solid ${COLOUR.rule}`, fontSize: 8, color: COLOUR.faint, textAlign: "center" },
 });

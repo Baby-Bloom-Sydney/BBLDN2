@@ -18,13 +18,12 @@
 import { z } from "zod";
 import { INVOICE_RULES } from "@/config/invoices";
 import { formatInvoiceMoney } from "./money";
-import { toQuarters } from "./totals";
+import { QUARTERS_PER_HOUR, toQuarters } from "./totals";
 import { EXPENSE_TYPE_KEYS, INVOICE_KINDS } from "./types";
 import { optionalText, VALIDATION_MESSAGES } from "./validation";
 import { isFutureLondonDate, isLondonDate, isLondonMonday, weekEndOf } from "./week";
 
-const { maxShiftHours, ratePence, expensePence, maxShiftLines, maxExpenseLines, hourStep, text } = INVOICE_RULES;
-const QUARTERS_PER_HOUR = Math.round(1 / hourStep);
+const { maxShiftHours, ratePence, expensePence, maxShiftLines, maxExpenseLines, text } = INVOICE_RULES;
 
 export const LINE_MESSAGES = Object.freeze({
   kind: "Choose Regular week or Trial Shift",
@@ -45,6 +44,7 @@ export const LINE_MESSAGES = Object.freeze({
   noShift: "Add at least one shift",
   tooManyShifts: `An invoice can have at most ${maxShiftLines} shifts`,
   tooManyExpenses: `An invoice can have at most ${maxExpenseLines} expenses`,
+  tooManyLines: `An invoice can have at most ${maxShiftLines + maxExpenseLines} lines`,
   tooLong: VALIDATION_MESSAGES.tooLong,
   oneLine: VALIDATION_MESSAGES.oneLine,
 } as const);
@@ -61,12 +61,22 @@ function quartersOf(hours: number): number | null {
 
 const description = optionalText(text.descriptionMax);
 
+/** The issue code a refusal carries, so callers read a code, never a message's wording (review TS L10). */
+export const FUTURE_ISSUE = "future";
+
+/** Positive quarter hours up to 24, as the exact quarter (0.1 + 0.15 → 0.25); one message per mistake. */
 const hours = z
   .number({ error: M.hours })
-  .positive(M.hours)
-  .max(maxShiftHours, M.shiftHoursMax)
-  .refine((value) => quartersOf(value) !== null, M.hourStep)
-  .transform((value) => (quartersOf(value) ?? 0) / QUARTERS_PER_HOUR);
+  .positive({ error: M.hours, abort: true })
+  .max(maxShiftHours, { error: M.shiftHoursMax, abort: true })
+  .transform((value, ctx) => {
+    const quarters = quartersOf(value);
+    if (quarters === null) {
+      ctx.addIssue({ code: "custom", message: M.hourStep });
+      return z.NEVER;
+    }
+    return quarters / QUARTERS_PER_HOUR;
+  });
 
 export const shiftLineSchema = z.object({
   kind: z.literal("shift"),
@@ -97,7 +107,7 @@ interface DraftShape {
 }
 
 function issue(ctx: Ctx, path: (string | number)[], message: string): void {
-  ctx.addIssue({ code: "custom", path, message });
+  ctx.addIssue({ code: "custom", path, message, ...(message === M.future ? { params: { issue: FUTURE_ISSUE } } : {}) });
 }
 
 /** The counts: at least one shift, at most 28 shifts and 20 expenses. */
@@ -135,11 +145,13 @@ export function invoiceDraftSchema(now: Date) {
       invoiceId: z.guid({ error: M.invalid }),
       kind: z.enum(INVOICE_KINDS, { error: M.kind }),
       targetId: z.guid({ error: M.family }),
-      periodStart: z.string({ error: M.date }).refine(isLondonDate, M.date),
-      lines: z.array(invoiceLineSchema, { error: M.noShift }).max(maxShiftLines + maxExpenseLines, M.tooManyShifts),
+      periodStart: z.string({ error: M.date }).refine(isLondonDate, { error: M.date, abort: true }),
+      lines: z.array(invoiceLineSchema, { error: M.noShift }).max(maxShiftLines + maxExpenseLines, M.tooManyLines),
       replacesInvoiceId: z.guid({ error: M.invalid }).nullable(),
     })
     .superRefine((draft, ctx) => {
+      // zod still runs this when a field failed: a period that isn't a date has its issue already (review TS H1)
+      if (!isLondonDate(draft.periodStart)) return;
       if (draft.kind === "regular_week" && !isLondonMonday(draft.periodStart)) issue(ctx, ["periodStart"], M.monday);
       if (isFutureLondonDate(draft.periodStart, now)) issue(ctx, ["periodStart"], M.future);
       checkCounts(draft.lines, ctx);

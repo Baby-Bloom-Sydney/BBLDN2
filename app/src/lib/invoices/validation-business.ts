@@ -17,12 +17,11 @@
  */
 
 import { z } from "zod";
-import { INVOICE_RULES } from "@/config/invoices";
+import { BASIS_POINTS_PER_PERCENT, INVOICE_RULES } from "@/config/invoices";
 import { VAT_MODES, type BusinessType, type VatMode } from "./types";
 import { optionalAddress, optionalName, requiredAddress, requiredName } from "./validation";
 
 const { text, vatRateBp } = INVOICE_RULES;
-const PERCENT_TO_BP = 100;
 
 export const BUSINESS_MESSAGES = Object.freeze({
   businessType: "Choose sole trader, limited company or partnership",
@@ -32,7 +31,7 @@ export const BUSINESS_MESSAGES = Object.freeze({
   partnershipName: "Enter the partnership's name",
   vatMode: "Choose whether VAT is included in your rates or added on top",
   vatNumber: "Enter a UK VAT number, like GB 123 4567 89",
-  vatRate: `Enter a VAT rate above 0% and up to ${vatRateBp.max / PERCENT_TO_BP}%, with at most 2 decimal places`,
+  vatRate: `Enter a VAT rate above 0% and up to ${vatRateBp.max / BASIS_POINTS_PER_PERCENT}%, with at most 2 decimal places`,
 } as const);
 const B = BUSINESS_MESSAGES;
 
@@ -79,7 +78,7 @@ const vatRate = z
     if (typed === "") return null;
     const m = PERCENT.exec(typed);
     if (!m) return Number.NaN;
-    return Number(m[1]) * PERCENT_TO_BP + Number((m[2] ?? "").padEnd(2, "0"));
+    return Number(m[1]) * BASIS_POINTS_PER_PERCENT + Number((m[2] ?? "").padEnd(2, "0"));
   });
 
 const shared = {

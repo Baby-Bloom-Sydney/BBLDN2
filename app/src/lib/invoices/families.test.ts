@@ -257,8 +257,26 @@ describe("resolveInvoiceTarget (checked on the server before every write; the da
     });
   });
 
-  it("a malformed rate or schedule row fails the read (never a guess)", async () => {
+  it("a failed or malformed schedule or profile-rate read leaves that part of the pre-fill blank, logged by code (review TS M3)", async () => {
     f.reads.nannies = () => ({ id: NANNY, hourly_rate_min: { pounds: 16 } });
+    f.readErrors.position_schedule = { message: "x", code: "57014" };
+    const r = await resolveInvoiceTarget(proof, "regular_week", u(412), "2027-02-08", NOW);
+    expect(r.ok && r.value.prefill).toEqual({
+      shifts: [{ date: "2027-02-08", hours: 15, ratePence: 1800, description: null }, { date: "2027-02-09", hours: 15, ratePence: 1800, description: null }],
+      ratePence: 1800,
+      rateSource: "placement",
+    });
+    expect(console.error).toHaveBeenCalledWith("[invoices] families.schedule failed", { code: "57014" });
+    expect(console.error).toHaveBeenCalledWith("[invoices] families.rate failed", { code: "unexpected_row" });
+    load([placement(12, 11, "active", { hourly_rate: null })], []);
+    f.reads.nanny_positions = () => ({ id: u(311), suburb: "Islington", hourly_rate: null, days_required: null });
+    f.readErrors.nannies = { message: "x", code: "XX000" };
+    const blank = await resolveInvoiceTarget(proof, "regular_week", u(412), "2027-02-08", NOW);
+    expect(blank.ok && blank.value.prefill.rateSource).toBeNull();
+  });
+
+  it("a failed position read still fails (it names the family's area), as in 06a", async () => {
+    f.readErrors.nanny_positions = { message: "x", code: "XX000" };
     expect(await resolveInvoiceTarget(proof, "regular_week", u(412), "2027-02-08", NOW)).toEqual({ ok: false, error: "error" });
   });
 

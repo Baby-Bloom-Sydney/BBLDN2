@@ -7,7 +7,7 @@
  * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
  */
 import { describe, expect, it } from "vitest";
-import { BASIS_POINTS, BUSINESS_TYPES, EXPENSE_TYPES, INVOICE_RULES, NO_PENCE } from "./invoices";
+import { BASIS_POINTS, BASIS_POINTS_PER_PERCENT, BUSINESS_TYPES, EXPENSE_TYPES, INVOICE_RULES, NO_PENCE } from "./invoices";
 
 describe("INVOICE_RULES", () => {
   it("pins the numbering, cap and link defaults (brief §11 Q4, Q11; plan R1; BAI 2026-11-04)", () => {
@@ -40,6 +40,7 @@ describe("INVOICE_RULES", () => {
       descriptionMax: 120,
       companyNameMax: 160,
       partnershipNameMax: 160,
+      addressMaxLines: 6,
     });
   });
 
@@ -53,7 +54,7 @@ describe("INVOICE_RULES", () => {
     expect(INVOICE_RULES.maxHours * INVOICE_RULES.ratePence.max * INVOICE_RULES.vatRateBp.max * 2).toBeLessThan(Number.MAX_SAFE_INTEGER);
   });
 
-  it("keeps two PDF pages at the most lines (28 shifts, four a day for a week; 20 expenses)", () => {
+  it("caps the lines at 28 shifts (four a day for a week) and 20 expenses", () => {
     expect(INVOICE_RULES.maxShiftLines).toBe(4 * 7);
     expect(INVOICE_RULES.maxShiftLines + INVOICE_RULES.maxExpenseLines).toBe(48);
   });
@@ -71,6 +72,7 @@ describe("the named constants and labels", () => {
   it("NO_PENCE is the zero sums start from (plan R10); BASIS_POINTS is 100% (14.3)", () => {
     expect(NO_PENCE).toBe(0);
     expect(BASIS_POINTS).toBe(10_000);
+    expect(BASIS_POINTS_PER_PERCENT).toBe(BASIS_POINTS / 100);
   });
 
   it("lists the five expense types and the three business types, in order, with their labels (§0a A, B)", () => {

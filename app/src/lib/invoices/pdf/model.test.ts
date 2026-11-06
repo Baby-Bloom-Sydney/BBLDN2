@@ -5,7 +5,7 @@
  *
  * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CreatedInvoice, StoredPaymentDetails } from "../store-map";
 import { invoicePdfData } from "./model";
 
@@ -31,6 +31,8 @@ const created: CreatedInvoice = {
   ],
 };
 const details: StoredPaymentDetails = { accountName: "Sophie Taylor", sortCode: "112233", accountNumber: "87654321", accountLast4: "4321" };
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("invoicePdfData", () => {
   it("takes the issuer, lines and figures from the invoice's snapshot and the bank details from her saved details", () => {
@@ -77,5 +79,12 @@ describe("invoicePdfData", () => {
     expect(invoicePdfData({ ...created, lines: created.lines.map((l) => (l.lineNo === 6 ? { ...l, amountPence: 4401 } : l)) }, details))
       .toEqual({ ok: false, error: "error" });
     expect(invoicePdfData({ ...created, vat: { mode: "included", rateBp: null, pence: 0 } }, details)).toEqual({ ok: false, error: "error" });
+  });
+
+  it("says why by code only, never the figures (review TS M4, code L2)", () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(invoicePdfData({ ...created, totalPence: 71_331 }, details)).toEqual({ ok: false, error: "error" });
+    expect(log).toHaveBeenCalledWith("[invoices] invoicePdfData failed", { code: "figures_mismatch" });
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/71331|Taylor|87654321/);
   });
 });

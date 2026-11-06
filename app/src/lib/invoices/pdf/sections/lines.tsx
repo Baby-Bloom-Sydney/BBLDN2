@@ -13,7 +13,7 @@ import { EXPENSE_TYPES } from "@/config/invoices";
 import { formatHours, formatInvoiceMoney } from "../../money";
 import type { InvoiceKind } from "../../types";
 import { dayLabel, shiftDateLabel, weekRangeLabel } from "../../week";
-import type { InvoicePdfData } from "../InvoicePdf";
+import type { InvoicePdfData, InvoicePdfExpense, InvoicePdfShift } from "../InvoicePdf";
 import { styles } from "../theme";
 
 /** "Childcare, week of 8–14 Feb 2027" or "Trial Shift, Wed 3 Feb 2027" (plan §3a, 14.8). */
@@ -29,39 +29,58 @@ const head = (cells: readonly (readonly [string, CellStyle])[]): ReactElement =>
   </View>
 );
 
-/** The shift table: every shift, in her order. */
-export function shiftTable(data: InvoicePdfData): ReactElement {
+/** One shift's row; never split across pages. */
+function shiftRow(s: InvoicePdfShift, i: number): ReactElement {
+  return (
+    <View key={i} style={styles.row} wrap={false}>
+      <Text style={styles.cellDate}>{dayLabel(s.date)}</Text>
+      <Text style={styles.cellDescription}>{s.description ?? ""}</Text>
+      <Text style={styles.cellHours}>{formatHours(s.hours)}</Text>
+      <Text style={styles.cellRate}>{formatInvoiceMoney(s.ratePence)}</Text>
+      <Text style={styles.cellAmount}>{formatInvoiceMoney(s.amountPence)}</Text>
+    </View>
+  );
+}
+
+function expenseRow(e: InvoicePdfExpense, i: number): ReactElement {
+  return (
+    <View key={i} style={styles.row} wrap={false}>
+      <Text style={styles.cellType}>{EXPENSE_TYPES[e.expenseType]}</Text>
+      <Text style={styles.cellDescription}>{e.description ?? ""}</Text>
+      <Text style={styles.cellAmount}>{formatInvoiceMoney(e.amountPence)}</Text>
+    </View>
+  );
+}
+
+/**
+ * A table: its title, head and first row kept together (never a title stranded at a page's foot: review React M2),
+ * then the other rows, each whole. A continuation page carries rows without the head (a known limit).
+ */
+function table(title: string, cells: readonly (readonly [string, CellStyle])[], rows: readonly ReactElement[]): ReactElement {
+  const [first, ...rest] = rows;
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{describeLine(data.kind, data.periodStart)}</Text>
-      {head([["Date", styles.cellDate], ["Description", styles.cellDescription], ["Hours", styles.cellHours], ["Rate", styles.cellRate], ["Amount", styles.cellAmount]])}
-      {data.shifts.map((s, i) => (
-        <View key={i} style={styles.row} wrap={false}>
-          <Text style={styles.cellDate}>{dayLabel(s.date)}</Text>
-          <Text style={styles.cellDescription}>{s.description ?? ""}</Text>
-          <Text style={styles.cellHours}>{formatHours(s.hours)}</Text>
-          <Text style={styles.cellRate}>{formatInvoiceMoney(s.ratePence)}</Text>
-          <Text style={styles.cellAmount}>{formatInvoiceMoney(s.amountPence)}</Text>
-        </View>
-      ))}
+      <View wrap={false}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        {head(cells)}
+        {first}
+      </View>
+      {rest}
     </View>
+  );
+}
+
+/** The shift table: every shift, in her order. */
+export function shiftTable(data: InvoicePdfData): ReactElement {
+  return table(
+    describeLine(data.kind, data.periodStart),
+    [["Date", styles.cellDate], ["Description", styles.cellDescription], ["Hours", styles.cellHours], ["Rate", styles.cellRate], ["Amount", styles.cellAmount]],
+    data.shifts.map(shiftRow),
   );
 }
 
 /** The expenses table, or nothing when she has none. */
 export function expenseTable(data: InvoicePdfData): ReactElement | null {
   if (data.expenses.length === 0) return null;
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Expenses</Text>
-      {head([["Type", styles.cellType], ["Description", styles.cellDescription], ["Amount", styles.cellAmount]])}
-      {data.expenses.map((e, i) => (
-        <View key={i} style={styles.row} wrap={false}>
-          <Text style={styles.cellType}>{EXPENSE_TYPES[e.expenseType]}</Text>
-          <Text style={styles.cellDescription}>{e.description ?? ""}</Text>
-          <Text style={styles.cellAmount}>{formatInvoiceMoney(e.amountPence)}</Text>
-        </View>
-      ))}
-    </View>
-  );
+  return table("Expenses", [["Type", styles.cellType], ["Description", styles.cellDescription], ["Amount", styles.cellAmount]], data.expenses.map(expenseRow));
 }

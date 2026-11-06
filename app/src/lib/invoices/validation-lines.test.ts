@@ -70,6 +70,24 @@ describe("invoiceDraftSchema — the header", () => {
   });
 });
 
+describe("invoiceDraftSchema — a malformed week never throws (review: TS H1, code M1)", () => {
+  it.each(["", "x", "15/02/2027", "2027-2-8"])("a period of %j is refused as a date, for both kinds, without a spurious 'future'", (periodStart) => {
+    for (const kind of ["regular_week", "trial_shift"]) {
+      const messages = messagesOf({ ...DRAFT, kind, periodStart });
+      expect(messages).toContain(M.date);
+      expect(messages).not.toContain(M.future);
+    }
+  });
+
+  it("0 hours is one message, not two", () => {
+    expect(messagesOf({ ...DRAFT, lines: [shift(WEEK, 0, 1800)] })).toEqual([M.hours]);
+  });
+
+  it("49 lines say how many lines an invoice can hold", () => {
+    expect(messagesOf({ ...DRAFT, lines: Array.from({ length: 49 }, () => expense("food", 100)) })).toContain(M.tooManyLines);
+  });
+});
+
 describe("invoiceDraftSchema — the lines", () => {
   it.each([
     ["only an expense", [expense("food", 500)], M.noShift],

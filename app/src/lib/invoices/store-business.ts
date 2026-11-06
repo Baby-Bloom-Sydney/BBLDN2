@@ -15,7 +15,7 @@
  * BB-wave1-041126/06b2-build, 2026-11-06.
  */
 
-import { callRpc, logFailure, serviceClient, type DbResult } from "./db";
+import { callRpc, LOCK_TIMEOUT, logFailure, serviceClient, type DbResult } from "./db";
 import { nannyGate } from "./gate";
 import type { NannyProof } from "./nanny-proof";
 import { refusalReply } from "./store-map";
@@ -24,8 +24,6 @@ import { FAILED, INVALID, invoiceOk, refused, type InvoiceResult } from "./types
 import { businessDetailsSchema } from "./validation-business";
 
 export type { Issuer } from "./store-map-lines";
-
-const LOCK_TIMEOUT = "55P03";
 
 /** Who she is on her invoices now, defaults included; never a bank field. A missing nanny row is an error. */
 export async function readIssuer(proof: NannyProof): Promise<InvoiceResult<Issuer>> {

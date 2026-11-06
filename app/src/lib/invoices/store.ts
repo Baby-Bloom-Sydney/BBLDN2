@@ -24,7 +24,7 @@
 import { z } from "zod";
 import { INVOICE_RULES } from "@/config/invoices";
 import type { AdminProof } from "@/lib/calls/admin-proof";
-import { allPages, callRpc, logFailure, parseRows, readOne, serviceClient, type DbResult } from "./db";
+import { allPages, callRpc, LOCK_TIMEOUT, logFailure, parseRows, readOne, serviceClient, type DbResult } from "./db";
 import { adminGate, nannyGate } from "./gate";
 import type { NannyProof } from "./nanny-proof";
 import { countsAsIssued, countsAsSent } from "./status";
@@ -63,7 +63,7 @@ import {
 } from "./store-map-lines";
 import { FAILED, INVALID, invoiceOk, refused, type EmailDelivery, type InvoiceError, type InvoiceResult } from "./types";
 import { paymentDetailsSchema } from "./validation";
-import { invoiceDraftSchema, LINE_MESSAGES } from "./validation-lines";
+import { FUTURE_ISSUE, invoiceDraftSchema } from "./validation-lines";
 import { isLondonMonday, londonDayRange } from "./week";
 
 export type { CreatedInvoice, FamilyRow, IssuerSnapshot, MaskedPaymentDetails, SavedDetails, StoredPaymentDetails, WeekRow } from "./store-map";
@@ -73,7 +73,6 @@ export type FinishOutcome =
   | { readonly kind: "sent"; readonly family: EmailDelivery; readonly nanny: EmailDelivery }
   | { readonly kind: "failed" };
 
-const LOCK_TIMEOUT = "55P03";
 const MINUTE_MS = 60_000;
 /** A Postgres integer: an expected total beyond it can't be an invoice's. */
 const MAX_TOTAL_PENCE = 2_147_483_647;
@@ -129,9 +128,9 @@ export async function saveDetails(proof: NannyProof, input: unknown): Promise<In
   return mapReply("nanny_payment_details_save", reply, savedReply);
 }
 
-/** A draft the schema refused: a future week or day, a line it can't take, or anything else. */
-function draftRefusal(issues: readonly { readonly message: string; readonly path: readonly PropertyKey[] }[]): InvoiceError {
-  if (issues.some((i) => i.message === LINE_MESSAGES.future)) return "future";
+/** A draft the schema refused: a future week or day, a line it can't take, or anything else (by issue code). */
+function draftRefusal(issues: readonly z.core.$ZodIssue[]): InvoiceError {
+  if (issues.some((i) => i.code === "custom" && i.params?.issue === FUTURE_ISSUE)) return "future";
   return issues.some((i) => i.path[0] === "lines") ? "bad_lines" : "invalid";
 }
 

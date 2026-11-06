@@ -17,8 +17,8 @@
 import { BASIS_POINTS, INVOICE_RULES, NO_PENCE } from "@/config/invoices";
 import type { VatMode } from "./types";
 
-/** Hours are counted in quarter hours (14.3): 1 / hourStep. */
-const QUARTERS_PER_HOUR = Math.round(1 / INVOICE_RULES.hourStep);
+/** Hours are counted in quarter hours (14.3): 1 / hourStep. The one copy (validation and the pre-fill use it). */
+export const QUARTERS_PER_HOUR = Math.round(1 / INVOICE_RULES.hourStep);
 /** How far from a whole number of quarters a typed decimal may sit and still be one (binary drift, never a typo). */
 const QUARTER_DRIFT = 1e-9;
 
@@ -57,7 +57,7 @@ export function halfUp(a: number, b: number): number {
 export function toQuarters(hours: number): number {
   const scaled = hours * QUARTERS_PER_HOUR;
   const quarters = Math.round(scaled);
-  if (!Number.isFinite(scaled) || quarters <= 0 || Math.abs(scaled - quarters) > QUARTER_DRIFT) {
+  if (!Number.isSafeInteger(quarters) || quarters <= 0 || Math.abs(scaled - quarters) > QUARTER_DRIFT) {
     throw new RangeError("hours must be positive and in quarter-hour steps");
   }
   return quarters;

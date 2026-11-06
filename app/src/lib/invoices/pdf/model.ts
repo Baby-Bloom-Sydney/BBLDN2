@@ -12,6 +12,7 @@
  * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
  */
 
+import { logFailure } from "../db";
 import type { CreatedInvoice, StoredPaymentDetails } from "../store-map";
 import { linesInOrder, type StoredLine } from "../store-map-lines";
 import { invoiceTotals, lineAmountPence } from "../totals";
@@ -41,7 +42,10 @@ function addsUp(created: CreatedInvoice, lines: readonly StoredLine[]): boolean 
 export function invoicePdfData(created: CreatedInvoice, details: StoredPaymentDetails): InvoiceResult<InvoicePdfData> {
   if (details.accountLast4 !== created.accountLast4) return refused("no_details");
   const lines = linesInOrder(created.lines);
-  if (!addsUp(created, lines)) return FAILED;
+  if (!addsUp(created, lines)) {
+    logFailure("invoicePdfData", { code: "figures_mismatch" }); // a code only: never the row's figures or names
+    return FAILED;
+  }
   const shifts = lines.flatMap((l): InvoicePdfShift[] =>
     l.kind === "shift" ? [{ date: l.date, description: l.description, hours: l.hours, ratePence: l.ratePence, amountPence: l.amountPence }] : []);
   const expenses = lines.flatMap((l): InvoicePdfExpense[] =>

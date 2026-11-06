@@ -9,7 +9,7 @@
 import { createRequire } from "node:module";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderInvoicePdf } from "./render";
-import { CORRECTION_INVOICE, HARTLEY_INVOICE, LTD_VAT_ADDED, MAX_INVOICE, TRIAL_INVOICE, VAT_INCLUDED } from "./fixtures.test-util";
+import { CORRECTION_INVOICE, HARTLEY_INVOICE, LTD_VAT_ADDED, MAX_INVOICE, TRIAL_INVOICE, VAT_INCLUDED, WORST_INVOICE } from "./fixtures.test-util";
 
 interface PdfPage {
   getTextContent(): Promise<{ readonly items: readonly { readonly str: string }[] }>;
@@ -17,7 +17,7 @@ interface PdfPage {
 type PdfParse = (
   data: Buffer,
   options?: { readonly pagerender?: (page: PdfPage) => Promise<string> },
-) => Promise<{ readonly text: string; readonly numpages: number }>;
+) => Promise<{ readonly text: string; readonly numpages: number; readonly info: Readonly<Record<string, unknown>> }>;
 const pdfParse = createRequire(import.meta.url)("pdf-parse/lib/pdf-parse.js") as PdfParse;
 
 beforeEach(() => vi.stubEnv("NANNY_INVOICES_ENABLED", "true"));
@@ -26,7 +26,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-async function rendered(data: typeof HARTLEY_INVOICE): Promise<{ bytes: Buffer; text: string; pages: readonly string[] }> {
+async function rendered(data: typeof HARTLEY_INVOICE): Promise<{ bytes: Buffer; text: string; pages: readonly string[]; info: Readonly<Record<string, unknown>> }> {
   const r = await renderInvoicePdf(data);
   if (!r.ok) throw new Error(r.error);
   const pages: string[] = [];
@@ -39,7 +39,7 @@ async function rendered(data: typeof HARTLEY_INVOICE): Promise<{ bytes: Buffer; 
     },
   });
   expect(pages).toHaveLength(parsed.numpages);
-  return { bytes: r.value, text: pages.join("\n"), pages };
+  return { bytes: r.value, text: pages.join("\n"), pages, info: parsed.info };
 }
 
 describe("renderInvoicePdf", () => {
@@ -94,12 +94,32 @@ describe("renderInvoicePdf", () => {
     expect(pages).toHaveLength(2);
     for (const page of pages) expect(page).toContain("Generated with BabyBloom");
     // the closing block (totals and pay-to; its labels print upper-case) is whole on the last page, and only there
-    for (const s of [/Total/, /pay to/i, /Account name/, /Sort code/, /11-22-33/, /Account number/, /87654321/, /£\d/]) {
+    for (const s of [/Total/, /p\s*a\s*y\s*t\s*o/i, /Account name/, /Sort code/, /11-22-33/, /Account number/, /87654321/, /£\d/]) {
       expect(pages[1]).toMatch(s);
     }
-    for (const s of [/pay to/i, /Account name/, /87654321/, /Total/]) expect(pages[0]).not.toMatch(s);
+    for (const s of [/p\s*a\s*y\s*t\s*o/i, /Account name/, /87654321/, /Total/]) expect(pages[0]).not.toMatch(s);
     expect((text.match(/ care/g) ?? []).length).toBe(28);
     expect((text.match(/Receipt \d+/g) ?? []).length).toBe(20);
+  }, 30_000);
+
+  it("with every field at its longest (120-character descriptions, the longest business details): long text adds pages, never splits a row or the closing block (review React H1)", async () => {
+    const { pages, text } = await rendered(WORST_INVOICE);
+    expect(pages.length).toBeGreaterThanOrEqual(2);
+    for (const page of pages) expect(page).toContain("Generated with BabyBloom");
+    const last = pages[pages.length - 1];
+    // the label is letter-spaced, so its text comes out as "PAY   T O"
+    for (const s of [/Total/, /p\s*a\s*y\s*t\s*o/i, /Account number/, /87654321/]) expect(last).toMatch(s);
+    for (const page of pages.slice(0, -1)) for (const s of [/p\s*a\s*y\s*t\s*o/i, /Account number/, /Total/]) expect(page).not.toMatch(s);
+    expect((text.match(/end of shift \d+/g) ?? []).length).toBe(28);
+    expect((text.match(/end of receipt \d+/g) ?? []).length).toBe(20);
+  }, 30_000);
+
+  it("names the document: title, author, subject and language (review React M5)", async () => {
+    const { info, bytes } = await rendered(CORRECTION_INVOICE);
+    expect(info.Title).toBe("Invoice BB-LucjaWisniewska-270215-0003");
+    expect(info.Author).toBe("Zoë Ó Briain Childcare");
+    expect(info.Subject).toBe("Childcare, week of 8–14 Feb 2027");
+    expect(bytes.toString("latin1")).toMatch(/\/Lang \(en-GB\)/);
   }, 30_000);
 
   it("refuses with the switch off, before rendering", async () => {

@@ -13,7 +13,7 @@
 import { Text, View } from "@react-pdf/renderer";
 import type { ReactElement } from "react";
 import type { InvoicePdfData, InvoicePdfIssuer } from "../InvoicePdf";
-import { keepWhole, styles } from "../theme";
+import { keepWhole, styles, wholeUnlessLong } from "../theme";
 
 const VAT_GROUPS = /^GB(\d{3})(\d{4})(\d{2})(\d{3})?$/;
 
@@ -41,13 +41,15 @@ export function fromLines(issuer: InvoicePdfIssuer): string[] {
   ]);
 }
 
-function party(label: string, lines: readonly string[]): ReactElement {
+/** A party's lines: the first is the name; names keep words whole unless too long for the column; an email whole. */
+function party(label: string, lines: readonly string[], email: string | null = null): ReactElement {
   return (
     <View style={styles.party}>
       <Text style={styles.label}>{label}</Text>
       {lines.map((line, i) => (
-        <Text key={i} style={i === 0 ? styles.partyName : styles.partyLine} hyphenationCallback={keepWhole}>{line}</Text>
+        <Text key={i} style={i === 0 ? styles.partyName : styles.partyLine} hyphenationCallback={wholeUnlessLong}>{line}</Text>
       ))}
+      {email === null ? null : <Text style={styles.partyLine} hyphenationCallback={keepWhole}>{email}</Text>}
     </View>
   );
 }
@@ -57,7 +59,7 @@ export function parties(data: InvoicePdfData): ReactElement {
   return (
     <View style={styles.parties}>
       {party("From", fromLines(data.issuer))}
-      {party("Bill to", [data.billTo.name, data.billTo.email])}
+      {party("Bill to", [data.billTo.name], data.billTo.email)}
     </View>
   );
 }

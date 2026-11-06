@@ -313,6 +313,9 @@ describe("createInvoice (p_lines and the reviewed total: 14.4)", () => {
     expect(await createInvoice(nanny, { ...DRAFT, lines: [shift("2027-02-15", 6, 1800)] }, "4321", EXPECTED, NOW)).toEqual({ ok: false, error: "bad_lines" });
     expect(await createInvoice(nanny, { ...DRAFT, lines: [] }, "4321", EXPECTED, NOW)).toEqual({ ok: false, error: "bad_lines" });
     expect(await createInvoice(nanny, { ...DRAFT, kind: "meet_and_greet" }, "4321", EXPECTED, NOW)).toEqual({ ok: false, error: "invalid" });
+    for (const periodStart of ["", "garbage"]) { // review TS H1: a malformed week answers invalid, it never throws
+      expect(await createInvoice(nanny, { ...DRAFT, periodStart }, "4321", EXPECTED, NOW)).toEqual({ ok: false, error: "invalid" });
+    }
     expect(await createInvoice(nanny, DRAFT, "87654321", EXPECTED, NOW)).toEqual({ ok: false, error: "invalid" });
     for (const total of [0, -1, 596.5, Number.NaN, 2 ** 31]) {
       expect(await createInvoice(nanny, DRAFT, "4321", total, NOW)).toEqual({ ok: false, error: "invalid" });
@@ -345,6 +348,12 @@ describe("createInvoice (p_lines and the reviewed total: 14.4)", () => {
       { ...CREATED, vat_mode: "reverse" },
       { ...CREATED, business_type: "charity" },
       { ...CREATED, issuer_address: null },
+      // everything that prints must pass R8 and the character rules, whatever the database answered (security M2)
+      { ...CREATED, nanny_name: "Baby-Bloom Support" },
+      { ...CREATED, family_name: `Olivia${String.fromCodePoint(0x202e)}Hartley` },
+      { ...CREATED, issuer_trading_name: "B4by Bl00m" },
+      { ...CREATED, issuer_address: "Care of BabyBloom\nLondon" },
+      { ...CREATED, lines: [{ ...CREATED.lines[0], description: "Pay Baby.Bloom" }] },
     ]) {
       f.rpcResults.nanny_invoice_create = { data, error: null };
       expect(await createInvoice(nanny, DRAFT, "4321", EXPECTED, NOW)).toEqual({ ok: false, error: "error" });

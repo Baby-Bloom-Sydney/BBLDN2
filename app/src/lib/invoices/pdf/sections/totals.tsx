@@ -16,13 +16,13 @@
 
 import { Text, View } from "@react-pdf/renderer";
 import type { ReactElement } from "react";
-import { BASIS_POINTS } from "@/config/invoices";
+import { BASIS_POINTS_PER_PERCENT } from "@/config/invoices";
 import { formatSortCode } from "../../masking";
 import { formatInvoiceMoney } from "../../money";
 import type { InvoicePdfData } from "../InvoicePdf";
-import { keepWhole, styles } from "../theme";
+import { styles, wholeUnlessLong } from "../theme";
 
-const PERCENT = BASIS_POINTS / 100;
+const PERCENT = BASIS_POINTS_PER_PERCENT;
 
 /** 2000 → "20%", 1750 → "17.5%", 1 → "0.01%" (basis points to a percent, no trailing zeros). */
 export function vatRateLabel(rateBp: number): string {
@@ -63,7 +63,7 @@ function payRow(label: string, value: string): ReactElement {
   return (
     <View style={styles.payRow}>
       <Text style={styles.payLabel}>{label}</Text>
-      <Text style={styles.payValue} hyphenationCallback={keepWhole}>{value}</Text>
+      <Text style={styles.payValue} hyphenationCallback={wholeUnlessLong}>{value}</Text>
     </View>
   );
 }

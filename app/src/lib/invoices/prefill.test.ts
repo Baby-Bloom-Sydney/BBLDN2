@@ -25,6 +25,11 @@ describe("pickRate", () => {
     expect(pickRate("regular_week", { placement: -3, position: 0, profile: null })).toEqual({ ratePence: null, rateSource: null });
   });
 
+  it("skips a rate the form would refuse: over the typo ceiling, or under a penny (review TS L6)", () => {
+    expect(pickRate("regular_week", { placement: 1800, position: 0.001, profile: 16 })).toEqual({ ratePence: 1600, rateSource: "profile" });
+    expect(pickRate("regular_week", { placement: "250.00", position: null, profile: null })).toEqual({ ratePence: 25_000, rateSource: "placement" });
+  });
+
   it("Trial Shift: the position, then her profile — a placement's rate never applies", () => {
     expect(pickRate("trial_shift", { placement: 25, position: 17.5, profile: 16 })).toEqual({ ratePence: 1750, rateSource: "position" });
     expect(pickRate("trial_shift", { placement: 25, position: null, profile: 16 })).toEqual({ ratePence: 1600, rateSource: "profile" });
@@ -47,7 +52,8 @@ describe("usualDays (weekday offsets from Monday)", () => {
     expect(usualDays("not a schedule", ["Sun"])).toEqual([6]);
   });
 
-  it("is empty when neither names a day", () => {
+  it("is empty when neither names a day — a word that merely starts like one isn't one (review TS L7)", () => {
+    expect(usualDays({ monkey: ["morning"], sunshine: ["morning"] }, ["month", "Satur", "Wednes"])).toEqual([]);
     expect(usualDays(null, null)).toEqual([]);
     expect(usualDays({ monday: "morning" }, ["Someday"])).toEqual([]);
   });

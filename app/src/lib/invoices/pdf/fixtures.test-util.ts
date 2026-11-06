@@ -190,3 +190,30 @@ export const MAX_INVOICE: InvoicePdfData = invoiceOf({
   expenses: Array.from({ length: 20 }, (_, i) => expenseOf(EXPENSE_CYCLE[i % 5], 950 + i, `Receipt ${i + 1}`)),
   vat: { mode: "added", rateBp: 2000 },
 });
+
+/** `n` characters of plain words ending in `tail` (a description at the form's longest). */
+const longText = (n: number, tail: string): string => `${"Park, library and lunch with ".repeat(10)}`.slice(0, n - tail.length - 1) + ` ${tail}`;
+
+/**
+ * Every field at its longest (review React H1): 28 shifts and 20 expenses with 120-character descriptions, a
+ * 70-character trading name and account name, a 160-character company name, a 6-line 200-character address and
+ * registered office. Long text adds pages; a row and the closing block are never split.
+ */
+export const WORST_INVOICE: InvoicePdfData = invoiceOf({
+  number: "BB-MaximilianaFeatherstonehaughWo-270215-10000",
+  kind: "regular_week",
+  periodStart: "2027-02-08",
+  issuer: issuerOf("Maximiliana Featherstonehaugh-Wolfeschlegelsteinhausen", "limited_company", {
+    tradingName: "Featherstonehaugh Family Childcare and Early Years Learning Services UK",
+    companyName: `${"Featherstonehaugh Childcare Holdings and Early Years ".repeat(3)}Ltd`.slice(0, 160),
+    companyNumber: "SC123456",
+    registeredOffice: "Flat 12, Wolfeschlegelsteinhausen House\n1234 Upper Richmond Road West\nEast Sheen\nRichmond upon Thames\nGreater London\nSW14 8AA, United Kingdom",
+    address: "Flat 12, Wolfeschlegelsteinhausen House\n1234 Upper Richmond Road West\nEast Sheen\nRichmond upon Thames\nGreater London\nSW14 8AA, United Kingdom",
+    vatNumber: "GB123456789012",
+  }),
+  billTo: { name: "Olivia Hartley-Featherstonehaugh", email: "admin+b06-11@babybloomnannies.co.uk" },
+  shifts: Array.from({ length: 28 }, (_, i) => shiftOf(WEEK[Math.floor(i / 4)], 6, 1800, longText(120, `end of shift ${i + 1}`))),
+  expenses: Array.from({ length: 20 }, (_, i) => expenseOf(EXPENSE_CYCLE[i % 5], 950 + i, longText(120, `end of receipt ${i + 1}`))),
+  vat: { mode: "added", rateBp: 2000 },
+  accountName: "Maximiliana Featherstonehaugh-Wolfeschlegelsteinhausen Childcare Ltd",
+});

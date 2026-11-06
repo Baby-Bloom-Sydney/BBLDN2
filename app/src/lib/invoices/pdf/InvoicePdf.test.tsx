@@ -16,6 +16,7 @@ import { isValidElement, type ReactNode } from "react";
 import { SITE_NAME } from "@/lib/constants";
 import { InvoicePdf } from "./InvoicePdf";
 import { formatVatNumber } from "./sections/issuer";
+import { wholeUnlessLong } from "./theme";
 import { vatRateLabel } from "./sections/totals";
 import {
   CORRECTION_INVOICE,
@@ -142,7 +143,7 @@ describe("InvoicePdf — the issuer by business type (§0a D, 14.8)", () => {
     expect(between(lines, "From", "Bill to")).toEqual(["From", "Taylor & Shah", "Sophie Taylor", "1 Upper Street\nLondon N1 0AA", "Taylor & Shah Childcare"]);
   });
 
-  it("a sole trader registered for VAT (a 12-digit number), with no expenses: no expenses table or row", () => {
+  it("a sole trader registered for VAT (a 12-digit number); a partnership with no expenses has no expenses table or row", () => {
     const included = linesOf(InvoicePdf(VAT_INCLUDED));
     expect(between(included, "From", "Bill to")).toContain("VAT no. GB 123 4567 89 012");
     const partnership = linesOf(InvoicePdf(PARTNERSHIP_INVOICE));
@@ -183,11 +184,49 @@ describe("InvoicePdf — corrections, Trial Shifts and the most lines", () => {
 
   it("keeps the totals and the pay-to box whole across a page break, and the band and footer on every page", () => {
     const elements = elementsOf(InvoicePdf(MAX_INVOICE));
-    const holding = (label: string) => elements.find((e) => e.type === View && linesOf(e.props.children).includes(label));
-    expect(holding("Pay to")?.props.wrap).toBe(false);
-    expect(holding("Total")?.props.wrap).toBe(false);
-    expect(holding(`Generated with ${SITE_NAME}`)?.props.fixed).toBe(true);
-    expect(elements.filter((e) => e.type === View && e.props.fixed)).toHaveLength(2); // the violet band and the footer
+    const views = elements.filter((e) => e.type === View);
+    const has = (e: Found, label: string) => linesOf(e.props.children).includes(label);
+    // each box on its own, and the block that holds both (review React M4: not just the outer block)
+    expect(views.filter((e) => has(e, "Pay to") && !has(e, "Total")).every((e) => e.props.wrap === false || !e.props.style)).toBe(true);
+    expect(views.find((e) => has(e, "Pay to") && !has(e, "Total") && has(e, "Account name"))?.props.wrap).toBe(false);
+    expect(views.find((e) => has(e, "Total") && !has(e, "Pay to") && has(e, "Childcare"))?.props.wrap).toBe(false);
+    expect(views.find((e) => has(e, "Total") && has(e, "Pay to"))?.props.wrap).toBe(false);
+    expect(views.find((e) => has(e, `Generated with ${SITE_NAME}`))?.props.fixed).toBe(true);
+    expect(views.filter((e) => e.props.fixed)).toHaveLength(2); // the violet band and the footer
+  });
+
+  it("never splits a row, and never leaves a table's title and head without its first row (review React M2, M4)", () => {
+    const elements = elementsOf(InvoicePdf(MAX_INVOICE));
+    const rows = elements.filter((e) => e.type === View && flat(e.props.style).borderBottom !== undefined && flat(e.props.style).flexDirection === "row");
+    expect(rows).toHaveLength(48);
+    expect(rows.every((r) => r.props.wrap === false)).toBe(true);
+    for (const [title, firstCell] of [["Childcare, week of 8–14 Feb 2027", "Mon 8 Feb"], ["Expenses", "Food"]]) {
+      const opening = elements.find((e) => e.type === View && e.props.wrap === false && linesOf(e.props.children)[0] === title);
+      expect(opening && linesOf(opening.props.children)).toEqual(expect.arrayContaining([title, "Description", "Amount", firstCell]));
+    }
+  });
+
+  it("prints only ASCII (and £) in the built-in Helvetica Bold; everything typed is in the Unicode font (R7)", () => {
+    for (const data of [HARTLEY_INVOICE, CORRECTION_INVOICE, LTD_VAT_ADDED]) {
+      const helvetica = elementsOf(InvoicePdf(data)).filter((e) => e.type === Text && flat(e.props.style).fontFamily === "Helvetica");
+      expect(helvetica.length).toBeGreaterThan(0);
+      for (const e of helvetica) expect(linesOf(e.props.children).join("")).toMatch(/^[\x20-\x7E£]*$/);
+    }
+  });
+
+  it("keeps a name's words whole, but lets a word too long for any column break rather than run out of its box (review React M3)", () => {
+    const syllables = (word: string) => [word.slice(0, 7), word.slice(7)];
+    expect(wholeUnlessLong("Featherstonehaugh", syllables)).toEqual(["Featherstonehaugh"]);
+    expect(wholeUnlessLong("Featherstonehaugh-Wolfeschlegelsteinhausen", syllables)).toEqual(["Feather", "stonehaugh-Wolfeschlegelsteinhausen"]);
+    const elements = elementsOf(InvoicePdf(HARTLEY_INVOICE));
+    const value = elements.find((e) => e.type === Text && e.props.children === "Sophie Taylor" && flat(e.props.style).flex === 1);
+    expect((value?.props as { hyphenationCallback?: unknown }).hyphenationCallback).toBe(wholeUnlessLong);
+  });
+
+  it("gives the pay-to values room: the labels' column is narrow, the value takes the rest (review React M3)", () => {
+    const elements = elementsOf(InvoicePdf(HARTLEY_INVOICE));
+    const label = elements.find((e) => e.type === Text && e.props.children === "Account number");
+    expect(Number(flat(label?.props.style).width)).toBeLessThanOrEqual(90);
   });
 });
 

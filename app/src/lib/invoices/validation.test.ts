@@ -7,7 +7,7 @@
  * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
  */
 import { describe, expect, it } from "vitest";
-import { optionalAddress, optionalName, optionalText, paymentDetailsSchema, requiredAddress, requiredName, VALIDATION_MESSAGES as M } from "./validation";
+import { isNotBabyBloom, optionalAddress, optionalName, optionalText, paymentDetailsSchema, requiredAddress, requiredName, VALIDATION_MESSAGES as M } from "./validation";
 
 const details = { accountName: "Sophie Taylor", sortCode: "11-22-33", accountNumber: "87654321" };
 const cp = (n: number) => String.fromCodePoint(n);
@@ -47,6 +47,29 @@ describe("paymentDetailsSchema (3 fields)", () => {
   );
 
   it.each([
+    ["a hyphen", "Baby-Bloom"], ["a dot", "Baby.Bloom"], ["an underscore", "Baby_Bloom"], ["an ampersand", "Baby & Bloom"],
+    ["Cyrillic a", `B${cp(0x430)}by Bloom`], ["Greek omicron", `Baby Bl${cp(0x3bf)}om`], ["digits", "B4by Bl00m"],
+    ["a combining mark", `Bab${cp(0x301)}y Bloom`], ["a grapheme joiner", `Baby${cp(0x34f)}Bloom`],
+  ])("never lets a BabyBloom look-alike be the party paid: %s (security review M1)", (_label, name) => {
+    expect(messagesOf(paymentDetailsSchema.safeParse({ ...details, accountName: name }))).toEqual(expect.arrayContaining([expect.stringMatching(/BabyBloom|plain text/)]));
+    expect(messagesOf(paymentDetailsSchema.safeParse({ ...details, accountName: name })).length).toBeGreaterThan(0);
+  });
+
+  it.each(["Abby Bloomfield", "Zoë Ó Briain Childcare", "Łucja Wiśniewska", "Анна Иванова", "Bloom & Baby Care", "Sophie Taylor 2"])(
+    "still accepts a real name: %s",
+    (name) => {
+      expect(paymentDetailsSchema.safeParse({ ...details, accountName: name }).success).toBe(true);
+    },
+  );
+
+  it.each([
+    ["a Hangul filler", `Sophie${cp(0x3164)}Taylor`], ["a variation selector", `Sophie${cp(0xfe0f)}`], ["a braille blank", `Sophie${cp(0x2800)}Taylor`],
+    ["a tag character", `Sophie${cp(0xe0041)}`], ["a private-use character", `Sophie${cp(0xe000)}`],
+  ])("refuses an invisible or private character in a name: %s (security review L2)", (_label, name) => {
+    expect(messagesOf(paymentDetailsSchema.safeParse({ ...details, accountName: name }))).toContain(M.oneLine);
+  });
+
+  it.each([
     ["a zero-width space", `Baby${cp(0x200b)}Bloom`],
     ["a right-to-left override", `Sophie ${cp(0x202e)}Taylor`],
     ["a soft hyphen", `Sophie${cp(0xad)}Taylor`],
@@ -74,13 +97,21 @@ describe("the shared text builders (used by the business details and the lines)"
     expect(messagesOf(name.safeParse("Baby Bloom"))).toContain(M.ownName);
   });
 
-  it("optionalName and optionalText: blank is null; optionalText allows the word BabyBloom (a description isn't a party)", () => {
+  it("optionalName and optionalText: blank is null; neither may carry BabyBloom (everything on her PDF is hers: security review M2)", () => {
     expect(optionalName(70).parse("  ")).toBeNull();
     expect(optionalName(70).parse(undefined)).toBeNull();
     expect(messagesOf(optionalName(70).safeParse("BabyBloom Care"))).toContain(M.ownName);
-    expect(optionalText(120).parse(" Park with the BabyBloom group ")).toBe("Park with the BabyBloom group");
+    expect(optionalText(120).parse(" Park with the toddler group ")).toBe("Park with the toddler group");
+    expect(messagesOf(optionalText(120).safeParse("Pay Baby-Bloom instead"))).toContain(M.ownName);
     expect(messagesOf(optionalText(120).safeParse(`park${cp(0x200b)}`))).toContain(M.oneLine);
     expect(messagesOf(optionalText(120).safeParse(5))).toContain(M.oneLine);
+  });
+
+  it("an address drops blank lines and holds at most 6 lines (security review L3)", () => {
+    expect(optionalAddress(200).parse("1 Upper Street\n\n\n  \nLondon N1 0AA")).toBe("1 Upper Street\nLondon N1 0AA");
+    expect(optionalAddress(200).safeParse("1\n2\n3\n4\n5\n6").success).toBe(true);
+    expect(messagesOf(optionalAddress(200).safeParse("1\n2\n3\n4\n5\n6\n7"))).toContain(M.tooManyLines);
+    expect(messagesOf(optionalAddress(200).safeParse("Care of BabyBloom\nLondon"))).toContain(M.ownName);
   });
 
   it("optionalAddress and requiredAddress keep line breaks, normalise Windows line ends and refuse other controls", () => {
@@ -89,5 +120,14 @@ describe("the shared text builders (used by the business details and the lines)"
     expect(messagesOf(optionalAddress(200).safeParse(`1 Upper Street${String.fromCharCode(7)}`))).toContain(M.oneLine);
     expect(messagesOf(requiredAddress(200, "Enter an address").safeParse(" \n "))).toEqual(["Enter an address"]);
     expect(messagesOf(requiredAddress(5, "Enter an address").safeParse("1 Upper Street"))).toContain(M.tooLong);
+  });
+});
+
+describe("isNotBabyBloom (the R8 skeleton, the same rule as amendment 21's nanny_invoice_text_ok)", () => {
+  it("folds case, width, marks, Cyrillic and Greek look-alikes, digits for letters and every separator", () => {
+    for (const v of ["BabyBloom", "baby bloom", "BABY-BLOOM", "Baby.Bloom", "B@by Bl00m", `${cp(0xff22)}aby Bloom`, "Bаbу Вlоом"]) {
+      expect(isNotBabyBloom(v)).toBe(false);
+    }
+    for (const v of ["Baby Blue Childcare", "Abby Bloomfield", "Bloom Babysitting", "Sophie Taylor"]) expect(isNotBabyBloom(v)).toBe(true);
   });
 });

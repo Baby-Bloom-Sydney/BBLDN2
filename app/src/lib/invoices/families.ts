@@ -222,7 +222,12 @@ interface PrefillRows {
   readonly profileRate: number | string | null;
 }
 
-/** The position (area, rate, days), its schedule and her profile rate: the pre-fill's two extra reads (14.6 b2.5). */
+/**
+ * The position (area, rate, days), its schedule and her profile rate: the pre-fill's two extra reads (14.6 b2.5).
+ * The schedule and her profile rate only fill in the form, so a failed or malformed read of either leaves that part
+ * blank (`readOne` has logged it by code) rather than stopping her invoice (review TS M3). The position names the
+ * family's area, so its failure still fails the read, as in 06a.
+ */
 async function readPrefillRows(admin: AdminClient, positionId: string | null, nannyId: string): Promise<InvoiceResult<PrefillRows>> {
   const none = <T>() => Promise.resolve(invoiceOk<T | null>(null));
   const [position, schedule, nanny] = await Promise.all([
@@ -233,9 +238,11 @@ async function readPrefillRows(admin: AdminClient, positionId: string | null, na
     readOne("families.rate", () => admin.from("nannies").select("id, hourly_rate_min").eq("id", nannyId).maybeSingle(), nannyRateRow),
   ]);
   if (!position.ok) return position;
-  if (!schedule.ok) return schedule;
-  if (!nanny.ok) return nanny;
-  return invoiceOk({ position: position.value, schedule: schedule.value?.schedule ?? null, profileRate: nanny.value?.hourly_rate_min ?? null });
+  return invoiceOk({
+    position: position.value,
+    schedule: schedule.ok ? schedule.value?.schedule ?? null : null,
+    profileRate: nanny.ok ? nanny.value?.hourly_rate_min ?? null : null,
+  });
 }
 
 /** The form's starting rows and rate (14.3). */

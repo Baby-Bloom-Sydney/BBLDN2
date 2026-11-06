@@ -77,7 +77,12 @@ export interface FamilyInvoiceSummary {
   readonly invoiceCount: number;
   readonly activeCount: number;
   readonly cancelledCount: number;
+  /** The live invoices' hours: Regular weeks and Trial Shifts (07 reads a week's hours from `getPlacementWeekHours`). */
   readonly hours: number;
+  /**
+   * What the family was invoiced by her, in total (14.7): childcare, any VAT added on top, and her expenses. Not a
+   * BabyBloom amount and never a line on the family's BabyBloom bill — expenses are hers to reclaim (brief §0a A).
+   */
   readonly totalPence: number;
 }
 

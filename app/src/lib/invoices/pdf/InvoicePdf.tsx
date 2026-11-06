@@ -24,26 +24,16 @@
 import { Document, Page, Text, View, type DocumentProps } from "@react-pdf/renderer";
 import type { ReactElement } from "react";
 import { SITE_NAME } from "@/lib/constants";
-import type { BusinessType, ExpenseType, InvoiceKind, VatMode } from "../types";
+import type { ExpenseType, InvoiceKind, VatMode } from "../types";
 import { issueDateLabel } from "../week";
+import type { IssuerSnapshot } from "../store-map";
 import { parties } from "./sections/issuer";
-import { expenseTable, shiftTable } from "./sections/lines";
+import { describeLine, expenseTable, shiftTable } from "./sections/lines";
 import { closing } from "./sections/totals";
 import { keepWhole, styles } from "./theme";
 
-export interface InvoicePdfIssuer {
-  /** Her full name (the invoice's `nanny_name`). */
-  readonly name: string;
-  readonly businessType: BusinessType;
-  /** Her trading name, her full name by default (the issuer snapshot). */
-  readonly tradingName: string;
-  readonly address: string;
-  readonly companyName: string | null;
-  readonly companyNumber: string | null;
-  readonly registeredOffice: string | null;
-  readonly partnershipName: string | null;
-  readonly vatNumber: string | null;
-}
+/** Who she was on the invoice (its snapshot), with her full name (the invoice's `nanny_name`). */
+export type InvoicePdfIssuer = IssuerSnapshot & { readonly name: string };
 
 export interface InvoicePdfShift {
   readonly date: string;
@@ -112,7 +102,12 @@ function meta(data: InvoicePdfData): ReactElement {
 
 export function InvoicePdf(data: InvoicePdfData): ReactElement<DocumentProps> {
   return (
-    <Document title={`Invoice ${data.number}`} author={data.issuer.tradingName}>
+    <Document
+      title={`Invoice ${data.number}`}
+      author={data.issuer.tradingName}
+      subject={describeLine(data.kind, data.periodStart)}
+      language="en-GB"
+    >
       <Page size="A4" style={styles.page}>
         <View style={styles.band} fixed />
         {header()}

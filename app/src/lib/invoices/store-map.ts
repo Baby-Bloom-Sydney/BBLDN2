@@ -12,7 +12,18 @@
 import { z } from "zod";
 import type { DetailMasks } from "./masking";
 import { isInvoiceNumber } from "./numbering";
-import { hoursValue, instant, lineRow, linesInOrder, londonDate, pence, singleRate, type StoredLine } from "./store-map-lines";
+import {
+  hoursValue,
+  instant,
+  lineRow,
+  linesInOrder,
+  londonDate,
+  pence,
+  printedAddress,
+  printedLine,
+  singleRate,
+  type StoredLine,
+} from "./store-map-lines";
 import {
   BUSINESS_TYPE_KEYS,
   CANCEL_REASONS,
@@ -191,9 +202,9 @@ export const createdReply = z
     vat_pence: pence.nonnegative(),
     total_pence: pence.positive(),
     parent_user_id: id,
-    family_name: z.string().min(1),
+    family_name: printedLine,
     family_email: z.string().min(1),
-    nanny_name: z.string().min(1),
+    nanny_name: printedLine,
     nanny_email: z.string().min(1),
     account_last4: last4,
     pdf_path: z.string().min(1),
@@ -201,12 +212,12 @@ export const createdReply = z
     replaces_number: invoiceNumber.nullable(),
     created_at: instant,
     business_type: z.enum(BUSINESS_TYPE_KEYS),
-    issuer_trading_name: z.string().min(1),
-    issuer_address: z.string().min(1),
-    company_name: z.string().nullable(),
+    issuer_trading_name: printedLine,
+    issuer_address: printedAddress,
+    company_name: printedLine.nullable(),
     company_number: z.string().nullable(),
-    registered_office: z.string().nullable(),
-    partnership_name: z.string().nullable(),
+    registered_office: printedAddress.nullable(),
+    partnership_name: printedLine.nullable(),
     vat_number: z.string().nullable(),
     lines: z.array(lineRow).min(1), // every invoice has at least one shift
   })

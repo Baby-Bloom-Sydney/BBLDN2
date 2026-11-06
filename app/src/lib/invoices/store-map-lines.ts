@@ -24,6 +24,7 @@ import {
   type InvoiceStatus,
   type VatMode,
 } from "./types";
+import { ADDRESS_BAD, isNotBabyBloom, ONE_LINE_BAD } from "./validation";
 import { isLondonDate } from "./week";
 
 const id = z.string().min(1);
@@ -33,6 +34,12 @@ export const londonDate = z.string().refine(isLondonDate);
 export const hoursValue = z.union([z.number(), z.string()]).transform(Number).pipe(z.number().positive().finite());
 export const pence = z.number().int();
 const delivery = z.enum(["sent", "failed"]).nullable();
+/**
+ * Text that prints on her PDF, re-checked whatever the database answered (security review M2: R8 and the character
+ * rules hold for every printed string, not only for what she typed): one line, or an address's lines.
+ */
+export const printedLine = z.string().min(1).refine((v) => !ONE_LINE_BAD.test(v) && isNotBabyBloom(v));
+export const printedAddress = z.string().min(1).refine((v) => !ADDRESS_BAD.test(v) && isNotBabyBloom(v));
 
 /** One stored line, as the screens and the PDF use it (in her order). */
 export type StoredLine =
@@ -59,11 +66,11 @@ export const LINE_COLUMNS = "line_no, kind, shift_date, hours, rate_pence, expen
 const lineNo = z.number().int().min(1);
 const shiftRow = z.object({
   line_no: lineNo, kind: z.literal("shift"), shift_date: londonDate, hours: hoursValue, rate_pence: pence.positive(),
-  expense_type: z.null(), description: z.string().nullable(), amount_pence: pence.nonnegative(),
+  expense_type: z.null(), description: printedLine.nullable(), amount_pence: pence.nonnegative(),
 });
 const expenseRow = z.object({
   line_no: lineNo, kind: z.literal("expense"), shift_date: z.null(), hours: z.null(), rate_pence: z.null(),
-  expense_type: z.enum(EXPENSE_TYPE_KEYS), description: z.string().nullable(), amount_pence: pence.positive(),
+  expense_type: z.enum(EXPENSE_TYPE_KEYS), description: printedLine.nullable(), amount_pence: pence.positive(),
 });
 
 export const lineRow = z.discriminatedUnion("kind", [shiftRow, expenseRow]).transform((r): StoredLine =>
