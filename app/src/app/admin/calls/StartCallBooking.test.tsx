@@ -85,6 +85,15 @@ describe("StartCallBooking — review round 1 (04c-2: React H1, M4, L5)", () => 
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("status")));
   });
 
+  it("after Yes, the page is clickable again: the dialog's pointer lock is lifted as it goes (review round 2)", async () => {
+    render(<StartCallBooking startedOn={null} />);
+    fireEvent.click(start());
+    await waitFor(() => expect(document.body.style.pointerEvents).toBe("none"));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Yes, start call booking" }));
+    await waitFor(() => expect(screen.getByText("Call booking started on 6 November 2026.")).toBeInTheDocument());
+    await waitFor(() => expect(document.body.style.pointerEvents).not.toBe("none"));
+  });
+
   it("Yes stays focusable while it starts (aria-disabled, not disabled)", async () => {
     let finish: (v: unknown) => void = () => {};
     actions.startCallBookingAction.mockReturnValue(new Promise((r) => (finish = r)));
