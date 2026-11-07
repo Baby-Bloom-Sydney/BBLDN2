@@ -1,9 +1,11 @@
 /**
- * The nanny invoice generator's shared types and result shapes (brief 06; plan `BUILD/plans/06-plan.md`).
+ * The nanny invoice generator's shared types and result shapes (brief 06; plan `BUILD/plans/06-plan.md`, §14).
  * Client-safe: no I/O here.
  *
- * BB-wave1-041126/06a-build, 2026-11-04.
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06 (lines, VAT, business types).
  */
+
+import { BUSINESS_TYPES, EXPENSE_TYPES } from "@/config/invoices";
 
 export const INVOICE_KINDS = ["regular_week", "trial_shift"] as const;
 export type InvoiceKind = (typeof INVOICE_KINDS)[number];
@@ -18,6 +20,20 @@ export const CANCEL_REASONS = ["wrong_hours", "wrong_rate", "wrong_period", "wro
 export type CancelReason = (typeof CANCEL_REASONS)[number];
 
 export type EmailDelivery = "sent" | "failed";
+
+/** An invoice is a header plus lines (plan 14.1): shifts and expenses, in the order she entered them. */
+export const LINE_KINDS = ["shift", "expense"] as const;
+export type LineKind = (typeof LINE_KINDS)[number];
+
+/** The expense types and business types, from config (their labels live there too). */
+export type ExpenseType = keyof typeof EXPENSE_TYPES;
+export const EXPENSE_TYPE_KEYS = Object.freeze(Object.keys(EXPENSE_TYPES)) as readonly ExpenseType[];
+export type BusinessType = keyof typeof BUSINESS_TYPES;
+export const BUSINESS_TYPE_KEYS = Object.freeze(Object.keys(BUSINESS_TYPES)) as readonly BusinessType[];
+
+/** VAT (brief §0a B): not registered; included in her rates (the family pays the agreed rate); added on top. */
+export const VAT_MODES = ["none", "included", "added"] as const;
+export type VatMode = (typeof VAT_MODES)[number];
 
 /** Every refusal an invoice operation can answer with. Codes only: no message carries her details. */
 export type InvoiceError =
@@ -35,6 +51,9 @@ export type InvoiceError =
   | "already_failed" // this invoice id failed: start again with a new invoice
   | "no_pdf" // finishing as sent before its PDF is stored
   | "no_details" // no payment details, or not the account she reviewed
+  | "no_address" // no business address and no verification address on file (plan 14.3, risk X5)
+  | "bad_lines" // a shift or expense line the database refused (counts, steps, ceilings, dates, a day's hours)
+  | "changed" // her settings changed since the review, so the total isn't the one she saw (plan 14.4, X6)
   | "bad_replaces" // a correction for an invoice that isn't hers, cancelled and to the same family (plan R4)
   | "already_replaced" // that invoice already has a correction
   | "no_contact" // a name or email missing from a profile

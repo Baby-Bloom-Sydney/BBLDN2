@@ -4,26 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { formatPence } from "@/app/admin/guarantees/format";
-import { formatHours, formatInvoiceMoney, invoiceTotalPence, poundsToPence } from "./money";
-
-describe("invoiceTotalPence", () => {
-  it("is hours × rate in whole pence (brief §0.3: 30 h × 1800 p = 54000 p)", () => {
-    expect(invoiceTotalPence(30, 1800)).toBe(54000);
-    expect(invoiceTotalPence(28, 1800)).toBe(50400);
-    expect(invoiceTotalPence(4, 1800)).toBe(7200);
-  });
-
-  it("rounds a half penny up, as Postgres round() does (amendment 21's total CHECK)", () => {
-    expect(invoiceTotalPence(0.5, 1801)).toBe(901);
-    expect(invoiceTotalPence(37.5, 1999)).toBe(74963);
-  });
-
-  it("refuses hours or a rate that can't make an invoice (hours only in half steps, as the database's round() assumes)", () => {
-    for (const [h, r] of [[0, 1800], [-1, 1800], [Number.NaN, 1800], [30, 0], [30, 18.5], [Number.POSITIVE_INFINITY, 1800], [0.25, 1800], [30.1, 1800]]) {
-      expect(() => invoiceTotalPence(h, r)).toThrow(RangeError);
-    }
-  });
-});
+import { formatHours, formatInvoiceMoney, poundsToPence } from "./money";
 
 describe("poundsToPence (the placement and position rates are pounds, numeric)", () => {
   it.each([
@@ -50,9 +31,11 @@ describe("formatInvoiceMoney", () => {
 });
 
 describe("formatHours", () => {
-  it("prints whole and half hours without trailing zeros", () => {
+  it("prints whole, half and quarter hours without trailing zeros", () => {
     expect(formatHours(30)).toBe("30");
     expect(formatHours(0.5)).toBe("0.5");
     expect(formatHours(37.5)).toBe("37.5");
+    expect(formatHours(8.75)).toBe("8.75");
+    expect(formatHours(0.25)).toBe("0.25");
   });
 });

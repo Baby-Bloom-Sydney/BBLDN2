@@ -25,6 +25,8 @@ export type AdminClient = ReturnType<typeof createAdminClient>;
 export type DbResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly code?: string };
 
 export const DB_FAILED = Object.freeze({ ok: false } as const);
+/** Postgres's lock timeout (amendment 21's writers wait 3 s for her lock): the store answers `busy`. */
+export const LOCK_TIMEOUT = "55P03";
 export const dbOk = <T>(value: T): DbResult<T> => ({ ok: true, value });
 
 /** Rows per request — below PostgREST's 1,000-row cap, so a full page always means "ask for the next one". */

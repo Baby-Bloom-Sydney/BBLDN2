@@ -13,6 +13,7 @@ import {
   issueDateLabel,
   londonDayRange,
   londonWeekStart,
+  dayLabel,
   shiftDateLabel,
   weekEndOf,
   weekOfLabel,
@@ -110,3 +111,14 @@ describe.each(HOST_ZONES)("invoice weeks with the host in %s", (zone) => {
   });
 });
 
+describe("dayLabel (the shift table's Date column, 06b-2)", () => {
+  it("prints a London date as its weekday, day and month", () => {
+    expect(dayLabel("2027-02-08")).toBe("Mon 8 Feb");
+    expect(dayLabel("2027-02-14")).toBe("Sun 14 Feb");
+    expect(dayLabel("2026-12-31")).toBe("Thu 31 Dec");
+  });
+
+  it("refuses a date that doesn't exist", () => {
+    expect(() => dayLabel("2027-02-30")).toThrow(RangeError);
+  });
+});

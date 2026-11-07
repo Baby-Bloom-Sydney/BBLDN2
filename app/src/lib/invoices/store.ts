@@ -1,7 +1,8 @@
 /**
- * The invoice store (plan 06 step 6; R1) — **the only module that touches `nanny_payment_details` and
- * `nanny_invoices`** (amendment 21). Server-only, and deliberately NOT a `"use server"` file: every async export of
- * one becomes a browser-callable action, and this module reads bank details with the service role.
+ * The invoice store (plan 06 step 6; R1; §14.4 b2.4) — **with `store-business.ts`, the only modules that touch
+ * amendment 21's four tables** (bank details, business details, invoices, lines). Server-only, and deliberately NOT
+ * a `"use server"` file: every async export of one becomes a browser-callable action, and this module reads bank
+ * details with the service role.
  *
  * - Every operation passes `gate.ts` first: the switch (`invoices_disabled`, before a client is even made), then its proof:
  *   a `NannyProof` for her own details and invoices — the nanny id always comes from the proof, never from input —
@@ -9,17 +10,21 @@
  * - Screens read the masks only (`readMaskedDetails`); the full numbers come back from one named read,
  *   `readFullDetailsForInvoicePdf`, for her PDF.
  * - Writes go only through amendment 21's functions, which lock per nanny, take the family and the snapshots from
- *   her own placement or trial connection, and never delete (R1).
+ *   her own placement or trial connection, the issuer and VAT from her business details, and never delete (R1). An
+ *   invoice goes as its lines (`p_lines`) with the total her review showed; the database works out every figure
+ *   again and answers `changed` when it differs.
+ * - Her own list and an invoice's lines (her correction's pre-fill) are hers only: filtered by the proof's nanny,
+ *   and re-checked here.
  * - The readers' rows are what went out, with a PDF (R1), re-checked here whatever the query returned.
  * - Failures are logged by code only (`db.ts`); results are closed codes, nothing is thrown to callers.
  *
- * BB-wave1-041126/06a-build, 2026-11-04.
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
  */
 
 import { z } from "zod";
 import { INVOICE_RULES } from "@/config/invoices";
 import type { AdminProof } from "@/lib/calls/admin-proof";
-import { allPages, callRpc, logFailure, parseRows, readOne, serviceClient, type DbResult } from "./db";
+import { allPages, callRpc, LOCK_TIMEOUT, logFailure, parseRows, readOne, serviceClient, type DbResult } from "./db";
 import { adminGate, nannyGate } from "./gate";
 import type { NannyProof } from "./nanny-proof";
 import { countsAsIssued, countsAsSent } from "./status";
@@ -46,18 +51,31 @@ import {
   type StoredPaymentDetails,
   type WeekRow,
 } from "./store-map";
-import { FAILED, INVALID, invoiceOk, refused, type EmailDelivery, type InvoiceResult } from "./types";
-import { invoiceDraftSchema, paymentDetailsSchema, VALIDATION_MESSAGES } from "./validation";
+import {
+  linesArg,
+  linesInOrder,
+  MY_INVOICE_COLUMNS,
+  MY_LINES_COLUMNS,
+  myInvoiceRow,
+  myLinesRow,
+  type MyInvoice,
+  type StoredLine,
+} from "./store-map-lines";
+import { FAILED, INVALID, invoiceOk, refused, type EmailDelivery, type InvoiceError, type InvoiceResult } from "./types";
+import { paymentDetailsSchema } from "./validation";
+import { FUTURE_ISSUE, invoiceDraftSchema } from "./validation-lines";
 import { isLondonMonday, londonDayRange } from "./week";
 
-export type { CreatedInvoice, FamilyRow, MaskedPaymentDetails, SavedDetails, StoredPaymentDetails, WeekRow } from "./store-map";
+export type { CreatedInvoice, FamilyRow, IssuerSnapshot, MaskedPaymentDetails, SavedDetails, StoredPaymentDetails, WeekRow } from "./store-map";
+export type { MyInvoice, StoredLine } from "./store-map-lines";
 
 export type FinishOutcome =
   | { readonly kind: "sent"; readonly family: EmailDelivery; readonly nanny: EmailDelivery }
   | { readonly kind: "failed" };
 
-const LOCK_TIMEOUT = "55P03";
 const MINUTE_MS = 60_000;
+/** A Postgres integer: an expected total beyond it can't be an invoice's. */
+const MAX_TOTAL_PENCE = 2_147_483_647;
 const guid = z.guid();
 const delivery = z.enum(["sent", "failed"]);
 const finishOutcome = z.union([
@@ -106,28 +124,39 @@ export async function saveDetails(proof: NannyProof, input: unknown): Promise<In
     p_account_name: d.accountName,
     p_sort_code: d.sortCode,
     p_account_number: d.accountNumber,
-    p_trading_name: d.tradingName,
-    p_invoice_address: d.invoiceAddress,
   });
   return mapReply("nanny_payment_details_save", reply, savedReply);
 }
 
+/** A draft the schema refused: a future week or day, a line it can't take, or anything else (by issue code). */
+function draftRefusal(issues: readonly z.core.$ZodIssue[]): InvoiceError {
+  if (issues.some((i) => i.code === "custom" && i.params?.issue === FUTURE_ISSUE)) return "future";
+  return issues.some((i) => i.path[0] === "lines") ? "bad_lines" : "invalid";
+}
+
 /**
- * Create an invoice (status `sending`, the next per-nanny number) from a draft and the last 4 of the account her PDF
- * will print. The database decides, under her lock: the family and its name and email (from her own placement — not
- * dismissed — or her trial connection, on its trial date), the daily cap (config's, counted there), her account
- * status, and the correction rules. The draft's `invoiceId` is the caller's: sending the same id again never makes a
- * second invoice or a second send — it answers `in_progress` or `already_done`. Only a fresh `ok` may be rendered,
- * uploaded, emailed and finished. 06b shows the review screen from `resolveInvoiceTarget` (families.ts) first.
+ * Create an invoice (status `sending`, the next per-nanny number) from a draft — a header and her lines in order —
+ * the last 4 of the account her PDF will print, and the total her review showed (`expectedTotalPence`, from
+ * `totals.ts` and her issuer). The database decides, under her lock: the family and its name and email (from her own
+ * placement — not dismissed — or her trial connection, on its trial date), the daily cap, her account status, the
+ * correction rules, who she is on the invoice (her business details now: `no_address` when there's none), every
+ * figure (`bad_lines`, and `changed` when the total isn't the one she saw). The draft's `invoiceId` is the caller's:
+ * sending the same id again never makes a second invoice or a second send — it answers `in_progress` or
+ * `already_done`. Only a fresh `ok` may be rendered, uploaded, emailed and finished.
  */
-export async function createInvoice(proof: NannyProof, draft: unknown, accountLast4: string, now: Date = new Date()): Promise<InvoiceResult<CreatedInvoice>> {
+export async function createInvoice(
+  proof: NannyProof,
+  draft: unknown,
+  accountLast4: string,
+  expectedTotalPence: number,
+  now: Date = new Date(),
+): Promise<InvoiceResult<CreatedInvoice>> {
   const gate = nannyGate(proof);
   if (gate) return gate;
   const parsed = invoiceDraftSchema(now).safeParse(draft);
-  if (!parsed.success) {
-    return refused(parsed.error.issues.some((i) => i.message === VALIDATION_MESSAGES.future) ? "future" : "invalid");
-  }
-  if (!/^\d{4}$/.test(accountLast4)) return INVALID;
+  if (!parsed.success) return refused(draftRefusal(parsed.error.issues));
+  const totalOk = Number.isSafeInteger(expectedTotalPence) && expectedTotalPence > 0 && expectedTotalPence <= MAX_TOTAL_PENCE;
+  if (!/^\d{4}$/.test(accountLast4) || !totalOk) return INVALID;
   const admin = serviceClient();
   if (!admin) return FAILED;
   const d = parsed.data;
@@ -137,8 +166,8 @@ export async function createInvoice(proof: NannyProof, draft: unknown, accountLa
     p_kind: d.kind,
     p_target: d.targetId,
     p_period_start: d.periodStart,
-    p_hours: d.hours,
-    p_rate_pence: d.ratePence,
+    p_lines: linesArg(d.lines),
+    p_expected_total_pence: expectedTotalPence,
     p_replaces: d.replacesInvoiceId,
     p_account_last4: accountLast4,
     p_daily_cap: INVOICE_RULES.dailySendCap,
@@ -240,4 +269,33 @@ export async function readFamilyRows(proof: AdminProof, parentUserId: string): P
     countsAsIssued({ status: r.status, pdfPath: r.pdf_path }) && (r.status === "sent" || r.status === "cancelled") && r.sent_at !== null
       ? [toFamilyRow(r, r.status, r.sent_at)]
       : []));
+}
+
+/** Her own invoices, newest first, for her list (no email, bank or PDF field); rows not hers are dropped again. */
+export async function readMyInvoices(proof: NannyProof): Promise<InvoiceResult<readonly MyInvoice[]>> {
+  const gate = nannyGate(proof);
+  if (gate) return gate;
+  const admin = serviceClient();
+  if (!admin) return FAILED;
+  const rows = await allPages("readMyInvoices", (from, to) =>
+    admin.from("nanny_invoices").select(MY_INVOICE_COLUMNS).eq("nanny_id", proof.nannyId)
+      .order("created_at", { ascending: false }).order("id", { ascending: false }).range(from, to),
+  );
+  const parsed = parseRows("readMyInvoices", rows, myInvoiceRow);
+  if (!parsed.ok) return parsed;
+  return invoiceOk(parsed.value.filter((r) => r.nannyId === proof.nannyId));
+}
+
+/** One of her invoices' lines, in her order (the correction's pre-fill, plan 14.3): `not_found` when it isn't hers. */
+export async function readMyInvoiceLines(proof: NannyProof, invoiceId: string): Promise<InvoiceResult<readonly StoredLine[]>> {
+  const gate = nannyGate(proof);
+  if (gate) return gate;
+  if (!guid.safeParse(invoiceId).success) return INVALID;
+  const admin = serviceClient();
+  if (!admin) return FAILED;
+  const row = await readOne("readMyInvoiceLines", () =>
+    admin.from("nanny_invoices").select(MY_LINES_COLUMNS).eq("id", invoiceId).eq("nanny_id", proof.nannyId).maybeSingle(), myLinesRow);
+  if (!row.ok) return row;
+  if (row.value === null || row.value.nanny_id !== proof.nannyId) return refused("not_found");
+  return invoiceOk(linesInOrder(row.value.nanny_invoice_lines));
 }
