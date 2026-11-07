@@ -6,7 +6,7 @@
  * - **Switch off:** renders nothing and reads nothing (not even the session).
  * - **Switch on:** her proof from the request's session, then her effective issuer (`readIssuer`, defaults included)
  *   and her **masked** bank details, read in parallel, mapped by `business-view.ts` into the client section's two
- *   props. The props are what the browser receives (the RSC payload): never a full bank number, an id, a proof or a
+ *   props, through the lazy client entry (`BusinessSettingsLazy`). The props are what the browser receives (the RSC payload): never a full bank number, an id, a proof or a
  *   family field (06b-2 handoff; the leaf's test pins them).
  * - A failed read, or no nanny session: one plain message, never an empty or half section.
  *
@@ -18,7 +18,7 @@ import { nannyInvoicesEnabled } from "@/lib/features/flags";
 import { proveNanny } from "@/lib/invoices/nanny-proof";
 import { readMaskedDetails } from "@/lib/invoices/store";
 import { readIssuer } from "@/lib/invoices/store-business";
-import { BusinessSettingsForm } from "./BusinessSettingsForm";
+import { BusinessSettingsLazy } from "./BusinessSettingsLazy";
 import { toBankView, toBusinessView } from "./business-view";
 
 export const LOAD_FAILED = "We couldn't load your business details. Please refresh the page.";
@@ -39,5 +39,5 @@ export async function BusinessSettingsLeaf() {
   if (!proof) return <LoadFailed />;
   const [issuer, masked] = await Promise.all([readIssuer(proof), readMaskedDetails(proof)]);
   if (!issuer.ok || !masked.ok) return <LoadFailed />;
-  return <BusinessSettingsForm business={toBusinessView(issuer.value)} bank={toBankView(masked.value)} />;
+  return <BusinessSettingsLazy business={toBusinessView(issuer.value)} bank={toBankView(masked.value)} />;
 }

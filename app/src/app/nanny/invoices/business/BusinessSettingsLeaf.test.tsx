@@ -21,7 +21,7 @@ vi.mock("@/lib/invoices/actions/save-business-details", () => ({ saveBusinessDet
 vi.mock("@/lib/invoices/actions/save-payment-details", () => ({ savePaymentDetails: vi.fn() }));
 
 import { fakeAdmin, type FakeAdmin } from "@/lib/payments/fake-admin.test-util";
-import { BusinessSettingsForm } from "./BusinessSettingsForm";
+import { BusinessSettingsLazy } from "./BusinessSettingsLazy";
 import { BusinessSettingsLeaf, LOAD_FAILED } from "./BusinessSettingsLeaf";
 
 const NANNY_ID = "b0600000-0000-4000-8000-000000000101";
@@ -75,10 +75,10 @@ describe("BusinessSettingsLeaf — switch off", () => {
 });
 
 describe("BusinessSettingsLeaf — switch on", () => {
-  it("reads her issuer and her masks for the session's nanny, then renders the client section", async () => {
+  it("reads her issuer and her masks for the session's nanny, then renders the client section (loaded lazily)", async () => {
     const out = (await BusinessSettingsLeaf()) as ReactElement;
     expect(isValidElement(out)).toBe(true);
-    expect(out.type).toBe(BusinessSettingsForm);
+    expect(out.type).toBe(BusinessSettingsLazy);
     expect(f.rpcCalls).toEqual([{ fn: "nanny_invoice_issuer", args: { p_nanny: NANNY_ID } }]);
     expect(selects).toEqual([["nanny_payment_details", "account_name, sort_code_last2, account_last4, updated_at"]]);
     expect(f.ops.find((o) => o.table === "nanny_payment_details")?.filters).toEqual([["eq", "nanny_id", NANNY_ID]]);
@@ -102,7 +102,7 @@ describe("BusinessSettingsLeaf — switch on", () => {
   it("zero setup renders the defaults with their sources (A2)", async () => {
     f.reads.nanny_payment_details = null;
     render(await BusinessSettingsLeaf());
-    expect(screen.getByText("Sole trader")).toBeInTheDocument();
+    expect(await screen.findByText("Sole trader")).toBeInTheDocument();
     expect(screen.getByText("(your name)")).toBeInTheDocument();
     expect(screen.getByText("(from your verification)")).toBeInTheDocument();
     expect(screen.getByText("Not VAT registered")).toBeInTheDocument();
