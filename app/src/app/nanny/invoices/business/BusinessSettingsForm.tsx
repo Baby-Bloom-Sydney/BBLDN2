@@ -17,7 +17,8 @@
  *   focus fell to the page (found by the b3.6 keyboard walk). If that row is gone after the refresh (a company's rows
  *   when she becomes a sole trader), focus goes to "Business type".
  * - **While a save is in flight** the dialog can't be closed, a changed second submit is told to wait, and an action
- *   that throws (offline, a stale deploy) answers the general message (06b-3 review round 1).
+ *   that throws (offline, a stale deploy) or doesn't answer within `SAVE_WAIT_MS` answers the general message, so a
+ *   stalled request never locks the dialog (06b-3 review round 1).
  * - Notes that carry content (company number, VAT number, the one-address line) are slate-500, not the rows' faint
  *   captions (AA contrast); the bank line is read out in words, not bullets.
  *
@@ -184,12 +185,21 @@ function MoneyRows({ view, bank, open }: { readonly view: BusinessView; readonly
   );
 }
 
-/** Run an action; a throw (offline, a stale deploy) answers the general message instead of stalling the dialog. */
+/** How long a save may take before the section gives up on its answer (code review L2). */
+export const SAVE_WAIT_MS = 30_000;
+
+/** Run an action: null when it throws (offline, a stale deploy) or gives no answer within `SAVE_WAIT_MS`. */
 async function attempt<R>(run: () => Promise<R>): Promise<R | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const gaveUp = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), SAVE_WAIT_MS);
+  });
   try {
-    return await run();
+    return await Promise.race([run(), gaveUp]);
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 

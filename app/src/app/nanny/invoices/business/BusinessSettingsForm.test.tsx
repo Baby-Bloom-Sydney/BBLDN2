@@ -248,6 +248,40 @@ describe("BusinessSettingsForm — review round 1", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
+  it("a refused close mid-save keeps what she typed in the bank form (code review L1)", async () => {
+    let finish: (v: unknown) => void = () => undefined;
+    h.savePaymentDetails.mockImplementationOnce(() => new Promise((r) => { finish = r; }));
+    show();
+    fireEvent.click(row("Bank details"));
+    fireEvent.change(screen.getByLabelText("Name on the account"), { target: { value: "Sophie Taylor" } });
+    fireEvent.change(screen.getByLabelText("Sort code"), { target: { value: "112233" } });
+    fireEvent.change(screen.getByLabelText("Account number"), { target: { value: "87654321" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(h.savePaymentDetails).toHaveBeenCalledTimes(1));
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.getByLabelText("Account number")).toHaveValue("87654321");
+    finish({ ok: false, error: "error", message: "We couldn't save that. Please try again." });
+    expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't save that.");
+    expect(screen.getByLabelText("Sort code")).toHaveValue("112233");
+  });
+
+  it("a save that never answers gives up after 30 seconds: the general message, and the dialog can close (code review L2)", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      h.saveBusinessDetails.mockImplementationOnce(() => new Promise(() => undefined));
+      show();
+      fireEvent.click(row("Trading name"));
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(screen.getByRole("alert")).toHaveTextContent("We couldn't save that. Please try again.");
+      fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(screen.queryByRole("dialog")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("when the row that opened a dialog is gone after the refresh, focus goes to 'Business type' (React M3)", async () => {
     const { rerender } = show(LTD, BANK);
     const company = row("Company");

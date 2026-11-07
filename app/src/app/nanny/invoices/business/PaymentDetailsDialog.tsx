@@ -6,13 +6,14 @@
  *
  * - The fields always start empty: the browser never holds her saved numbers (it has the masks only), so a change is
  *   typed in full.
- * - Cleared once saved, and when closed without saving (plan §9 surface 2).
+ * - Cleared once saved, and when it closes without saving (plan §9 surface 2) — when it actually closes: a close the
+ *   section refuses mid-save keeps what she typed (06b-3 code review L1).
  * - A change says we'll email her (brief §11 Q12); the first save doesn't.
  *
  * BB-wave1-041126/06b3-build, 2026-11-07.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { EditFieldDialog } from "@/components/settings/EditFieldDialog";
 import type { BankView, SaveOutcome } from "./business-view";
 import { DialogFields, useFocusFirstInvalid } from "./form-fields";
@@ -38,10 +39,9 @@ export function PaymentDetailsDialog({ open, onOpenChange, bank, onSave }: Payme
     setIssues({});
   }
 
-  function changeOpen(next: boolean) {
-    if (!next) clear();
-    onOpenChange(next);
-  }
+  useEffect(() => {
+    if (!open) clear();
+  }, [open]);
 
   async function submit() {
     const outcome = await onSave(fields);
@@ -53,7 +53,7 @@ export function PaymentDetailsDialog({ open, onOpenChange, bank, onSave }: Payme
   return (
     <EditFieldDialog
       open={open}
-      onOpenChange={changeOpen}
+      onOpenChange={onOpenChange}
       title={bank === null ? "Add your bank details" : "Change your bank details"}
       description="Printed in full on your invoices, so families can pay you. On screen we only show the last digits."
       onSubmit={submit}
