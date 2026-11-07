@@ -128,7 +128,8 @@ function MoneyRows({ view, bank, open }: { readonly view: BusinessView; readonly
         <SettingsRow label="VAT" value={vat.value} caption={vat.caption ?? undefined} onClick={open("vat")} isLast />
       </SettingsSubsection>
       <SettingsSubsection header="Bank details for invoices" footnote="Printed in full on your invoices, so families can pay you. On screen we only show the last digits.">
-        <SettingsRow label="Bank details" value={bankSummary(bank)} onClick={open("bank")} isLast />
+        <SettingsRow label="Bank details" display={<span className="block whitespace-normal text-sm text-slate-900">{bankSummary(bank)}</span>}
+          onClick={open("bank")} isLast />
       </SettingsSubsection>
     </>
   );

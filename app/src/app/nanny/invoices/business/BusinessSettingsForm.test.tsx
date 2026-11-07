@@ -87,6 +87,9 @@ describe("BusinessSettingsForm — what it shows", () => {
     show({ ...DEFAULTS, name: null, address: null, addressSource: null });
     expect(screen.getByText("Not on file — add the address for your invoices")).toHaveClass("whitespace-normal");
     expect(screen.getByText("Not set — add a name for your invoices")).toHaveClass("whitespace-normal");
+    cleanup();
+    show(DEFAULTS, BANK);
+    expect(screen.getByText("Sophie Taylor · sort code ••-••-33, account ending 4321")).toHaveClass("whitespace-normal");
   });
 
   it("an address she entered has no source note; none on file asks for one; no printable name asks for one", () => {
