@@ -122,6 +122,44 @@ describe("savePaymentDetails — saving", () => {
   });
 });
 
+describe("savePaymentDetails — the alert is capped (security review M1)", () => {
+  it("3 alerts already sent to her in the last hour: the save happens, no 4th email; the lookup is hers, this type, the last hour", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2027-02-15T14:00:00.000Z"));
+    try {
+      f.rpcResults.nanny_payment_details_save = saved(false, true);
+      f.reads.email_logs = [{ id: "e1" }, { id: "e2" }, { id: "e3" }];
+      expect(await savePaymentDetails(IN)).toEqual({ ok: true, masks: { sortCodeLast2: "33", accountLast4: "4321" } });
+      expect(sendEmail).not.toHaveBeenCalled();
+      const lookup = f.ops.find((o) => o.table === "email_logs");
+      expect(lookup?.filters).toEqual([
+        ["eq", "recipient_user_id", USER_ID],
+        ["eq", "email_type", "invoice_payment_details_changed"],
+        ["gte", "created_at", "2027-02-15T13:00:00.000Z"],
+        ["limit", 3, undefined],
+      ]);
+      expect(console.warn).toHaveBeenLastCalledWith("[invoices] the details-changed email skipped", { code: "alert_cap" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("fewer than 3 in the hour: sent", async () => {
+    f.rpcResults.nanny_payment_details_save = saved(false, true);
+    f.reads.email_logs = [{ id: "e1" }, { id: "e2" }];
+    await savePaymentDetails(IN);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("the lookup failing never silences the alert: sent, the failure logged by code", async () => {
+    f.rpcResults.nanny_payment_details_save = saved(false, true);
+    f.readErrors.email_logs = { message: "boom", code: "XX000" };
+    await savePaymentDetails(IN);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(console.error).toHaveBeenCalledWith("[invoices] the details-changed email cap failed", { code: "XX000" });
+  });
+});
+
 describe("savePaymentDetails — refusals", () => {
   it("bad input → invalid with a plain message; nothing written or sent", async () => {
     for (const bad of [{ ...IN, sortCode: "11223" }, { ...IN, accountNumber: "1234567" }, { ...IN, accountName: "Baby Bloom" }, null]) {

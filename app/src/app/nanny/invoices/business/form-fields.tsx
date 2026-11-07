@@ -17,7 +17,8 @@ import { cn } from "@/lib/utils";
 
 const INVALID = "aria-[invalid=true]:border-rose-400 aria-[invalid=true]:focus-visible:ring-rose-400";
 
-type InputExtras = Pick<InputHTMLAttributes<HTMLInputElement>, "autoComplete" | "inputMode" | "maxLength" | "placeholder" | "spellCheck">;
+type InputExtras = Pick<InputHTMLAttributes<HTMLInputElement>, "autoComplete" | "inputMode" | "maxLength" | "placeholder" | "spellCheck"> &
+  Readonly<Partial<Record<`data-${string}`, string>>>;
 
 export interface TextFieldProps {
   readonly id: string;

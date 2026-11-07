@@ -7,20 +7,51 @@
  * Best effort: it never throws. A missing profile, a provider failure or a throw is logged by code only; the save it
  * follows has already happened. The email carries no digit of her details and replies to the support inbox.
  *
+ * **Capped** (06b-3 security review M1): at most `ALERTS_PER_HOUR` of these to her in any hour, counted from
+ * `email_logs` (every send, dry runs and failures included, is logged there), so repeated changes can't use BabyBloom's
+ * sender to flood her inbox or the shared provider's rate limit. The save is never refused. If the count can't be
+ * read, the alert is sent anyway: a missed alert is worse than one too many.
+ *
  * BB-wave1-041126/06b3-build, 2026-11-07.
  */
 
 import { SUPPORT_INBOX } from "@/lib/constants";
 import { getUserEmailInfo } from "@/lib/email/helpers";
 import { sendEmail } from "@/lib/email/resend";
-import { logFailure } from "../db";
+import { logFailure, serviceClient } from "../db";
 import { PAYMENT_DETAILS_CHANGED_EMAIL_TYPE, paymentDetailsChangedEmail } from "./payment-details-changed";
 
 const LABEL = "the details-changed email";
+/** The cap: this many alerts to one nanny in the last `ALERT_WINDOW_MS`. */
+export const ALERTS_PER_HOUR = 3;
+const ALERT_WINDOW_MS = 60 * 60 * 1000;
+
+/** Whether she has had `ALERTS_PER_HOUR` of these in the last hour; false when the count can't be read. */
+async function capped(userId: string): Promise<boolean> {
+  const admin = serviceClient();
+  if (!admin) return false;
+  const since = new Date(Date.now() - ALERT_WINDOW_MS).toISOString();
+  const { data, error } = await admin
+    .from("email_logs")
+    .select("id")
+    .eq("recipient_user_id", userId)
+    .eq("email_type", PAYMENT_DETAILS_CHANGED_EMAIL_TYPE)
+    .gte("created_at", since)
+    .limit(ALERTS_PER_HOUR);
+  if (error) {
+    logFailure(`${LABEL} cap`, error);
+    return false;
+  }
+  return Array.isArray(data) && data.length >= ALERTS_PER_HOUR;
+}
 
 /** Tell her (by her user id) that her bank details for invoices changed. Never throws. */
 export async function sendPaymentDetailsChangedEmail(userId: string): Promise<void> {
   try {
+    if (await capped(userId)) {
+      console.warn(`[invoices] ${LABEL} skipped`, { code: "alert_cap" });
+      return;
+    }
     const who = await getUserEmailInfo(userId);
     if (!who) {
       logFailure(LABEL, { code: "no_profile" });

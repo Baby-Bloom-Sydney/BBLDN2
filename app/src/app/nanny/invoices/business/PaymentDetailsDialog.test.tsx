@@ -47,6 +47,10 @@ describe("PaymentDetailsDialog", () => {
       const field = screen.getByLabelText(label);
       expect(field).toHaveValue("");
       expect(field).toHaveAttribute("autocomplete", "off");
+      // password managers that ignore autocomplete="off" (security review L3)
+      expect(field).toHaveAttribute("data-1p-ignore", "true");
+      expect(field).toHaveAttribute("data-lpignore", "true");
+      expect(field).toHaveAttribute("data-form-type", "other");
     }
     expect(screen.getByLabelText("Sort code")).toHaveAttribute("inputmode", "numeric");
     expect(screen.getByLabelText("Account number")).toHaveAttribute("inputmode", "numeric");

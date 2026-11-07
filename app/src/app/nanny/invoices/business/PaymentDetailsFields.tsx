@@ -27,7 +27,9 @@ export interface PaymentDetailsFieldsProps {
   readonly issues?: Readonly<Record<string, string>>;
 }
 
-const PRIVATE = { autoComplete: "off", spellCheck: false } as const;
+/** No autofill and no spell check; the `data-` hints ask password managers that ignore `autocomplete="off"` to stay out
+ * too (security review L3). */
+const PRIVATE = { autoComplete: "off", spellCheck: false, "data-1p-ignore": "true", "data-lpignore": "true", "data-form-type": "other" } as const;
 
 export function PaymentDetailsFields({ value, onChange, issues = {} }: PaymentDetailsFieldsProps) {
   const id = useId();
