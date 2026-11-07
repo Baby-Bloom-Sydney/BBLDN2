@@ -160,6 +160,22 @@ describe("savePaymentDetails — the alert is capped (security review M1)", () =
   });
 });
 
+describe("savePaymentDetails — a slow provider (TS review M2)", () => {
+  it("the save's reply waits at most 5 seconds for the email, which stays best effort", async () => {
+    vi.useFakeTimers();
+    try {
+      f.rpcResults.nanny_payment_details_save = saved(false, true);
+      sendEmail.mockImplementationOnce(() => new Promise(() => undefined));
+      const reply = savePaymentDetails(IN);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(await reply).toEqual({ ok: true, masks: { sortCodeLast2: "33", accountLast4: "4321" } });
+      expect(console.error).toHaveBeenLastCalledWith("[invoices] the details-changed email failed", { code: "timeout" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("savePaymentDetails — refusals", () => {
   it("bad input → invalid with a plain message; nothing written or sent", async () => {
     for (const bad of [{ ...IN, sortCode: "11223" }, { ...IN, accountNumber: "1234567" }, { ...IN, accountName: "Baby Bloom" }, null]) {

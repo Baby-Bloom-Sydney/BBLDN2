@@ -53,6 +53,9 @@ describe("PaymentDetailsDialog", () => {
       expect(field).toHaveAttribute("data-form-type", "other");
     }
     expect(screen.getByLabelText("Sort code")).toHaveAttribute("inputmode", "numeric");
+    // the schema strips spaces and hyphens: a cap here would cut a pasted "12 - 34 - 56" (TS review L)
+    expect(screen.getByLabelText("Sort code")).not.toHaveAttribute("maxlength");
+    expect(screen.getByLabelText("Account number")).not.toHaveAttribute("maxlength");
     expect(screen.getByLabelText("Account number")).toHaveAttribute("inputmode", "numeric");
     expect(screen.queryByText(/We'll email you/)).toBeNull();
   });

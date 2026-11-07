@@ -12,7 +12,7 @@ import { useId, useState } from "react";
 import { INVOICE_RULES } from "@/config/invoices";
 import { EditFieldDialog } from "@/components/settings/EditFieldDialog";
 import { percentText, type BusinessFormInput, type BusinessView, type SaveOutcome } from "./business-view";
-import { DialogFields, RadioChoice, RadioGroupFieldset, TextField } from "./form-fields";
+import { DialogFields, RadioChoice, RadioGroupFieldset, TextField, useFocusFirstInvalid } from "./form-fields";
 
 type Owned = Pick<BusinessFormInput, "vatMode" | "vatNumber" | "vatRate">;
 type Charged = "included" | "added";
@@ -33,6 +33,7 @@ export function VatDialog({ open, onOpenChange, view, onSave }: VatDialogProps) 
   const [vatNumber, setVatNumber] = useState(view.vatNumber ?? "");
   const [rate, setRate] = useState(view.vatRateBp === null ? DEFAULT_RATE : percentText(view.vatRateBp));
   const [issues, setIssues] = useState<Readonly<Record<string, string>>>({});
+  useFocusFirstInvalid(issues);
 
   async function submit() {
     const patch: Owned = registered ? { vatMode: charged, vatNumber, vatRate: rate } : { vatMode: "none", vatNumber: "", vatRate: "" };
@@ -51,7 +52,7 @@ export function VatDialog({ open, onOpenChange, view, onSave }: VatDialogProps) 
         {registered && (
           <>
             <TextField id={`${id}-number`} label="VAT number" value={vatNumber} onChange={setVatNumber} error={issues.vatNumber}
-              input={{ placeholder: "GB 123 4567 89", spellCheck: false, maxLength: 20 }} />
+              input={{ placeholder: "GB 123 4567 89", spellCheck: false }} />
             <RadioGroupFieldset legend="How do you charge it?">
               <RadioChoice name={`${id}-charged`} value="included" checked={charged === "included"} onSelect={() => setCharged("included")}
                 label="VAT included in my rates" />
@@ -59,7 +60,7 @@ export function VatDialog({ open, onOpenChange, view, onSave }: VatDialogProps) 
                 label="VAT added on top" />
             </RadioGroupFieldset>
             <TextField id={`${id}-rate`} label="VAT rate (%)" value={rate} onChange={setRate} error={issues.vatRate}
-              input={{ inputMode: "decimal", maxLength: 5 }} />
+              input={{ inputMode: "decimal" }} />
           </>
         )}
       </DialogFields>

@@ -11,7 +11,7 @@ import { useId, useState } from "react";
 import { INVOICE_RULES } from "@/config/invoices";
 import { EditFieldDialog } from "@/components/settings/EditFieldDialog";
 import type { BusinessView, SaveOutcome } from "./business-view";
-import { DialogFields, TextField } from "./form-fields";
+import { DialogFields, TextField, useFocusFirstInvalid } from "./form-fields";
 
 export interface TradingNameDialogProps {
   readonly open: boolean;
@@ -31,6 +31,7 @@ export function TradingNameDialog({ open, onOpenChange, view, onSave }: TradingN
   const id = useId();
   const [tradingName, setTradingName] = useState(view.tradingName ?? "");
   const [issue, setIssue] = useState<string | undefined>(undefined);
+  useFocusFirstInvalid(issue);
 
   async function submit() {
     const outcome = await onSave({ tradingName });

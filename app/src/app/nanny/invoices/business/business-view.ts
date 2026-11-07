@@ -147,6 +147,6 @@ export const CHECK_MARKED = "Please check the details marked below.";
 export function fieldIssues(error: z.ZodError): Readonly<Record<string, string>> {
   return error.issues.reduce<Readonly<Record<string, string>>>((found, issue) => {
     const field = typeof issue.path[0] === "string" ? issue.path[0] : "form";
-    return field in found ? found : { ...found, [field]: issue.message };
+    return Object.hasOwn(found, field) ? found : { ...found, [field]: issue.message };
   }, {});
 }

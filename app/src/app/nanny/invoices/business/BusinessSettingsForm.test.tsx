@@ -210,6 +210,79 @@ describe("BusinessSettingsForm — saving", () => {
   });
 });
 
+describe("BusinessSettingsForm — review round 1", () => {
+  it("an action that throws (offline, a stale deploy) shows the general message; nothing refreshes (TS H1, React M2)", async () => {
+    h.saveBusinessDetails.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    show();
+    fireEvent.click(row("Trading name"));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't save that. Please try again.");
+    cleanup();
+    h.savePaymentDetails.mockRejectedValueOnce(new Error("Failed to find Server Action"));
+    show();
+    fireEvent.click(row("Bank details"));
+    fireEvent.change(screen.getByLabelText("Name on the account"), { target: { value: "Sophie Taylor" } });
+    fireEvent.change(screen.getByLabelText("Sort code"), { target: { value: "112233" } });
+    fireEvent.change(screen.getByLabelText("Account number"), { target: { value: "87654321" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't save that. Please try again.");
+    expect(h.refresh).not.toHaveBeenCalled();
+  });
+
+  it("while a save is in flight the dialog can't be closed, and a changed second submit is told to wait (React M1, TS M1)", async () => {
+    let finish: (v: unknown) => void = () => undefined;
+    h.saveBusinessDetails.mockImplementationOnce(() => new Promise((r) => { finish = r; }));
+    show();
+    fireEvent.click(row("Trading name"));
+    fireEvent.change(screen.getByLabelText("Trading name (optional)"), { target: { value: "Little Steps" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(h.saveBusinessDetails).toHaveBeenCalledTimes(1));
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("dialog", { name: "Trading name" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Trading name (optional)"), { target: { value: "Little Steps Ltd" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Save" }).closest("form") as HTMLFormElement);
+    expect(await screen.findByText("Still saving — try again in a moment.")).toBeInTheDocument();
+    expect(h.saveBusinessDetails).toHaveBeenCalledTimes(1);
+    finish({ ok: true, changed: true });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("when the row that opened a dialog is gone after the refresh, focus goes to 'Business type' (React M3)", async () => {
+    const { rerender } = show(LTD, BANK);
+    const company = row("Company");
+    company.focus();
+    fireEvent.click(company);
+    fireEvent.click(screen.getByRole("radio", { name: "Sole trader" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(h.refresh).toHaveBeenCalled());
+    rerender(<BusinessSettingsForm business={{ ...LTD, businessType: "sole_trader", companyName: null, companyNumber: null, registeredOffice: null }} bank={BANK} />);
+    await waitFor(() => expect(document.activeElement).toBe(row("Business type")));
+  });
+
+  it("notes that matter read at AA contrast: slate-500, not the rows' slate-400 captions (React M4)", () => {
+    show(LTD, BANK);
+    for (const text of ["Company no. SC123456", "Your invoices show this as your address.", "VAT no. GB 123 4567 89",
+      "Printed instead of the company's name.", "Printed in full on your invoices, so families can pay you. On screen we only show the last digits."]) {
+      expect(screen.getByText(text)).toHaveClass("text-slate-500");
+    }
+  });
+
+  it("a screen reader hears the bank line in words, not bullets (React L3)", () => {
+    show(DEFAULTS, BANK);
+    expect(screen.getByText("Sophie Taylor, sort code ending 33, account ending 4321")).toHaveClass("sr-only");
+    expect(screen.getByText(wholeText("Sophie Taylor · sort code ••-••-33, account ending 4321"))).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("a refusal in a field the open dialog doesn't show names it in the alert, not 'marked below' (React L2, TS L)", async () => {
+    show({ ...DEFAULTS, vatMode: "added", vatNumber: "GB12", vatRateBp: 2000 });
+    fireEvent.click(row("Trading name"));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Enter a UK VAT number, like GB 123 4567 89");
+    expect(h.saveBusinessDetails).not.toHaveBeenCalled();
+  });
+});
+
 describe("BusinessSettingsForm — bank details", () => {
   it("adds them: the fields go to the action as typed, then a refresh", async () => {
     show();

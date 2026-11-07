@@ -77,6 +77,6 @@ export function paymentDetailsChangedEmail(params: PaymentDetailsChangedParams):
   return {
     subject: `Your ${SITE_NAME} payment details were changed`,
     html,
-    text: [...lines, "", SITE_NAME].join("\n\n"),
+    text: [...lines, SITE_NAME].join("\n\n"),
   };
 }

@@ -96,6 +96,14 @@ describe("BusinessTypeDialog", () => {
     expect(name.getAttribute("aria-describedby")).toContain(screen.getByText("Enter the company's registered name").id);
     expect(screen.getByLabelText("Registered office")).not.toHaveAttribute("aria-invalid", "true");
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    // focus goes to the first refused field, so its message is read out (React review L2)
+    await waitFor(() => expect(document.activeElement).toBe(name));
+  });
+
+  it("the registered office box is 16 px on a phone, so iOS doesn't zoom the dialog (React review M5)", () => {
+    show();
+    fireEvent.click(radio("Limited company"));
+    expect(screen.getByLabelText("Registered office")).toHaveClass("text-base", "md:text-sm");
   });
 
   it("saved → closes", async () => {

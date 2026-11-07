@@ -119,6 +119,7 @@ describe("BusinessSettingsLeaf — switch on", () => {
     getNannyId.mockResolvedValueOnce(null);
     render(await BusinessSettingsLeaf());
     expect(screen.getByText(LOAD_FAILED)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull(); // static text: an alert on load isn't reliably read (React review L4)
     expect(f.rpcCalls).toEqual([]);
   });
 

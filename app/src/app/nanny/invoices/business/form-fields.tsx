@@ -9,7 +9,7 @@
  * BB-wave1-041126/06b3-build, 2026-11-07.
  */
 
-import type { InputHTMLAttributes, ReactNode } from "react";
+import { useEffect, type InputHTMLAttributes, type ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -47,7 +47,9 @@ export function TextField({ id, label, value, onChange, hint, error, multiline =
     <div className="space-y-1.5">
       <Label htmlFor={id}>{label}</Label>
       {multiline ? (
-        <Textarea {...control} rows={4} placeholder={input?.placeholder} onChange={(e) => onChange(e.target.value)} />
+        // 16 px on a phone, as `Input` is, so iOS doesn't zoom the dialog on focus (React review M5)
+        <Textarea {...control} className={`${INVALID} text-base md:text-sm`} rows={4} placeholder={input?.placeholder}
+          onChange={(e) => onChange(e.target.value)} />
       ) : (
         <Input {...control} {...input} onChange={(e) => onChange(e.target.value)} />
       )}
@@ -107,6 +109,16 @@ export function RadioGroupFieldset({ legend, children }: { readonly legend: stri
       {children}
     </fieldset>
   );
+}
+
+/**
+ * After a refusal, focus the open dialog's first refused field, so its message (wired by `aria-describedby`) is read
+ * out and it scrolls into view (React review L2). Runs whenever `issues` changes; a no-op when nothing is refused.
+ */
+export function useFocusFirstInvalid(issues: unknown): void {
+  useEffect(() => {
+    document.querySelector<HTMLElement>('[role="dialog"] [aria-invalid="true"]')?.focus();
+  }, [issues]);
 }
 
 /** The dialog's fields, scrolling inside it when a small screen can't fit them, so Save stays in reach. */

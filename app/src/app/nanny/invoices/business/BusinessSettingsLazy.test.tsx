@@ -29,6 +29,7 @@ const SOURCE = readFileSync(path.join(path.dirname(new URL(import.meta.url).path
 describe("BusinessSettingsLazy", () => {
   it("renders the section once its code has loaded", async () => {
     render(<BusinessSettingsLazy business={DEFAULTS} bank={null} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Loading…"); // React review L4
     expect(await screen.findByText("Sole trader")).toBeInTheDocument();
     expect(screen.getByText("Not added yet")).toBeInTheDocument();
   });

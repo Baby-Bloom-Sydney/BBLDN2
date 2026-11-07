@@ -12,6 +12,9 @@
  * sender to flood her inbox or the shared provider's rate limit. The save is never refused. If the count can't be
  * read, the alert is sent anyway: a missed alert is worse than one too many.
  *
+ * **Bounded** (06b-3 TypeScript review M2): the save's reply waits at most `EMAIL_WAIT_MS` for it, so a slow provider
+ * never holds a save that has already happened; past that it is logged as `timeout` (it may still go out).
+ *
  * BB-wave1-041126/06b3-build, 2026-11-07.
  */
 
@@ -45,8 +48,21 @@ async function capped(userId: string): Promise<boolean> {
   return Array.isArray(data) && data.length >= ALERTS_PER_HOUR;
 }
 
-/** Tell her (by her user id) that her bank details for invoices changed. Never throws. */
+/** How long the save's reply waits for the email. */
+export const EMAIL_WAIT_MS = 5_000;
+
+/** Tell her (by her user id) that her bank details for invoices changed. Never throws; waits at most `EMAIL_WAIT_MS`. */
 export async function sendPaymentDetailsChangedEmail(userId: string): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<"timeout">((resolve) => {
+    timer = setTimeout(() => resolve("timeout"), EMAIL_WAIT_MS);
+  });
+  const outcome = await Promise.race([send(userId).then(() => "done" as const), late]);
+  clearTimeout(timer);
+  if (outcome === "timeout") logFailure(LABEL, { code: "timeout" });
+}
+
+async function send(userId: string): Promise<void> {
   try {
     if (await capped(userId)) {
       console.warn(`[invoices] ${LABEL} skipped`, { code: "alert_cap" });

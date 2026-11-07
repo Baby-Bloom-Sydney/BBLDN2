@@ -26,7 +26,7 @@ export const LOAD_FAILED = "We couldn't load your business details. Please refre
 function LoadFailed() {
   return (
     <SettingsSubsection>
-      <p role="alert" className="px-4 py-5 text-sm text-slate-600">
+      <p className="px-4 py-5 text-sm text-slate-600">
         {LOAD_FAILED}
       </p>
     </SettingsSubsection>

@@ -17,7 +17,7 @@ import { BUSINESS_TYPES } from "@/config/invoices";
 import { EditFieldDialog } from "@/components/settings/EditFieldDialog";
 import { BUSINESS_TYPE_KEYS, type BusinessType } from "@/lib/invoices/types";
 import type { BusinessFormInput, BusinessView, SaveOutcome } from "./business-view";
-import { DialogFields, RadioChoice, RadioGroupFieldset, TextField } from "./form-fields";
+import { DialogFields, RadioChoice, RadioGroupFieldset, TextField, useFocusFirstInvalid } from "./form-fields";
 
 type Owned = Pick<BusinessFormInput, "businessType" | "companyName" | "companyNumber" | "registeredOffice" | "partnershipName">;
 
@@ -38,6 +38,7 @@ export function BusinessTypeDialog({ open, onOpenChange, view, onSave }: Busines
   const [registeredOffice, setRegisteredOffice] = useState(view.registeredOffice ?? "");
   const [partnershipName, setPartnershipName] = useState(view.partnershipName ?? "");
   const [issues, setIssues] = useState<Readonly<Record<string, string>>>({});
+  useFocusFirstInvalid(issues);
 
   async function submit() {
     const outcome = await onSave({ businessType: type, companyName, companyNumber, registeredOffice, partnershipName });
@@ -65,7 +66,7 @@ export function BusinessTypeDialog({ open, onOpenChange, view, onSave }: Busines
             <TextField id={`${id}-company-name`} label="Company name" value={companyName} onChange={setCompanyName}
               hint="As registered at Companies House." error={issues.companyName} />
             <TextField id={`${id}-company-number`} label="Company number" value={companyNumber} onChange={setCompanyNumber}
-              error={issues.companyNumber} input={{ placeholder: "12345678", spellCheck: false, maxLength: 12 }} />
+              error={issues.companyNumber} input={{ placeholder: "12345678", spellCheck: false }} />
             <TextField id={`${id}-office`} label="Registered office" value={registeredOffice} onChange={setRegisteredOffice}
               multiline hint={ONE_ADDRESS} error={issues.registeredOffice} />
           </>

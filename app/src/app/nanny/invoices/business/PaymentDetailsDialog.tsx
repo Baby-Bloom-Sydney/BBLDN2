@@ -15,7 +15,7 @@
 import { useState } from "react";
 import { EditFieldDialog } from "@/components/settings/EditFieldDialog";
 import type { BankView, SaveOutcome } from "./business-view";
-import { DialogFields } from "./form-fields";
+import { DialogFields, useFocusFirstInvalid } from "./form-fields";
 import { EMPTY_PAYMENT_FIELDS, PaymentDetailsFields, type PaymentFieldsValue } from "./PaymentDetailsFields";
 
 export interface PaymentDetailsDialogProps {
@@ -31,6 +31,7 @@ export const CHANGE_NOTE = "These replace your current details on future invoice
 export function PaymentDetailsDialog({ open, onOpenChange, bank, onSave }: PaymentDetailsDialogProps) {
   const [fields, setFields] = useState<PaymentFieldsValue>(EMPTY_PAYMENT_FIELDS);
   const [issues, setIssues] = useState<Readonly<Record<string, string>>>({});
+  useFocusFirstInvalid(issues);
 
   function clear() {
     setFields(EMPTY_PAYMENT_FIELDS);

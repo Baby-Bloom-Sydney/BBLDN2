@@ -32,6 +32,10 @@ describe("paymentDetailsChangedEmail", () => {
     expect(paymentDetailsChangedEmail({ ...BASE, changedAt: "2027-07-01T09:30:00.000Z" }).text).toContain("1 July 2027 at 10:30");
   });
 
+  it("the text ends with one blank line, then the name (TS review L)", () => {
+    expect(paymentDetailsChangedEmail(BASE).text.endsWith("straight away.\n\nBabyBloom")).toBe(true);
+  });
+
   it("uses the brand header and the nanny footer", () => {
     const { html } = paymentDetailsChangedEmail(BASE);
     expect(html).toContain(emailHeader());

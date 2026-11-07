@@ -32,6 +32,18 @@ describe("useSingleFlight", () => {
     await expect(second).resolves.toBe("done:a");
   });
 
+  it("with a busy answer: a call with different arguments gets it, never the first call's outcome (TS review M1)", async () => {
+    const gate = deferred<string>();
+    const work = vi.fn((label: string) => gate.promise.then((v) => `${v}:${label}`));
+    const { result } = renderHook(() => useSingleFlight(work, () => "busy"));
+    const first = result.current("a");
+    expect(result.current("a")).toBe(first);
+    await expect(result.current("b")).resolves.toBe("busy");
+    expect(work).toHaveBeenCalledTimes(1);
+    await act(async () => gate.resolve("done"));
+    await expect(first).resolves.toBe("done:a");
+  });
+
   it("after it settles (even by failing), the next call runs again", async () => {
     const work = vi.fn().mockRejectedValueOnce(new Error("boom")).mockResolvedValueOnce("ok");
     const { result } = renderHook(() => useSingleFlight(work));

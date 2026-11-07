@@ -11,7 +11,7 @@
 import { useId, useState } from "react";
 import { EditFieldDialog } from "@/components/settings/EditFieldDialog";
 import type { SaveOutcome } from "./business-view";
-import { DialogFields, TextField } from "./form-fields";
+import { DialogFields, TextField, useFocusFirstInvalid } from "./form-fields";
 
 export interface AddressDialogProps {
   readonly open: boolean;
@@ -29,6 +29,7 @@ export function AddressDialog({ open, onOpenChange, title, description, initial,
   const id = useId();
   const [address, setAddress] = useState(initial);
   const [issue, setIssue] = useState<string | undefined>(undefined);
+  useFocusFirstInvalid(issue);
 
   async function submit() {
     const outcome = await onSave(address);

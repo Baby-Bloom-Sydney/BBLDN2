@@ -39,9 +39,9 @@ export function PaymentDetailsFields({ value, onChange, issues = {} }: PaymentDe
       <TextField id={`${id}-name`} label="Name on the account" value={value.accountName} onChange={set("accountName")}
         error={issues.accountName} input={{ ...PRIVATE, maxLength: INVOICE_RULES.text.accountNameMax }} />
       <TextField id={`${id}-sort`} label="Sort code" value={value.sortCode} onChange={set("sortCode")} error={issues.sortCode}
-        input={{ ...PRIVATE, inputMode: "numeric", placeholder: "00-00-00", maxLength: 8 }} />
+        input={{ ...PRIVATE, inputMode: "numeric", placeholder: "00-00-00" }} />
       <TextField id={`${id}-account`} label="Account number" value={value.accountNumber} onChange={set("accountNumber")}
-        error={issues.accountNumber} input={{ ...PRIVATE, inputMode: "numeric", placeholder: "8 digits", maxLength: 10 }} />
+        error={issues.accountNumber} input={{ ...PRIVATE, inputMode: "numeric", placeholder: "8 digits" }} />
     </>
   );
 }

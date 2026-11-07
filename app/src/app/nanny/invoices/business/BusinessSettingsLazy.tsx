@@ -13,7 +13,11 @@ import dynamic from "next/dynamic";
 import type { BankView, BusinessView } from "./business-view";
 
 const BusinessSettingsForm = dynamic(() => import("./BusinessSettingsForm").then((m) => m.BusinessSettingsForm), {
-  loading: () => <p className="px-1 text-sm text-slate-500">Loading…</p>,
+  loading: () => (
+    <p role="status" className="px-1 text-sm text-slate-500">
+      Loading…
+    </p>
+  ),
 });
 
 export function BusinessSettingsLazy(props: { readonly business: BusinessView; readonly bank: BankView | null }) {

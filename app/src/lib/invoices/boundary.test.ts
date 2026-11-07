@@ -34,7 +34,7 @@ const ACTIONS: Readonly<Record<string, readonly string[]>> = {
 };
 /** The one import of the feature's page folders from outside them (plan 14.6 b3.4–b3.5). */
 const SEAM = { file: "app/nanny/settings/page.tsx", from: "@/app/nanny/invoices/business/BusinessSettingsLeaf" } as const;
-const SPECIFIER = /(?:from\s+|import\s*\(\s*)["']([^"']+)["']/g;
+const SPECIFIER = /(?:from\s+|import\s*\(\s*|import\s+)["']([^"']+)["']/g;
 
 /** The imports in `text` (a file at `fileRel` under src/) that land in the feature's page folders, alias or relative. */
 function pageImports(fileRel: string, text: string): string[] {
@@ -108,8 +108,9 @@ describe("src/lib/invoices boundaries", () => {
     for (const [name, exported] of Object.entries(ACTIONS)) {
       const text = readFileSync(path.join(SRC, "lib/invoices", `${name}.ts`), "utf8");
       expect(text).toMatch(/^["']use server["'];/);
-      const exports = [...text.matchAll(/^export\s+(async\s+function|function|const|let|class|type|interface|\{)\s*(\w*)/gm)];
-      expect(exports.map((m) => `${m[1]} ${m[2]}`)).toEqual(exported.map((fn) => `async function ${fn}`));
+      // every export line, whatever its form (TS review L: `export default`, `export *`, `export function*` …)
+      const exports = [...text.matchAll(/^export\b.*$/gm)].map((m) => m[0]);
+      expect(exports).toEqual(exported.map((fn) => `export async function ${fn}(input: unknown): Promise<${fn === "saveBusinessDetails" ? "BusinessSaveResult" : "PaymentSaveResult"}> {`));
     }
   });
 
@@ -119,6 +120,15 @@ describe("src/lib/invoices boundaries", () => {
       .filter((f) => outsideFeature(f) && !/\.test\.tsx?$/.test(f))
       .flatMap((f) => pageImports(rel(f), readFileSync(f, "utf8")).map((from) => ({ file: rel(f), from })));
     expect(found).toEqual([SEAM]);
+  });
+
+  it("no \"use client\" file imports the server leaf (it reads her details with the service role)", () => {
+    const offenders = files(SRC).filter((f) => {
+      const text = readFileSync(f, "utf8");
+      return USE_CLIENT.test(text) && [...text.matchAll(SPECIFIER)].some((m) => /BusinessSettingsLeaf$/.test(m[1] ?? ""));
+    });
+    expect(offenders.map(rel)).toEqual([]);
+    expect([...'import "./BusinessSettingsLeaf";'.matchAll(SPECIFIER)].map((m) => m[1])).toEqual(["./BusinessSettingsLeaf"]);
   });
 
   it("the seam pattern catches every other import of the page folders", () => {
