@@ -12,11 +12,14 @@
  * - **VAT** and **bank details** (masks only: the props never hold a full number).
  * - **Saving:** the shared schema first (a refusal is shown by its field; the action isn't called), then the action,
  *   then a refresh so the server leaf reads her details again. One save at a time (`useSingleFlight`).
+ * - **Focus:** closing a dialog (Escape, Cancel or a save) gives focus back to the row that opened it. Radix's Dialog,
+ *   used without a `Dialog.Trigger` (as `EditFieldDialog` is), prevents its own restore and focuses no trigger, so
+ *   focus fell to the page (found by the b3.6 keyboard walk).
  *
  * BB-wave1-041126/06b3-build, 2026-11-07.
  */
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import type { z } from "zod";
 import { SettingsRow } from "@/components/settings/SettingsRow";
@@ -51,6 +54,7 @@ export interface BusinessSettingsFormProps {
 }
 
 type DialogName = "type" | "trading" | "address" | "vat" | "bank";
+type Opener = (name: DialogName) => (event?: { readonly currentTarget: EventTarget | null }) => void;
 
 export const FUTURE_ONLY = "Changes apply to future invoices. Invoices you've sent stay as they were.";
 
@@ -88,7 +92,7 @@ function addressDisplay(view: BusinessView): ReactNode {
   );
 }
 
-function WhoRows({ view, open }: { readonly view: BusinessView; readonly open: (name: DialogName) => () => void }) {
+function WhoRows({ view, open }: { readonly view: BusinessView; readonly open: Opener }) {
   const trading = tradingNameDisplay(view);
   return (
     <SettingsSubsection header="On your invoices">
@@ -110,7 +114,7 @@ function WhoRows({ view, open }: { readonly view: BusinessView; readonly open: (
   );
 }
 
-function MoneyRows({ view, bank, open }: { readonly view: BusinessView; readonly bank: BankView | null; readonly open: (name: DialogName) => () => void }) {
+function MoneyRows({ view, bank, open }: { readonly view: BusinessView; readonly bank: BankView | null; readonly open: Opener }) {
   const vat = vatSummary(view);
   return (
     <>
@@ -147,14 +151,27 @@ function useSaves(view: BusinessView) {
   return { saveBusiness, savePayment };
 }
 
-export function BusinessSettingsForm({ business, bank }: BusinessSettingsFormProps) {
+/** Which dialog is open, a fresh one per opening (no stale input or error), and focus back to its row on close. */
+function useDialogs() {
   const [dialog, setDialog] = useState<DialogName | null>(null);
-  const [opened, setOpened] = useState(0); // a fresh dialog per opening: no stale input or error
-  const { saveBusiness, savePayment } = useSaves(business);
-  const open = (name: DialogName) => () => {
+  const [opened, setOpened] = useState(0);
+  const opener = useRef<HTMLElement | null>(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (dialog === null && wasOpen.current) opener.current?.focus();
+    wasOpen.current = dialog !== null;
+  }, [dialog]);
+  const open: Opener = (name) => (event) => {
+    opener.current = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null;
     setOpened((n) => n + 1);
     setDialog(name);
   };
+  return { dialog, setDialog, opened, open };
+}
+
+export function BusinessSettingsForm({ business, bank }: BusinessSettingsFormProps) {
+  const { dialog, setDialog, opened, open } = useDialogs();
+  const { saveBusiness, savePayment } = useSaves(business);
   const shown = (name: DialogName) => ({ open: dialog === name, onOpenChange: (next: boolean) => setDialog(next ? name : null) });
 
   return (

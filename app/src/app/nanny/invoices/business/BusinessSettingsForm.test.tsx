@@ -89,6 +89,28 @@ describe("BusinessSettingsForm — what it shows", () => {
     expect(within(row("Trading name")).getByText("Not set — add a name for your invoices")).toBeInTheDocument();
   });
 
+  it("closing a dialog (Escape, Cancel or a save) gives focus back to the row that opened it", async () => {
+    show(LTD, BANK);
+    for (const label of ["Business type", "Trading name", "VAT", "Bank details"]) {
+      const button = row(label);
+      button.focus();
+      fireEvent.click(button);
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      await waitFor(() => expect(document.activeElement).toBe(button));
+    }
+    const vat = row("VAT");
+    fireEvent.click(vat);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(document.activeElement).toBe(vat));
+    const trading = row("Trading name");
+    fireEvent.click(trading);
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(h.refresh).toHaveBeenCalled());
+    await waitFor(() => expect(document.activeElement).toBe(trading));
+  });
+
   it("every row opens its dialog", () => {
     show(LTD, BANK);
     for (const [label, dialog] of [
