@@ -29,7 +29,7 @@
  *   - Email is read-only in v1.
  */
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -43,6 +43,7 @@ import {
   LifeBuoy,
   ShieldCheck,
   Wallet,
+  Briefcase,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,6 +76,7 @@ import {
 import type { SettingsNode } from "@/components/settings/tree";
 import { formatDbsDate, formatDbsNumber, type DbsDisplayState } from "@/lib/dbs/nanny-display";
 import { payoutsEnabled } from "@/lib/payments/flags";
+import { nannyInvoicesEnabled } from "@/lib/features/flags";
 
 /** The DBS leaf's data, decoded on the server by `getDbsDisplayState` (3b, brief change 11). */
 export interface NannyDbsSettings {
@@ -107,6 +109,8 @@ interface Props {
     email: string | null;
     bankSummary: { last4: string | null; bankName: string | null } | null;
   };
+  /** Brief 06: the Business section, a server leaf the page passes in (only with the invoice switch on). */
+  businessSection?: ReactNode;
 }
 
 function publicIdentityStatus(level: number): {
@@ -233,6 +237,8 @@ function buildTree(args: {
         { id: "security", label: "Security" },
       ],
     },
+    // Brief 06 (plan 06 §14.6 b3.4): her business and bank details for invoices, hidden unless NANNY_INVOICES_ENABLED.
+    ...(nannyInvoicesEnabled() ? [{ id: "business", label: "Business", icon: Briefcase }] : []),
     {
       id: "linked-children",
       label: "Linked children",
@@ -278,6 +284,7 @@ export function NannySettingsClient({
   payoutsDashboard,
   payoutHistory,
   payoutOnboarding,
+  businessSection,
 }: Props) {
   const params = useSearchParams();
   const activeId = params.get("s") ?? "";
@@ -363,6 +370,8 @@ export function NannySettingsClient({
                 embedded
               />
             );
+          case "business":
+            return businessSection ?? null;
           case "contact-us":
             return <ContactSection />;
           case "close-account":

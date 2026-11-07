@@ -3,6 +3,8 @@
  * Unit 3b (BB-LDN-3b-061026, brief change 11): the DBS row is decoded here with `getDbsDisplayState` and passed as
  * `{state, number, issueDate, checkedAt}`; the stored expiry column holds the certificate's issue date (3a).
  * Never: writes; never passes raw section codes to the client.
+ * Brief 06 (plan 06 §14.6 b3.4; BB-wave1-041126/06b3-build, 2026-11-07): the Business section is a server leaf passed
+ * in as a slot, only with the invoice switch on and `?s=business`, so no other view reads any invoice data.
  */
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -14,8 +16,10 @@ import { fetchPayoutsDashboardData } from "@/lib/payments/queryPayoutsDashboard"
 import { fetchPayoutHistory } from "@/lib/payments/queryPayoutHistory";
 import { fetchPayoutOnboardingViewData } from "@/lib/payments/queryNannyPayoutOnboarding";
 import { payoutsEnabled } from "@/lib/payments/flags";
+import { nannyInvoicesEnabled } from "@/lib/features/flags";
+import { BusinessSettingsLeaf } from "@/app/nanny/invoices/business/BusinessSettingsLeaf";
 
-export default async function NannySettingsPage() {
+export default async function NannySettingsPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const supabase = createClient();
   const {
     data: { user },
@@ -95,6 +99,7 @@ export default async function NannySettingsPage() {
         email: user.email ?? null,
         bankSummary: payoutOnboarding?.bankSummary ?? null,
       }}
+      businessSection={nannyInvoicesEnabled() && searchParams?.s === "business" ? <BusinessSettingsLeaf /> : null}
     />
   );
 }

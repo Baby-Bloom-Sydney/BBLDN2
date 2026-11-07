@@ -9,15 +9,40 @@
  *   (`@/lib/invoices`): never a deep path, never the config. Today nothing outside imports it at all, so with the
  *   switch off the rest of the app is exactly as before; 07 and 08 will come through the entry point.
  *
- * BB-wave1-041126/06a-build, 2026-11-04; 06b2-build, 2026-11-06 (store-business; pdf/model, which logs through db).
+ * - 06b-3 (plan 14.6 b3.5): the **one named seam** — `app/nanny/settings/page.tsx` imports
+ *   `@/app/nanny/invoices/business/BusinessSettingsLeaf`, and nothing else outside the feature imports its pages'
+ *   folders. The Settings actions are `"use server"` files whose only exports are their gated async actions.
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; 06b2-build, 2026-11-06 (store-business; pdf/model, which logs through db);
+ * 06b3-build, 2026-11-07 (the Settings seam, the actions, the details-changed sender).
  */
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const SRC = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
-const SERVER_MODULES = ["store", "store-business", "families", "nanny-proof", "db", "gate", "readers", "index", "pdf/render", "pdf/font", "pdf/model"];
-const SERVER_MODULE = "(?:/(?:store|store-business|families|nanny-proof|db|gate|readers|index|pdf/render|pdf/font|pdf/model))?";
+const SERVER_MODULES = [
+  "store", "store-business", "families", "nanny-proof", "db", "gate", "readers", "index", "pdf/render", "pdf/font", "pdf/model",
+  "emails/send-payment-details-changed",
+];
+const SERVER_MODULE =
+  "(?:/(?:store|store-business|families|nanny-proof|db|gate|readers|index|pdf/render|pdf/font|pdf/model|emails/send-payment-details-changed))?";
+/** The Settings actions (06b-3): `"use server"` on purpose, each exporting only its gated async action. */
+const ACTIONS: Readonly<Record<string, readonly string[]>> = {
+  "actions/save-business-details": ["saveBusinessDetails"],
+  "actions/save-payment-details": ["savePaymentDetails"],
+};
+/** The one import of the feature's page folders from outside them (plan 14.6 b3.4–b3.5). */
+const SEAM = { file: "app/nanny/settings/page.tsx", from: "@/app/nanny/invoices/business/BusinessSettingsLeaf" } as const;
+const SPECIFIER = /(?:from\s+|import\s*\(\s*)["']([^"']+)["']/g;
+
+/** The imports in `text` (a file at `fileRel` under src/) that land in the feature's page folders, alias or relative. */
+function pageImports(fileRel: string, text: string): string[] {
+  return [...text.matchAll(SPECIFIER)].map((m) => m[1] ?? "").filter((spec) => {
+    const target = spec.startsWith("@/") ? spec.slice(2) : spec.startsWith(".") ? path.posix.join(path.posix.dirname(fileRel), spec) : null;
+    return target !== null && /^app\/(?:nanny|admin)\/invoices(?:\/|$)/.test(target);
+  });
+}
 /** An import of a server module: by alias, or by any relative path ending in `invoices` (a sibling in src/lib too). */
 const SERVER_IMPORT = new RegExp(`from\\s+["'](?:@/lib/invoices|(?:\\.\\.?/)+(?:lib/)?invoices)${SERVER_MODULE}["']`);
 /** A deep import of the invoice code or its config, or any relative import of them — allowed only inside the feature. */
@@ -77,6 +102,36 @@ describe("src/lib/invoices boundaries", () => {
   it("outside the feature, nothing deep-imports the invoice code or its config", () => {
     const offenders = files(SRC).filter((f) => outsideFeature(f) && DEEP_IMPORT.test(readFileSync(f, "utf8")));
     expect(offenders.map(rel)).toEqual([]);
+  });
+
+  it("the Settings actions are \"use server\" files exporting only their one async action each (06b-3)", () => {
+    for (const [name, exported] of Object.entries(ACTIONS)) {
+      const text = readFileSync(path.join(SRC, "lib/invoices", `${name}.ts`), "utf8");
+      expect(text).toMatch(/^["']use server["'];/);
+      const exports = [...text.matchAll(/^export\s+(async\s+function|function|const|let|class|type|interface|\{)\s*(\w*)/gm)];
+      expect(exports.map((m) => `${m[1]} ${m[2]}`)).toEqual(exported.map((fn) => `async function ${fn}`));
+    }
+  });
+
+  it("outside the feature, only the Settings page imports its page folders — the leaf, nothing else (06b-3 b3.5)", () => {
+    // shipped code only: the page's own test imports the leaf to check the slot it passes
+    const found = files(SRC)
+      .filter((f) => outsideFeature(f) && !/\.test\.tsx?$/.test(f))
+      .flatMap((f) => pageImports(rel(f), readFileSync(f, "utf8")).map((from) => ({ file: rel(f), from })));
+    expect(found).toEqual([SEAM]);
+  });
+
+  it("the seam pattern catches every other import of the page folders", () => {
+    const settings = (line: string) => pageImports("app/nanny/settings/NannySettingsClient.tsx", line);
+    expect(settings('import { BusinessSettingsForm } from "@/app/nanny/invoices/business/BusinessSettingsForm";')).toHaveLength(1);
+    expect(settings('import X from "@/app/nanny/invoices/business/PaymentDetailsFields";')).toHaveLength(1);
+    expect(settings('import Page from "@/app/admin/invoices/page";')).toHaveLength(1);
+    expect(settings('import { x } from "../invoices/business/business-view";')).toHaveLength(1);
+    expect(settings('const m = await import("../invoices/business/BusinessSettingsLeaf");')).toHaveLength(1);
+    expect(pageImports("components/layout/DashboardNav.tsx", 'import { x } from "../../app/nanny/invoices";')).toHaveLength(1);
+    expect(settings('import { getPlacementWeekHours } from "@/lib/invoices";')).toHaveLength(0);
+    expect(settings('import { x } from "../positions/NannyPositionsClient";')).toHaveLength(0);
+    expect(pageImports("lib/foo/bar.ts", 'import { x } from "../invoices/store";')).toHaveLength(0); // lib/invoices: DEEP_IMPORT's
   });
 
   it("the entry point exports no bank-detail, store, PDF or family function", () => {

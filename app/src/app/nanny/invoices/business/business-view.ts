@@ -133,6 +133,16 @@ export function saveInput(view: BusinessView, patch: Partial<BusinessFormInput> 
   };
 }
 
+/** What a dialog's save answers: saved, or refused with a plain message and, by field, what to fix. */
+export interface SaveOutcome {
+  readonly success: boolean;
+  readonly error?: string;
+  readonly fields?: Readonly<Record<string, string>>;
+}
+
+/** The alert above a dialog's fields when they are marked one by one. */
+export const CHECK_MARKED = "Please check the details marked below.";
+
 /** The first message for each field a schema refused (`form` when it names none). Messages are fixed text. */
 export function fieldIssues(error: z.ZodError): Readonly<Record<string, string>> {
   return error.issues.reduce<Readonly<Record<string, string>>>((found, issue) => {
