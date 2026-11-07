@@ -15,20 +15,15 @@
 
 import { Text, View } from "@react-pdf/renderer";
 import type { ComponentProps, ReactElement } from "react";
+import { formatVatNumber } from "../../vat-number";
 import type { InvoicePdfData, InvoicePdfIssuer } from "../InvoicePdf";
 import { keepWhole, styles, wholeUnlessLong } from "../theme";
 
-const VAT_GROUPS = /^GB(\d{3})(\d{4})(\d{2})(\d{3})?$/;
+/** "GB 123 4567 89": one formatter for the PDF and Settings (moved unchanged to `vat-number.ts` by 06b-3). */
+export { formatVatNumber };
 
 /** The longest email Bill to prints on one line; a longer one breaks before its "@" (textkit hyphenates any other break). */
 const EMAIL_ONE_LINE = 36;
-
-/** "GB123456789" → "GB 123 4567 89"; a 12-digit (branch) number gains its last 3; anything else prints as stored. */
-export function formatVatNumber(vatNumber: string): string {
-  const m = VAT_GROUPS.exec(vatNumber);
-  if (!m) return vatNumber;
-  return ["GB", m[1], m[2], m[3], m[4]].filter((part): part is string => Boolean(part)).join(" ");
-}
 
 const present = (lines: readonly (string | null)[]): string[] => lines.filter((l): l is string => l !== null && l !== "");
 
