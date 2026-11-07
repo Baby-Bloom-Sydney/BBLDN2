@@ -25,6 +25,7 @@ import type { z } from "zod";
 import { SettingsRow } from "@/components/settings/SettingsRow";
 import { SettingsSubsection } from "@/components/settings/SettingsSubsection";
 import { saveBusinessDetails } from "@/lib/invoices/actions/save-business-details";
+import { maskAccountNumber, maskSortCode } from "@/lib/invoices/masking";
 import { savePaymentDetails } from "@/lib/invoices/actions/save-payment-details";
 import { paymentDetailsSchema } from "@/lib/invoices/validation";
 import { businessDetailsSchema } from "@/lib/invoices/validation-business";
@@ -98,6 +99,17 @@ function addressDisplay(view: BusinessView): ReactNode {
   );
 }
 
+/** Her masked bank details: wraps on a narrow screen, but never inside a mask. Reads as `bankSummary`. */
+function BankLine({ bank }: { readonly bank: BankView | null }) {
+  if (bank === null) return <span className="block whitespace-normal text-sm text-slate-900">{bankSummary(null)}</span>;
+  return (
+    <span className="block whitespace-normal text-sm text-slate-900">
+      {bank.accountName} · <span className="whitespace-nowrap">sort code {maskSortCode(bank.sortCodeLast2)},</span>{" "}
+      <span className="whitespace-nowrap">account {maskAccountNumber(bank.accountLast4)}</span>
+    </span>
+  );
+}
+
 function WhoRows({ view, open }: { readonly view: BusinessView; readonly open: Opener }) {
   const trading = tradingNameDisplay(view);
   return (
@@ -128,8 +140,7 @@ function MoneyRows({ view, bank, open }: { readonly view: BusinessView; readonly
         <SettingsRow label="VAT" value={vat.value} caption={vat.caption ?? undefined} onClick={open("vat")} isLast />
       </SettingsSubsection>
       <SettingsSubsection header="Bank details for invoices" footnote="Printed in full on your invoices, so families can pay you. On screen we only show the last digits.">
-        <SettingsRow label="Bank details" display={<span className="block whitespace-normal text-sm text-slate-900">{bankSummary(bank)}</span>}
-          onClick={open("bank")} isLast />
+        <SettingsRow label="Bank details" display={<BankLine bank={bank} />} onClick={open("bank")} isLast />
       </SettingsSubsection>
     </>
   );

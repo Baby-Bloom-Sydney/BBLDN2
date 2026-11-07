@@ -40,6 +40,8 @@ beforeEach(() => {
 afterEach(cleanup);
 
 const row = (label: string) => screen.getByText(label, { selector: "div.text-xs" }).closest("button, div.flex") as HTMLElement;
+/** An element whose whole text (its children's included) is exactly `text`: the bank line nests its masks. */
+const wholeText = (text: string) => (_: string, el: Element | null) => el?.tagName === "SPAN" && el.textContent === text;
 const show = (business: BusinessView = DEFAULTS, bank: BankView | null = null) => render(<BusinessSettingsForm business={business} bank={bank} />);
 
 describe("BusinessSettingsForm — what it shows", () => {
@@ -67,7 +69,7 @@ describe("BusinessSettingsForm — what it shows", () => {
     expect(within(row("Trading name")).getByText("Printed instead of the company's name.")).toBeInTheDocument();
     expect(within(row("VAT")).getByText("VAT added on top · 20%")).toBeInTheDocument();
     expect(within(row("VAT")).getByText("VAT no. GB 123 4567 89")).toBeInTheDocument();
-    expect(within(row("Bank details")).getByText("Sophie Taylor · sort code ••-••-33, account ending 4321")).toBeInTheDocument();
+    expect(within(row("Bank details")).getByText(wholeText("Sophie Taylor · sort code ••-••-33, account ending 4321"))).toBeInTheDocument();
   });
 
   it("a company with no trading name says its registered name is used; a partnership shows its name", () => {
@@ -89,7 +91,10 @@ describe("BusinessSettingsForm — what it shows", () => {
     expect(screen.getByText("Not set — add a name for your invoices")).toHaveClass("whitespace-normal");
     cleanup();
     show(DEFAULTS, BANK);
-    expect(screen.getByText("Sophie Taylor · sort code ••-••-33, account ending 4321")).toHaveClass("whitespace-normal");
+    expect(screen.getByText(wholeText("Sophie Taylor · sort code ••-••-33, account ending 4321"))).toHaveClass("whitespace-normal");
+    // …but never inside a mask
+    expect(screen.getByText(wholeText("sort code ••-••-33,"))).toHaveClass("whitespace-nowrap");
+    expect(screen.getByText("account ending 4321")).toHaveClass("whitespace-nowrap");
   });
 
   it("an address she entered has no source note; none on file asks for one; no printable name asks for one", () => {
