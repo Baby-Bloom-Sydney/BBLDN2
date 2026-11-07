@@ -28,12 +28,13 @@ export interface AddressDialogProps {
 export function AddressDialog({ open, onOpenChange, title, description, initial, required = false, onSave }: AddressDialogProps) {
   const id = useId();
   const [address, setAddress] = useState(initial);
-  const [issue, setIssue] = useState<string | undefined>(undefined);
-  useFocusFirstInvalid(issue);
+  // an object, so the same refusal twice still re-runs the focus (06b-3 verification L2)
+  const [issues, setIssues] = useState<Readonly<Record<string, string>>>({});
+  useFocusFirstInvalid(issues);
 
   async function submit() {
     const outcome = await onSave(address);
-    setIssue(outcome.fields?.businessAddress);
+    setIssues({ ...outcome.fields }); // a fresh object: the same refusal twice still refocuses
     return outcome;
   }
 
@@ -47,7 +48,7 @@ export function AddressDialog({ open, onOpenChange, title, description, initial,
       onSubmit={submit}
     >
       <DialogFields>
-        <TextField id={`${id}-address`} label="Address" value={address} onChange={setAddress} multiline error={issue} />
+        <TextField id={`${id}-address`} label="Address" value={address} onChange={setAddress} multiline error={issues.businessAddress} />
       </DialogFields>
     </EditFieldDialog>
   );

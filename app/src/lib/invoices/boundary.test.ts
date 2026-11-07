@@ -44,9 +44,9 @@ function pageImports(fileRel: string, text: string): string[] {
   });
 }
 /** An import of a server module: by alias, or by any relative path ending in `invoices` (a sibling in src/lib too). */
-const SERVER_IMPORT = new RegExp(`from\\s+["'](?:@/lib/invoices|(?:\\.\\.?/)+(?:lib/)?invoices)${SERVER_MODULE}["']`);
+const SERVER_IMPORT = new RegExp(`(?:from|import)\\s+["'](?:@/lib/invoices|(?:\\.\\.?/)+(?:lib/)?invoices)${SERVER_MODULE}["']`);
 /** A deep import of the invoice code or its config, or any relative import of them — allowed only inside the feature. */
-const DEEP_IMPORT = /from\s+["'](?:@\/(?:lib\/invoices\/[^"']+|config\/invoices)|(?:\.\.?\/)+(?:[\w-]+\/)*invoices(?:\/[^"']+)?)["']/;
+const DEEP_IMPORT = /(?:from|import)\s+["'](?:@\/(?:lib\/invoices\/[^"']+|config\/invoices)|(?:\.\.?\/)+(?:[\w-]+\/)*invoices(?:\/[^"']+)?)["']/;
 const USE_CLIENT = /^["']use client["'];?\s*$/m;
 const FEATURE_FOLDERS = ["lib/invoices/", "app/nanny/invoices/", "app/admin/invoices/", "config/invoices"];
 
@@ -86,6 +86,11 @@ describe("src/lib/invoices boundaries", () => {
     expect(DEEP_IMPORT.test('import { INVOICE_RULES } from "./invoices";')).toBe(true);
     const sibling = '"use client";\nimport { saveDetails } from "../invoices/store";';
     expect(USE_CLIENT.test(sibling) && SERVER_IMPORT.test(sibling)).toBe(true);
+    // 06b-3 verification L5: a side-effect import counts as an import
+    const sideEffect = '"use client";\nimport "@/lib/invoices/store";';
+    expect(USE_CLIENT.test(sideEffect) && SERVER_IMPORT.test(sideEffect)).toBe(true);
+    expect(DEEP_IMPORT.test('import "@/lib/invoices/store";')).toBe(true);
+    expect(DEEP_IMPORT.test('import "@/lib/invoices";')).toBe(false);
     // 06b-2: her business details' store is a server module too
     expect(SERVER_IMPORT.test('import { saveBusiness } from "@/lib/invoices/store-business";')).toBe(true);
   });

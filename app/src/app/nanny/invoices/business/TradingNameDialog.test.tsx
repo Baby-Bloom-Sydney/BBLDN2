@@ -49,6 +49,17 @@ describe("TradingNameDialog", () => {
     await waitFor(() => expect(onSave).toHaveBeenCalledWith({ tradingName: "Little Steps" }));
   });
 
+  it("a second refusal with the same message still takes focus back to the field (verification L2)", async () => {
+    show(SOLE, { success: false, error: "Please check the details marked below.", fields: { tradingName: "That's too long — please shorten it" } });
+    const save = screen.getByRole("button", { name: "Save" });
+    const field = screen.getByLabelText("Trading name (optional)");
+    fireEvent.click(save);
+    await waitFor(() => expect(document.activeElement).toBe(field));
+    save.focus();
+    fireEvent.click(save);
+    await waitFor(() => expect(document.activeElement).toBe(field));
+  });
+
   it("a refusal shows the plain message by the field", async () => {
     show(SOLE, { success: false, error: "Please check the details marked below.", fields: { tradingName: "Use your own name or business name — BabyBloom can't be the one paid" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));

@@ -42,7 +42,7 @@ export function BusinessTypeDialog({ open, onOpenChange, view, onSave }: Busines
 
   async function submit() {
     const outcome = await onSave({ businessType: type, companyName, companyNumber, registeredOffice, partnershipName });
-    setIssues(outcome.fields ?? {});
+    setIssues({ ...outcome.fields }); // a fresh object: the same refusal twice still refocuses
     return outcome;
   }
 

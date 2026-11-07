@@ -30,12 +30,13 @@ export function tradingNameHint(view: BusinessView): string {
 export function TradingNameDialog({ open, onOpenChange, view, onSave }: TradingNameDialogProps) {
   const id = useId();
   const [tradingName, setTradingName] = useState(view.tradingName ?? "");
-  const [issue, setIssue] = useState<string | undefined>(undefined);
-  useFocusFirstInvalid(issue);
+  // an object, so the same refusal twice still re-runs the focus (06b-3 verification L2)
+  const [issues, setIssues] = useState<Readonly<Record<string, string>>>({});
+  useFocusFirstInvalid(issues);
 
   async function submit() {
     const outcome = await onSave({ tradingName });
-    setIssue(outcome.fields?.tradingName);
+    setIssues({ ...outcome.fields }); // a fresh object: the same refusal twice still refocuses
     return outcome;
   }
 
@@ -43,7 +44,7 @@ export function TradingNameDialog({ open, onOpenChange, view, onSave }: TradingN
     <EditFieldDialog open={open} onOpenChange={onOpenChange} title="Trading name" onSubmit={submit}>
       <DialogFields>
         <TextField id={`${id}-trading`} label="Trading name (optional)" value={tradingName} onChange={setTradingName}
-          hint={tradingNameHint(view)} error={issue} input={{ maxLength: INVOICE_RULES.text.tradingNameMax }} />
+          hint={tradingNameHint(view)} error={issues.tradingName} input={{ maxLength: INVOICE_RULES.text.tradingNameMax }} />
       </DialogFields>
     </EditFieldDialog>
   );

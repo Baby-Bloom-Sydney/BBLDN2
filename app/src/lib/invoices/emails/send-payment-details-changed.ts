@@ -10,7 +10,9 @@
  * **Capped** (06b-3 security review M1): at most `ALERTS_PER_HOUR` of these to her in any hour, counted from
  * `email_logs` (every send, dry runs and failures included, is logged there), so repeated changes can't use BabyBloom's
  * sender to flood her inbox or the shared provider's rate limit. The save is never refused. If the count can't be
- * read, the alert is sent anyway: a missed alert is worse than one too many.
+ * read, the alert is sent anyway: a missed alert is worse than one too many. Best effort, not a hard limit: the count
+ * is read before the send and the row written after it, so a burst of parallel changes can pass it (verification L1);
+ * failed sends count too, so a failing provider isn't hammered.
  *
  * **Bounded** (06b-3 TypeScript review M2): the save's reply waits at most `EMAIL_WAIT_MS` for it, so a slow provider
  * never holds a save that has already happened; past that it is logged as `timeout` (it may still go out).

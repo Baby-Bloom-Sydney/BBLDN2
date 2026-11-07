@@ -27,26 +27,27 @@ export interface PaymentDetailsDialogProps {
   readonly onSave: (fields: PaymentFieldsValue) => Promise<SaveOutcome>;
 }
 
+const NO_ISSUES: Readonly<Record<string, string>> = Object.freeze({});
+
 export const CHANGE_NOTE = "These replace your current details on future invoices. We'll email you to confirm the change.";
 
 export function PaymentDetailsDialog({ open, onOpenChange, bank, onSave }: PaymentDetailsDialogProps) {
   const [fields, setFields] = useState<PaymentFieldsValue>(EMPTY_PAYMENT_FIELDS);
-  const [issues, setIssues] = useState<Readonly<Record<string, string>>>({});
+  const [issues, setIssues] = useState<Readonly<Record<string, string>>>(NO_ISSUES);
   useFocusFirstInvalid(issues);
 
-  function clear() {
-    setFields(EMPTY_PAYMENT_FIELDS);
-    setIssues({});
-  }
-
   useEffect(() => {
-    if (!open) clear();
+    if (open) return;
+    setFields(EMPTY_PAYMENT_FIELDS);
+    setIssues(NO_ISSUES);
   }, [open]);
 
   async function submit() {
     const outcome = await onSave(fields);
-    if (outcome.success) clear();
-    else setIssues(outcome.fields ?? {});
+    if (outcome.success) {
+      setFields(EMPTY_PAYMENT_FIELDS);
+      setIssues(NO_ISSUES);
+    } else setIssues({ ...outcome.fields });
     return outcome;
   }
 

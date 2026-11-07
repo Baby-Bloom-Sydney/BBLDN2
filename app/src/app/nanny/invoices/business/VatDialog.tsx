@@ -38,7 +38,7 @@ export function VatDialog({ open, onOpenChange, view, onSave }: VatDialogProps) 
   async function submit() {
     const patch: Owned = registered ? { vatMode: charged, vatNumber, vatRate: rate } : { vatMode: "none", vatNumber: "", vatRate: "" };
     const outcome = await onSave(patch);
-    setIssues(outcome.fields ?? {});
+    setIssues({ ...outcome.fields }); // a fresh object: the same refusal twice still refocuses
     return outcome;
   }
 

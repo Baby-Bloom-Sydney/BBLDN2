@@ -246,6 +246,7 @@ function useDialogs(section: RefObject<HTMLDivElement>, refreshed: unknown) {
   useEffect(() => {
     const lost = document.activeElement === null || document.activeElement === document.body;
     if (dialog === null && lost && opener.current && !opener.current.isConnected) {
+      opener.current = null; // once: a later refresh never pulls focus back (verification L3)
       section.current?.querySelector<HTMLElement>("button")?.focus();
     }
   }, [refreshed, dialog, section]);

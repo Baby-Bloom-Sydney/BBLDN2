@@ -290,8 +290,14 @@ describe("BusinessSettingsForm — review round 1", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Sole trader" }));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(h.refresh).toHaveBeenCalled());
-    rerender(<BusinessSettingsForm business={{ ...LTD, businessType: "sole_trader", companyName: null, companyNumber: null, registeredOffice: null }} bank={BANK} />);
+    const soleTrader = { ...LTD, businessType: "sole_trader" as const, companyName: null, companyNumber: null, registeredOffice: null };
+    rerender(<BusinessSettingsForm business={soleTrader} bank={BANK} />);
     await waitFor(() => expect(document.activeElement).toBe(row("Business type")));
+    // once only: a later refresh with focus elsewhere never pulls it back (verification L3)
+    (document.activeElement as HTMLElement).blur();
+    rerender(<BusinessSettingsForm business={{ ...soleTrader, tradingName: "Little Steps" }} bank={BANK} />);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(document.activeElement).toBe(document.body);
   });
 
   it("notes that matter read at AA contrast: slate-500, not the rows' slate-400 captions (React M4)", () => {
