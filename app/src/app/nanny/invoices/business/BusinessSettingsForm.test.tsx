@@ -80,6 +80,15 @@ describe("BusinessSettingsForm — what it shows", () => {
     expect(row("Address on invoices")).toBeTruthy();
   });
 
+  it("the longer notes wrap instead of being cut off on a narrow screen (the row's value cell truncates)", () => {
+    show({ ...LTD, tradingName: null });
+    expect(screen.getByText("None — your invoices use the company's name")).toHaveClass("whitespace-normal");
+    cleanup();
+    show({ ...DEFAULTS, name: null, address: null, addressSource: null });
+    expect(screen.getByText("Not on file — add the address for your invoices")).toHaveClass("whitespace-normal");
+    expect(screen.getByText("Not set — add a name for your invoices")).toHaveClass("whitespace-normal");
+  });
+
   it("an address she entered has no source note; none on file asks for one; no printable name asks for one", () => {
     show({ ...DEFAULTS, address: "9 Home Lane", addressSource: "business" });
     expect(screen.queryByText("(from your verification)")).toBeNull();

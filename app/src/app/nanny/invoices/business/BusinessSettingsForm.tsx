@@ -64,7 +64,13 @@ function refusedByFields(error: z.ZodError): SaveOutcome {
 }
 
 const Muted = ({ children }: { readonly children: ReactNode }) => <span className="text-sm text-slate-500">{children}</span>;
-const Missing = ({ children }: { readonly children: ReactNode }) => <span className="text-sm italic text-slate-500">{children}</span>;
+/** A note in place of a value: wraps (the row's value cell truncates), so a narrow screen shows all of it. */
+const Note = ({ children }: { readonly children: ReactNode }) => (
+  <span className="block whitespace-normal text-sm text-slate-500">{children}</span>
+);
+const Missing = ({ children }: { readonly children: ReactNode }) => (
+  <span className="block whitespace-normal text-sm italic text-slate-500">{children}</span>
+);
 const Lines = ({ text }: { readonly text: string }) => (
   <span className="block whitespace-pre-line break-words text-sm text-slate-900">{text}</span>
 );
@@ -77,7 +83,7 @@ function tradingNameDisplay(view: BusinessView): { readonly display: ReactNode; 
   if (view.tradingName !== null) {
     return { display: <span className="text-sm text-slate-900">{view.tradingName}</span>, caption: owner ? `Printed instead of the ${owner}'s name.` : undefined };
   }
-  if (owner) return { display: <Muted>None — your invoices use the {owner}&apos;s name</Muted> };
+  if (owner) return { display: <Note>None — your invoices use the {owner}&apos;s name</Note> };
   if (view.name === null) return { display: <Missing>Not set — add a name for your invoices</Missing> };
   return { display: <><span className="text-sm text-slate-900">{view.name}</span> <Muted>(your name)</Muted></> };
 }
