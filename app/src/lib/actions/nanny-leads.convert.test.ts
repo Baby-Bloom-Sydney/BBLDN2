@@ -16,7 +16,7 @@ const h = vi.hoisted(() => ({
 
 function query(table: string) {
   const result = (data: unknown) => Promise.resolve({ data, error: null });
-  // the conversion first claims the lead (a conditional update returning it)
+  // the conversion claims the lead and marks it at the end (conditional updates returning it)
   let claim = false;
   const builder: Record<string, unknown> = {
     select: () => builder,
@@ -25,7 +25,7 @@ function query(table: string) {
     neq: () => builder,
     or: () => builder,
     update: (row: Row) => {
-      claim = table === 'nanny_leads' && row.converted_at !== undefined && row.lead_status === undefined;
+      claim = table === 'nanny_leads' && (typeof row.conversion_claimed_at === 'string' || row.lead_status === 'converted');
       return builder;
     },
     upsert: () => result(null),

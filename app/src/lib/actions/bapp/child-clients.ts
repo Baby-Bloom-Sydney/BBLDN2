@@ -45,7 +45,9 @@ export async function getChildrenForUser(): Promise<{
       return { success: false, error: "lookup_failed", data: [] };
     }
 
-    return { success: true, error: null, data: (data as ChildClient[]) ?? [] };
+    // the old invite-email column is never shown; it stays on the server
+    const rows = ((data as ChildClient[]) ?? []).map(({ parent_lead_email: _email, ...row }) => row as ChildClient);
+    return { success: true, error: null, data: rows };
   } catch (err) {
     console.error("getChildrenForUser unexpected error:", err);
     return { success: false, error: "Failed to fetch children", data: [] };

@@ -13,7 +13,8 @@ export interface PlacementData {
   nannyName: string;
   nannySuburb: string;
   nannyPhoto: string | null;
-  nannyDateOfBirth: string | null;
+  /** Her age (the family's screens never get her date of birth). */
+  nannyAge: number | null;
   weeklyHours: number | null;
   hourlyRate: number | null;
   hiredAt: string;

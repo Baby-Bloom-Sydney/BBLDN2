@@ -1,6 +1,7 @@
 /**
  * A match as its cards show it, for anything sent to the browser: the nanny's first name, last initial, area, photo
- * and age; her experience counts, rate and headline; and the match's own scores and lists. The engine's full rows
+ * and age; her experience counts, rate and headline; the score, its three shown parts, distance, qualification,
+ * availability and the bonus/unmet lists — every key listed (an allow-list throughout). The engine's full rows
  * (her account id, full last name, date of birth, the rest of her nanny row) stay on the server, where the DFY
  * emails use them. Pure.
  *
@@ -28,16 +29,32 @@ export interface PublicMatchNanny {
   ai_content: { headline?: string } | null;
 }
 
-export type PublicMatchResult = Omit<MatchResult, "nanny" | "profile"> & {
+/** Every key is listed: nothing reaches the browser by being left out of a deny-list. */
+export interface PublicMatchResult {
+  nannyId: string;
+  finalScore: number;
+  breakdown: { experience: number; schedule: number; location: number };
+  distanceKm: number | null;
+  highestQualification: string | null;
+  nannySchedule: Record<string, string[]>;
+  unmetRequirements: string[];
+  overQualifiedBonuses: string[];
   nanny: PublicMatchNanny;
   profile: PublicMatchProfile;
-};
+}
 
 export function publicMatch(match: MatchResult): PublicMatchResult {
-  const { nanny, profile, ...scores } = match;
+  const { nanny, profile, breakdown } = match;
   const headline = nanny.ai_content?.headline;
   return {
-    ...scores,
+    nannyId: match.nannyId,
+    finalScore: match.finalScore,
+    breakdown: { experience: breakdown.experience, schedule: breakdown.schedule, location: breakdown.location },
+    distanceKm: match.distanceKm,
+    highestQualification: match.highestQualification,
+    nannySchedule: match.nannySchedule,
+    unmetRequirements: match.unmetRequirements,
+    overQualifiedBonuses: match.overQualifiedBonuses,
     nanny: {
       id: nanny.id,
       total_experience_years: nanny.total_experience_years,

@@ -15,6 +15,8 @@ import type { BracketKey } from '@/lib/timezone';
 import { CONNECTION_STAGE, HIDDEN_CONNECTION_STAGES, POSITION_STAGE, POSITION_STATUS } from '@/lib/position/constants';
 import { funnelLog } from '@/lib/position/logger';
 import { publicMatch, type PublicMatchResult } from '@/lib/matching/public-match';
+import { profileAge } from '@/lib/profile-age';
+import { isUnseenByParent, type LiveRow } from '@/lib/connections/silent-hold';
 import { emailHeader } from "@/lib/email/brand";
 import {
   APP_URL,
@@ -59,13 +61,15 @@ export interface DfyConnection {
   unmetRequirements: string[];
   nanny: {
     firstName: string;
+    /** The initial of her last name (the cards show first name and initial). */
     lastName: string;
     suburb: string | null;
     profilePicUrl: string | null;
     hourlyRateMin: number | null;
     experienceYears: number | null;
     aiHeadline: string | null;
-    dateOfBirth: string | null;
+    /** Her age (never her date of birth: the receiver is the family). */
+    age: number | null;
     wwccVerified: boolean;
     schedule: Record<string, string[]> | null;
   };
@@ -733,7 +737,7 @@ export async function getDfyConnections(
   // Get DFY connections (source='dfy') for this position — exclude cancelled/declined
   const { data: connections, error } = await adminClient
     .from('connection_requests')
-    .select('id, nanny_id, connection_stage, proposed_times, confirmed_time, position_id')
+    .select('id, nanny_id, connection_stage, proposed_times, confirmed_time, position_id, parent_id, status, parent_phone_shared')
     .eq('position_id', positionId)
     .eq('source', 'dfy')
     .not('connection_stage', 'in', `(${[...HIDDEN_CONNECTION_STAGES, CONNECTION_STAGE.ACTIVE].join(',')})`)
@@ -744,12 +748,14 @@ export async function getDfyConnections(
     return { data: null, error: 'Failed to fetch connections.' };
   }
 
-  if (!connections || connections.length === 0) {
+  // the rows a family never sees (a held DFY accept) stay out — the silent hold's own definition
+  const shown = (connections ?? []).filter((c) => !isUnseenByParent({ ...c, source: 'dfy' } satisfies LiveRow));
+  if (shown.length === 0) {
     return { data: [], error: null };
   }
 
   // Get match data from dfy_match_notifications
-  const nannyIds = connections.map(c => c.nanny_id);
+  const nannyIds = shown.map(c => c.nanny_id);
   const { data: notifications } = await adminClient
     .from('dfy_match_notifications')
     .select('id, nanny_id, match_score, distance_km, metadata')
@@ -789,7 +795,7 @@ export async function getDfyConnections(
     ])
   );
 
-  const result: DfyConnection[] = connections.map(c => {
+  const result: DfyConnection[] = shown.map(c => {
     const notification = notificationMap.get(c.nanny_id);
     const nanny = nannyMap.get(c.nanny_id);
     const profile = nanny ? profileMap.get(nanny.user_id) : null;
@@ -813,13 +819,13 @@ export async function getDfyConnections(
       unmetRequirements: unmet,
       nanny: {
         firstName: profile?.first_name ?? 'Nanny',
-        lastName: profile?.last_name ?? '',
+        lastName: (profile?.last_name ?? '').charAt(0),
         suburb: profile?.suburb ?? null,
         profilePicUrl: profile?.profile_picture_url ?? null,
         hourlyRateMin: nanny?.hourly_rate_min ?? null,
         experienceYears: nanny?.total_experience_years ?? null,
         aiHeadline: nanny?.ai_content?.headline ?? null,
-        dateOfBirth: profile?.date_of_birth ?? null,
+        age: profileAge(profile?.date_of_birth ?? null),
         wwccVerified: nanny?.wwcc_verified ?? false,
         schedule: availabilityMap.get(c.nanny_id) ?? null,
       },
@@ -1028,7 +1034,6 @@ export interface PublicPositionProfile {
   children: Array<{ ageMonths: number; gender: string | null }>;
   parentFirstName: string;
   parentLastName: string | null;
-  parentProfilePic: string | null;
   weeklyRoster: string[];
   rosterByDay: Record<string, string[]>;
   description: string | null;
@@ -1084,7 +1089,6 @@ export async function getPublicPositionProfile(positionId: string): Promise<{
   // Get parent's name + profile pic
   let parentFirstName = 'A family';
   let parentLastName: string | null = null;
-  let parentProfilePic: string | null = null;
 
   if (position.family_display_name) {
     // Admin/AI position — use display name directly
@@ -1108,7 +1112,6 @@ export async function getPublicPositionProfile(positionId: string): Promise<{
       if (profile) {
         parentFirstName = profile.first_name ?? 'A family';
         parentLastName = profile.last_name ?? null;
-        parentProfilePic = profile.profile_picture_url ?? null;
       }
     }
   }
@@ -1162,7 +1165,6 @@ export async function getPublicPositionProfile(positionId: string): Promise<{
       children: (children ?? []).map(c => ({ ageMonths: c.age_months, gender: c.gender })),
       parentFirstName,
       parentLastName,
-      parentProfilePic,
       weeklyRoster,
       rosterByDay,
       description: position.description ?? null,

@@ -29,6 +29,7 @@ import {
 import { emailFooter } from "@/lib/email/brand";
 import { BRAND, SITE_NAME, SITE_URL } from "@/lib/constants";
 import { RIGHT_TO_WORK_OPTIONS, rightToWorkFor, type RightToWorkKey } from "@/lib/nanny-options";
+import { failureCode } from "@/lib/failure-code";
 
 /**
  * The right-to-work pair written to `nannies` on conversion. Only one of `RIGHT_TO_WORK_OPTIONS`' keys is accepted;
@@ -275,23 +276,32 @@ const ALREADY_CONVERTED = "An account with this email already exists. Please sig
 /** A claim this old with no account is a conversion that never finished; it can be taken again. */
 const CLAIM_STALE_MS = 10 * 60 * 1000;
 
-/** Claims the lead for one conversion in a single conditional write (true when this call holds it). */
-async function claimLead(admin: ReturnType<typeof createAdminClient>, leadId: string): Promise<boolean> {
+/**
+ * Claims the lead for one conversion in a single conditional write to its own column (`conversion_claimed_at`, never
+ * the conversion time). Returns this run's claim stamp, or null when another run holds the lead.
+ */
+async function claimLead(admin: ReturnType<typeof createAdminClient>, leadId: string): Promise<string | null> {
+  const stamp = new Date().toISOString();
   const staleBefore = new Date(Date.now() - CLAIM_STALE_MS).toISOString();
   const { data, error } = await admin
     .from("nanny_leads")
-    .update({ converted_at: new Date().toISOString() })
+    .update({ conversion_claimed_at: stamp })
     .eq("id", leadId)
     .is("auth_user_id", null)
+    .is("converted_at", null)
     .neq("lead_status", "converted")
-    .or(`converted_at.is.null,converted_at.lt.${staleBefore}`)
+    .or(`conversion_claimed_at.is.null,conversion_claimed_at.lt.${staleBefore}`)
     .select("id");
-  return !error && Array.isArray(data) && data.length === 1;
+  return !error && Array.isArray(data) && data.length === 1 ? stamp : null;
 }
 
-/** Gives the claim back when no account came of it. */
-async function releaseLead(admin: ReturnType<typeof createAdminClient>, leadId: string): Promise<void> {
-  await admin.from("nanny_leads").update({ converted_at: null }).eq("id", leadId).is("auth_user_id", null);
+/** Gives back this run's claim, and only this run's (a newer run's claim stays). Never throws. */
+async function releaseLead(admin: ReturnType<typeof createAdminClient>, leadId: string, stamp: string): Promise<void> {
+  try {
+    await admin.from("nanny_leads").update({ conversion_claimed_at: null }).eq("id", leadId).eq("conversion_claimed_at", stamp);
+  } catch (err) {
+    console.error("[convertLeadToAccount] claim release failed", { code: failureCode(err) });
+  }
 }
 
 export async function convertLeadToAccount(
@@ -300,6 +310,8 @@ export async function convertLeadToAccount(
   email?: string,
 ): Promise<ActionResult> {
   const adminClient = createAdminClient();
+  // this run's claim on the lead; given back on every failure path below
+  let claim: string | null = null;
 
   try {
     // 1. Fetch lead record
@@ -315,9 +327,11 @@ export async function convertLeadToAccount(
     }
 
     // An application becomes an account once: refused when it has one, and claimed before the account is made.
-    if (lead.auth_user_id || lead.lead_status === "converted" || !(await claimLead(adminClient, leadId))) {
+    if (lead.auth_user_id || lead.lead_status === "converted") {
       return { success: false, error: ALREADY_CONVERTED };
     }
+    claim = await claimLead(adminClient, leadId);
+    if (!claim) return { success: false, error: ALREADY_CONVERTED };
 
     // Use the email from the account creation form (may differ from lead email)
     const finalEmail = email?.trim() || lead.email;
@@ -336,7 +350,8 @@ export async function convertLeadToAccount(
 
     if (authError || !authData.user) {
       console.error("Auth create error:", authError);
-      await releaseLead(adminClient, leadId);
+      await releaseLead(adminClient, leadId, claim);
+      claim = null;
       if (
         authError?.message.includes("already registered") ||
         authError?.message.includes("already been registered")
@@ -525,8 +540,8 @@ export async function convertLeadToAccount(
         data: lead as unknown as Record<string, unknown>,
       });
 
-      // 10. Mark lead as converted
-      await adminClient
+      // 10. Mark lead as converted — scoped to this run's claim, which it clears; it must land
+      const { data: marked, error: markError } = await adminClient
         .from("nanny_leads")
         .update({
           lead_status: "converted",
@@ -534,8 +549,15 @@ export async function convertLeadToAccount(
           auth_user_id: userId,
           funnel_step: "N5",
           terms_accepted_at: new Date().toISOString(),
+          conversion_claimed_at: null,
         })
-        .eq("id", leadId);
+        .eq("id", leadId)
+        .eq("conversion_claimed_at", claim)
+        .select("id");
+      if (markError || !Array.isArray(marked) || marked.length !== 1) {
+        throw new Error("Lead mark did not land");
+      }
+      claim = null;
 
       // 11. Sign the user in via the cookie-based client
       const supabase = createClient();
@@ -584,8 +606,13 @@ export async function convertLeadToAccount(
     } catch (innerError) {
       // Cleanup: delete auth user if any downstream insert failed
       console.error("Conversion error, cleaning up:", innerError);
-      await adminClient.auth.admin.deleteUser(userId);
-      await releaseLead(adminClient, leadId);
+      try {
+        await adminClient.auth.admin.deleteUser(userId);
+      } catch (deleteError) {
+        console.error("[convertLeadToAccount] account removal failed", { code: failureCode(deleteError) });
+      }
+      if (claim) await releaseLead(adminClient, leadId, claim);
+      claim = null;
       return {
         success: false,
         error: "Failed to create account. Please try again.",
@@ -593,6 +620,7 @@ export async function convertLeadToAccount(
     }
   } catch (err) {
     console.error("Convert lead exception:", err);
+    if (claim) await releaseLead(adminClient, leadId, claim);
     return {
       success: false,
       error: "An unexpected error occurred. Please try again.",

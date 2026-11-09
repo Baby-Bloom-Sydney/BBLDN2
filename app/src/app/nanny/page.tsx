@@ -129,7 +129,6 @@ async function fetchOpenPositions(): Promise<OpenPosition[]> {
 
 async function fetchNannyApplications(
   nannyId: string,
-  currentUserId: string,
 ): Promise<NannyApplication[]> {
   const admin = createAdminClient();
 
@@ -154,47 +153,10 @@ async function fetchNannyApplications(
 
   const { data: positions } = await admin
     .from("nanny_positions")
-    .select("id, suburb, parent_id, family_display_name, source")
+    .select("id, suburb")
     .in("id", positionIds);
 
   if (!positions) return [];
-
-  // Get parent names for parent-sourced positions
-  const parentIds = positions
-    .filter((p) => !p.source || p.source === "parent")
-    .map((p) => p.parent_id);
-  const parentNameMap = new Map<string, string>();
-  if (parentIds.length > 0) {
-    const { data: parents } = await admin
-      .from("parents")
-      .select("id, user_id")
-      .in("id", parentIds);
-
-    if (parents && parents.length > 0) {
-      const userIds = parents.map((p) => p.user_id);
-      const { data: profiles } = await admin
-        .from("user_profiles")
-        .select("user_id, last_name, first_name")
-        .in("user_id", userIds);
-
-      if (profiles) {
-        const profileMap = new Map(profiles.map((p) => [p.user_id, p]));
-        for (const parent of parents) {
-          // Skip if parent resolves to the nanny's own user (dual role)
-          if (parent.user_id === currentUserId) continue;
-          const profile = profileMap.get(parent.user_id);
-          if (profile) {
-            parentNameMap.set(
-              parent.id,
-              profile.last_name
-                ? `${profile.last_name} Family`
-                : `${profile.first_name}'s Family`,
-            );
-          }
-        }
-      }
-    }
-  }
 
   const positionMap = new Map(positions.map((p) => [p.id, p]));
 
@@ -202,12 +164,10 @@ async function fetchNannyApplications(
     .filter((a) => a.position_id && positionMap.has(a.position_id))
     .map((a) => {
       const pos = positionMap.get(a.position_id!)!;
-      const familyName =
-        pos.family_display_name ?? parentNameMap.get(pos.parent_id) ?? "Family";
+      // the hub reads the position id only; the family's name is not shown here
       return {
         id: a.id,
         positionId: a.position_id!,
-        familyName,
         suburb: pos.suburb,
         createdAt: a.created_at,
       };
@@ -280,7 +240,7 @@ export default async function NannyHubPage() {
           .eq("nanny_id", nannyId)
       : Promise.resolve({ data: null }),
     fetchOpenPositions(),
-    nannyId ? fetchNannyApplications(nannyId, user.id) : Promise.resolve([]),
+    nannyId ? fetchNannyApplications(nannyId) : Promise.resolve([]),
     admin
       .from("child_client")
       .select("*")

@@ -20,10 +20,11 @@ export const FULL_MATCH = {
     date_of_birth: "1993-03-03", profile_picture_url: null, email: "nina.private@example.test", mobile_number: "+447700900999",
   },
   qualityBase: 80, requirementMultiplier: 1, overQualifiedMultiplier: 1, rawScore: 80, finalScore: 88,
-  breakdown: { experience: 90, schedule: 80, location: 70 },
+  breakdown: { experience: 90, schedule: 80, location: 70, roleFit: 60, qualifications: 50, supportFit: 40 },
+  internalNote: "server-side only",
   distanceKm: 3, scheduleOverlapPercent: 80, highestQualification: "Level 3", certifications: ["Paediatric First Aid"],
   nannySchedule: { monday: ["morning"] }, unmetRequirements: [], overQualifiedBonuses: ["Driver"],
 } as unknown as MatchResult;
 
 /** Anything in a payload that only the server may hold. */
-export const PRIVATE = /u-private-1|Walkerton|1993-03-03|nina\.private|7700900999|N1 1AA|acct_private|Polish|date_of_birth|user_id|mobile|email/;
+export const PRIVATE = /u-private-1|Walkerton|1993-03-03|nina\.private|7700900999|N1 1AA|acct_private|Polish|server-side only|date_of_birth|user_id|mobile|email/;

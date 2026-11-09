@@ -814,7 +814,7 @@ export async function scheduleConnectionTime(
       actionUrl: "/parent/connections",
       referenceId: requestId,
       referenceType: "connection_request",
-      metadata: { phone, confirmed_time: selectedTime },
+      metadata: { confirmed_time: selectedTime },
     });
 
     // INT-002 email to parent (with phone + time)
@@ -1252,13 +1252,15 @@ export async function getParentConnectionRequests(): Promise<{
   const requests: ConnectionRequestWithDetails[] = parentViewData.map((req) => {
     const nanny = nannyMap.get(req.nanny_id);
     const profile = nanny ? profileMap.get(nanny.user_id) : null;
+    // her phone reaches the family through the intro's own reader (getParentUpcomingIntros), not this list
+    const { nanny_phone_shared: _phone, ...row } = req;
     return {
-      ...req,
+      ...row,
       nanny: {
         id: req.nanny_id,
         user_id: nanny?.user_id || "",
         first_name: profile?.first_name || "Unknown",
-        last_name: profile?.last_name || "",
+        last_name: (profile?.last_name || "").charAt(0),
         suburb: profile?.suburb || "",
         hourly_rate_min: nanny?.hourly_rate_min || null,
         profile_picture_url: profile?.profile_picture_url || null,
@@ -1337,7 +1339,7 @@ export async function getNannyConnectionRequests(): Promise<{
           id: req.parent_id,
           user_id: parent?.user_id || "",
           first_name: profile?.first_name || "Unknown",
-          last_name: profile?.last_name || "",
+          last_name: (profile?.last_name || "").charAt(0),
           suburb: profile?.suburb || "",
         },
         position,

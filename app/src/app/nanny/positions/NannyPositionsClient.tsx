@@ -80,7 +80,6 @@ export interface Placement {
   parentLastName: string;
   parentSuburb: string;
   parentPhoto: string | null;
-  parentDateOfBirth: string | null;
   weeklyHours: number | null;
   hourlyRate: number | null;
   hiredAt: string;

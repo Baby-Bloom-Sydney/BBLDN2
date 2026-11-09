@@ -17,6 +17,7 @@ describe("publicMatch — a match as the cards show it", () => {
       hourly_rate_min: 18, ai_content: { headline: "Calm and playful" },
     });
     expect(m).toMatchObject({ nannyId: "n-1", finalScore: 88, distanceKm: 3, highestQualification: "Level 3", overQualifiedBonuses: ["Driver"] });
+    expect(m.breakdown).toEqual({ experience: 90, schedule: 80, location: 70 });
   });
 
   it("an empty last name, no date of birth and no headline stay empty", () => {
@@ -24,6 +25,21 @@ describe("publicMatch — a match as the cards show it", () => {
     const m = publicMatch(bare);
     expect(m.profile).toMatchObject({ last_name: "", age: null });
     expect(m.nanny.ai_content).toBeNull();
+  });
+
+  it("has exactly the card's keys at every level (an allow-list throughout)", () => {
+    const m = publicMatch(FULL_MATCH);
+    expect(Object.keys(m).sort()).toEqual([
+      "breakdown", "distanceKm", "finalScore", "highestQualification", "nanny", "nannyId", "nannySchedule",
+      "overQualifiedBonuses", "profile", "unmetRequirements",
+    ]);
+    expect(Object.keys(m.breakdown).sort()).toEqual(["experience", "location", "schedule"]);
+    expect(Object.keys(m.nanny).sort()).toEqual([
+      "ai_content", "hourly_rate_min", "id", "nanny_experience_years", "newborn_experience_years", "total_experience_years",
+      "under_3_experience_years",
+    ]);
+    expect(Object.keys(m.nanny.ai_content ?? {})).toEqual(["headline"]);
+    expect(Object.keys(m.profile).sort()).toEqual(["age", "first_name", "last_name", "profile_picture_url", "suburb"]);
   });
 
   it("carries nothing only the server may hold", () => {

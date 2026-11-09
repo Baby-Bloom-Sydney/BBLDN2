@@ -15,6 +15,7 @@ import { emailHeader } from "@/lib/email/brand";
 import { BRAND } from "@/lib/constants";
 import { formatClockTime as formatTime } from "@/lib/timezone";
 import { babysittingEnabled } from "@/lib/features/flags";
+import { profileAge } from "@/lib/profile-age";
 
 /** 5c (P-23): what every babysitting writer returns while `BABYSITTING_ENABLED` is off. */
 const BABYSITTING_DISABLED = "babysitting_disabled";
@@ -53,8 +54,10 @@ export interface BabysittingRequestWithSlots {
   }>;
   acceptedNanny?: {
     firstName: string;
+    /** The initial of her last name (the screens show first name and initial). */
     lastName: string;
-    dateOfBirth: string | null;
+    /** Her age (never her date of birth: the receiver is the family). */
+    age: number | null;
     suburb: string | null;
     profilePicUrl: string | null;
     distanceKm: number | null;
@@ -66,8 +69,10 @@ export interface BabysittingRequestWithSlots {
 export interface RequestingNanny {
   nannyId: string;
   firstName: string;
+  /** The initial of her last name. */
   lastName: string;
-  dateOfBirth: string | null;
+  /** Her age (never her date of birth). */
+  age: number | null;
   suburb: string | null;
   profilePicUrl: string | null;
   distanceKm: number | null;
@@ -1753,26 +1758,13 @@ export async function parentAcceptNanny(
   // narrate that side. Only the booked nanny hears from Katie here.
   //
   // `family_phrase` is passed as a COMPLETE subject phrase so the
-  // template never has to prepend/append words around it ("The" + bare
-  // word → grammar break). When we can resolve the parent's first name
-  // we pass "The Chen family"; otherwise we pass the neutral fallback
-  // and the template still reads cleanly.
+  // template never has to prepend/append words around it. Her babysitting
+  // screens show no family name, so the narration uses the neutral phrase.
   if (nannyRow) {
     const slotForTemplate = (slots ?? [])[0]
       ? formatSlotDisplay((slots ?? [])[0])
       : "your booking";
-    const { data: parentRow } = await adminClient
-      .from("parents")
-      .select("user_id")
-      .eq("id", bsr.parent_id)
-      .maybeSingle();
-    const parentEmailForName = parentRow
-      ? await getUserEmailInfo(parentRow.user_id).catch(() => null)
-      : null;
-    const familyPhrase =
-      parentEmailForName && parentEmailForName.lastName
-        ? `The ${parentEmailForName.lastName} family`
-        : "A family";
+    const familyPhrase = "A family";
     dispatchActionTriggeredInBackground({
       triggerId: "bsr.accepted_by_parent",
       recipientUserId: nannyRow.user_id,
@@ -1842,23 +1834,8 @@ export async function parentDeclineNanny(
     .eq("id", nannyId)
     .maybeSingle();
   if (nannyRowForDecline) {
-    const { data: bsrParentRow } = await adminClient
-      .from("babysitting_requests")
-      .select("parent_id")
-      .eq("id", babysittingRequestId)
-      .maybeSingle();
-    let familyPhrase = "That family";
-    if (bsrParentRow?.parent_id) {
-      const { data: pRow } = await adminClient
-        .from("parents")
-        .select("user_id")
-        .eq("id", bsrParentRow.parent_id)
-        .maybeSingle();
-      if (pRow) {
-        const info = await getUserEmailInfo(pRow.user_id).catch(() => null);
-        if (info?.lastName) familyPhrase = `The ${info.lastName} family`;
-      }
-    }
+    // her babysitting screens show no family name: the neutral phrase
+    const familyPhrase = "That family";
     dispatchActionTriggeredInBackground({
       triggerId: "bsr.declined_by_parent",
       recipientUserId: nannyRowForDecline.user_id,
@@ -2323,7 +2300,7 @@ export async function getParentBabysittingRequests(): Promise<{
     {
       firstName: string;
       lastName: string;
-      dateOfBirth: string | null;
+      age: number | null;
       suburb: string | null;
       profilePicUrl: string | null;
       distanceKm: number | null;
@@ -2395,8 +2372,8 @@ export async function getParentBabysittingRequests(): Promise<{
           const phone = phoneMap.get(nanny.user_id) ?? null;
           nannyDetailsMap.set(nanny.id, {
             firstName: profile.first_name ?? "",
-            lastName: profile.last_name ?? "",
-            dateOfBirth: profile.date_of_birth ?? null,
+            lastName: (profile.last_name ?? "").charAt(0),
+            age: profileAge(profile.date_of_birth ?? null),
             suburb: profile.suburb,
             profilePicUrl: profile.profile_picture_url,
             distanceKm: null,
@@ -2469,8 +2446,8 @@ export async function getParentBabysittingRequests(): Promise<{
         const entry: RequestingNanny = {
           nannyId: notif.nanny_id,
           firstName: profile.first_name ?? "",
-          lastName: profile.last_name ?? "",
-          dateOfBirth: profile.date_of_birth ?? null,
+          lastName: (profile.last_name ?? "").charAt(0),
+          age: profileAge(profile.date_of_birth ?? null),
           suburb: profile.suburb,
           profilePicUrl: profile.profile_picture_url,
           distanceKm:

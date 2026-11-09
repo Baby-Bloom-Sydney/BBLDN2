@@ -148,7 +148,7 @@ export async function getParentInterviewRequests(): Promise<{ data: InterviewReq
       nanny: {
         id: req.nannies.id,
         first_name: nannyProfile.first_name,
-        last_name: nannyProfile.last_name,
+        last_name: (nannyProfile.last_name ?? "").charAt(0),
         suburb: nannyProfile.suburb,
         hourly_rate_min: req.nannies.hourly_rate_min,
       },
@@ -200,7 +200,7 @@ export async function getNannyInterviewRequests(): Promise<{ data: InterviewRequ
       parent: {
         id: req.parents.id,
         first_name: parentProfile.first_name,
-        last_name: parentProfile.last_name,
+        last_name: (parentProfile.last_name ?? "").charAt(0),
         suburb: parentProfile.suburb,
       },
       parents: undefined,

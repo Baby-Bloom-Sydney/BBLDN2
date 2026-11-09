@@ -26,8 +26,11 @@ beforeEach(() => {
   createUser.mockReset().mockResolvedValue({ data: { user: { id: "user-new" } }, error: null });
   admin = fakeAdmin({ nanny_leads: LEAD });
   admin.writeResults.nannies = { id: "nanny-new" };
-  // the claim (a conditional update returning the lead) succeeds unless a test says otherwise
-  admin.writeResults.nanny_leads = (op: Op) => ((op.payload as { converted_at?: unknown }).converted_at ? [{ id: "lead-1" }] : null);
+  // the claim and the final mark (conditional updates returning the lead) land unless a test says otherwise
+  admin.writeResults.nanny_leads = (op: Op) => {
+    const row = op.payload as { conversion_claimed_at?: unknown; lead_status?: unknown };
+    return typeof row.conversion_claimed_at === "string" || row.lead_status === "converted" ? [{ id: "lead-1" }] : null;
+  };
 });
 
 describe("convertLeadToAccount — once", () => {
