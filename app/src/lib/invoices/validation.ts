@@ -25,7 +25,7 @@ export const VALIDATION_MESSAGES = Object.freeze({
   accountNumber: "Enter an 8-digit account number",
   tooLong: "That's too long — please shorten it",
   oneLine: "Use plain text, without special characters",
-  ownName: `Use your own name or business name — ${SITE_NAME} can't be the one paid`,
+  ownName: "Enter your own name or business name.",
   tooManyLines: `Use at most ${text.addressMaxLines} lines`,
   invalid: "Something's missing — please start again",
 } as const);

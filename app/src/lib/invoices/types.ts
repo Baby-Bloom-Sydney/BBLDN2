@@ -51,9 +51,10 @@ export type InvoiceError =
   | "already_failed" // this invoice id failed: start again with a new invoice
   | "no_pdf" // finishing as sent before its PDF is stored
   | "no_details" // no payment details, or not the account she reviewed
-  | "no_address" // no business address and no verification address on file (plan 14.3, risk X5)
+  | "no_address" // no address she can print: no street line and postcode in her home address, and not a limited company with its registered office (06b-3 rework)
   | "bad_lines" // a shift or expense line the database refused (counts, steps, ceilings, dates, a day's hours)
   | "changed" // her settings changed since the review, so the total isn't the one she saw (plan 14.4, X6)
+  | "stale" // a Settings save carried an older version of the record than the one stored: nothing written (06b-3 rework)
   | "bad_replaces" // a correction for an invoice that isn't hers, cancelled and to the same family (plan R4)
   | "already_replaced" // that invoice already has a correction
   | "no_contact" // a name or email missing from a profile

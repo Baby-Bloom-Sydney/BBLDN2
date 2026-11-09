@@ -7,19 +7,20 @@
  *   (8 digits, or 2 letters and 6 digits, e.g. SC123456) and registered office, all required; a partnership with its
  *   name. Fields that don't apply to her type are set to null, whatever was typed.
  * - **Names** (trading, company, partnership) are one line and never BabyBloom (plan R8: they print on a PDF that
- *   BabyBloom sends). A blank trading name or business address means "my own name" / "my verification address".
+ *   BabyBloom sends). A blank trading name means "my own name".
+ * - **No address** (06b-3 rework R2): hers is her home address, and a limited company's is its registered office.
  * - **VAT:** not registered (any number or rate is dropped), or registered with a UK VAT number (spaces and hyphens
  *   stripped, upper-cased, "GB" added: GB + 9 or 12 digits) and a rate typed as a percent with up to 2 decimals,
  *   stored in basis points — 20% unless she changes it.
  * - Plain messages that never echo what was typed.
  *
- * BB-wave1-041126/06b2-build, 2026-11-06.
+ * BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b3-rework, 2026-11-09 (no address; R6 wording).
  */
 
 import { z } from "zod";
 import { BASIS_POINTS_PER_PERCENT, INVOICE_RULES } from "@/config/invoices";
 import { VAT_MODES, type BusinessType, type VatMode } from "./types";
-import { optionalAddress, optionalName, requiredAddress, requiredName } from "./validation";
+import { optionalName, requiredAddress, requiredName } from "./validation";
 
 const { text, vatRateBp } = INVOICE_RULES;
 
@@ -29,7 +30,7 @@ export const BUSINESS_MESSAGES = Object.freeze({
   companyNumber: "Enter the company number — 8 characters, like 12345678 or SC123456",
   registeredOffice: "Enter the registered office address",
   partnershipName: "Enter the partnership's name",
-  vatMode: "Choose whether VAT is included in your rates or added on top",
+  vatMode: "Choose whether VAT is included in your rates or added to them",
   vatNumber: "Enter a UK VAT number, like GB 123 4567 89",
   vatRate: `Enter a VAT rate above 0% and up to ${vatRateBp.max / BASIS_POINTS_PER_PERCENT}%, with at most 2 decimal places`,
 } as const);
@@ -39,7 +40,6 @@ const B = BUSINESS_MESSAGES;
 export interface BusinessDetails {
   readonly businessType: BusinessType;
   readonly tradingName: string | null;
-  readonly businessAddress: string | null;
   readonly companyName: string | null;
   readonly companyNumber: string | null;
   readonly registeredOffice: string | null;
@@ -83,7 +83,6 @@ const vatRate = z
 
 const shared = {
   tradingName: optionalName(text.tradingNameMax),
-  businessAddress: optionalAddress(text.addressMax),
   vatMode: z.enum(VAT_MODES, { error: B.vatMode }),
   vatNumber,
   vatRate,
@@ -122,7 +121,6 @@ function toStored(value: Parsed): BusinessDetails {
   return {
     businessType: value.businessType,
     tradingName: value.tradingName,
-    businessAddress: value.businessAddress,
     companyName: value.businessType === "limited_company" ? value.companyName : null,
     companyNumber: value.businessType === "limited_company" ? value.companyNumber : null,
     registeredOffice: value.businessType === "limited_company" ? value.registeredOffice : null,

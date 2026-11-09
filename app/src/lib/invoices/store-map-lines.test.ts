@@ -75,24 +75,31 @@ describe("linesArg (the p_lines the store sends; keys = the line table's columns
 describe("issuerReply (nanny_invoice_issuer: who she is on her invoices, with the defaults)", () => {
   const DEFAULTS = {
     business_type: "sole_trader", name: "Sophie Taylor", trading_name: "Sophie Taylor", trading_name_source: "name",
-    address: "1 Upper Street\nLondon\nN1 0AA", address_source: "verification", company_name: null, company_number: null,
-    registered_office: null, partnership_name: null, vat_mode: "none", vat_rate_bp: null, vat_number: null,
+    address: "1 Upper Street\nLondon\nN1 0AA", company_name: null, company_number: null,
+    registered_office: null, partnership_name: null, vat_mode: "none", vat_rate_bp: null, vat_number: null, business_updated_at: null,
   };
 
-  it("maps the zero-setup default", () => {
+  it("maps the zero-setup default (no row: no version)", () => {
     expect(issuerReply.parse(DEFAULTS)).toEqual({
       businessType: "sole_trader", name: "Sophie Taylor", tradingName: "Sophie Taylor", tradingNameSource: "name",
-      address: "1 Upper Street\nLondon\nN1 0AA", addressSource: "verification", companyName: null, companyNumber: null,
-      registeredOffice: null, partnershipName: null, vat: { mode: "none", rateBp: null, number: null },
+      address: "1 Upper Street\nLondon\nN1 0AA", companyName: null, companyNumber: null,
+      registeredOffice: null, partnershipName: null, vat: { mode: "none", rateBp: null, number: null }, businessUpdatedAt: null,
     });
+  });
+
+  it("keeps the version exactly as the database sent it (microseconds and all: it goes back with a save)", () => {
+    const at = "2027-02-15T10:00:00.123456+00:00";
+    expect(issuerReply.parse({ ...DEFAULTS, business_updated_at: at }).businessUpdatedAt).toBe(at);
+    expect(issuerReply.parse({ ...DEFAULTS, address_source: "verification" })).not.toHaveProperty("addressSource");
   });
 
   it("maps a limited company with VAT, and no address on file", () => {
     const ltd = issuerReply.parse({
       ...DEFAULTS, business_type: "limited_company", company_name: "Taylor Childcare Ltd", company_number: "12345678",
-      registered_office: "1 Upper Street", vat_mode: "added", vat_rate_bp: 2000, vat_number: "GB123456789", address: null, address_source: null,
+      registered_office: "1 Upper Street", vat_mode: "added", vat_rate_bp: 2000, vat_number: "GB123456789", address: "1 Upper Street",
     });
-    expect(ltd).toMatchObject({ businessType: "limited_company", companyNumber: "12345678", address: null, addressSource: null, vat: { mode: "added", rateBp: 2000, number: "GB123456789" } });
+    expect(ltd).toMatchObject({ businessType: "limited_company", companyNumber: "12345678", address: "1 Upper Street", vat: { mode: "added", rateBp: 2000, number: "GB123456789" } });
+    expect(issuerReply.parse({ ...DEFAULTS, address: null }).address).toBeNull();
   });
 
   it("carries no bank field, whatever a reply holds", () => {
@@ -103,14 +110,18 @@ describe("issuerReply (nanny_invoice_issuer: who she is on her invoices, with th
   it("refuses a reply that doesn't fit (an unknown type or mode, a missing field)", () => {
     expect(issuerReply.safeParse({ ...DEFAULTS, business_type: "charity" }).success).toBe(false);
     expect(issuerReply.safeParse({ ...DEFAULTS, vat_mode: "reverse" }).success).toBe(false);
-    expect(issuerReply.safeParse({ ...DEFAULTS, address_source: "somewhere" }).success).toBe(false);
+    expect(issuerReply.safeParse({ ...DEFAULTS, business_updated_at: "not a time" }).success).toBe(false);
+    const { business_updated_at: _absent, ...noVersion } = DEFAULTS;
+    expect(issuerReply.safeParse(noVersion).success).toBe(false);
     expect(issuerReply.safeParse(null).success).toBe(false);
   });
 });
 
 describe("businessSavedReply", () => {
-  it("is saved with whether anything changed", () => {
-    expect(businessSavedReply.parse({ status: "saved", changed: true })).toEqual({ changed: true });
+  it("is saved with whether anything changed and the version now stored", () => {
+    const at = "2027-02-15T10:00:00.123456+00:00";
+    expect(businessSavedReply.parse({ status: "saved", changed: true, updated_at: at })).toEqual({ changed: true, updatedAt: at });
+    expect(businessSavedReply.safeParse({ status: "saved", changed: true }).success).toBe(false);
     expect(businessSavedReply.safeParse({ status: "saved" }).success).toBe(false);
   });
 });

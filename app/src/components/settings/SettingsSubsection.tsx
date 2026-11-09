@@ -37,7 +37,7 @@ export function SettingsSubsection({
         {children}
       </div>
       {footnote && (
-        <p className="px-1 text-[11px] text-slate-400">{footnote}</p>
+        <p className="px-1 text-[11px] text-slate-500">{footnote}</p>
       )}
     </div>
   );

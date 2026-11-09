@@ -36,6 +36,13 @@ const ACTION_LABEL: Record<Action, string> = {
   leave_child: "Leave",
 };
 
+/** While it runs (06b-3 rework R6: the nanny's Leave reads "Leaving…"; the parent's labels are unchanged). */
+const ACTION_PENDING: Record<Action, string> = {
+  remove_nanny: "Working...",
+  delete_child: "Working...",
+  leave_child: "Leaving…",
+};
+
 const ACTION_BLURB: Record<Action, string> = {
   remove_nanny:
     "The nanny will lose access to this child. The placement ends if they share no other children with you.",
@@ -215,7 +222,7 @@ export function ChildManagementCard({ items, role }: ChildManagementCardProps) {
                         {busy ? (
                           <>
                             <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                            Working...
+                            {ACTION_PENDING[pending.action]}
                           </>
                         ) : (
                           ACTION_LABEL[pending.action]

@@ -16,6 +16,9 @@
  *      - Sidebar highlights the top-level ancestor on desktop.
  *      - Mobile shows back-arrow → root.
  *
+ *      - Opt-in `defaultLeafId` (06b-3 rework): desktop opens that
+ *        leaf instead of "Select a setting"; mobile keeps its menu.
+ *
  *   3. `?s=<leaf-id>` → Leaf content.
  *      - Renders breadcrumb (root → ancestors → this leaf) + the
  *        leaf's content (supplied by the parent client via
@@ -24,6 +27,9 @@
  *      - Mobile shows back-arrow → IMMEDIATE PARENT (one level up,
  *        not all the way to root) so deep paths feel like iOS
  *        Settings drill-down.
+ *      - A node with `ownHeader` draws its own title row (an
+ *        editable page's Edit button sits beside it); the shell
+ *        draws only the breadcrumb.
  */
 
 import Link from "next/link";
@@ -34,6 +40,7 @@ import { SettingsSidebar } from "./SettingsSidebar";
 import { MobileMenu } from "./MobileMenu";
 import { BranchMenu } from "./BranchMenu";
 import { SettingsBreadcrumb } from "./SettingsBreadcrumb";
+import { SettingsSectionTitle } from "./SettingsSectionTitle";
 
 interface SettingsShellProps {
   /** Document title and the synthetic root crumb in breadcrumbs. */
@@ -65,6 +72,10 @@ interface SettingsShellProps {
   pageBottomLink?: { label: string; targetId: string };
   /** Group label above the sidebar tree (e.g. "PERSONAL"). */
   sidebarGroupLabel?: string;
+  /** Opt-in (06b-3 rework, ledger B06 §9.1 R6): on desktop with no
+   *  `?s=`, open this leaf instead of the "Select a setting" panel.
+   *  Mobile keeps its menu. */
+  defaultLeafId?: string;
 }
 
 export function SettingsShell({
@@ -78,13 +89,16 @@ export function SettingsShell({
   branchDangerLinks,
   pageBottomLink,
   sidebarGroupLabel,
+  defaultLeafId,
 }: SettingsShellProps) {
   const found = findNode(tree, activeId);
   const node = found?.node ?? null;
   const path = found?.path ?? [];
   const isRoot = !node;
   const isBranch = !!node?.children;
-  const activeRootId = path[0]?.id ?? "";
+  // Desktop only: with no `?s=`, the opt-in default leaf (mobile keeps its menu)
+  const landing = isRoot && defaultLeafId ? findNode(tree, defaultLeafId) : null;
+  const activeRootId = (found ?? landing)?.path[0]?.id ?? "";
 
   // For mobile back-arrow on a leaf: navigate to the immediate
   // parent (path[path.length - 2]), not all the way to root.
@@ -96,26 +110,27 @@ export function SettingsShell({
   // breadcrumb only. Per user feedback (2026-05-07) sections do
   // not display a subheader/description; the title alone is the
   // section identity.
-  const sectionHeader = node && (
+  const headerFor = (n: SettingsNode, p: SettingsNode[]) => (
     <header className="space-y-2 px-1">
-      <SettingsBreadcrumb basePath={basePath} path={path} rootLabel={title} />
-      <div className="flex items-start justify-between gap-3">
-        <h2 className="text-lg font-semibold text-slate-900 lg:text-xl">
-          {node.label}
-        </h2>
-        {node.status && (
-          <span
-            className={
-              statusToneClass(node.status.tone) +
-              " inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium shrink-0"
-            }
-          >
-            {node.status.label}
-          </span>
-        )}
-      </div>
+      <SettingsBreadcrumb basePath={basePath} path={p} rootLabel={title} />
+      {!n.ownHeader && (
+        <div className="flex items-start justify-between gap-3">
+          <SettingsSectionTitle>{n.label}</SettingsSectionTitle>
+          {n.status && (
+            <span
+              className={
+                statusToneClass(n.status.tone) +
+                " inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium shrink-0"
+              }
+            >
+              {n.status.label}
+            </span>
+          )}
+        </div>
+      )}
     </header>
   );
+  const sectionHeader = node && headerFor(node, path);
 
   return (
     // Self-contained min-height so the shell is at least
@@ -153,24 +168,10 @@ export function SettingsShell({
         {/* ── Mobile root menu ────────────────────────────────── */}
         {isRoot && <MobileMenu basePath={basePath} tree={tree} />}
 
-        {/* ── Mobile non-root content ─────────────────────────── */}
-        {!isRoot && (
-          <div className="lg:hidden">
-            <SectionView
-              node={node}
-              path={path}
-              basePath={basePath}
-              renderLeaf={renderLeaf}
-              branchDangerLinks={branchDangerLinks}
-              isBranch={isBranch}
-              sectionHeader={sectionHeader}
-            />
-          </div>
-        )}
-
-        {/* ── Desktop sidebar + content ───────────────────────── */}
-        <div className="hidden lg:grid lg:grid-cols-[260px_1fr] lg:gap-10">
-          <div>
+        {/* ── Sidebar + content (06b-3 rework review: one section for every width, so an editable page is
+             one instance and keeps its edit mode across the lg breakpoint; the sidebar shows from lg) ── */}
+        <div className={isRoot ? "hidden lg:grid lg:grid-cols-[260px_1fr] lg:gap-10" : "lg:grid lg:grid-cols-[260px_1fr] lg:gap-10"}>
+          <div className="hidden lg:block">
             <header className="mb-6 px-3">
               <h1 className="text-xl font-bold text-slate-900">{title}</h1>
             </header>
@@ -182,14 +183,24 @@ export function SettingsShell({
             />
           </div>
           <div className="min-w-0">
-            {isRoot ? (
+            {landing ? (
+              <SectionView
+                node={landing.node}
+                path={landing.path}
+                basePath={basePath}
+                renderLeaf={renderLeaf}
+                branchDangerLinks={branchDangerLinks}
+                isBranch={!!landing.node.children}
+                sectionHeader={headerFor(landing.node, landing.path)}
+              />
+            ) : isRoot ? (
               <div className="space-y-6">
                 {identityCard}
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-12 text-center">
                   <p className="text-sm font-medium text-slate-600">
                     Select a setting from the sidebar.
                   </p>
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="mt-1 text-xs text-slate-500">
                     Your selection opens here.
                   </p>
                 </div>
@@ -217,7 +228,7 @@ export function SettingsShell({
         <div className="mt-auto pb-3 pt-10 text-center">
           <Link
             href={`${basePath}?s=${pageBottomLink.targetId}`}
-            className="text-[11px] text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline"
+            className="text-[11px] text-slate-500 underline-offset-2 hover:text-slate-700 hover:underline"
           >
             {pageBottomLink.label}
           </Link>

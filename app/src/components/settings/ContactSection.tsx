@@ -114,7 +114,7 @@ export function ContactSection() {
         />
         <div className="flex items-center justify-between text-xs">
           <span
-            className={messageTooShort ? "text-rose-600" : "text-slate-400"}
+            className={messageTooShort ? "text-rose-600" : "text-slate-500"}
           >
             {messageTooShort
               ? `At least ${MESSAGE_MIN} characters`

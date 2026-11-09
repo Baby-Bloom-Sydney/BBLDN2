@@ -7,8 +7,12 @@
  * - Every operation passes `gate.ts` first: the switch (`invoices_disabled`, before a client is even made), then its proof:
  *   a `NannyProof` for her own details and invoices — the nanny id always comes from the proof, never from input —
  *   or an `AdminProof` for the readers' rows. Anything else answers `invalid` before a read.
- * - Screens read the masks only (`readMaskedDetails`); the full numbers come back from one named read,
- *   `readFullDetailsForInvoicePdf`, for her PDF.
+ * - Screens read the masks only (`readMaskedDetails`); the full numbers come back from two named reads:
+ *   `readFullDetailsForInvoicePdf`, for her PDF, and `readBankDetailsForSettings`, for her own Settings page only
+ *   (06b-3 rework R3, BAI 2026-11-09: "We are completely fine to show them their banking information in their
+ *   settings"). Everywhere else — the invoice review, replies, logs, emails — stays masked.
+ * - A Settings save carries the version she loaded (`expectedUpdatedAt`, null = she saw none); the database answers
+ *   `stale` and writes nothing when the row changed since.
  * - Writes go only through amendment 21's functions, which lock per nanny, take the family and the snapshots from
  *   her own placement or trial connection, the issuer and VAT from her business details, and never delete (R1). An
  *   invoice goes as its lines (`p_lines`) with the total her review showed; the database works out every figure
@@ -18,7 +22,7 @@
  * - The readers' rows are what went out, with a PDF (R1), re-checked here whatever the query returned.
  * - Failures are logged by code only (`db.ts`); results are closed codes, nothing is thrown to callers.
  *
- * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b3-rework, 2026-11-09.
  */
 
 import { z } from "zod";
@@ -40,6 +44,8 @@ import {
   maskedRow,
   refusalReply,
   savedReply,
+  SETTINGS_BANK_COLUMNS,
+  settingsBankRow,
   toFamilyRow,
   toWeekRow,
   WEEK_COLUMNS,
@@ -48,6 +54,7 @@ import {
   type FamilyRow,
   type MaskedPaymentDetails,
   type SavedDetails,
+  type SettingsBankDetails,
   type StoredPaymentDetails,
   type WeekRow,
 } from "./store-map";
@@ -58,6 +65,7 @@ import {
   MY_LINES_COLUMNS,
   myInvoiceRow,
   myLinesRow,
+  version,
   type MyInvoice,
   type StoredLine,
 } from "./store-map-lines";
@@ -66,7 +74,7 @@ import { paymentDetailsSchema } from "./validation";
 import { FUTURE_ISSUE, invoiceDraftSchema } from "./validation-lines";
 import { isLondonMonday, londonDayRange } from "./week";
 
-export type { CreatedInvoice, FamilyRow, IssuerSnapshot, MaskedPaymentDetails, SavedDetails, StoredPaymentDetails, WeekRow } from "./store-map";
+export type { CreatedInvoice, FamilyRow, IssuerSnapshot, MaskedPaymentDetails, SavedDetails, SettingsBankDetails, StoredPaymentDetails, WeekRow } from "./store-map";
 export type { MyInvoice, StoredLine } from "./store-map-lines";
 
 export type FinishOutcome =
@@ -110,12 +118,25 @@ export async function readFullDetailsForInvoicePdf(proof: NannyProof): Promise<I
   return nannyGate(proof) ?? readDetails("readFullDetailsForInvoicePdf", proof, FULL_COLUMNS, fullRow);
 }
 
-/** Save or replace her details (parsed again here); the reply carries masks only. */
-export async function saveDetails(proof: NannyProof, input: unknown): Promise<InvoiceResult<SavedDetails>> {
+/** Her full details and their version, for her own Settings page only (06b-3 rework R3). Never for any other screen. */
+export async function readBankDetailsForSettings(proof: NannyProof): Promise<InvoiceResult<SettingsBankDetails | null>> {
+  return nannyGate(proof) ?? readDetails("readBankDetailsForSettings", proof, SETTINGS_BANK_COLUMNS, settingsBankRow);
+}
+
+/** Only the version of her bank details (null = none saved): a Save's stale check never needs her numbers. */
+export async function readBankVersion(proof: NannyProof): Promise<InvoiceResult<string | null>> {
+  const gate = nannyGate(proof);
+  if (gate) return gate;
+  const read = await readDetails("readBankVersion", proof, "updated_at", z.object({ updated_at: version }));
+  return read.ok ? invoiceOk(read.value?.updated_at ?? null) : read;
+}
+
+/** Save or replace her details (parsed again here) if the row is still the version she loaded; masks in the reply. */
+export async function saveDetails(proof: NannyProof, input: unknown, expectedUpdatedAt: string | null): Promise<InvoiceResult<SavedDetails>> {
   const gate = nannyGate(proof);
   if (gate) return gate;
   const parsed = paymentDetailsSchema.safeParse(input);
-  if (!parsed.success) return INVALID;
+  if (!parsed.success || !version.nullable().safeParse(expectedUpdatedAt).success) return INVALID;
   const admin = serviceClient();
   if (!admin) return FAILED;
   const d = parsed.data;
@@ -124,6 +145,7 @@ export async function saveDetails(proof: NannyProof, input: unknown): Promise<In
     p_account_name: d.accountName,
     p_sort_code: d.sortCode,
     p_account_number: d.accountNumber,
+    p_expected_updated_at: expectedUpdatedAt,
   });
   return mapReply("nanny_payment_details_save", reply, savedReply);
 }

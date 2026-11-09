@@ -51,7 +51,7 @@ describe("paymentDetailsSchema (3 fields)", () => {
     ["Cyrillic a", `B${cp(0x430)}by Bloom`], ["Greek omicron", `Baby Bl${cp(0x3bf)}om`], ["digits", "B4by Bl00m"],
     ["a combining mark", `Bab${cp(0x301)}y Bloom`], ["a grapheme joiner", `Baby${cp(0x34f)}Bloom`],
   ])("never lets a BabyBloom look-alike be the party paid: %s (security review M1)", (_label, name) => {
-    expect(messagesOf(paymentDetailsSchema.safeParse({ ...details, accountName: name }))).toEqual(expect.arrayContaining([expect.stringMatching(/BabyBloom|plain text/)]));
+    expect(messagesOf(paymentDetailsSchema.safeParse({ ...details, accountName: name })).some((m) => m === M.ownName || m === M.oneLine)).toBe(true);
     expect(messagesOf(paymentDetailsSchema.safeParse({ ...details, accountName: name })).length).toBeGreaterThan(0);
   });
 

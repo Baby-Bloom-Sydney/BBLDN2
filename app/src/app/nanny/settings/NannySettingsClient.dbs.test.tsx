@@ -11,7 +11,8 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(params.s),
   usePathname: () => "/nanny/settings",
 }));
-vi.mock("@/lib/actions/nanny", () => ({ updateNannyAccountSettings: vi.fn(), deactivateNannyAccount: vi.fn() }));
+vi.mock("@/lib/actions/nanny", () => ({ deactivateNannyAccount: vi.fn() }));
+vi.mock("@/lib/actions/nanny-account-settings", () => ({ updateNannyAccountSettings: vi.fn() }));
 vi.mock("@/lib/actions/account-security", () => ({ requestPasswordChange: vi.fn() }));
 
 import { NannySettingsClient, type NannyDbsSettings } from "./NannySettingsClient";
@@ -21,6 +22,7 @@ afterEach(cleanup);
 const PROFILE = {
   first_name: "Jane", last_name: "Doe", email: "jane@example.test", mobile_number: "+447700900123",
   date_of_birth: "1990-01-01", suburb: "Camden", postcode: "NW1 0AA",
+  address_line1: "1 Camden Road", address_line2: "", updated_at: null, address_updated_at: null,
 };
 
 function show(dbs: NannyDbsSettings | null) {
@@ -46,7 +48,7 @@ describe("NannySettingsClient — DBS", () => {
     show({ ...base, state: "not_started" });
     expect(screen.getAllByText("Enhanced DBS certificate").length).toBeGreaterThan(0);
     has("Upload your DBS certificate to start receiving match requests.");
-    expect(screen.getAllByRole("button", { name: /Upload certificate/ }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: /Upload certificate/ }).length).toBeGreaterThan(0);
     expect(screen.queryByText("0012 3456 7890")).toBeNull();
   });
 
@@ -64,7 +66,7 @@ describe("NannySettingsClient — DBS", () => {
     has("Update Service");
     has("Current · checked 6 Oct 2026");
     has("Verified");
-    has("Got a new DBS certificate?");
+    has("Upload a new certificate"); // 06b-3 rework R6: was "Got a new DBS certificate? Upload it"
   });
 
   it("shows 'Not on Update Service' when 26, with 'Not found · checked {date}'", () => {
@@ -75,8 +77,8 @@ describe("NannySettingsClient — DBS", () => {
 
   it("shows 'New certificate needed' as the pill and the row when 23", () => {
     show({ ...base, state: "new_info" });
-    // pill + row value, in each pane
-    expect(screen.getAllByText("New certificate needed").length % 2).toBe(0);
+    // the section's pill, the certificate row's badge and the Update Service value (one pane since the 06b-3 rework)
+    expect(screen.getAllByText("New certificate needed")).toHaveLength(3);
     has("New certificate needed");
     expect(screen.queryByText("Expired")).toBeNull();
   });

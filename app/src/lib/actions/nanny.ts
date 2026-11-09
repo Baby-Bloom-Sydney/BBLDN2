@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { openai } from "@/lib/ai/client";
-import { isUkMobile, normaliseUkMobile } from "@/lib/uk-contact";
 
 // ── Public nanny profile fetch (for /nannies/[id] page) ──
 
@@ -631,74 +630,7 @@ export async function isProfileComplete(): Promise<boolean> {
   return true;
 }
 
-// ── Account Settings ──
-
-export interface UpdateNannyAccountData {
-  first_name?: string;
-  last_name?: string;
-  date_of_birth?: string | null;
-  mobile_number?: string | null;
-  suburb?: string;
-  postcode?: string;
-}
-
-export async function updateNannyAccountSettings(
-  data: UpdateNannyAccountData,
-): Promise<{ success: boolean; error: string | null }> {
-  const supabase = createClient();
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return { success: false, error: "Not authenticated" };
-  }
-
-  // Server-side mobile validation — mobile is REQUIRED and must be a
-  // valid UK mobile (per user policy 2026-05-07). Mirrors the
-  // client-side validation in the settings dialog so direct-action
-  // calls cannot bypass. Shares `lib/uk-contact` with every other
-  // surface so the rule cannot drift (12.05).
-  if (data.mobile_number !== undefined) {
-    const trimmed = (data.mobile_number ?? "").trim();
-    if (trimmed.length === 0) {
-      return { success: false, error: "Mobile number is required." };
-    }
-    if (!isUkMobile(trimmed)) {
-      return {
-        success: false,
-        error: "Enter a valid UK mobile number.",
-      };
-    }
-    data = { ...data, mobile_number: normaliseUkMobile(trimmed) };
-  }
-
-  const profileFields: Record<string, unknown> = {};
-  if (data.first_name !== undefined) profileFields.first_name = data.first_name;
-  if (data.last_name !== undefined) profileFields.last_name = data.last_name;
-  if (data.date_of_birth !== undefined)
-    profileFields.date_of_birth = data.date_of_birth;
-  if (data.mobile_number !== undefined)
-    profileFields.mobile_number = data.mobile_number;
-  if (data.suburb !== undefined) profileFields.suburb = data.suburb;
-  if (data.postcode !== undefined) profileFields.postcode = data.postcode;
-
-  if (Object.keys(profileFields).length > 0) {
-    const { error: profileError } = await supabase
-      .from("user_profiles")
-      .update(profileFields)
-      .eq("user_id", user.id);
-
-    if (profileError) {
-      return { success: false, error: "Failed to update account info" };
-    }
-  }
-
-  revalidatePath("/nanny/settings");
-  revalidatePath("/nanny/profile");
-  return { success: true, error: null };
-}
+// ── Account Settings: `updateNannyAccountSettings` lives in `nanny-account-settings.ts` (06b-3 rework) ──
 
 export async function updateAccountEmail(
   newEmail: string,
