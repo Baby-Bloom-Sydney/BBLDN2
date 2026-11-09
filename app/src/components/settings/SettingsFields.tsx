@@ -100,7 +100,7 @@ export function RadioChoice({ name, value, checked, onSelect, label, suffix }: R
       />
       <span className="min-w-0 text-sm font-medium text-slate-900">
         {label}
-        {suffix && <span className="ml-1 font-normal text-slate-500">{suffix}</span>}
+        {suffix && <>{" "}<span className="font-normal text-slate-500">{suffix}</span></>}
       </span>
     </label>
   );

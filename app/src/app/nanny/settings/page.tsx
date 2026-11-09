@@ -5,6 +5,9 @@
  * Never: writes; never passes raw section codes to the client.
  * Brief 06 (plan 06 §14.6 b3.4; BB-wave1-041126/06b3-build, 2026-11-07): the Business section is a server leaf passed
  * in as a slot, only with the invoice switch on and `?s=business`, so no other view reads any invoice data.
+ * 06b-3 rework (ledger B06 §9.1 R1, R2; BB-wave1-041126/06b3-rework, 2026-11-09): the profile read adds her street line
+ * and the row's version (Profile, Contact details and Business save with it); her address goes to the Business leaf
+ * from this same read (one record).
  */
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -42,7 +45,7 @@ export default async function NannySettingsPage({ searchParams }: { searchParams
     admin
       .from("user_profiles")
       .select(
-        "first_name, last_name, email, mobile_number, date_of_birth, suburb, postcode",
+        "first_name, last_name, email, mobile_number, date_of_birth, suburb, postcode, address_line1, address_line2, updated_at",
       )
       .eq("user_id", user.id)
       .single(),
@@ -69,17 +72,24 @@ export default async function NannySettingsPage({ searchParams }: { searchParams
     showPayouts ? fetchPayoutOnboardingViewData(user.id) : null,
   ]);
 
+  const profile = {
+    first_name: profileRes.data?.first_name || "",
+    last_name: profileRes.data?.last_name || "",
+    email: profileRes.data?.email || "",
+    mobile_number: profileRes.data?.mobile_number || "",
+    date_of_birth: profileRes.data?.date_of_birth || "",
+    suburb: profileRes.data?.suburb || "",
+    postcode: profileRes.data?.postcode || "",
+    address_line1: profileRes.data?.address_line1 || "",
+    address_line2: profileRes.data?.address_line2 || "",
+    updated_at: profileRes.data?.updated_at ?? null,
+  };
+  const home = { line1: profile.address_line1, line2: profile.address_line2, town: profile.suburb, postcode: profile.postcode };
+  const hasHome = Object.values(home).some((part) => part.trim() !== "");
+
   return (
     <NannySettingsClient
-      profile={{
-        first_name: profileRes.data?.first_name || "",
-        last_name: profileRes.data?.last_name || "",
-        email: profileRes.data?.email || "",
-        mobile_number: profileRes.data?.mobile_number || "",
-        date_of_birth: profileRes.data?.date_of_birth || "",
-        suburb: profileRes.data?.suburb || "",
-        postcode: profileRes.data?.postcode || "",
-      }}
+      profile={profile}
       verificationLevel={nannyRes.data?.verification_level ?? 0}
       dbs={
         verificationRes.data
@@ -99,7 +109,11 @@ export default async function NannySettingsPage({ searchParams }: { searchParams
         email: user.email ?? null,
         bankSummary: payoutOnboarding?.bankSummary ?? null,
       }}
-      businessSection={nannyInvoicesEnabled() && searchParams?.s === "business" ? <BusinessSettingsLeaf /> : null}
+      businessSection={
+        nannyInvoicesEnabled() && searchParams?.s === "business"
+          ? <BusinessSettingsLeaf home={hasHome ? home : null} homeUpdatedAt={profile.updated_at} />
+          : null
+      }
     />
   );
 }

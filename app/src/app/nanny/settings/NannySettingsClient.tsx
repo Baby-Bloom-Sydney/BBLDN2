@@ -27,6 +27,12 @@
  *     (AddressPickerDialog).
  *   - Mobile is REQUIRED + AU regex validated.
  *   - Email is read-only in v1.
+ *
+ * 06b-3 rework (ledger B06 §9.1 R1, R2, R6; BB-wave1-041126/06b3-rework, 2026-11-09):
+ *   - Profile and Contact details are their own files (`ProfileSection`, `ContactDetailsSection`) with one Edit per
+ *     page (edit mode in place, no per-row pop-ups); Business likewise. Their nodes draw their own title row.
+ *   - One address (her profile's), shown in full on Profile and Business; the inline address search.
+ *   - Desktop with no `?s=` opens Profile; "Contact us"; plainer Identity, DBS, Security and Linked children.
  */
 
 import { useState, useTransition, type ReactNode } from "react";
@@ -36,7 +42,6 @@ import {
   Loader2,
   AlertTriangle,
   X,
-  ExternalLink,
   User,
   Settings,
   Users,
@@ -47,11 +52,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  updateNannyAccountSettings,
-  deactivateNannyAccount,
-} from "@/lib/actions/nanny";
+import { deactivateNannyAccount } from "@/lib/actions/nanny";
 import { requestPasswordChange } from "@/lib/actions/account-security";
 import { ChildManagementCard } from "@/components/bapp/ChildManagementCard";
 import type { ChildClient } from "@/types/bapp";
@@ -65,18 +66,13 @@ import { SettingsShell } from "@/components/settings/SettingsShell";
 import { IdentityCard } from "@/components/settings/IdentityCard";
 import { SettingsSubsection } from "@/components/settings/SettingsSubsection";
 import { SettingsRow } from "@/components/settings/SettingsRow";
-import { EditFieldDialog } from "@/components/settings/EditFieldDialog";
-import { AddressPickerDialog } from "@/components/settings/AddressPickerDialog";
 import { ContactSection } from "@/components/settings/ContactSection";
-import {
-  formatUkMobile,
-  isUkMobile,
-  normaliseUkMobile,
-} from "@/lib/uk-contact";
 import type { SettingsNode } from "@/components/settings/tree";
 import { formatDbsDate, formatDbsNumber, type DbsDisplayState } from "@/lib/dbs/nanny-display";
 import { payoutsEnabled } from "@/lib/payments/flags";
 import { nannyInvoicesEnabled } from "@/lib/features/flags";
+import { ContactDetailsSection } from "./ContactDetailsSection";
+import { ProfileSection } from "./ProfileSection";
 
 /** The DBS leaf's data, decoded on the server by `getDbsDisplayState` (3b, brief change 11). */
 export interface NannyDbsSettings {
@@ -96,6 +92,11 @@ interface Props {
     date_of_birth: string;
     suburb: string;
     postcode: string;
+    /** Her address's street line (06b-3 rework R2: one address, her profile's). */
+    address_line1: string;
+    address_line2: string;
+    /** The profile row's version, sent back with a Save (stale otherwise). */
+    updated_at: string | null;
   };
   verificationLevel: number;
   dbs: NannyDbsSettings | null;
@@ -178,17 +179,6 @@ function VerifiedPill({ verified }: { verified: boolean }) {
   );
 }
 
-function formatDate(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
-
 const PAYOUT_LEAF_IDS = new Set([
   "upcoming-contributions",
   "contribution-history",
@@ -202,13 +192,13 @@ function buildTree(args: {
 }): SettingsNode[] {
   const { identityStatus, dbsStatus, childCount } = args;
   return [
-    { id: "profile", label: "Profile", icon: User },
+    { id: "profile", label: "Profile", icon: User, ownHeader: true },
     {
       id: "account",
       label: "Account",
       icon: Settings,
       children: [
-        { id: "contact", label: "Contact details" },
+        { id: "contact", label: "Contact details", ownHeader: true },
         {
           id: "verification",
           label: "Verification",
@@ -238,7 +228,7 @@ function buildTree(args: {
       ],
     },
     // Brief 06 (plan 06 §14.6 b3.4): her business and bank details for invoices, hidden unless NANNY_INVOICES_ENABLED.
-    ...(nannyInvoicesEnabled() ? [{ id: "business", label: "Business", icon: Briefcase }] : []),
+    ...(nannyInvoicesEnabled() ? [{ id: "business", label: "Business", icon: Briefcase, ownHeader: true }] : []),
     {
       id: "linked-children",
       label: "Linked children",
@@ -269,7 +259,7 @@ function buildTree(args: {
           },
         ]
       : []),
-    { id: "contact-us", label: "Contact Us", icon: LifeBuoy },
+    { id: "contact-us", label: "Contact us", icon: LifeBuoy },
     // Hidden danger leaf — reached only via the small link at the
     // bottom of Account's drill-down menu.
     { id: "close-account", label: "Close account", hidden: true, danger: true },
@@ -305,6 +295,7 @@ export function NannySettingsClient({
       basePath="/nanny/settings"
       tree={tree}
       activeId={activeId}
+      defaultLeafId="profile"
       identityCard={
         <IdentityCard
           fullName={fullName || "Your account"}
@@ -331,19 +322,20 @@ export function NannySettingsClient({
           case "profile":
             return (
               <ProfileSection
+                title={node.label}
                 profile={profile}
                 identityVerified={identityStatus.isVerified}
               />
             );
           case "contact":
-            return <ContactDetailsSection profile={profile} />;
-          case "identity":
             return (
-              <IdentitySection
-                profile={profile}
-                identityStatus={identityStatus}
+              <ContactDetailsSection
+                title={node.label}
+                contact={{ email: profile.email, mobile_number: profile.mobile_number, updated_at: profile.updated_at }}
               />
             );
+          case "identity":
+            return <IdentitySection identityStatus={identityStatus} />;
           case "dbs":
             return <DbsSection dbs={dbs} dbsStatus={dbsStatus} />;
           case "security":
@@ -384,273 +376,11 @@ export function NannySettingsClient({
   );
 }
 
-// ── Profile (legal name, DOB, address) ────────────────────────
-
-function ProfileSection({
-  profile,
-  identityVerified,
-}: {
-  profile: Props["profile"];
-  identityVerified: boolean;
-}) {
-  const router = useRouter();
-  const [editingName, setEditingName] = useState(false);
-  const [editingDob, setEditingDob] = useState(false);
-  const [editingAddress, setEditingAddress] = useState(false);
-  const [first, setFirst] = useState(profile.first_name);
-  const [last, setLast] = useState(profile.last_name);
-  const [dob, setDob] = useState(profile.date_of_birth);
-
-  return (
-    <div className="space-y-6">
-      <SettingsSubsection header="Personal information">
-        <SettingsRow
-          label="Full legal name"
-          value={
-            `${profile.first_name} ${profile.last_name}`.trim() || undefined
-          }
-          locked={identityVerified}
-          badge={
-            identityVerified
-              ? { label: "Verified", tone: "success" }
-              : undefined
-          }
-          onClick={
-            identityVerified
-              ? undefined
-              : () => {
-                  setFirst(profile.first_name);
-                  setLast(profile.last_name);
-                  setEditingName(true);
-                }
-          }
-        />
-        <SettingsRow
-          label="Date of birth"
-          value={
-            profile.date_of_birth
-              ? formatDate(profile.date_of_birth)
-              : undefined
-          }
-          locked={identityVerified}
-          badge={
-            identityVerified
-              ? { label: "Verified", tone: "success" }
-              : undefined
-          }
-          isLast
-          onClick={
-            identityVerified
-              ? undefined
-              : () => {
-                  setDob(profile.date_of_birth);
-                  setEditingDob(true);
-                }
-          }
-        />
-      </SettingsSubsection>
-
-      <SettingsSubsection header="Address">
-        <SettingsRow
-          label="Area"
-          value={profile.suburb}
-          onClick={() => setEditingAddress(true)}
-        />
-        <SettingsRow
-          label="Postcode"
-          value={profile.postcode}
-          isLast
-          onClick={() => setEditingAddress(true)}
-        />
-      </SettingsSubsection>
-
-      <EditFieldDialog
-        open={editingName}
-        onOpenChange={setEditingName}
-        title="Edit your full name"
-        canSubmit={first.trim().length > 0 && last.trim().length > 0}
-        onSubmit={async () => {
-          const r = await updateNannyAccountSettings({
-            first_name: first.trim(),
-            last_name: last.trim(),
-          });
-          if (r.success) {
-            router.refresh();
-            return { success: true };
-          }
-          return { success: false, error: r.error };
-        }}
-      >
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="edit-first">First name</Label>
-            <Input
-              id="edit-first"
-              value={first}
-              onChange={(e) => setFirst(e.target.value)}
-              autoFocus
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="edit-last">Last name</Label>
-            <Input
-              id="edit-last"
-              value={last}
-              onChange={(e) => setLast(e.target.value)}
-            />
-          </div>
-        </div>
-      </EditFieldDialog>
-
-      <EditFieldDialog
-        open={editingDob}
-        onOpenChange={setEditingDob}
-        title="Edit your date of birth"
-        canSubmit={dob.length > 0}
-        onSubmit={async () => {
-          const r = await updateNannyAccountSettings({
-            date_of_birth: dob || null,
-          });
-          if (r.success) {
-            router.refresh();
-            return { success: true };
-          }
-          return { success: false, error: r.error };
-        }}
-      >
-        <div className="space-y-1.5">
-          <Label htmlFor="edit-dob">Date of birth</Label>
-          <Input
-            id="edit-dob"
-            type="date"
-            value={dob}
-            onChange={(e) => setDob(e.target.value)}
-            autoFocus
-          />
-        </div>
-      </EditFieldDialog>
-
-      <AddressPickerDialog
-        open={editingAddress}
-        onOpenChange={setEditingAddress}
-        currentSuburb={profile.suburb}
-        currentPostcode={profile.postcode}
-        onSubmit={async (address) => {
-          const r = await updateNannyAccountSettings({
-            suburb: address.town,
-            postcode: address.postcode,
-          });
-          if (r.success) {
-            router.refresh();
-            return { success: true };
-          }
-          return { success: false, error: r.error };
-        }}
-      />
-    </div>
-  );
-}
-
-// ── Contact details ────────────────────────────────────────────
-
-function ContactDetailsSection({ profile }: { profile: Props["profile"] }) {
-  const router = useRouter();
-  const [editingMobile, setEditingMobile] = useState(false);
-  const [mobile, setMobile] = useState(profile.mobile_number);
-
-  const trimmed = mobile.trim();
-  const mobileValid = trimmed.length > 0 && isUkMobile(trimmed);
-
-  // Email change disabled in v1 — see ParentSettingsClient comment.
-
-  return (
-    <div className="space-y-6">
-      <SettingsSubsection header="Email">
-        <SettingsRow
-          label="Email address"
-          value={profile.email}
-          badge={
-            profile.email ? { label: "Verified", tone: "success" } : undefined
-          }
-          isLast
-        />
-      </SettingsSubsection>
-
-      <SettingsSubsection header="Phone">
-        <SettingsRow
-          label="Mobile number"
-          value={
-            profile.mobile_number
-              ? formatUkMobile(profile.mobile_number)
-              : undefined
-          }
-          isLast
-          onClick={() => {
-            setMobile(profile.mobile_number);
-            setEditingMobile(true);
-          }}
-        />
-      </SettingsSubsection>
-
-      <EditFieldDialog
-        open={editingMobile}
-        onOpenChange={setEditingMobile}
-        title="Edit mobile number"
-        canSubmit={mobileValid}
-        onSubmit={async () => {
-          if (!mobileValid) {
-            return {
-              success: false,
-              error: "Enter a valid UK mobile number.",
-            };
-          }
-          const r = await updateNannyAccountSettings({
-            mobile_number: normaliseUkMobile(mobile),
-          });
-          if (r.success) {
-            router.refresh();
-            return { success: true };
-          }
-          return { success: false, error: r.error };
-        }}
-      >
-        <div className="space-y-1.5">
-          <Label htmlFor="edit-mobile">Mobile number</Label>
-          <Input
-            id="edit-mobile"
-            type="tel"
-            value={mobile}
-            onChange={(e) => setMobile(e.target.value)}
-            placeholder="07XXX XXX XXX"
-            autoFocus
-            inputMode="tel"
-          />
-          {trimmed.length > 0 && !mobileValid && (
-            <p className="text-xs text-rose-600">
-              That doesn&apos;t look like a UK mobile number. Format:
-              07XXX XXX XXX.
-            </p>
-          )}
-          {mobileValid && (
-            <p className="text-xs text-emerald-600">{formatUkMobile(mobile)}</p>
-          )}
-          <p className="text-[11px] text-slate-400">
-            Required — parents and Baby Bloom rely on this for account-critical
-            updates.
-          </p>
-        </div>
-      </EditFieldDialog>
-    </div>
-  );
-}
-
 // ── Verification: Identity ────────────────────────────────────
 
 function IdentitySection({
-  profile,
   identityStatus,
 }: {
-  profile: Props["profile"];
   identityStatus: ReturnType<typeof publicIdentityStatus>;
 }) {
   const verified = identityStatus.isVerified;
@@ -677,28 +407,6 @@ function IdentitySection({
         />
       </SettingsSubsection>
 
-      <SettingsSubsection header="Confirmed details">
-        <SettingsRow
-          label="Full legal name"
-          value={
-            `${profile.first_name} ${profile.last_name}`.trim() || undefined
-          }
-          locked={verified}
-          badge={verified ? { label: "Verified", tone: "success" } : undefined}
-        />
-        <SettingsRow
-          label="Date of birth"
-          value={
-            profile.date_of_birth
-              ? formatDate(profile.date_of_birth)
-              : undefined
-          }
-          locked={verified}
-          badge={verified ? { label: "Verified", tone: "success" } : undefined}
-          isLast
-        />
-      </SettingsSubsection>
-
       {!verified && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
           <p className="text-sm font-medium text-amber-900">
@@ -707,14 +415,9 @@ function IdentitySection({
           <p className="mt-1 text-xs text-amber-800">
             Submit your government-issued ID to access the full platform.
           </p>
-          <Link
-            href="/nanny/onboarding-verification"
-            className="mt-3 inline-block"
-          >
-            <Button variant="outline" size="sm" className="gap-1.5">
-              Submit ID <ExternalLink className="h-3.5 w-3.5" />
-            </Button>
-          </Link>
+          <Button asChild variant="outline" size="sm" className="mt-3">
+            <Link href="/nanny/onboarding-verification">Submit ID</Link>
+          </Button>
         </div>
       )}
     </div>
@@ -741,11 +444,9 @@ function DbsSection({
           <p className="mt-1 text-xs text-slate-500">
             Upload your DBS certificate to start receiving match requests.
           </p>
-          <Link href="/nanny/verification" className="mt-3 inline-block">
-            <Button variant="outline" size="sm" className="gap-1.5">
-              Upload certificate <ExternalLink className="h-3.5 w-3.5" />
-            </Button>
-          </Link>
+          <Button asChild variant="outline" size="sm" className="mt-3">
+            <Link href="/nanny/verification">Upload certificate</Link>
+          </Button>
         </div>
       </SettingsSubsection>
     );
@@ -755,15 +456,9 @@ function DbsSection({
     <SettingsSubsection
       header="Enhanced DBS certificate"
       footnote={
-        <>
-          Got a new DBS certificate?{" "}
-          <Link
-            href="/nanny/verification"
-            className="text-violet-600 hover:underline"
-          >
-            Upload it
-          </Link>
-        </>
+        <Link href="/nanny/verification" className="text-violet-700 hover:underline">
+          Upload a new certificate
+        </Link>
       }
     >
       <SettingsRow
@@ -828,14 +523,11 @@ function SecuritySection() {
               {error}
             </p>
           )}
-          <p className="text-slate-600">
-            Send a password reset link to your registered email.
-          </p>
           <Button
             type="button"
             onClick={handleClick}
             disabled={isPending}
-            className="mt-4 bg-violet-600 text-white hover:bg-violet-700"
+            className="bg-violet-600 text-white hover:bg-violet-700"
           >
             {isPending ? (
               <>
@@ -857,7 +549,7 @@ function SecuritySection() {
 function ChildrenSection({ items }: { items: ChildClient[] }) {
   if (items.length === 0) {
     return (
-      <SettingsSubsection header="Linked children">
+      <SettingsSubsection>
         <div className="px-4 py-6 text-center text-sm text-slate-500">
           No linked children yet.
         </div>
@@ -865,7 +557,7 @@ function ChildrenSection({ items }: { items: ChildClient[] }) {
     );
   }
   return (
-    <SettingsSubsection header="Linked children">
+    <SettingsSubsection>
       <div className="px-4 py-4">
         <ChildManagementCard items={items} role="nanny" />
       </div>

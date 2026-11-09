@@ -3,8 +3,10 @@
  * `<BusinessSettingsLeaf />` into the client shell only when the switch is on **and** `?s=business`; otherwise the slot
  * is null, so no invoice read happens — not the session check, not a client call, not a read of her details. The
  * page's other reads are unchanged.
+ * 06b-3 rework (ledger B06 §9.1 R1, R2): the profile read adds her street line and the row's version; the Business
+ * leaf gets her address and that version from it (one record).
  *
- * BB-wave1-041126/06b3-build, 2026-11-07.
+ * BB-wave1-041126/06b3-build, 2026-11-07; BB-wave1-041126/06b3-rework, 2026-11-09.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isValidElement, type ReactElement } from "react";
@@ -13,6 +15,8 @@ const h = vi.hoisted(() => ({
   props: null as Record<string, unknown> | null,
   getUser: vi.fn(),
   tables: [] as string[],
+  selects: [] as string[],
+  profileRow: null as Record<string, unknown> | null,
   getNannyId: vi.fn(),
   rpc: vi.fn(),
 }));
@@ -20,15 +24,16 @@ const h = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({ redirect: (to: string) => { throw new Error(`REDIRECT ${to}`); } }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: () => ({ auth: { getUser: h.getUser } }) }));
 vi.mock("@/lib/supabase/admin", () => {
-  const chain = (): Record<string, unknown> => {
+  const chain = (table: string): Record<string, unknown> => {
     const c: Record<string, unknown> = {};
-    for (const f of ["select", "eq", "order"]) c[f] = () => c;
-    c.single = async () => ({ data: null, error: null });
+    for (const f of ["eq", "order"]) c[f] = () => c;
+    c.select = (columns: string) => (table === "user_profiles" && h.selects.push(columns), c);
+    c.single = async () => ({ data: table === "user_profiles" ? h.profileRow : null, error: null });
     c.maybeSingle = async () => ({ data: null, error: null });
     c.then = (resolve: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve);
     return c;
   };
-  return { createAdminClient: () => ({ from: (t: string) => (h.tables.push(t), chain()), rpc: h.rpc }) };
+  return { createAdminClient: () => ({ from: (t: string) => (h.tables.push(t), chain(t)), rpc: h.rpc }) };
 });
 vi.mock("@/lib/actions/connection", () => ({ getNannyId: h.getNannyId }));
 vi.mock("@/lib/payments/queryPayoutsDashboard", () => ({ fetchPayoutsDashboardData: vi.fn() }));
@@ -57,6 +62,8 @@ async function propsFor(searchParams?: Record<string, string | string[] | undefi
 beforeEach(() => {
   h.props = null;
   h.tables = [];
+  h.selects = [];
+  h.profileRow = null;
   h.getUser.mockReset().mockResolvedValue({ data: { user: { id: "b0600000-0000-4000-8000-000000000001", email: "n@example.test" } }, error: null });
   h.getNannyId.mockReset();
   h.rpc.mockReset();
@@ -98,6 +105,26 @@ describe("/nanny/settings — the Business slot", () => {
     expect((slot as ReactElement).type).toBe(BusinessSettingsLeaf);
     expect(h.tables).toEqual(PAGE_TABLES);
     expect(h.getNannyId).not.toHaveBeenCalled();
+  });
+
+  it("the profile read adds her street line and the row's version; the leaf gets her address and that version", async () => {
+    vi.stubEnv("NANNY_INVOICES_ENABLED", "true");
+    h.profileRow = {
+      first_name: "Sophie", last_name: "Taylor", email: "s@example.test", mobile_number: "+447700900123", date_of_birth: "1995-03-12",
+      suburb: "London", postcode: "N1 0AA", address_line1: "1 Upper Street", address_line2: null, updated_at: "2027-02-15T10:00:00.333333+00:00",
+    };
+    const props = await propsFor({ s: "business" });
+    expect(h.selects[0]).toContain("address_line1, address_line2, updated_at");
+    expect(props.profile).toMatchObject({ address_line1: "1 Upper Street", address_line2: "", suburb: "London", updated_at: "2027-02-15T10:00:00.333333+00:00" });
+    expect((props.businessSection as ReactElement<Record<string, unknown>>).props).toEqual({
+      home: { line1: "1 Upper Street", line2: "", town: "London", postcode: "N1 0AA" }, homeUpdatedAt: "2027-02-15T10:00:00.333333+00:00",
+    });
+  });
+
+  it("no part of an address on file → the leaf gets none", async () => {
+    vi.stubEnv("NANNY_INVOICES_ENABLED", "true");
+    const props = await propsFor({ s: "business" });
+    expect((props.businessSection as ReactElement<Record<string, unknown>>).props).toEqual({ home: null, homeUpdatedAt: null });
   });
 
   it("the page's other props are unchanged", async () => {

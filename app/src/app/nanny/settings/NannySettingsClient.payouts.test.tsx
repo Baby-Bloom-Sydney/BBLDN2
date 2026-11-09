@@ -30,6 +30,7 @@ afterEach(() => {
 const PROFILE = {
   first_name: "Jane", last_name: "Doe", email: "jane@example.test", mobile_number: "+447700900123",
   date_of_birth: "1990-01-01", suburb: "Camden", postcode: "NW1 0AA",
+  address_line1: "1 Camden Road", address_line2: "", updated_at: null,
 };
 
 function show(s: string) {
@@ -51,7 +52,7 @@ describe("nanny settings — Contributions (payout) branch", () => {
     vi.stubEnv("PAYOUTS_ENABLED", "");
     show("");
     expect(screen.queryAllByText("Contributions")).toHaveLength(0);
-    expect(screen.getAllByText("Contact Us").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Contact us").length).toBeGreaterThan(0);
   });
 
   it.each([

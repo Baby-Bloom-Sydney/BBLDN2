@@ -28,6 +28,7 @@ afterEach(() => {
 const PROFILE = {
   first_name: "Jane", last_name: "Doe", email: "jane@example.test", mobile_number: "+447700900123",
   date_of_birth: "1990-01-01", suburb: "Camden", postcode: "NW1 0AA",
+  address_line1: "1 Camden Road", address_line2: "", updated_at: null,
 };
 
 function show(s: string, businessSection: React.ReactNode = <div data-testid="business-section" />) {
@@ -54,7 +55,7 @@ describe("nanny settings — Business node (brief 06)", () => {
     vi.stubEnv("NANNY_INVOICES_ENABLED", value);
     show("");
     expect(screen.queryAllByText("Business")).toHaveLength(0);
-    expect(menu()).toEqual(["Profile", "Account", "Linked children", "Contact Us"]);
+    expect(menu()).toEqual(["Profile", "Account", "Linked children", "Contact us"]);
   });
 
   it("switch off: the deep link ?s=business renders nothing of the section", () => {
@@ -66,21 +67,22 @@ describe("nanny settings — Business node (brief 06)", () => {
   it("switch on: 'Business' sits after 'Account'", () => {
     vi.stubEnv("NANNY_INVOICES_ENABLED", "true");
     show("");
-    expect(menu()).toEqual(["Profile", "Account", "Business", "Linked children", "Contact Us"]);
+    expect(menu()).toEqual(["Profile", "Account", "Business", "Linked children", "Contact us"]);
   });
 
-  it("switch on: ?s=business renders the section the page passed, under the 'Business' heading", () => {
+  it("switch on: ?s=business renders the section the page passed, under its breadcrumb; the section draws its own title (06b-3 rework)", () => {
     vi.stubEnv("NANNY_INVOICES_ENABLED", "true");
     show("s=business");
     expect(screen.getAllByTestId("business-section").length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("heading", { name: "Business" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("navigation", { name: "Breadcrumb" })[0]).toHaveTextContent("Business");
+    expect(screen.queryAllByRole("heading", { level: 2, name: "Business" })).toHaveLength(0);
   });
 
   it("switch on, no section passed: renders nothing in its place (and nothing breaks)", () => {
     vi.stubEnv("NANNY_INVOICES_ENABLED", "true");
     show("s=business", null);
     expect(screen.queryAllByTestId("business-section")).toHaveLength(0);
-    expect(screen.getAllByRole("heading", { name: "Business" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("navigation", { name: "Breadcrumb" })[0]).toHaveTextContent("Business");
   });
 
   it("other leaves never render the section", () => {
