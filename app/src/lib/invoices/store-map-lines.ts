@@ -4,7 +4,11 @@
  * the `p_lines` the store sends. Pure: no I/O. A row or reply that doesn't fit is never silently dropped or guessed;
  * the caller fails the whole read (the 02 `mapRows` rule).
  *
- * BB-wave1-041126/06b2-build, 2026-11-06.
+ * 06b-3 rework (ledger B06 §9.1 R2, §9.2): the issuer's address is her profile's (a limited company's its registered
+ * office), with no `address_source`; it and a business save carry the version Settings sends back (`version`: the
+ * database's text, never re-formatted — `instant` would cut its microseconds and every save would look stale).
+ *
+ * BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b3-rework, 2026-11-09.
  */
 
 import { z } from "zod";
@@ -29,6 +33,8 @@ import { isLondonDate } from "./week";
 
 const id = z.string().min(1);
 export const instant = z.string().refine((v) => !Number.isNaN(Date.parse(v))).transform((v) => new Date(v).toISOString());
+/** A record's version (its `updated_at`), kept exactly as the database wrote it: it is compared again on the next save. */
+export const version = z.string().min(1).refine((v) => !Number.isNaN(Date.parse(v)));
 export const londonDate = z.string().refine(isLondonDate);
 /** `numeric`: PostgREST may send a number or its text. */
 export const hoursValue = z.union([z.number(), z.string()]).transform(Number).pipe(z.number().positive().finite());
@@ -109,32 +115,40 @@ export interface Issuer {
   readonly name: string | null;
   readonly tradingName: string | null;
   readonly tradingNameSource: "business" | "name";
+  /** A limited company's registered office, else her profile address; null = none she can print. */
   readonly address: string | null;
-  readonly addressSource: "business" | "verification" | null;
   readonly companyName: string | null;
   readonly companyNumber: string | null;
   readonly registeredOffice: string | null;
   readonly partnershipName: string | null;
   readonly vat: { readonly mode: VatMode; readonly rateBp: number | null; readonly number: string | null };
+  /** The version of her business details (null = she has none saved), sent back with a Settings save. */
+  readonly businessUpdatedAt: string | null;
 }
 
 const text = z.string().nullable();
 export const issuerReply = z
   .object({
     business_type: z.enum(BUSINESS_TYPE_KEYS), name: text, trading_name: text, trading_name_source: z.enum(["business", "name"]),
-    address: text, address_source: z.enum(["business", "verification"]).nullable(), company_name: text, company_number: text,
-    registered_office: text, partnership_name: text, vat_mode: z.enum(VAT_MODES), vat_rate_bp: z.number().int().nullable(), vat_number: text,
+    address: text, company_name: text, company_number: text, registered_office: text, partnership_name: text,
+    vat_mode: z.enum(VAT_MODES), vat_rate_bp: z.number().int().nullable(), vat_number: text, business_updated_at: version.nullable(),
   })
   .transform((r): Issuer => ({
     businessType: r.business_type, name: r.name, tradingName: r.trading_name, tradingNameSource: r.trading_name_source,
-    address: r.address, addressSource: r.address_source, companyName: r.company_name, companyNumber: r.company_number,
+    address: r.address, companyName: r.company_name, companyNumber: r.company_number,
     registeredOffice: r.registered_office, partnershipName: r.partnership_name,
-    vat: { mode: r.vat_mode, rateBp: r.vat_rate_bp, number: r.vat_number },
+    vat: { mode: r.vat_mode, rateBp: r.vat_rate_bp, number: r.vat_number }, businessUpdatedAt: r.business_updated_at,
   }));
 
+/** A business save: whether anything changed, and the version now stored. */
+export interface BusinessSaved {
+  readonly changed: boolean;
+  readonly updatedAt: string;
+}
+
 export const businessSavedReply = z
-  .object({ status: z.literal("saved"), changed: z.boolean() })
-  .transform((r): { readonly changed: boolean } => ({ changed: r.changed }));
+  .object({ status: z.literal("saved"), changed: z.boolean(), updated_at: version })
+  .transform((r): BusinessSaved => ({ changed: r.changed, updatedAt: r.updated_at }));
 
 /** One of her own invoices, for her list (no email, bank or PDF field). */
 export interface MyInvoice {

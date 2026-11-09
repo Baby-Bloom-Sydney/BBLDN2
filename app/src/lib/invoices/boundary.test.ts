@@ -12,9 +12,11 @@
  * - 06b-3 (plan 14.6 b3.5): the **one named seam** — `app/nanny/settings/page.tsx` imports
  *   `@/app/nanny/invoices/business/BusinessSettingsLeaf`, and nothing else outside the feature imports its pages'
  *   folders. The Settings actions are `"use server"` files whose only exports are their gated async actions.
+ * - 06b-3 rework (ledger B06 §9.1 R5): one action for the Business page, `saveBusinessSettings`, replaces the two
+ *   dialog actions.
  *
  * BB-wave1-041126/06a-build, 2026-11-04; 06b2-build, 2026-11-06 (store-business; pdf/model, which logs through db);
- * 06b3-build, 2026-11-07 (the Settings seam, the actions, the details-changed sender).
+ * 06b3-build, 2026-11-07 (the Settings seam, the actions, the details-changed sender); 06b3-rework, 2026-11-09.
  */
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
@@ -28,9 +30,8 @@ const SERVER_MODULES = [
 const SERVER_MODULE =
   "(?:/(?:store|store-business|families|nanny-proof|db|gate|readers|index|pdf/render|pdf/font|pdf/model|emails/send-payment-details-changed))?";
 /** The Settings actions (06b-3): `"use server"` on purpose, each exporting only its gated async action. */
-const ACTIONS: Readonly<Record<string, readonly string[]>> = {
-  "actions/save-business-details": ["saveBusinessDetails"],
-  "actions/save-payment-details": ["savePaymentDetails"],
+const ACTIONS: Readonly<Record<string, readonly [string, string]>> = {
+  "actions/save-business-settings": ["saveBusinessSettings", "BusinessSettingsResult"],
 };
 /** The one import of the feature's page folders from outside them (plan 14.6 b3.4–b3.5). */
 const SEAM = { file: "app/nanny/settings/page.tsx", from: "@/app/nanny/invoices/business/BusinessSettingsLeaf" } as const;
@@ -109,13 +110,17 @@ describe("src/lib/invoices boundaries", () => {
     expect(offenders.map(rel)).toEqual([]);
   });
 
-  it("the Settings actions are \"use server\" files exporting only their one async action each (06b-3)", () => {
-    for (const [name, exported] of Object.entries(ACTIONS)) {
+  it("the Settings action is a \"use server\" file exporting only its one async action (06b-3; one since the rework)", () => {
+    const actionFiles = readdirSync(path.join(SRC, "lib/invoices/actions"))
+      .filter((f) => !/\.test\.tsx?$/.test(f))
+      .filter((f) => /^["']use server["'];/m.test(readFileSync(path.join(SRC, "lib/invoices/actions", f), "utf8")));
+    expect(actionFiles.map((f) => `actions/${f.replace(/\.ts$/, "")}`)).toEqual(Object.keys(ACTIONS));
+    for (const [name, [fn, result]] of Object.entries(ACTIONS)) {
       const text = readFileSync(path.join(SRC, "lib/invoices", `${name}.ts`), "utf8");
       expect(text).toMatch(/^["']use server["'];/);
       // every export line, whatever its form (TS review L: `export default`, `export *`, `export function*` …)
       const exports = [...text.matchAll(/^export\b.*$/gm)].map((m) => m[0]);
-      expect(exports).toEqual(exported.map((fn) => `export async function ${fn}(input: unknown): Promise<${fn === "saveBusinessDetails" ? "BusinessSaveResult" : "PaymentSaveResult"}> {`));
+      expect(exports).toEqual([`export async function ${fn}(input: unknown): Promise<${result}> {`]);
     }
   });
 

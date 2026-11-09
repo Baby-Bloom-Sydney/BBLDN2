@@ -1,7 +1,7 @@
 /**
- * The "payment details changed" security email (plan 06 §3a, 14.8; brief §3 nanny 10, §11 Q12 — default accepted
- * 2026-11-04; b3.2). `save-payment-details` sends it to the nanny when she replaces her saved bank details; the first
- * save sends none.
+ * The "bank details changed" security email (plan 06 §3a, 14.8; brief §3 nanny 10, §11 Q12 — default accepted
+ * 2026-11-04; b3.2). `save-business-settings` sends it to the nanny when she replaces her saved bank details; the
+ * first save sends none. Wording: ledger B06 §9.1 R7 (BAI 2026-11-09) — "bank details", as the screen says.
  *
  * - **No digit of her details**, not even the masks: `sendEmail` keeps the whole body in `email_logs` (brief §5), so
  *   its inputs are her first name and the time only.
@@ -9,7 +9,7 @@
  * - Replies go to the support inbox (the sender sets `replyTo`), so "reply to this email" reaches a person.
  * - Pure: builds strings, sends nothing.
  *
- * BB-wave1-041126/06b3-build, 2026-11-07.
+ * BB-wave1-041126/06b3-build, 2026-11-07; BB-wave1-041126/06b3-rework, 2026-11-09 (R7).
  */
 
 import { APP_LOCALE, APP_TZ, SITE_NAME } from "@/lib/constants";
@@ -52,7 +52,6 @@ function paragraphs(params: PaymentDetailsChangedParams): readonly string[] {
   return [
     `Hi ${name === "" ? "there" : name},`,
     when === null ? "The bank details on your invoices were changed." : `The bank details on your invoices were changed on ${when}.`,
-    "Invoices you send from now on will show the new details. Invoices you've already sent stay as they were.",
     "If this wasn't you, reply to this email straight away.",
   ];
 }
@@ -68,14 +67,14 @@ export function paymentDetailsChangedEmail(params: PaymentDetailsChangedParams):
 <div style="max-width:600px;margin:0 auto;padding:32px 16px;">
   <div style="background:#ffffff;border-radius:16px;border:1px solid #e2e8f0;padding:32px;">
     ${emailHeader()}
-    <h2 style="font-size:20px;font-weight:700;color:#1e293b;margin:0 0 16px;">Your payment details were changed</h2>
+    <h2 style="font-size:20px;font-weight:700;color:#1e293b;margin:0 0 16px;">Your bank details were changed</h2>
     ${body}
     ${emailFooter()}
   </div>
 </div>
 </body></html>`;
   return {
-    subject: `Your ${SITE_NAME} payment details were changed`,
+    subject: `Your ${SITE_NAME} bank details were changed`,
     html,
     text: [...lines, SITE_NAME].join("\n\n"),
   };

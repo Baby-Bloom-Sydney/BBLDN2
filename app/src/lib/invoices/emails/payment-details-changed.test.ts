@@ -3,8 +3,10 @@
  * nanny when she replaces her saved bank details (never on the first save). It carries **no digit of her details**
  * — not the full numbers, not the masks — because `sendEmail` stores the body in `email_logs` (brief §5). Her name
  * is escaped; it uses the brand header and footer.
+ * 06b-3 rework (ledger B06 §9.1 R7): "bank details" as the screen says; the sentence about past and future invoices
+ * is gone.
  *
- * BB-wave1-041126/06b3-build, 2026-11-07.
+ * BB-wave1-041126/06b3-build, 2026-11-07; BB-wave1-041126/06b3-rework, 2026-11-09.
  */
 import { describe, expect, it } from "vitest";
 import { emailFooter, emailHeader } from "@/lib/email/brand";
@@ -14,18 +16,20 @@ const BASE = { firstName: "Sophie", changedAt: "2027-02-15T14:05:00.000Z" };
 
 describe("paymentDetailsChangedEmail", () => {
   it("subject and email type", () => {
-    expect(paymentDetailsChangedEmail(BASE).subject).toBe("Your BabyBloom payment details were changed");
+    expect(paymentDetailsChangedEmail(BASE).subject).toBe("Your BabyBloom bank details were changed");
     expect(PAYMENT_DETAILS_CHANGED_EMAIL_TYPE).toBe("invoice_payment_details_changed");
   });
 
-  it("says when (London time), what it affects, and what to do if it wasn't her — in the html and the text", () => {
+  it("says when (London time) and what to do if it wasn't her — in the html and the text; nothing else", () => {
     const { html, text } = paymentDetailsChangedEmail(BASE);
+    expect(html).toContain(">Your bank details were changed</h2>");
     for (const body of [html, text]) {
       expect(body).toContain("Hi Sophie,");
       expect(body).toContain("The bank details on your invoices were changed on 15 February 2027 at 14:05.");
-      expect(body).toContain("Invoices you send from now on will show the new details. Invoices you've already sent stay as they were.");
       expect(body).toContain("If this wasn't you, reply to this email straight away.");
+      expect(body).not.toMatch(/from now on|already sent|payment details/);
     }
+    expect(text).toBe("Hi Sophie,\n\nThe bank details on your invoices were changed on 15 February 2027 at 14:05.\n\nIf this wasn't you, reply to this email straight away.\n\nBabyBloom");
   });
 
   it("in summer the time is London's (BST), not UTC", () => {

@@ -1,6 +1,6 @@
 /**
  * Send the "payment details changed" security email (plan 06 §3 nanny 10, §11 Q12; b3.1–b3.2). Called by
- * `actions/save-payment-details.ts` once a change to saved bank details has been stored. Server-only, and deliberately
+ * `actions/save-business-settings.ts` once a change to saved bank details has been stored. Server-only, and deliberately
  * NOT a `"use server"` file: it logs through `db.ts`, and every async export of a `"use server"` file is callable from
  * a browser (`boundary.test.ts`).
  *

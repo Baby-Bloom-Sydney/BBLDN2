@@ -3,8 +3,10 @@
  * defaults the database holds — no bank field) and `saveBusiness` (parsed again here, then
  * `nanny_business_details_save`, which takes her lock). Switch off → `invoices_disabled` before any client; not a
  * proof → `invalid`; the nanny id always from the proof. Nothing logged carries her details (console.* spy).
+ * 06b-3 rework (ledger B06 §9.2): no business address; a save carries the version she loaded and answers `stale` when
+ * the row changed since; the reply carries the version now stored, exactly as the database sent it.
  *
- * BB-wave1-041126/06b2-build, 2026-11-06.
+ * BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b3-rework, 2026-11-09.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -20,11 +22,13 @@ const NANNY_ID = "b0600000-0000-4000-8000-000000000101";
 const OTHER_NANNY = "b0600000-0000-4000-8000-000000000102";
 const ISSUER = {
   business_type: "sole_trader", name: "Sophie Taylor", trading_name: "Sophie Taylor", trading_name_source: "name",
-  address: "1 Upper Street\nLondon\nN1 0AA", address_source: "verification", company_name: null, company_number: null,
-  registered_office: null, partnership_name: null, vat_mode: "none", vat_rate_bp: null, vat_number: null,
+  address: "1 Upper Street\nLondon\nN1 0AA", company_name: null, company_number: null,
+  registered_office: null, partnership_name: null, vat_mode: "none", vat_rate_bp: null, vat_number: null, business_updated_at: null,
 };
+const VERSION = "2027-02-15T10:00:00.123456+00:00";
+const NEWER = "2027-02-15T10:05:00.654321+00:00";
 const LTD_IN = {
-  businessType: "limited_company", tradingName: "Taylor Childcare", businessAddress: "", companyName: "Taylor Childcare Ltd",
+  businessType: "limited_company", tradingName: "Taylor Childcare", companyName: "Taylor Childcare Ltd",
   companyNumber: "sc 123 456", registeredOffice: "1 Upper Street\nLondon N1 0AA", partnershipName: "dropped",
   vatMode: "added", vatNumber: "123 4567 89", vatRate: "20",
 };
@@ -55,21 +59,21 @@ describe("the gates", () => {
   it("switch off: both refuse before a client is made", async () => {
     vi.stubEnv("NANNY_INVOICES_ENABLED", "");
     expect(await readIssuer(nanny)).toEqual({ ok: false, error: "invoices_disabled" });
-    expect(await saveBusiness(nanny, LTD_IN)).toEqual({ ok: false, error: "invoices_disabled" });
+    expect(await saveBusiness(nanny, LTD_IN, VERSION)).toEqual({ ok: false, error: "invoices_disabled" });
     expect(createAdminClient).not.toHaveBeenCalled();
   });
 
   it("a look-alike proof is invalid, before any read", async () => {
     const lookAlike = { kind: "nanny_proof", nannyId: OTHER_NANNY, userId: "x" } as unknown as NannyProof;
     expect(await readIssuer(lookAlike)).toEqual({ ok: false, error: "invalid" });
-    expect(await saveBusiness(lookAlike, LTD_IN)).toEqual({ ok: false, error: "invalid" });
+    expect(await saveBusiness(lookAlike, LTD_IN, VERSION)).toEqual({ ok: false, error: "invalid" });
     expect(f.rpcCalls).toEqual([]);
   });
 
   it("no service client → error, logged by name only", async () => {
     createAdminClient.mockImplementation(() => { throw new Error("Missing Supabase admin credentials"); });
     expect(await readIssuer(nanny)).toEqual({ ok: false, error: "error" });
-    expect(await saveBusiness(nanny, LTD_IN)).toEqual({ ok: false, error: "error" });
+    expect(await saveBusiness(nanny, LTD_IN, VERSION)).toEqual({ ok: false, error: "error" });
     expect(console.error).toHaveBeenCalledWith("[invoices] createAdminClient failed", { code: "Error" });
   });
 });
@@ -83,8 +87,8 @@ describe("readIssuer", () => {
       ok: true,
       value: {
         businessType: "sole_trader", name: "Sophie Taylor", tradingName: "Sophie Taylor", tradingNameSource: "name",
-        address: "1 Upper Street\nLondon\nN1 0AA", addressSource: "verification", companyName: null, companyNumber: null,
-        registeredOffice: null, partnershipName: null, vat: { mode: "none", rateBp: null, number: null },
+        address: "1 Upper Street\nLondon\nN1 0AA", companyName: null, companyNumber: null,
+        registeredOffice: null, partnershipName: null, vat: { mode: "none", rateBp: null, number: null }, businessUpdatedAt: null,
       },
     });
     expect(JSON.stringify(r)).not.toMatch(/87654321|account|sort/);
@@ -102,42 +106,48 @@ describe("readIssuer", () => {
 });
 
 describe("saveBusiness", () => {
-  it("saves the parsed details for the proof's nanny (normalised; fields that don't apply null)", async () => {
-    f.rpcResults.nanny_business_details_save = { data: { status: "saved", changed: true }, error: null };
-    expect(await saveBusiness(nanny, { ...LTD_IN, nannyId: OTHER_NANNY })).toEqual({ ok: true, value: { changed: true } });
+  it("saves the parsed details for the proof's nanny with the version she loaded (normalised; fields that don't apply null)", async () => {
+    f.rpcResults.nanny_business_details_save = { data: { status: "saved", changed: true, updated_at: NEWER }, error: null };
+    expect(await saveBusiness(nanny, { ...LTD_IN, nannyId: OTHER_NANNY, businessAddress: "ignored" }, VERSION))
+      .toEqual({ ok: true, value: { changed: true, updatedAt: NEWER } });
     expect(f.rpcCalls).toEqual([{
       fn: "nanny_business_details_save",
       args: {
-        p_nanny: NANNY_ID, p_business_type: "limited_company", p_trading_name: "Taylor Childcare", p_business_address: null,
+        p_nanny: NANNY_ID, p_business_type: "limited_company", p_trading_name: "Taylor Childcare",
         p_company_name: "Taylor Childcare Ltd", p_company_number: "SC123456", p_registered_office: "1 Upper Street\nLondon N1 0AA",
         p_partnership_name: null, p_vat_mode: "added", p_vat_number: "GB123456789", p_vat_rate_bp: 2000,
+        p_expected_updated_at: VERSION,
       },
     }]);
   });
 
-  it("saving the defaults sends nulls and 'none'", async () => {
-    f.rpcResults.nanny_business_details_save = { data: { status: "saved", changed: false }, error: null };
-    expect(await saveBusiness(nanny, { businessType: "sole_trader", vatMode: "none" })).toEqual({ ok: true, value: { changed: false } });
-    expect(f.rpcCalls[0]?.args).toMatchObject({ p_business_type: "sole_trader", p_trading_name: null, p_vat_mode: "none", p_vat_number: null, p_vat_rate_bp: null });
+  it("saving the defaults sends nulls and 'none'; with no row loaded, the version is null", async () => {
+    f.rpcResults.nanny_business_details_save = { data: { status: "saved", changed: false, updated_at: VERSION }, error: null };
+    expect(await saveBusiness(nanny, { businessType: "sole_trader", vatMode: "none" }, null))
+      .toEqual({ ok: true, value: { changed: false, updatedAt: VERSION } });
+    expect(f.rpcCalls[0]?.args).toMatchObject({
+      p_business_type: "sole_trader", p_trading_name: null, p_vat_mode: "none", p_vat_number: null, p_vat_rate_bp: null, p_expected_updated_at: null,
+    });
   });
 
-  it("refuses bad input without calling the database (a company without its number; BabyBloom as the trading name)", async () => {
-    expect(await saveBusiness(nanny, { ...LTD_IN, companyNumber: "" })).toEqual({ ok: false, error: "invalid" });
-    expect(await saveBusiness(nanny, { businessType: "sole_trader", vatMode: "none", tradingName: "Baby Bloom" })).toEqual({ ok: false, error: "invalid" });
-    expect(await saveBusiness(nanny, "not an object")).toEqual({ ok: false, error: "invalid" });
+  it("refuses bad input or a version that isn't a time without calling the database", async () => {
+    expect(await saveBusiness(nanny, { ...LTD_IN, companyNumber: "" }, VERSION)).toEqual({ ok: false, error: "invalid" });
+    expect(await saveBusiness(nanny, { businessType: "sole_trader", vatMode: "none", tradingName: "Baby Bloom" }, VERSION)).toEqual({ ok: false, error: "invalid" });
+    expect(await saveBusiness(nanny, "not an object", VERSION)).toEqual({ ok: false, error: "invalid" });
+    expect(await saveBusiness(nanny, LTD_IN, "yesterday")).toEqual({ ok: false, error: "invalid" });
     expect(f.rpcCalls).toEqual([]);
   });
 
-  it("maps the database's refusals, a lock timeout, a failure and a reply it doesn't recognise", async () => {
-    for (const status of ["invalid", "nanny_inactive"] as const) {
+  it("maps the database's refusals (stale included), a lock timeout, a failure and a reply it doesn't recognise", async () => {
+    for (const status of ["invalid", "nanny_inactive", "stale"] as const) {
       f.rpcResults.nanny_business_details_save = { data: { status }, error: null };
-      expect(await saveBusiness(nanny, LTD_IN)).toEqual({ ok: false, error: status });
+      expect(await saveBusiness(nanny, LTD_IN, VERSION)).toEqual({ ok: false, error: status });
     }
     f.rpcResults.nanny_business_details_save = { data: null, error: { message: "canceling statement due to lock timeout", code: "55P03" } };
-    expect(await saveBusiness(nanny, LTD_IN)).toEqual({ ok: false, error: "busy" });
+    expect(await saveBusiness(nanny, LTD_IN, VERSION)).toEqual({ ok: false, error: "busy" });
     f.rpcResults.nanny_business_details_save = { data: null, error: { message: "Failing row contains (Taylor Childcare Ltd)", code: "23514" } };
-    expect(await saveBusiness(nanny, LTD_IN)).toEqual({ ok: false, error: "error" });
-    f.rpcResults.nanny_business_details_save = { data: { status: "saved" }, error: null };
-    expect(await saveBusiness(nanny, LTD_IN)).toEqual({ ok: false, error: "error" });
+    expect(await saveBusiness(nanny, LTD_IN, VERSION)).toEqual({ ok: false, error: "error" });
+    f.rpcResults.nanny_business_details_save = { data: { status: "saved", changed: true }, error: null };
+    expect(await saveBusiness(nanny, LTD_IN, VERSION)).toEqual({ ok: false, error: "error" });
   });
 });

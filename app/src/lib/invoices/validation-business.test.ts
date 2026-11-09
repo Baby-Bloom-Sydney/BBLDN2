@@ -4,8 +4,10 @@
  * and partnership names are never BabyBloom (R8). The company and VAT numbers are normalised (spaces stripped,
  * upper-cased, "GB" added); the VAT rate is typed as a percent with up to 2 decimals and stored in basis points, 20%
  * unless she changes it. No message echoes what was typed.
+ * 06b-3 rework (ledger B06 §9.1 R2, R6): no business address (her address is her profile's); the VAT-mode message's
+ * wording.
  *
- * BB-wave1-041126/06b2-build, 2026-11-06.
+ * BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b3-rework, 2026-11-09.
  */
 import { describe, expect, it } from "vitest";
 import { BUSINESS_MESSAGES as B, businessDetailsSchema } from "./validation-business";
@@ -21,7 +23,7 @@ const LTD = {
   vatNumber: "GB123456789",
   vatRate: "20",
 };
-const NONE_FIELDS = { tradingName: null, businessAddress: null, companyName: null, companyNumber: null, registeredOffice: null, partnershipName: null };
+const NONE_FIELDS = { tradingName: null, companyName: null, companyNumber: null, registeredOffice: null, partnershipName: null };
 
 function messagesOf(value: unknown): string[] {
   const result = businessDetailsSchema.safeParse(value);
@@ -33,15 +35,22 @@ describe("businessDetailsSchema — the defaults and each type", () => {
     expect(businessDetailsSchema.parse(SOLE)).toEqual({ businessType: "sole_trader", ...NONE_FIELDS, vatMode: "none", vatNumber: null, vatRateBp: null });
   });
 
-  it("keeps a trading name and a business address, trimmed and normalised", () => {
-    const parsed = businessDetailsSchema.parse({ ...SOLE, tradingName: "  Taylor Childcare ", businessAddress: "1 Upper Street\r\nLondon N1 0AA\r\n" });
-    expect(parsed).toMatchObject({ tradingName: "Taylor Childcare", businessAddress: "1 Upper Street\nLondon N1 0AA" });
-    expect(businessDetailsSchema.parse({ ...SOLE, tradingName: "   ", businessAddress: "" })).toMatchObject({ tradingName: null, businessAddress: null });
+  it("keeps a trading name, trimmed; a blank one is none", () => {
+    expect(businessDetailsSchema.parse({ ...SOLE, tradingName: "  Taylor Childcare " })).toMatchObject({ tradingName: "Taylor Childcare" });
+    expect(businessDetailsSchema.parse({ ...SOLE, tradingName: "   " })).toMatchObject({ tradingName: null });
+  });
+
+  it("holds no address: hers is her profile's, so a business address sent anyway is dropped (06b-3 rework R2)", () => {
+    const parsed = businessDetailsSchema.parse({ ...SOLE, businessAddress: "1 Upper Street\nLondon N1 0AA" });
+    expect(parsed).not.toHaveProperty("businessAddress");
+    expect(Object.keys(parsed).sort()).toEqual([
+      "businessType", "companyName", "companyNumber", "partnershipName", "registeredOffice", "tradingName", "vatMode", "vatNumber", "vatRateBp",
+    ]);
   });
 
   it("a limited company carries its three fields, its number normalised", () => {
     expect(businessDetailsSchema.parse({ ...LTD, companyNumber: " sc 123 456 " })).toEqual({
-      businessType: "limited_company", tradingName: null, businessAddress: null, companyName: "Taylor Childcare Ltd",
+      businessType: "limited_company", tradingName: null, companyName: "Taylor Childcare Ltd",
       companyNumber: "SC123456", registeredOffice: "1 Upper Street\nLondon N1 0AA", partnershipName: null,
       vatMode: "added", vatNumber: "GB123456789", vatRateBp: 2000,
     });
@@ -65,8 +74,8 @@ describe("businessDetailsSchema — the defaults and each type", () => {
     ["a company name of 161 characters", { ...LTD, companyName: "c".repeat(161) }, V.tooLong],
     ["a trading name of 71 characters", { ...SOLE, tradingName: "t".repeat(71) }, V.tooLong],
     ["a trading name over two lines", { ...SOLE, tradingName: "Taylor\nChildcare" }, V.oneLine],
-    ["a business address of 201 characters", { ...SOLE, businessAddress: "a".repeat(201) }, V.tooLong],
-    ["a business address with a line separator", { ...SOLE, businessAddress: `1 Upper Street${String.fromCodePoint(0x2028)}London` }, V.oneLine],
+    ["a registered office of 201 characters", { ...LTD, registeredOffice: "a".repeat(201) }, V.tooLong],
+    ["a registered office with a line separator", { ...LTD, registeredOffice: `1 Upper Street${String.fromCodePoint(0x2028)}London` }, V.oneLine],
   ])("refuses %s", (_label, value, message) => {
     expect(messagesOf(value)).toContain(message);
   });
@@ -112,6 +121,13 @@ describe("businessDetailsSchema — VAT", () => {
     ["an unknown VAT mode", { ...SOLE, vatMode: "reverse" }, B.vatMode],
   ])("refuses %s", (_label, value, message) => {
     expect(messagesOf(value)).toContain(message);
+  });
+});
+
+describe("the plain messages (06b-3 rework R6)", () => {
+  it("the VAT-mode and own-name messages read as BAI agreed", () => {
+    expect(B.vatMode).toBe("Choose whether VAT is included in your rates or added to them");
+    expect(V.ownName).toBe("Enter your own name or business name.");
   });
 });
 

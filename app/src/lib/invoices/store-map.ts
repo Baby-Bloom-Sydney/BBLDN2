@@ -6,7 +6,10 @@
  * Her bank details are bank fields only (plan 14.4: the trading name and address moved to her business details);
  * a created invoice carries its money parts, VAT, issuer snapshot and lines (`store-map-lines.ts`).
  *
- * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
+ * 06b-3 rework (ledger B06 §9.1 R1, R3): a bank save's reply carries the version now stored, exactly as the database
+ * sent it (it goes back with her next save); her own Settings page reads her full details and that version.
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b3-rework, 2026-11-09.
  */
 
 import { z } from "zod";
@@ -22,6 +25,7 @@ import {
   printedAddress,
   printedLine,
   singleRate,
+  version,
   type StoredLine,
 } from "./store-map-lines";
 import {
@@ -42,6 +46,8 @@ import {
 export const MASK_COLUMNS = "account_name, sort_code_last2, account_last4, updated_at";
 /** The PDF's read: the full numbers (brief D12: the PDF is the one place they appear). */
 export const FULL_COLUMNS = "account_name, sort_code, account_number, account_last4";
+/** Her own Settings page (06b-3 rework R3): her full details, shown to her only, and the version a save sends back. */
+export const SETTINGS_BANK_COLUMNS = "account_name, sort_code, account_number, updated_at";
 /** 07's week reader: no email, bank or PDF field leaves (pdf_path is read only to re-check R1). */
 export const WEEK_COLUMNS = "id, invoice_seq, invoice_number, nanny_id, nanny_name, hours, status, pdf_path, sent_at";
 /** The family readers: no email, bank, issuer or PDF field leaves; the lines' kinds and rates give 07 its rate (14.7). */
@@ -84,7 +90,17 @@ export interface IssuerSnapshot {
 export interface SavedDetails {
   readonly firstSave: boolean;
   readonly changed: boolean;
+  /** The version now stored, as the database sent it. */
+  readonly updatedAt: string;
   readonly masks: DetailMasks;
+}
+
+/** Her bank details as her own Settings page shows them (06b-3 rework R3), with their version. */
+export interface SettingsBankDetails {
+  readonly accountName: string;
+  readonly sortCode: string;
+  readonly accountNumber: string;
+  readonly updatedAt: string;
 }
 
 export interface CreatedInvoice {
@@ -175,11 +191,29 @@ export const fullRow = z
     accountLast4: r.account_last4,
   }));
 
+export const settingsBankRow = z
+  .object({
+    account_name: z.string().min(1),
+    sort_code: z.string().regex(/^\d{6}$/),
+    account_number: z.string().regex(/^\d{8}$/),
+    updated_at: version,
+  })
+  .transform((r): SettingsBankDetails => ({
+    accountName: r.account_name,
+    sortCode: r.sort_code,
+    accountNumber: r.account_number,
+    updatedAt: r.updated_at,
+  }));
+
 export const savedReply = z
-  .object({ status: z.literal("saved"), first_save: z.boolean(), changed: z.boolean(), sort_code_last2: last2, account_last4: last4 })
+  .object({
+    status: z.literal("saved"), first_save: z.boolean(), changed: z.boolean(), updated_at: version,
+    sort_code_last2: last2, account_last4: last4,
+  })
   .transform((r): SavedDetails => ({
     firstSave: r.first_save,
     changed: r.changed,
+    updatedAt: r.updated_at,
     masks: { sortCodeLast2: r.sort_code_last2, accountLast4: r.account_last4 },
   }));
 
@@ -263,7 +297,7 @@ export const refusalReply = z.object({
   status: z.enum([
     "invalid", "future", "not_hers", "no_trial", "wrong_date", "no_details", "bad_replaces", "already_replaced", "no_contact",
     "nanny_inactive", "cap", "busy", "in_progress", "already_done", "already_failed", "not_found", "not_sending", "no_pdf",
-    "no_address", "bad_lines", "changed",
+    "no_address", "bad_lines", "changed", "stale",
   ]),
 });
 

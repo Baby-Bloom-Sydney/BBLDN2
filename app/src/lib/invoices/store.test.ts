@@ -8,8 +8,10 @@
  * - Readers' rows: sent (or sent + cancelled) with a PDF only; an admin proof first.
  * - Nothing logged ever carries a bank digit, an email or a name (a spy on console.* checks every test).
  * Fixture numbers only (11-22-33 / 87654321).
+ * 06b-3 rework (ledger B06 §9.1 R1, R3; §9.2): a save carries the version she loaded (`stale` when the row changed
+ * since) and its reply the version now stored; one more full read, for her own Settings page only.
  *
- * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b3-rework, 2026-11-09.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -29,6 +31,7 @@ import {
   countTowardsDailyCap,
   createInvoice,
   finishInvoice,
+  readBankDetailsForSettings,
   readFamilyRows,
   readFullDetailsForInvoicePdf,
   readMaskedDetails,
@@ -48,6 +51,8 @@ const INVOICE = "b0600000-0000-4000-8000-000000009001";
 const NOW = new Date("2027-02-15T10:00:00Z");
 
 const DETAILS_IN = { accountName: "Sophie Taylor", sortCode: "11-22-33", accountNumber: "87654321" };
+const VERSION = "2027-02-01T09:00:00.123456+00:00";
+const NEWER = "2027-02-15T10:00:00.654321+00:00";
 const shift = (date: string, hours: number, ratePence: number, description: string | null = null) =>
   ({ kind: "shift", date, hours, ratePence, description });
 /** The worked example (plan 14.4 harness 5), w/c 8 Feb 2027. */
@@ -132,7 +137,8 @@ describe("with the switch off", () => {
     const results = await Promise.all([
       readMaskedDetails(nanny),
       readFullDetailsForInvoicePdf(nanny),
-      saveDetails(nanny, DETAILS_IN),
+      readBankDetailsForSettings(nanny),
+      saveDetails(nanny, DETAILS_IN, VERSION),
       createInvoice(nanny, DRAFT, "4321", EXPECTED, NOW),
       finishInvoice(nanny, INVOICE, { kind: "failed" }),
       countTowardsDailyCap(nanny, NOW),
@@ -154,7 +160,8 @@ describe("without a real proof", () => {
     const results = await Promise.all([
       readMaskedDetails(lookAlike),
       readFullDetailsForInvoicePdf(lookAlike),
-      saveDetails(lookAlike, DETAILS_IN),
+      readBankDetailsForSettings(lookAlike),
+      saveDetails(lookAlike, DETAILS_IN, VERSION),
       createInvoice(lookAlike, DRAFT, "4321", EXPECTED, NOW),
       finishInvoice(lookAlike, INVOICE, { kind: "failed" }),
       countTowardsDailyCap(lookAlike, NOW),
@@ -172,7 +179,7 @@ describe("without a real proof", () => {
 describe("when the service client can't be made or a read throws", () => {
   it("answers error, logged by name only", async () => {
     createAdminClient.mockImplementation(() => { throw new Error("Missing Supabase admin credentials"); });
-    for (const r of await Promise.all([readMaskedDetails(nanny), saveDetails(nanny, DETAILS_IN), createInvoice(nanny, DRAFT, "4321", EXPECTED, NOW),
+    for (const r of await Promise.all([readMaskedDetails(nanny), saveDetails(nanny, DETAILS_IN, VERSION), createInvoice(nanny, DRAFT, "4321", EXPECTED, NOW),
       finishInvoice(nanny, INVOICE, { kind: "failed" }), countTowardsDailyCap(nanny, NOW), readFamilyRows(admin, PARENT_USER),
       readMyInvoices(nanny), readMyInvoiceLines(nanny, INVOICE)])) {
       expect(r).toEqual({ ok: false, error: "error" });
@@ -224,38 +231,66 @@ describe("readFullDetailsForInvoicePdf", () => {
   });
 });
 
-describe("saveDetails (3 fields: 14.4)", () => {
-  it("saves the parsed details for the proof's nanny and replies with masks only", async () => {
-    f.rpcResults.nanny_payment_details_save = {
-      data: { status: "saved", first_save: true, changed: true, sort_code_last2: "33", account_last4: "4321" },
-      error: null,
-    };
-    const r = await saveDetails(nanny, { ...DETAILS_IN, nannyId: OTHER_NANNY, tradingName: "ignored", invoiceAddress: "ignored" });
-    expect(r).toEqual({ ok: true, value: { firstSave: true, changed: true, masks: { sortCodeLast2: "33", accountLast4: "4321" } } });
-    expect(f.rpcCalls).toEqual([{
-      fn: "nanny_payment_details_save",
-      args: { p_nanny: NANNY_ID, p_account_name: "Sophie Taylor", p_sort_code: "112233", p_account_number: "87654321" },
-    }]);
-    expect(JSON.stringify(r)).not.toMatch(/87654321|112233/);
+describe("readBankDetailsForSettings (06b-3 rework R3: her own Settings page only)", () => {
+  it("reads her full details and their version, hers only — the version exactly as stored", async () => {
+    f.reads.nanny_payment_details = { account_name: "Sophie Taylor", sort_code: "112233", account_number: "87654321", updated_at: VERSION };
+    expect(await readBankDetailsForSettings(nanny)).toEqual({
+      ok: true,
+      value: { accountName: "Sophie Taylor", sortCode: "112233", accountNumber: "87654321", updatedAt: VERSION },
+    });
+    expect(filtersOf("nanny_payment_details")).toEqual([["eq", "nanny_id", NANNY_ID]]);
+    expect(columnsOn("nanny_payment_details")).toBe("account_name, sort_code, account_number, updated_at");
   });
 
-  it("refuses bad input without calling the database", async () => {
-    expect(await saveDetails(nanny, { ...DETAILS_IN, sortCode: "11223" })).toEqual({ ok: false, error: "invalid" });
-    expect(await saveDetails(nanny, { ...DETAILS_IN, accountName: "Baby Bloom" })).toEqual({ ok: false, error: "invalid" });
-    expect(await saveDetails(nanny, "not an object")).toEqual({ ok: false, error: "invalid" });
+  it("no row → null; a failed read or a malformed row → error", async () => {
+    f.reads.nanny_payment_details = null;
+    expect(await readBankDetailsForSettings(nanny)).toEqual({ ok: true, value: null });
+    f.reads.nanny_payment_details = { account_name: "x", sort_code: "1122", account_number: "8765", updated_at: VERSION };
+    expect(await readBankDetailsForSettings(nanny)).toEqual({ ok: false, error: "error" });
+    f.reads.nanny_payment_details = { account_name: "x", sort_code: "112233", account_number: "87654321", updated_at: "never" };
+    expect(await readBankDetailsForSettings(nanny)).toEqual({ ok: false, error: "error" });
+  });
+});
+
+describe("saveDetails (3 fields: 14.4)", () => {
+  it("saves the parsed details for the proof's nanny with the version she loaded; replies with masks and the new version", async () => {
+    f.rpcResults.nanny_payment_details_save = {
+      data: { status: "saved", first_save: true, changed: true, updated_at: NEWER, sort_code_last2: "33", account_last4: "4321" },
+      error: null,
+    };
+    const r = await saveDetails(nanny, { ...DETAILS_IN, nannyId: OTHER_NANNY, tradingName: "ignored", invoiceAddress: "ignored" }, null);
+    expect(r).toEqual({ ok: true, value: { firstSave: true, changed: true, updatedAt: NEWER, masks: { sortCodeLast2: "33", accountLast4: "4321" } } });
+    expect(f.rpcCalls).toEqual([{
+      fn: "nanny_payment_details_save",
+      args: { p_nanny: NANNY_ID, p_account_name: "Sophie Taylor", p_sort_code: "112233", p_account_number: "87654321", p_expected_updated_at: null },
+    }]);
+    expect(JSON.stringify(r)).not.toMatch(/87654321|112233/);
+    await saveDetails(nanny, DETAILS_IN, VERSION);
+    expect(f.rpcCalls[1]?.args).toMatchObject({ p_expected_updated_at: VERSION });
+  });
+
+  it("refuses bad input or a version that isn't a time without calling the database", async () => {
+    expect(await saveDetails(nanny, { ...DETAILS_IN, sortCode: "11223" }, VERSION)).toEqual({ ok: false, error: "invalid" });
+    expect(await saveDetails(nanny, { ...DETAILS_IN, accountName: "Baby Bloom" }, VERSION)).toEqual({ ok: false, error: "invalid" });
+    expect(await saveDetails(nanny, "not an object", VERSION)).toEqual({ ok: false, error: "invalid" });
+    expect(await saveDetails(nanny, DETAILS_IN, "")).toEqual({ ok: false, error: "invalid" });
     expect(f.rpcCalls).toEqual([]);
   });
 
-  it("maps the database's refusal, a failure and a reply it doesn't recognise", async () => {
-    f.rpcResults.nanny_payment_details_save = { data: { status: "invalid" }, error: null };
-    expect(await saveDetails(nanny, DETAILS_IN)).toEqual({ ok: false, error: "invalid" });
-    f.rpcResults.nanny_payment_details_save = { data: { status: "nanny_inactive" }, error: null };
-    expect(await saveDetails(nanny, DETAILS_IN)).toEqual({ ok: false, error: "nanny_inactive" });
+  it("maps the database's refusals (stale included), a failure and a reply it doesn't recognise", async () => {
+    for (const status of ["invalid", "nanny_inactive", "stale"] as const) {
+      f.rpcResults.nanny_payment_details_save = { data: { status }, error: null };
+      expect(await saveDetails(nanny, DETAILS_IN, VERSION)).toEqual({ ok: false, error: status });
+    }
     f.rpcResults.nanny_payment_details_save = { data: null, error: { message: "Failing row contains (112233, 87654321)", code: "23514" } };
-    expect(await saveDetails(nanny, DETAILS_IN)).toEqual({ ok: false, error: "error" });
+    expect(await saveDetails(nanny, DETAILS_IN, VERSION)).toEqual({ ok: false, error: "error" });
     expect(console.error).toHaveBeenLastCalledWith("[invoices] nanny_payment_details_save failed", { code: "23514" });
     f.rpcResults.nanny_payment_details_save = { data: { status: "saved", first_save: "yes" }, error: null };
-    expect(await saveDetails(nanny, DETAILS_IN)).toEqual({ ok: false, error: "error" });
+    expect(await saveDetails(nanny, DETAILS_IN, VERSION)).toEqual({ ok: false, error: "error" });
+    f.rpcResults.nanny_payment_details_save = {
+      data: { status: "saved", first_save: false, changed: true, sort_code_last2: "33", account_last4: "4321" }, error: null,
+    };
+    expect(await saveDetails(nanny, DETAILS_IN, VERSION)).toEqual({ ok: false, error: "error" });
   });
 });
 
@@ -334,7 +369,7 @@ describe("createInvoice (p_lines and the reviewed total: 14.4)", () => {
     f.rpcResults.nanny_invoice_create = { data: null, error: { message: "canceling statement due to lock timeout", code: "55P03" } };
     expect(await createInvoice(nanny, DRAFT, "4321", EXPECTED, NOW)).toEqual({ ok: false, error: "busy" });
     f.rpcResults.nanny_payment_details_save = { data: null, error: { message: "canceling statement due to lock timeout", code: "55P03" } };
-    expect(await saveDetails(nanny, DETAILS_IN)).toEqual({ ok: false, error: "busy" });
+    expect(await saveDetails(nanny, DETAILS_IN, VERSION)).toEqual({ ok: false, error: "busy" });
   });
 
   it("an unknown or malformed reply, or a failure, is an error", async () => {
