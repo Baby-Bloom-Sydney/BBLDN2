@@ -24,7 +24,7 @@ vi.mock("@/lib/chat/proactive/action-triggered", () => ({ dispatchActionTriggere
 
 import { getParentConnectionRequests, getNannyConnectionRequests } from "./connection";
 
-const REQUEST = { id: "c-1", nanny_id: "n-1", parent_id: "p-1", position_id: null, status: "confirmed", connection_stage: 20, source: "manual", nanny_phone_shared: "+447700900999", parent_phone_shared: null, expires_at: null, created_at: "2026-11-09T10:00:00Z" };
+const REQUEST = { id: "c-1", nanny_id: "n-1", parent_id: "p-1", position_id: null, status: "confirmed", connection_stage: 20, source: "manual", nanny_phone_shared: "+447700900999", parent_phone_shared: null, expires_at: null, created_at: "2026-11-09T10:00:00Z", decline_reason: "Not free at weekends", internal_note: "x" };
 
 beforeEach(() => {
   admin = fakeAdmin({
@@ -45,6 +45,17 @@ describe("connection lists", () => {
     expect(data[0]?.nanny).toMatchObject({ first_name: "Nina", last_name: "Walkerton" });
     expect(data[0]).not.toHaveProperty("nanny_phone_shared");
     expect(JSON.stringify(data)).not.toMatch(/7700900999/);
+  });
+
+  it("the family's list carries only its own columns: no decline reason, no other column, no account id for the nanny", async () => {
+    h.role = "parent";
+    const { data } = await getParentConnectionRequests();
+    expect(data[0]).not.toHaveProperty("decline_reason");
+    expect(data[0]).not.toHaveProperty("internal_note");
+    expect(data[0]).not.toHaveProperty("parent_phone_shared");
+    expect(data[0]?.nanny).not.toHaveProperty("user_id");
+    expect(JSON.stringify(data)).not.toMatch(/Not free at weekends|u-nanny/);
+    expect(data[0]).toMatchObject({ id: "c-1", status: "confirmed", connection_stage: 20, source: "manual", created_at: "2026-11-09T10:00:00Z" });
   });
 
   it("the nanny's list: the family's first and last name", async () => {

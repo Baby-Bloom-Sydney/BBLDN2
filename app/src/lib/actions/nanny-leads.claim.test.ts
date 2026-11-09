@@ -53,6 +53,26 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("convertLeadToAccount — the claim", () => {
+  it("a database error at the claim isn't an existing account: a retry message, the error's code logged, nothing made", async () => {
+    admin.writeErrors.nanny_leads = { message: "relation error", code: "42703" };
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = await convertLeadToAccount("lead-1", "pw-123456");
+    const lines = logged.mock.calls.map((call) => JSON.stringify(call)).join(" ");
+    logged.mockRestore();
+    expect(result.success).toBe(false);
+    expect(result.error).not.toMatch(/already exists/);
+    expect(result.error).toMatch(/try again/i);
+    expect(createUser).not.toHaveBeenCalled();
+    expect(lines).toMatch(/42703/);
+  });
+
+  it("a lead another conversion holds still reads as an existing account", async () => {
+    claim.taken = true;
+    const result = await convertLeadToAccount("lead-1", "pw-123456");
+    expect(result).toMatchObject({ success: false, error: expect.stringMatching(/already exists/) });
+    expect(createUser).not.toHaveBeenCalled();
+  });
+
   it("two conversions of one lead at once make one account", async () => {
     const results = await Promise.all([convertLeadToAccount("lead-1", "pw-123456"), convertLeadToAccount("lead-1", "pw-123456")]);
     expect(createUser).toHaveBeenCalledTimes(1);

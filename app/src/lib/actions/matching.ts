@@ -629,7 +629,8 @@ export async function respondToDfyMatch(
     parentId: position.parent_id,
     nannyId: nannyInfo.nannyId,
     eventType: 'dfy_interest_accepted',
-    eventData: { source: 'dfy', slotsCount: availableSlots.length },
+    // written while the row is held (below level 4): the family's log read leaves it out
+    eventData: { source: 'dfy', slotsCount: availableSlots.length, ...(dfyStage === CONNECTION_STAGE.ACCEPTED_PENDING ? { held: true } : {}) },
   });
 
   // Parent notifications — only at level 4+ (deferred for level 3)
@@ -860,17 +861,27 @@ export async function declineDfyConnection(
   if (fetchErr || !connection) {
     return { success: false, error: 'Connection not found.' };
   }
+  // the DFY card offers Decline for an accepted answer, before a meet is booked (stage 10)
+  if (connection.connection_stage !== CONNECTION_STAGE.ACCEPTED) {
+    return { success: false, error: 'This match can no longer be declined.' };
+  }
 
   // Cancel the connection
   const now = new Date().toISOString();
-  await adminClient
+  const { data: declined, error: declineErr } = await adminClient
     .from('connection_requests')
     .update({
       status: 'declined',
       connection_stage: CONNECTION_STAGE.CANCELLED_BY_PARENT,
       updated_at: now,
     })
-    .eq('id', connectionId);
+    .eq('id', connectionId)
+    .eq('connection_stage', CONNECTION_STAGE.ACCEPTED)
+    .select('id');
+  if (declineErr) console.error('[DFY] decline error:', { code: declineErr.code ?? null });
+  if (!declined || declined.length === 0) {
+    return { success: false, error: 'This match can no longer be declined.' };
+  }
 
   // Mark the related DFY notification as declined
   await adminClient

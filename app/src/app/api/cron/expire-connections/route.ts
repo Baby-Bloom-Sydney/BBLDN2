@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
     const plan = expiryFor(req);
 
     // Update to expired — set both status and connection_stage
-    const { error } = await supabase
+    const expiring = supabase
       .from('connection_requests')
       .update({
         status: 'expired',
@@ -70,8 +70,15 @@ export async function GET(request: NextRequest) {
       })
       .eq('id', req.id)
       .in('status', ['pending', 'accepted']); // Optimistic lock
+    // the stage this plan was read at
+    const { data: updated, error } = await (req.connection_stage === null
+      ? expiring.is('connection_stage', null)
+      : expiring.eq('connection_stage', req.connection_stage)
+    ).select('id');
+    if (error) console.error('[ExpireCron] expire error:', { code: error.code ?? null });
 
-    if (error) continue; // Already expired by lazy expiry
+    // already expired, scheduled or released since the read: no expiry messages
+    if (error || !updated || updated.length === 0) continue;
 
     expired++;
 
@@ -81,6 +88,7 @@ export async function GET(request: NextRequest) {
       parentId: req.parent_id,
       nannyId: req.nanny_id,
       eventType: 'expired',
+      ...(plan.tellFamily ? {} : { eventData: { held: true } }),
     });
 
     // Get user IDs

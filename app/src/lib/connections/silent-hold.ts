@@ -184,6 +184,9 @@ export async function onNannyBarred(
 
 // ── Silent Hold: Promote pending connections on level 4 ──
 
+/** The family's window to book a meet once she has accepted — the same 72 hours an accept at level 4 gives. */
+const SCHEDULING_WINDOW_MS = 72 * 60 * 60 * 1000;
+
 export async function promotePendingConnections(
   admin: AdminClient,
   nannyId: string,
@@ -224,10 +227,16 @@ export async function promotePendingConnections(
   // 4. Promote stage 4 → 5 for active positions
   for (const app of pendingApps || []) {
     if (activePositionIds.has(app.position_id)) {
-      await admin
+      // released only while still held (stage 4, pending) when this write lands
+      const { data: released, error: releaseErr } = await admin
         .from('connection_requests')
         .update({ connection_stage: CONNECTION_STAGE.NANNY_APPLIED, updated_at: now })
-        .eq('id', app.id);
+        .eq('id', app.id)
+        .eq('connection_stage', CONNECTION_STAGE.NANNY_APPLIED_PENDING)
+        .eq('status', 'pending')
+        .select('id');
+      if (releaseErr) console.error('[Promotion] release error:', { code: releaseErr.code ?? null });
+      if (!released || released.length === 0) continue;
 
       // Send deferred parent inbox message
       const { data: parentData } = await admin
@@ -252,7 +261,8 @@ export async function promotePendingConnections(
       await admin
         .from('connection_requests')
         .delete()
-        .eq('id', app.id);
+        .eq('id', app.id)
+        .eq('connection_stage', CONNECTION_STAGE.NANNY_APPLIED_PENDING);
     }
   }
 
@@ -265,10 +275,21 @@ export async function promotePendingConnections(
 
   for (const acc of pendingAccepts || []) {
     if (activePositionIds.has(acc.position_id)) {
-      await admin
+      // released only while still held (stage 9, accepted) when this write lands; the family's booking window
+      // starts now
+      const { data: released, error: releaseErr } = await admin
         .from('connection_requests')
-        .update({ connection_stage: CONNECTION_STAGE.ACCEPTED, updated_at: now })
-        .eq('id', acc.id);
+        .update({
+          connection_stage: CONNECTION_STAGE.ACCEPTED,
+          expires_at: new Date(Date.now() + SCHEDULING_WINDOW_MS).toISOString(),
+          updated_at: now,
+        })
+        .eq('id', acc.id)
+        .eq('connection_stage', CONNECTION_STAGE.ACCEPTED_PENDING)
+        .eq('status', 'accepted')
+        .select('id');
+      if (releaseErr) console.error('[Promotion] release error:', { code: releaseErr.code ?? null });
+      if (!released || released.length === 0) continue;
 
       // Send deferred parent notifications
       const { data: parentData } = await admin
@@ -339,7 +360,8 @@ export async function promotePendingConnections(
       await admin
         .from('connection_requests')
         .delete()
-        .eq('id', acc.id);
+        .eq('id', acc.id)
+        .eq('connection_stage', CONNECTION_STAGE.ACCEPTED_PENDING);
     }
   }
 }

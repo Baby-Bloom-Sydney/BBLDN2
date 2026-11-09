@@ -11,9 +11,10 @@ const h = vi.hoisted(() => ({
   db: null as unknown as MemoryDb,
   inbox: vi.fn(async (_m: { userId: string; body: string }) => {}),
   email: vi.fn(async (_m: { to: string }) => ({ success: true })),
+  log: vi.fn(async (_e: { connectionRequestId: string; eventData?: Record<string, unknown> }) => {}),
 }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => h.db.client() }));
-vi.mock("@/lib/actions/connection-helpers", () => ({ createInboxMessage: h.inbox, logConnectionEvent: vi.fn(async () => {}) }));
+vi.mock("@/lib/actions/connection-helpers", () => ({ createInboxMessage: h.inbox, logConnectionEvent: h.log }));
 vi.mock("@/lib/email/resend", () => ({ sendEmail: h.email }));
 vi.mock("@/lib/email/helpers", () => ({
   getUserEmailInfo: vi.fn(async (id: string) => ({ email: `${id}@example.test`, firstName: "Sam", lastName: "Lee" })),
@@ -27,6 +28,7 @@ const row = (id: string, status: string, stage: number, source: string, parent: 
 
 beforeEach(() => {
   vi.stubEnv("CRON_SECRET", "test-secret");
+  h.log.mockClear();
   h.inbox.mockClear();
   h.email.mockClear();
   h.db = createMemoryDb({
@@ -54,6 +56,12 @@ describe("/api/cron/expire-connections — the family hears only about rows thei
     expect([stageOf("c-sent"), stageOf("c-accepted"), stageOf("c-held-9"), stageOf("c-held-dfy"), stageOf("c-held-4")]).toEqual([1, 11, 1, 11, 1]);
   });
 
+  it("logs the expiry of a row the family never saw as held", async () => {
+    await run();
+    const held = h.log.mock.calls.filter(([e]) => e.eventData?.held === true).map(([e]) => e.connectionRequestId).sort();
+    expect(held).toEqual(["c-held-4", "c-held-dfy"]);
+  });
+
   it("messages and emails the family for the request they sent, the accepted one and the answered request (as sent)", async () => {
     await run();
     const byParent = Object.fromEntries(toParents().map((m) => [m.userId, m.body]));
@@ -62,5 +70,28 @@ describe("/api/cron/expire-connections — the family hears only about rows thei
     expect(byParent["parent-b"]).toMatch(/not scheduled/);
     expect(h.email.mock.calls.map(([m]) => m.to).filter((to) => to.startsWith("parent-")).sort())
       .toEqual(["parent-a@example.test", "parent-b@example.test", "parent-c@example.test"]);
+  });
+});
+
+describe("/api/cron/expire-connections — a row that moved on after the read", () => {
+  it("sends no expiry messages for a row released or scheduled between the read and the write", async () => {
+    h.db = createMemoryDb({
+      nannies: [{ id: "n1", user_id: "nanny-u" }],
+      parents: [{ id: "p-a", user_id: "parent-a" }],
+      connection_requests: [row("c-moved", "accepted", 9, "manual", "p-a")],
+    });
+    const client = h.db.client() as { from: (t: string) => { update: (p: unknown) => unknown } };
+    const realFrom = client.from.bind(client);
+    // the release lands after the cron's read: the row is at 10 when the cron writes
+    let reads = 0;
+    vi.spyOn(client, "from").mockImplementation((t: string) => {
+      if (t === "connection_requests" && reads++ === 1) h.db.tables.connection_requests[0].connection_stage = 10;
+      return realFrom(t) as never;
+    });
+    h.db.client = () => client;
+    await run();
+    expect(h.db.tables.connection_requests[0]).toMatchObject({ status: "accepted", connection_stage: 10 });
+    expect(h.inbox).not.toHaveBeenCalled();
+    expect(h.email).not.toHaveBeenCalled();
   });
 });

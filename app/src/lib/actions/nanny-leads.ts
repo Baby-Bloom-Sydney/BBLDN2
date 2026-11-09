@@ -273,14 +273,18 @@ export async function updateNannyLead(
 // ── N5: Convert lead to full account ──
 
 const ALREADY_CONVERTED = "An account with this email already exists. Please sign in instead.";
+const TRY_AGAIN = "We couldn't set up your account just now. Please try again in a moment.";
 /** A claim this old with no account is a conversion that never finished; it can be taken again. */
 const CLAIM_STALE_MS = 10 * 60 * 1000;
 
+type LeadClaim = { kind: "claimed"; stamp: string } | { kind: "taken" } | { kind: "failed" };
+
 /**
  * Claims the lead for one conversion in a single conditional write to its own column (`conversion_claimed_at`, never
- * the conversion time). Returns this run's claim stamp, or null when another run holds the lead.
+ * the conversion time): this run's claim stamp; "taken" when another run (or a finished conversion) holds the lead;
+ * "failed" when the write itself errors (its code logged).
  */
-async function claimLead(admin: ReturnType<typeof createAdminClient>, leadId: string): Promise<string | null> {
+async function claimLead(admin: ReturnType<typeof createAdminClient>, leadId: string): Promise<LeadClaim> {
   const stamp = new Date().toISOString();
   const staleBefore = new Date(Date.now() - CLAIM_STALE_MS).toISOString();
   const { data, error } = await admin
@@ -292,7 +296,11 @@ async function claimLead(admin: ReturnType<typeof createAdminClient>, leadId: st
     .neq("lead_status", "converted")
     .or(`conversion_claimed_at.is.null,conversion_claimed_at.lt.${staleBefore}`)
     .select("id");
-  return !error && Array.isArray(data) && data.length === 1 ? stamp : null;
+  if (error) {
+    console.error("[nanny-leads] claim write failed", { code: error.code ?? null });
+    return { kind: "failed" };
+  }
+  return Array.isArray(data) && data.length === 1 ? { kind: "claimed", stamp } : { kind: "taken" };
 }
 
 /** Gives back this run's claim, and only this run's (a newer run's claim stays). Never throws. */
@@ -330,8 +338,10 @@ export async function convertLeadToAccount(
     if (lead.auth_user_id || lead.lead_status === "converted") {
       return { success: false, error: ALREADY_CONVERTED };
     }
-    claim = await claimLead(adminClient, leadId);
-    if (!claim) return { success: false, error: ALREADY_CONVERTED };
+    const claimed = await claimLead(adminClient, leadId);
+    if (claimed.kind === "failed") return { success: false, error: TRY_AGAIN };
+    if (claimed.kind === "taken") return { success: false, error: ALREADY_CONVERTED };
+    claim = claimed.stamp;
 
     // Use the email from the account creation form (may differ from lead email)
     const finalEmail = email?.trim() || lead.email;

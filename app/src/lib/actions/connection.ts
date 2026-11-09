@@ -75,7 +75,8 @@ export interface ConnectionRequest {
 export interface ConnectionRequestWithDetails extends ConnectionRequest {
   nanny?: {
     id: string;
-    user_id: string;
+    /** Her account id: on the nanny's own reads, never on the family's list. */
+    user_id?: string;
     first_name: string;
     last_name: string;
     suburb: string;
@@ -158,7 +159,8 @@ async function expireStaleRequests(
           : CONNECTION_STAGE.REQUEST_EXPIRED;
     }
 
-    await supabase
+    // the same row as read (status and stage): a row released or scheduled since gets no expiry and no messages
+    const expiring = supabase
       .from("connection_requests")
       .update({
         status: "expired",
@@ -167,6 +169,12 @@ async function expireStaleRequests(
       })
       .eq("id", req.id)
       .in("status", ["pending", "accepted"]);
+    const { data: expired, error: expireErr } = await (req.connection_stage === null
+      ? expiring.is("connection_stage", null)
+      : expiring.eq("connection_stage", req.connection_stage)
+    ).select("id");
+    if (expireErr) console.error("[Connection] Expire error:", { code: expireErr.code ?? null });
+    if (!expired || expired.length === 0) continue;
 
     funnelLog("expire", req.id, `${req.status} → expired`, {
       connection_stage: expireStage,
@@ -230,6 +238,7 @@ async function expireStaleRequests(
       parentId: req.parent_id,
       nannyId: req.nanny_id,
       eventType: "expired",
+      ...(skipParentNotification ? { eventData: { held: true } } : {}),
     });
   }
 }
@@ -586,6 +595,8 @@ export async function acceptConnectionRequest(
     parentId: request.parent_id,
     nannyId: request.nanny_id,
     eventType: "accepted",
+    // written while the row is held (below level 4): the family's log read leaves it out
+    ...(acceptStage === CONNECTION_STAGE.ACCEPTED_PENDING ? { eventData: { held: true } } : {}),
   });
 
   // Get nanny name for messages
@@ -1144,7 +1155,7 @@ export async function cancelConnectionRequest(
     parentId: request.parent_id,
     nannyId: request.nanny_id,
     eventType: "cancelled",
-    eventData: { cancelled_by: isParent ? "parent" : "nanny" },
+    eventData: { cancelled_by: isParent ? "parent" : "nanny", ...(isUnseenByParent(request) ? { held: true } : {}) },
   });
 
   // Inbox message for the OTHER party
@@ -1198,6 +1209,18 @@ export async function cancelConnectionRequest(
 
 // ── 6. Get Parent Connection Requests ──
 
+/** A family's request is open for 72 hours from when it was sent (createConnectionRequest). */
+const REQUEST_WINDOW_MS = 72 * 60 * 60 * 1000;
+/**
+ * The columns of a connection the family's screens read. Her decline reason and the shared-phone fields are not among
+ * them (her phone reaches the family through the intro's own reader, getParentUpcomingIntros).
+ */
+const FAMILY_LIST_SELECT =
+  "id, nanny_id, parent_id, position_id, message, proposed_times, status, responded_at, created_at, updated_at, expires_at, confirmed_time, confirmed_at, connection_stage, intro_outcome_reported_at, fill_initiated_by, trial_date, trial_reported_at, start_date, source";
+const FAMILY_LIST_COLUMNS = FAMILY_LIST_SELECT.split(", ");
+const familyColumns = (row: Record<string, unknown>) =>
+  Object.fromEntries(FAMILY_LIST_COLUMNS.map((column) => [column, row[column] ?? null]));
+
 export async function getParentConnectionRequests(): Promise<{
   data: ConnectionRequestWithDetails[];
   error: string | null;
@@ -1216,7 +1239,7 @@ export async function getParentConnectionRequests(): Promise<{
 
   const { data, error } = await adminClient
     .from("connection_requests")
-    .select("*")
+    .select(FAMILY_LIST_SELECT)
     .eq("parent_id", parentId)
     .not("connection_stage", "eq", CONNECTION_STAGE.NANNY_APPLIED_PENDING) // Hide pending applications
     .order("created_at", { ascending: false });
@@ -1244,8 +1267,12 @@ export async function getParentConnectionRequests(): Promise<{
     })
     .map((req) => {
       if (req.connection_stage === CONNECTION_STAGE.ACCEPTED_PENDING) {
-        // read as the request she sent: still pending, no slots, no response yet
-        return { ...req, connection_stage: CONNECTION_STAGE.REQUEST_SENT, status: "pending", proposed_times: [], responded_at: null };
+        // read as the request she sent: still pending, no slots, no response yet, the request's own expiry
+        const requestExpiry = new Date(new Date(req.created_at).getTime() + REQUEST_WINDOW_MS).toISOString();
+        return {
+          ...req, connection_stage: CONNECTION_STAGE.REQUEST_SENT, status: "pending", proposed_times: [], responded_at: null,
+          expires_at: requestExpiry, updated_at: req.created_at,
+        };
       }
       return req;
     });
@@ -1275,13 +1302,10 @@ export async function getParentConnectionRequests(): Promise<{
   const requests: ConnectionRequestWithDetails[] = parentViewData.map((req) => {
     const nanny = nannyMap.get(req.nanny_id);
     const profile = nanny ? profileMap.get(nanny.user_id) : null;
-    // her phone reaches the family through the intro's own reader (getParentUpcomingIntros), not this list
-    const { nanny_phone_shared: _phone, ...row } = req;
     return {
-      ...row,
+      ...familyColumns(req),
       nanny: {
         id: req.nanny_id,
-        user_id: nanny?.user_id || "",
         first_name: profile?.first_name || "Unknown",
         last_name: profile?.last_name || "",
         suburb: profile?.suburb || "",
