@@ -1,3 +1,4 @@
+import { viewerIsNanny } from "@/lib/nanny-owner";
 import { getPublicNannyProfile } from "@/lib/actions/nanny";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -111,7 +112,7 @@ export default async function NannyProfilePage({
 
     if (user) {
       isGuest = false;
-      if (user.id === nanny.user_id) {
+      if (await viewerIsNanny(user.id, nanny.nanny_id)) {
         isOwner = true;
       } else {
         // Check if user is a parent
@@ -185,7 +186,7 @@ export default async function NannyProfilePage({
   const personJsonLd = {
     "@context": "https://schema.org",
     "@type": "Person",
-    name: `${nanny.first_name ?? "Nanny"} ${(nanny.last_name ?? "").charAt(0) || ""}.`.trim(),
+    name: `${nanny.first_name ?? "Nanny"} ${nanny.last_initial || ""}.`.trim(),
     jobTitle: "Verified Nanny",
     description:
       String(nanny.ai_content?.parent_pitch ?? "")

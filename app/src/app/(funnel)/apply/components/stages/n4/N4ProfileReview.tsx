@@ -1,5 +1,6 @@
 'use client';
 
+import { profileAge } from "@/lib/profile-age";
 import { StageProps } from '../../FunnelOrchestrator';
 import { ParentNannyProfileView } from '@/app/parent/browse/[id]/ParentNannyProfileView';
 import { PublicNannyProfile } from '@/lib/actions/nanny';
@@ -30,13 +31,12 @@ function funnelStateToProfile(state: NannyLeadFunnelState): PublicNannyProfile {
 
   return {
     nanny_id: state.leadId || 'preview',
-    user_id: 'preview',
     first_name: state.first_name,
-    last_name: state.last_name,
+    last_initial: state.last_name.charAt(0),
     suburb: state.residency.suburb || '',
     postcode: state.residency.postcode || '',
     profile_picture_url: state.about_you.profile_picture_url,
-    date_of_birth: state.experience.date_of_birth,
+    age: profileAge(state.experience.date_of_birth),
     nationality: state.residency.nationality,
     total_experience_years: parseExp(state.experience.total_experience),
     nanny_experience_years: state.experience.childcare_roles

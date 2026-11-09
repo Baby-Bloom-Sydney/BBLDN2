@@ -50,6 +50,12 @@ afterEach(() => {
 const logged = () => JSON.stringify(spy.mock.calls);
 
 describe("a failed verification write is logged by its code only", () => {
+  it("identity: what she is told is a fixed message, never the database's", async () => {
+    expect(await submitIdentitySection(IDENTITY)).toEqual({ success: false, error: "Failed to save identity data. Please try again." });
+    admin.reads.verifications = null;
+    expect(await submitIdentitySection(IDENTITY)).toEqual({ success: false, error: "Failed to create verification record. Please try again." });
+  });
+
   it("identity, updating her row", async () => {
     expect((await submitIdentitySection(IDENTITY)).success).toBe(false);
     expect(spy).toHaveBeenCalledWith("[submitIdentitySection] Update failed", { code: "23514" });

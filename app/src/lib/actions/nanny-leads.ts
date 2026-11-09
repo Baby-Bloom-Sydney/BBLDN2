@@ -248,7 +248,8 @@ export async function updateNannyLead(
     const { error } = await adminClient
       .from("nanny_leads")
       .update(updateData)
-      .eq("id", leadId);
+      .eq("id", leadId)
+      .is("auth_user_id", null);
 
     if (error) {
       console.error("Update lead error:", error);
@@ -288,6 +289,14 @@ export async function convertLeadToAccount(
     if (leadError || !lead) {
       console.error("Fetch lead error:", leadError);
       return { success: false, error: "Application not found." };
+    }
+
+    // An application becomes an account once.
+    if (lead.auth_user_id || lead.converted_at || lead.lead_status === "converted") {
+      return {
+        success: false,
+        error: "An account with this email already exists. Please sign in instead.",
+      };
     }
 
     // Use the email from the account creation form (may differ from lead email)

@@ -41,7 +41,7 @@ function buildBadges(nanny: NannyCardData): TraitBadge[] {
 
 export function NannyCardBK({ nanny, linkBase = "/nannies" }: NannyCardBKProps) {
   const initials = `${nanny.first_name[0]}${nanny.last_name[0]}`;
-  const age = computeAge(nanny.date_of_birth);
+  const age = nanny.age !== undefined ? nanny.age : computeAge(nanny.date_of_birth);
   const isVerified = (nanny.verification_level ?? 0) >= 3;
 
   return (

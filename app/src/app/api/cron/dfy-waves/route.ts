@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { processDfyWaves } from '@/lib/actions/matching';
+import { processDfyWaves } from '@/lib/matching/dfy-dispatch';
 
 /**
  * Cron endpoint: processes pending DFY email waves.

@@ -119,3 +119,18 @@ describe("ConnectModal — no parent verification surface (LDN2 3h, H-4)", () =>
     },
   );
 });
+
+describe("ConnectModal — her age and initial as the profile gives them", () => {
+  it("shows the age it is given and the initial, with no date of birth", () => {
+    render(
+      <ConnectModal
+        isOpen
+        onClose={vi.fn()}
+        nanny={{ id: "nanny-1", first_name: "Nina", last_name: "W", suburb: "London", hourly_rate_min: 20, profile_picture_url: null, age: 33 }}
+        pendingRequestCount={0}
+      />,
+    );
+    expect(screen.getByText(/Nina, 33/)).toBeTruthy();
+    expect(screen.getByText("NW")).toBeTruthy();
+  });
+});

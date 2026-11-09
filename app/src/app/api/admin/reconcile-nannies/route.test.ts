@@ -27,7 +27,7 @@ function client(data: unknown = [], count = 0): unknown {
 
 const ANON = { userId: "", error: "Not authenticated" };
 const NOT_ADMIN = { userId: "", error: "Not authorized — admin role required" };
-vi.mock("@/lib/actions/verification", () => ({ syncNannyVerificationState: vi.fn() }));
+vi.mock("@/lib/verification-sync", () => ({ syncNannyVerificationState: vi.fn() }));
 
 import { POST } from "./route";
 

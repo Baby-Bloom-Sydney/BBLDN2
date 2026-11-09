@@ -10,7 +10,7 @@ import { buildWelcomeNannyEmail } from "@/lib/email/templates/welcome-nanny";
 import { buildWelcomeParentEmail } from "@/lib/email/templates/welcome-parent";
 import { buildWelcomeInviteParentEmail } from "@/lib/email/templates/welcome-invite-parent";
 import { capitalizeName } from "@/lib/utils";
-import { signupViaInvite } from "@/lib/actions/bapp/child-invites";
+import { signupViaInvite } from "@/lib/invite/signup-stamp";
 import { isUkMobile, normaliseUkMobile } from "@/lib/uk-contact";
 import { SITE_URL } from "@/lib/constants";
 import { callBookingEnabled } from "@/lib/features/flags";

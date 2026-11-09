@@ -10,6 +10,9 @@ vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(),
 }));
 
+// The caller is the child's parent or nanny (that check has its own tests: lib/bapp/child-member.test.ts).
+vi.mock("@/lib/bapp/child-member", () => ({ isChildMember: async () => true, CHILD_NOT_FOUND: "Child not found" }));
+
 vi.mock("@/lib/payments/access-gate", () => ({
   requireChildFamilyAccess: vi.fn(),
 }));
@@ -18,7 +21,7 @@ vi.mock("@/lib/legal/require-media-consent", () => ({
   requireMediaConsentForImageWrite: vi.fn(),
 }));
 
-vi.mock("./progress", () => ({
+vi.mock("@/lib/bapp/progress-write", () => ({
   recalculateProgress: vi.fn().mockResolvedValue(undefined),
   writeHistorySnapshot: vi.fn().mockResolvedValue(undefined),
 }));

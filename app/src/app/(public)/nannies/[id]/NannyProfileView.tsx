@@ -27,16 +27,6 @@ import {
 
 // ── Helpers ──
 
-function calculateAge(dob: string | null): number | null {
-  if (!dob) return null;
-  const birth = new Date(dob);
-  const now = new Date();
-  let age = now.getFullYear() - birth.getFullYear();
-  const m = now.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
-  return age > 0 && age < 120 ? age : null;
-}
-
 function ageMonthsToLabel(months: number | null | undefined): string {
   if (months === null || months === undefined) return "Any";
   if (months === 0) return "Newborn";
@@ -197,7 +187,7 @@ export function NannyProfileView({
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [showPlacementBlock, setShowPlacementBlock] = useState(false);
 
-  const age = calculateAge(nanny.date_of_birth);
+  const age = nanny.age;
   const ai = nanny.ai_content as Record<string, unknown> | null;
   const bioSummary = parseBioSummary(typeof ai?.bio_summary === 'string' ? ai.bio_summary : undefined);
   const tagline = (ai?.headline as string) || "";
@@ -347,11 +337,11 @@ export function NannyProfileView({
             nanny={{
               id: nanny.nanny_id,
               first_name: nanny.first_name,
-              last_name: nanny.last_name,
+              last_name: nanny.last_initial,
               suburb: nanny.suburb,
               hourly_rate_min: nanny.hourly_rate_min,
               profile_picture_url: nanny.profile_picture_url,
-              date_of_birth: nanny.date_of_birth,
+              age: nanny.age,
             }}
             pendingRequestCount={pendingRequestCount}
           />

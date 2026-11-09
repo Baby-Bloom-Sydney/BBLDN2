@@ -1,3 +1,4 @@
+import { viewerIsNanny } from "@/lib/nanny-owner";
 import { getPublicNannyProfile } from "@/lib/actions/nanny";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -31,7 +32,7 @@ export default async function ParentBrowseNannyPage({
     const { data: { user } } = await supabase.auth.getUser();
 
     if (user) {
-      if (user.id === nanny.user_id) {
+      if (await viewerIsNanny(user.id, nanny.nanny_id)) {
         isOwner = true;
       } else {
         const { data: role } = await supabase

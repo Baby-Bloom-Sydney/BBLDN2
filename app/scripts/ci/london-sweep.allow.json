@@ -1968,10 +1968,17 @@
   },
   {
     "rule": "identity",
-    "file": "app/src/lib/actions/verification.ts",
+    "file": "app/src/lib/verification-sync.ts",
+    "match": "wwcc",
+    "owner": "cleanup",
+    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 71 hit(s): lines 59, 71, 81, 84, 99, 105, 123, 395, 441, 457, 499, 523, +59 more] Re-owned to cleanup by 3w6fix (BB-LDN-3w6fix-141026, W6-D2): every line it silences is a kept identifier, column or key name, code comment, server log line or unrun inherited script/test literal (D-4) — no user-visible text. Moved with syncNannyVerificationState to app/src/lib/verification-sync.ts unchanged (BB-wave1-041126, 2026-11-09)."
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/lib/verification-sync.ts",
     "match": "OCG",
     "owner": "cleanup",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 85] Re-owned to cleanup by 3w6fix (BB-LDN-3w6fix-141026, W6-D2): every line it silences is a kept identifier, column or key name, code comment, server log line or unrun inherited script/test literal (D-4) — no user-visible text."
+    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 85] Re-owned to cleanup by 3w6fix (BB-LDN-3w6fix-141026, W6-D2): every line it silences is a kept identifier, column or key name, code comment, server log line or unrun inherited script/test literal (D-4) — no user-visible text. Moved with syncNannyVerificationState to app/src/lib/verification-sync.ts unchanged (BB-wave1-041126, 2026-11-09)."
   },
   {
     "rule": "jurisdiction",

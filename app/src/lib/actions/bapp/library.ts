@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { FeedItem } from "@/types/bapp";
+import { isChildMember, CHILD_NOT_FOUND } from "@/lib/bapp/child-member";
 
 /**
  * getLibraryImages — Paginated fetch of all logs with images for a child.
@@ -31,6 +32,11 @@ export async function getLibraryImages(
         data: [],
         nextCursor: null,
       };
+    }
+
+    // Only the child's parent or nanny.
+    if (!(await isChildMember(childId, user.id))) {
+      return { success: false, error: CHILD_NOT_FOUND, data: [], nextCursor: null };
     }
 
     const admin = createAdminClient();

@@ -76,7 +76,7 @@ vi.mock("@/lib/email/resend", () => ({
   sendEmail: mocks.sendEmailMock,
 }));
 
-vi.mock("@/lib/actions/bapp/child-invites", () => ({
+vi.mock("@/lib/invite/signup-stamp", () => ({
   signupViaInvite: mocks.signupViaInviteMock,
 }));
 

@@ -57,7 +57,7 @@ vi.mock("./connection-helpers", () => ({ createInboxMessage: vi.fn() }));
 const alert = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock("@/lib/email/dbs-emails", () => ({ sendBarredAdminAlert: alert }));
 
-import { syncNannyVerificationState } from "./verification";
+import { syncNannyVerificationState } from "@/lib/verification-sync";
 import { STATUS_META, deriveOverallStatus } from "@/lib/verification";
 
 const BARRED = {
@@ -114,7 +114,7 @@ describe("syncNannyVerificationState — pinned by 3a (unchanged)", () => {
   });
 
   it("G5 sync function source hash matches the P-14 body (re-pinned by 3d; pre-3a hash c3da1d4a…)", () => {
-    const source = readFileSync(resolve(__dirname, "verification.ts"), "utf8");
+    const source = readFileSync(resolve(__dirname, "../verification-sync.ts"), "utf8");
     const start = source.indexOf("export async function syncNannyVerificationState");
     const end = source.indexOf("\n}\n", start) + 3;
     expect(start).toBeGreaterThan(-1);

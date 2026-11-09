@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { IDENTITY_STATUS, WWCC_STATUS, CROSS_CHECK_STATUS, GUIDANCE_MESSAGES, deriveOverallStatus, type IdentityStatus, type WwccStatus, type CrossCheckStatus } from '@/lib/verification';
-import { syncNannyVerificationState } from '@/lib/actions/verification';
+import { syncNannyVerificationState } from '@/lib/verification-sync';
 import { runCrossCheckPhase } from '@/lib/ai/verification-pipeline';
 import { getDbsConfig } from '@/lib/dbs/config';
 

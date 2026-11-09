@@ -1,5 +1,5 @@
 /**
- * Silent hold — the connection side of `syncNannyVerificationState` (lib/actions/verification.ts), the only caller.
+ * Silent hold — the connection side of `syncNannyVerificationState` (lib/verification-sync.ts), the only caller.
  * Plain server module (NOT 'use server': nothing here is callable from the browser).
  *
  * - `promotePendingConnections` — level < 4 → 4: held rows (stage 4 / 9) are released and parents told. Moved here

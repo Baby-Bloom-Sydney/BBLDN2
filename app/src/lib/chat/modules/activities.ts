@@ -34,7 +34,7 @@ import type { ActivityPlan } from "@/types/bapp";
 import {
   recalculateProgress,
   writeHistorySnapshot,
-} from "@/lib/actions/bapp/progress";
+} from "@/lib/bapp/progress-write";
 
 interface MilestoneContextRow {
   id: string;

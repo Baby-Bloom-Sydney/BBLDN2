@@ -28,7 +28,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
 import { requireAdmin } from '@/lib/admin/require-admin';
-import { syncNannyVerificationState } from '@/lib/actions/verification';
+import { syncNannyVerificationState } from '@/lib/verification-sync';
 import { runCrossCheckPhase } from '@/lib/ai/verification-pipeline';
 import { checkDbsStatus, type DbsCheckResult } from '@/lib/dbs/update-service';
 import { applyDbsResult, type DbsApplyOutcome, type DbsApplyResult } from '@/lib/dbs/map-dbs-outcome';

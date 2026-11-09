@@ -16,7 +16,7 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => h.db.client() }));
-vi.mock("@/lib/actions/verification", () => ({ syncNannyVerificationState: vi.fn() }));
+vi.mock("@/lib/verification-sync", () => ({ syncNannyVerificationState: vi.fn() }));
 vi.mock("@/lib/ai/verification-pipeline", () => ({ runCrossCheckPhase: h.runCrossCheckPhase }));
 
 import { GET, maxDuration } from "./route";

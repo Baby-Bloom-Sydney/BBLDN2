@@ -19,7 +19,7 @@ import { hasParentMediaConsent } from "@/lib/legal/media-consent-gate";
 import {
   recalculateProgress,
   writeHistorySnapshot,
-} from "@/lib/actions/bapp/progress";
+} from "@/lib/bapp/progress-write";
 import { notifyParentOfFeedPost } from "@/lib/email/feed-post-notification";
 
 const OBSERVATION_DOMAINS = [

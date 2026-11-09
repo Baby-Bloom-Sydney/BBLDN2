@@ -127,3 +127,14 @@ describe('BrowseNanniesTab — both Qualification sorts use the ladder rank', ()
     expect(screen.getAllByTestId('match').map((e) => e.textContent)).toEqual(['l6', 'l3', 'off']);
   });
 });
+
+describe("ParentNannyProfileView — name and age from the public profile", () => {
+  it("shows her first name and the age it is given (no date of birth in the profile)", () => {
+    const nanny = {
+      nanny_id: "n1", first_name: "nina", last_initial: "W", age: 33, suburb: "London", certificates: [], languages: [],
+      role_types_preferred: [], level_of_support_offered: [], pay_frequency: [],
+    } as unknown as PublicNannyProfile;
+    render(<ParentNannyProfileView nanny={nanny} />);
+    expect(screen.getAllByText(/Nina\s*,\s*33/).length).toBeGreaterThan(0);
+  });
+});

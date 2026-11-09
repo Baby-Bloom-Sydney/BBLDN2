@@ -65,6 +65,13 @@ describe("updateNannyProfile — the fields it writes", () => {
     }
   });
 
+  it("logs a refused update by a code only", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await updateNannyProfile({ hourly_rate_min: 21, unlisted_field: "x" } as Update)).toEqual(REFUSED);
+    expect(spy).toHaveBeenCalledWith("[updateNannyProfile] refused", { code: "invalid_fields" });
+    spy.mockRestore();
+  });
+
   it("refuses a related field in the wrong shape, writing nothing", async () => {
     expect(await updateNannyProfile({ hourly_rate_min: 21, certificates: "First Aid" } as unknown as Update)).toEqual(REFUSED);
     expect(session.ops.filter((o) => o.kind !== "select")).toEqual([]);

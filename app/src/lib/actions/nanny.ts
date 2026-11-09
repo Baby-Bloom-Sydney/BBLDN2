@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { openai } from "@/lib/ai/client";
 import { failureCode } from "@/lib/failure-code";
+import { profileAge } from "@/lib/profile-age";
 import { identityLocked } from "@/lib/settings/identity-lock";
 import { splitProfileUpdate, touchesIdentity, type UpdateNannyProfileData } from "@/lib/settings/nanny-profile-keys";
 import { PROFILE_MESSAGES } from "@/lib/settings/nanny-profile-rules";
@@ -12,15 +13,15 @@ import { PROFILE_MESSAGES } from "@/lib/settings/nanny-profile-rules";
 // ── Public nanny profile fetch (for /nannies/[id] page) ──
 
 export interface PublicNannyProfile {
-  // Identity
+  // Identity (what the profile screens show: her first name, her last initial, her age — never her account id,
+  // full last name or date of birth)
   nanny_id: string;
-  user_id: string;
   first_name: string;
-  last_name: string;
+  last_initial: string;
   suburb: string;
   postcode: string;
   profile_picture_url: string | null;
-  date_of_birth: string | null;
+  age: number | null;
   nationality: string | null;
 
   // Experience
@@ -151,13 +152,12 @@ export async function getPublicNannyProfile(
   return {
     data: {
       nanny_id: nannyId,
-      user_id: nanny.user_id,
       first_name: profile.first_name,
-      last_name: profile.last_name,
+      last_initial: (profile.last_name ?? "").charAt(0),
       suburb: profile.suburb,
       postcode: profile.postcode,
       profile_picture_url: profile.profile_picture_url,
-      date_of_birth: profile.date_of_birth,
+      age: profileAge(profile.date_of_birth),
       nationality: nanny.nationality,
       total_experience_years: nanny.total_experience_years,
       nanny_experience_years: nanny.nanny_experience_years,
@@ -386,7 +386,10 @@ export async function updateNannyProfile(
 
   // Only the fields on the lists, each to its row; her name and date of birth stay fixed after identity verification
   const split = splitProfileUpdate(data);
-  if (!split.ok) return { success: false, error: "Failed to update profile" };
+  if (!split.ok) {
+    console.error("[updateNannyProfile] refused", { code: "invalid_fields" });
+    return { success: false, error: "Failed to update profile" };
+  }
   if (touchesIdentity(split.profile) && (await identityLocked(user.id))) {
     return { success: false, error: PROFILE_MESSAGES.locked };
   }

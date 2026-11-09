@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { BrowseMatchesClient } from "./BrowseMatchesClient";
 import { BRAND } from "@/lib/constants";
 import { qualificationRank } from "@/lib/nanny-options";
+import { publicNannyCard } from "@/lib/nanny-card";
 
 export const dynamic = "force-dynamic";
 
@@ -109,7 +110,7 @@ async function getNannies(sortBy: SortKey = "newest", page: number = 1): Promise
 
   const total = sorted.length;
   const from = (page - 1) * PAGE_SIZE;
-  const paged = sorted.slice(from, from + PAGE_SIZE);
+  const paged = sorted.slice(from, from + PAGE_SIZE).map(publicNannyCard);
 
   return { nannies: paged, total };
 }

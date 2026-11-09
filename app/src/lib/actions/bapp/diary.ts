@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { requireChildFamilyAccess } from "@/lib/payments/access-gate";
 import { requireMediaConsentForImageWrite } from "@/lib/legal/require-media-consent";
 import { notifyParentOfFeedPost } from "@/lib/email/feed-post-notification";
+import { isChildMember, CHILD_NOT_FOUND } from "@/lib/bapp/child-member";
 
 /** Transition child to active_nanny on first action */
 async function maybeActivateChild(childId: string): Promise<void> {
@@ -47,6 +48,11 @@ export async function logDiaryEntry(
     } = await supabase.auth.getUser();
     if (authError || !user) {
       return { success: false, error: "Not authenticated" };
+    }
+
+    // Only the child's parent or nanny.
+    if (!(await isChildMember(childId, user.id))) {
+      return { success: false, error: CHILD_NOT_FOUND };
     }
 
     // Paywall gate — block writes when the family's subscription has

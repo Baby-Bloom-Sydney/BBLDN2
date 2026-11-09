@@ -26,7 +26,7 @@ import { shareLoopEnabled } from "@/lib/features/flags";
 // 5b (P-23): while SHARE_LOOP_ENABLED is off every exported action below (writers and readers) refuses before
 // any auth, read or write.
 // Next 14 exposes every export of this client-imported "use server" module by action id, so hiding the
-// pages alone would leave these callable (recordCheckResult has no auth of its own).
+// pages alone would leave these callable.
 const SHARE_LOOP_DISABLED = "share_loop_disabled";
 
 // ── Auth helper ──
@@ -111,16 +111,11 @@ export async function isViralAccessGranted(
 export async function createShareRecord(
   caseType: ShareCaseType,
   referenceId: string,
-  userId?: string,
 ): Promise<{ share: ViralShareRow | null; error: string | null }> {
   if (!shareLoopEnabled()) return { share: null, error: SHARE_LOOP_DISABLED };
-  // If userId not provided, get from auth
-  let targetUserId = userId;
-  if (!targetUserId) {
-    const user = await getAuthUser();
-    if (!user) return { share: null, error: "Not authenticated" };
-    targetUserId = user.id;
-  }
+  const user = await getAuthUser();
+  if (!user) return { share: null, error: "Not authenticated" };
+  const targetUserId = user.id;
 
   const admin = createAdminClient();
 
@@ -281,7 +276,7 @@ export async function submitShareScreenshot(
 
 // ── Begin AI screenshot check ──
 
-export async function beginScreenshotCheck(
+async function beginScreenshotCheck(
   shareId: string,
 ): Promise<{ success: boolean; error: string | null }> {
   if (!shareLoopEnabled()) return { success: false, error: SHARE_LOOP_DISABLED };
@@ -321,7 +316,7 @@ export async function beginScreenshotCheck(
 
 // ── Record AI check result ──
 
-export async function recordCheckResult(
+async function recordCheckResult(
   shareId: string,
   result: ScreenshotCheckResult,
 ): Promise<{ success: boolean; error: string | null }> {
@@ -387,6 +382,17 @@ export async function processScreenshotCheck(
   if (!shareLoopEnabled()) {
     return { success: false, approved: false, error: SHARE_LOOP_DISABLED, failReason: null };
   }
+  const user = await getAuthUser();
+  if (!user) return { success: false, approved: false, error: "Not authenticated", failReason: null };
+  const { data: owned } = await createAdminClient()
+    .from("viral_shares")
+    .select("user_id")
+    .eq("id", shareId)
+    .maybeSingle();
+  if (owned?.user_id !== user.id) {
+    return { success: false, approved: false, error: "Share not found", failReason: null };
+  }
+
   // 1. Mark as processing
   const beginResult = await beginScreenshotCheck(shareId);
   if (!beginResult.success) {
@@ -528,35 +534,6 @@ export async function adminBypassShare(
 
   if (error) return { success: false, error: error.message };
   return { success: true, error: null };
-}
-
-// ── Case-specific creators ──
-
-/** Create nanny profile share — called when nanny verification completes */
-export async function createNannyProfileShare(
-  nannyId: string,
-  userId: string,
-): Promise<{ share: ViralShareRow | null; error: string | null }> {
-  if (!shareLoopEnabled()) return { share: null, error: SHARE_LOOP_DISABLED };
-  return createShareRecord(SHARE_CASE_TYPE.NANNY_PROFILE, nannyId, userId);
-}
-
-/** Create parent position share — called when position is published */
-export async function createParentPositionShare(
-  positionId: string,
-  userId?: string,
-): Promise<{ share: ViralShareRow | null; error: string | null }> {
-  if (!shareLoopEnabled()) return { share: null, error: SHARE_LOOP_DISABLED };
-  return createShareRecord(SHARE_CASE_TYPE.PARENT_POSITION, positionId, userId);
-}
-
-/** Create parent BSR share — called when BSR is created */
-export async function createParentBsrShare(
-  bsrId: string,
-  userId?: string,
-): Promise<{ share: ViralShareRow | null; error: string | null }> {
-  if (!shareLoopEnabled()) return { share: null, error: SHARE_LOOP_DISABLED };
-  return createShareRecord(SHARE_CASE_TYPE.PARENT_BSR, bsrId, userId);
 }
 
 // ── Get nanny share page data ──

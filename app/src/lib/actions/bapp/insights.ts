@@ -1,5 +1,4 @@
-"use server";
-
+/** Tile insights and the child context they use. Server-only; not a server action. */
 import { createAdminClient } from "@/lib/supabase/admin";
 import { openai } from "@/lib/ai/client";
 

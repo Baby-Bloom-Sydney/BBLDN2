@@ -3,12 +3,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
-import { recalculateProgress, writeHistorySnapshot } from "./progress";
+import { recalculateProgress, writeHistorySnapshot } from "@/lib/bapp/progress-write";
 import { generateTileInsight, getChildContext } from "./insights";
 import { MASTERY_LABELS } from "@/lib/bapp-constants";
 import type { MasteryScore } from "@/lib/bapp-constants";
 import { requireChildFamilyAccess } from "@/lib/payments/access-gate";
 import { notifyParentOfFeedPost } from "@/lib/email/feed-post-notification";
+import { isChildMember, CHILD_NOT_FOUND } from "@/lib/bapp/child-member";
 
 /**
  * submitReport — Report Cascade
@@ -42,6 +43,20 @@ export async function submitReport(
     } = await supabase.auth.getUser();
     if (authError || !user) {
       return { success: false, error: "Not authenticated" };
+    }
+
+    // Only the child's parent or nanny.
+    if (!(await isChildMember(childId, user.id))) {
+      return { success: false, error: CHILD_NOT_FOUND };
+    }
+
+    const { data: activity } = await createAdminClient()
+      .from("bapp_logs")
+      .select("child_client_id")
+      .eq("id", activityId)
+      .maybeSingle();
+    if (activity?.child_client_id !== childId) {
+      return { success: false, error: "Activity not found" };
     }
 
     // Paywall gate — block writes when the family's subscription has lapsed.

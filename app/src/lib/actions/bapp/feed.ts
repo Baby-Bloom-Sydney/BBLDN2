@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { FeedItem } from "@/types/bapp";
+import { isChildMember, CHILD_NOT_FOUND } from "@/lib/bapp/child-member";
 
 export async function getFeed(
   childId: string,
@@ -20,6 +21,11 @@ export async function getFeed(
     } = await supabase.auth.getUser();
     if (authError || !user) {
       return { success: false, error: "Not authenticated", data: [] };
+    }
+
+    // Only the child's parent or nanny.
+    if (!(await isChildMember(childId, user.id))) {
+      return { success: false, error: CHILD_NOT_FOUND, data: [] };
     }
 
     const admin = createAdminClient();

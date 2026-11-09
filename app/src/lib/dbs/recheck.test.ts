@@ -15,7 +15,7 @@ const h = vi.hoisted(() => ({
   pausedEmail: vi.fn(async () => {}),
 }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => h.db.client() }));
-vi.mock("@/lib/actions/verification", () => ({ syncNannyVerificationState: h.sync }));
+vi.mock("@/lib/verification-sync", () => ({ syncNannyVerificationState: h.sync }));
 vi.mock("@/lib/email/dbs-emails", () => ({
   sendDbsRecheckFailedEmail: h.nannyEmail, sendDbsRecheckAdminAlert: h.adminEmail, sendDbsRecheckPausedAlert: h.pausedEmail,
 }));

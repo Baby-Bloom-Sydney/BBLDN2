@@ -31,6 +31,8 @@ interface ConnectModalProps {
     hourly_rate_min: number | null;
     profile_picture_url?: string | null;
     date_of_birth?: string | null;
+    /** Her age as the profile gives it (preferred over a date of birth). */
+    age?: number | null;
   };
   pendingRequestCount: number;
 }
@@ -68,7 +70,7 @@ export function ConnectModal({
   if (!isOpen) return null;
 
   const atLimit = pendingRequestCount >= 5;
-  const age = computeAge(nanny.date_of_birth);
+  const age = nanny.age !== undefined ? nanny.age : computeAge(nanny.date_of_birth);
   const firstName =
     nanny.first_name.charAt(0).toUpperCase() + nanny.first_name.slice(1);
 

@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { AgreementId } from "./types";
+import { isChildMember, CHILD_NOT_FOUND, type ChildMemberRole } from "@/lib/bapp/child-member";
 
 interface ConsentInput {
   agreementId: AgreementId;
@@ -14,6 +15,27 @@ interface ConsentInput {
    *  row's `consent_given` value to determine if a child is in a
    *  revoked state. T-015 — required for the renewal-decline flow. */
   consentGiven?: boolean;
+}
+
+/** Per-child agreements, and the one role on the child that records each. */
+const CHILD_AGREEMENT_ROLE: Partial<Record<AgreementId, ChildMemberRole>> = {
+  "PARENT-APP-CONSENT": "parent",
+  "NANNY-ATTESTATION": "nanny",
+};
+
+/** A per-child agreement is recorded only for a child, by its parent (app consent) or its nanny (attestation). */
+async function mayRecordForChild(
+  checkpoints: ConsentInput[],
+  childId: string | undefined,
+  userId: string,
+): Promise<boolean> {
+  const roles = Array.from(
+    new Set(checkpoints.map((cp) => CHILD_AGREEMENT_ROLE[cp.agreementId]).filter((r): r is ChildMemberRole => !!r)),
+  );
+  for (const role of roles) {
+    if (!childId || !(await isChildMember(childId, userId, role))) return false;
+  }
+  return true;
 }
 
 export async function recordConsent(
@@ -29,6 +51,10 @@ export async function recordConsent(
     } = await supabase.auth.getUser();
     if (authError || !user) {
       return { success: false, error: "Not authenticated" };
+    }
+
+    if (!(await mayRecordForChild(checkpoints, relatedEntityId, user.id))) {
+      return { success: false, error: CHILD_NOT_FOUND };
     }
 
     // Determine user type from user_roles
