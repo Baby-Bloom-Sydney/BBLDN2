@@ -53,6 +53,18 @@ describe("AddressPickerDialog (parent Settings)", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("Enter in the box after a pick saves, as it always has (round 2 #6: only the inline search blocks Enter)", async () => {
+    const { onSubmit } = show();
+    await type("7 new road");
+    fireEvent.click(screen.getByRole("button", { name: "7 New Road, London N1 1aa" }));
+    const box = screen.getByLabelText("Address");
+    await act(async () => {
+      const allowed = fireEvent.keyDown(box, { key: "Enter" });
+      if (allowed) fireEvent.submit(box.closest("form") as HTMLFormElement);
+    });
+    expect(onSubmit).toHaveBeenCalledWith({ line1: "7 New Road", line2: "", town: "London", postcode: "N1 1AA" });
+  });
+
   it("typing again drops the pick; an address outside the area is refused", async () => {
     show();
     await type("7 new road");

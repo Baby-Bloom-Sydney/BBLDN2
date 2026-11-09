@@ -41,25 +41,41 @@ describe("submitContactSection — her one address (R2, security H1)", () => {
     expect(writesTo(admin, "verifications")[0]?.payload).toMatchObject({ address_line: "1 Upper Street, Islington", city: "London", postcode: "n1 0aa" });
   });
 
-  it("a refused or failed save is logged by its status, never the address; the step still stands", async () => {
+  it("a refused or failed home address save: her area is still synced, as main does; logged by status only; the step stands (round 2 #2)", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     admin.rpcResults.nanny_home_address_save = { data: null, error: { message: "Failing row contains (1 Upper Street)" } };
     expect(await submitContactSection(CONTACT)).toEqual({ success: true, error: null });
     expect(spy).toHaveBeenCalledWith("[submitContactSection] home address save failed", { status: "error" });
+    expect(writesTo(admin, "user_profiles")[0]?.payload).toMatchObject({ suburb: "London", postcode: "N1 0AA" });
     admin.rpcResults.nanny_home_address_save = { data: { status: "invalid" }, error: null };
     await submitContactSection(CONTACT);
     expect(spy).toHaveBeenLastCalledWith("[submitContactSection] home address save failed", { status: "invalid" });
+    expect(writesTo(admin, "user_profiles")).toHaveLength(2);
+    expect(writesTo(admin, "user_profiles")[1]?.filters).toEqual([["eq", "user_id", USER]]);
+    expect(JSON.stringify(writesTo(admin, "user_profiles").map((w) => w.payload))).not.toMatch(/address_line/);
     expect(JSON.stringify(spy.mock.calls)).not.toMatch(/Upper Street/);
     spy.mockRestore();
   });
 
-  it("an address the address rule refuses (a control character, a postcode that isn't UK) is not saved as her home address; logged as invalid; the step stands (security review L1)", async () => {
+  it("an address the address rule refuses (a control character, a postcode that isn't UK): no home address row, but her area is synced as main does; logged as invalid; the step stands (security review L1, round 2 #2)", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    for (const bad of [{ ...CONTACT, address_line: "1 Upper" + String.fromCharCode(10) + "Street" }, { ...CONTACT, postcode: "90210" }]) {
-      expect(await submitContactSection(bad)).toEqual({ success: true, error: null });
-    }
+    expect(await submitContactSection({ ...CONTACT, address_line: "1 Upper" + String.fromCharCode(10) + "Street" })).toEqual({ success: true, error: null });
+    expect(await submitContactSection({ ...CONTACT, postcode: " 90210 " })).toEqual({ success: true, error: null });
     expect(admin.rpcCalls).toEqual([]);
+    expect(writesTo(admin, "user_profiles").map((w) => w.payload)).toMatchObject([
+      { suburb: "London", postcode: "N1 0AA" }, { suburb: "London", postcode: "90210" },
+    ]);
     expect(spy).toHaveBeenCalledWith("[submitContactSection] home address save failed", { status: "invalid" });
+    expect(JSON.stringify(spy.mock.calls)).not.toMatch(/Upper/);
+    spy.mockRestore();
+  });
+
+  it("the area write failing is logged by its code only, never the address; the step still stands (code review L1)", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    admin.rpcResults.nanny_home_address_save = { data: { status: "invalid" }, error: null };
+    admin.writeErrors.user_profiles = { message: "Failing row contains (1 Upper Street)" };
+    expect(await submitContactSection(CONTACT)).toEqual({ success: true, error: null });
+    expect(spy).toHaveBeenCalledWith("[submitContactSection] area sync failed", { code: "Error" });
     expect(JSON.stringify(spy.mock.calls)).not.toMatch(/Upper/);
     spy.mockRestore();
   });

@@ -1,7 +1,7 @@
 /**
  * Her home address (06b-3 rework, security H1 — coordinator, option (a), ledger B06 §9.11): her own owner-only row,
- * `nanny_home_addresses` (amendment 21), never her profile row, which parents may read for a visible nanny. Her profile
- * keeps only her area (suburb, postcode), which the two saves keep in step in the same transaction.
+ * `nanny_home_addresses` (amendment 21), never her profile row. Her profile keeps only her area (suburb, postcode),
+ * which the two saves keep in step in the same transaction.
  *
  * - `readOwnHome`: her row, read with her own session (RLS: her row only), its version kept exactly as stored.
  * - `shownHome`: what Profile and Business show — her row, or with none her area from her profile, as she saw it

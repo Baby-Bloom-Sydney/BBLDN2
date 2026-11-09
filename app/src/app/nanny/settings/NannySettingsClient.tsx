@@ -31,7 +31,7 @@
  * 06b-3 rework (ledger B06 §9.1 R1, R2, R6; BB-wave1-041126/06b3-rework, 2026-11-09):
  *   - Profile and Contact details are their own files (`ProfileSection`, `ContactDetailsSection`) with one Edit per
  *     page (edit mode in place, no per-row pop-ups); Business likewise. Their nodes draw their own title row.
- *   - One address (her profile's), shown in full on Profile and Business; the inline address search.
+ *   - One address (her home address, her own row), shown in full on Profile and Business; the inline address search.
  *   - Desktop with no `?s=` opens Profile; "Contact us"; plainer Identity, DBS, Security and Linked children.
  */
 

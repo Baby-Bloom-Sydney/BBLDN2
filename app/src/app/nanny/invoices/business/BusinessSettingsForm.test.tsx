@@ -6,6 +6,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { Suspense, useState, type ComponentProps } from "react";
 
 const { saveBusinessSettings, refresh, push } = vi.hoisted(() => ({ saveBusinessSettings: vi.fn(), refresh: vi.fn(), push: vi.fn() }));
 vi.mock("@/lib/invoices/actions/save-business-settings", () => ({ saveBusinessSettings }));
@@ -27,6 +28,7 @@ const BANK: BankView = { accountName: "Sophie Taylor", sortCode: "112233", accou
 const VERSIONS: Versions = { business: null, bank: null, home: "2027-02-15T10:00:00.333333+00:00" };
 
 beforeEach(() => {
+  gate = null;
   saveBusinessSettings.mockReset().mockResolvedValue({ ok: true });
   refresh.mockReset();
   push.mockReset();
@@ -40,6 +42,23 @@ afterEach(() => {
 
 function show(business: BusinessView = SOLE, bank: BankView | null = null, home: typeof HOME | null = HOME) {
   return render(<BusinessSettingsForm business={business} bank={bank} home={home} versions={VERSIONS} />);
+}
+/** The refreshed page held back (a slow server answer): a sibling that waits on `gate` once the refresh asks for it. */
+let gate: Promise<void> | null = null;
+function Latest({ version }: { readonly version: number }) {
+  if (version > 0 && gate) throw gate;
+  return null;
+}
+function HeldRefresh(props: ComponentProps<typeof BusinessSettingsForm>) {
+  const [version, setVersion] = useState(0);
+  refresh.mockImplementation(() => setVersion((v) => v + 1));
+  return (
+    <Suspense fallback={<p>Loading</p>}>
+      <Latest version={version} />
+      <BusinessSettingsForm {...props} />
+      <a href="/nanny/settings?s=profile" onClick={(e) => e.preventDefault()}>Profile</a>
+    </Suspense>
+  );
 }
 const row = (label: string) => screen.getByText(label, { selector: "div" }).parentElement as HTMLElement;
 const edit = () => fireEvent.click(screen.getByRole("button", { name: "Edit business" }));
@@ -178,6 +197,64 @@ describe("Save (R1, R4, R5)", () => {
     fireEvent.change(screen.getByLabelText("VAT number"), { target: { value: "GB 123 4567 89" } });
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.queryByText("Enter the company's registered name")).toBeNull();
+  });
+
+  it("typing in Company name keeps her there while number and office are still marked (round 2 #1)", async () => {
+    show();
+    edit();
+    fireEvent.click(screen.getByRole("radio", { name: "Limited company" }));
+    await save();
+    expect(screen.getByLabelText("Company name")).toHaveFocus();
+    fireEvent.change(screen.getByLabelText("Company name"), { target: { value: "T" } });
+    expect(screen.getByLabelText("Company name")).toHaveFocus();
+    fireEvent.change(screen.getByLabelText("Company name"), { target: { value: "Taylor Childcare Ltd" } });
+    expect(screen.getByLabelText("Company name")).toHaveFocus();
+    expect(screen.getByLabelText("Company number")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("switching back from a limited company drops the hidden fields' marks, and the alert with them (round 2 #4)", async () => {
+    show();
+    edit();
+    fireEvent.click(screen.getByRole("radio", { name: "Limited company" }));
+    await save();
+    expect(screen.getByRole("alert")).toHaveTextContent("Please check the details marked below.");
+    fireEvent.click(screen.getByRole("radio", { name: "Sole trader" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: "Limited company" }));
+    expect(screen.getByLabelText("Company name")).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("VAT registered back to No drops the VAT number's mark (round 2 #4)", async () => {
+    show();
+    edit();
+    fireEvent.click(screen.getByRole("radio", { name: "Yes" }));
+    await save();
+    expect(screen.getByRole("alert")).toHaveTextContent("Please check the details marked below.");
+    fireEvent.click(screen.getByRole("radio", { name: "No" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("a link clicked as soon as a save lands, its refresh still on the way, asks nothing (round 2 #3, at the page)", async () => {
+    let release = () => {};
+    gate = new Promise<void>((resolve) => { release = () => { gate = null; resolve(); }; });
+    render(<HeldRefresh business={SOLE} bank={BANK} home={HOME} versions={VERSIONS} />);
+    edit();
+    fireEvent.change(screen.getByLabelText("Account number"), { target: { value: "11114321" } });
+    await save();
+    expect(screen.getByRole("button", { name: /Saving/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("link", { name: "Profile" }), { button: 0 });
+    expect(screen.queryByRole("dialog", { name: "Discard your changes?" })).toBeNull();
+    await act(async () => { release(); await Promise.resolve(); });
+  });
+
+  it("switching away from a partnership drops its name's mark, and the alert with it (round 2 #4)", async () => {
+    show();
+    edit();
+    fireEvent.click(screen.getByRole("radio", { name: "Partnership" }));
+    await save();
+    expect(screen.getByRole("alert")).toHaveTextContent("Please check the details marked below.");
+    fireEvent.click(screen.getByRole("radio", { name: "Sole trader" }));
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("an address is required for a sole trader", async () => {

@@ -11,7 +11,7 @@
  * - Profile (name, date of birth, address): one atomic save across her profile and her own home address row
  *   (`nanny_profile_save`; security H1 — coordinator, option (a), §9.11), each row with the version she loaded
  *   (`expected_updated_at`, `expected_address_updated_at`, both required); either changed since → `stale`, nothing
- *   written. Her street line never goes on her profile, which parents may read; her area follows it there.
+ *   written. Her street line never goes on her profile; her area follows it there.
  * - Contact details (mobile): her profile row alone, with its version (`expected_updated_at`, required).
  * - One page, one save: a Profile change and a mobile in one request is refused.
  * - Input from the browser is narrowed before use; refusals are fixed, plain messages.

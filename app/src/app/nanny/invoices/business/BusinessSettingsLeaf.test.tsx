@@ -2,7 +2,7 @@
  * The Business section's server leaf (plan 06 §14.6 b3.3; A1, A2; ledger B06 §9.1 R2, R3).
  * - Switch off ("", "false", "TRUE", "1"): it renders nothing and reads nothing — not the session, not a client.
  * - Switch on: her issuer and her bank details in full (her own Settings page only, R3) for the session's nanny,
- *   with the profile address and its version the Settings page read. The **RSC payload** — the props serialised to
+ *   with her home address and its version the Settings page read. The **RSC payload** — the props serialised to
  *   the browser — is re-pinned to exactly what the page needs: her business details, her bank details, her address
  *   and the three versions; never an id, a proof or a family field, whatever extra the reads carried.
  * - A failed read or no nanny session: a plain message under the page title, never an empty or half section.

@@ -74,6 +74,16 @@ describe("useUnsavedGuard — links inside the app", () => {
     expect(push).toHaveBeenCalledWith("/nanny/settings?s=contact");
   });
 
+  it("a confirm still open when her changes stop being unsaved (the save landed): it closes and she goes where she clicked; nothing discarded (react review L2)", async () => {
+    const { rerender } = render(<Page dirty />);
+    click("Contact details");
+    expect(screen.getByRole("dialog", { name: "Discard your changes?" })).toBeInTheDocument();
+    rerender(<Page dirty={false} />);
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Discard your changes?" })).toBeNull());
+    expect(push).toHaveBeenCalledWith("/nanny/settings?s=contact");
+    expect(onDiscard).not.toHaveBeenCalled();
+  });
+
   it("a new tab, a modified click, or a link to where she is: no confirm", () => {
     render(<Page dirty />);
     click("In a new tab");

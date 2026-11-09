@@ -62,6 +62,15 @@ export function useUnsavedGuard(dirty: boolean, onDiscard: () => void): UnsavedG
     };
   }, [dirty]);
 
+  // her changes stopped being unsaved while she was asked (the save landed): nothing to discard, so she goes on
+  // where she clicked (react review L2)
+  useEffect(() => {
+    if (dirty || pending === null) return;
+    setPending(null);
+    clicked.current = null;
+    router.push(pending);
+  }, [dirty, pending, router]);
+
   const keepEditing = useCallback(() => setPending(null), []);
   const returnFocus = useCallback(() => {
     clicked.current?.focus();

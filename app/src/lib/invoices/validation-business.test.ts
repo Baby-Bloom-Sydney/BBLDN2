@@ -4,7 +4,7 @@
  * and partnership names are never BabyBloom (R8). The company and VAT numbers are normalised (spaces stripped,
  * upper-cased, "GB" added); the VAT rate is typed as a percent with up to 2 decimals and stored in basis points, 20%
  * unless she changes it. No message echoes what was typed.
- * 06b-3 rework (ledger B06 §9.1 R2, R6): no business address (her address is her profile's); the VAT-mode message's
+ * 06b-3 rework (ledger B06 §9.1 R2, R6): no business address (her address is her home address); the VAT-mode message's
  * wording.
  *
  * BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b3-rework, 2026-11-09.
@@ -40,7 +40,7 @@ describe("businessDetailsSchema — the defaults and each type", () => {
     expect(businessDetailsSchema.parse({ ...SOLE, tradingName: "   " })).toMatchObject({ tradingName: null });
   });
 
-  it("holds no address: hers is her profile's, so a business address sent anyway is dropped (06b-3 rework R2)", () => {
+  it("holds no address: hers is her home address, so a business address sent anyway is dropped (06b-3 rework R2)", () => {
     const parsed = businessDetailsSchema.parse({ ...SOLE, businessAddress: "1 Upper Street\nLondon N1 0AA" });
     expect(parsed).not.toHaveProperty("businessAddress");
     expect(Object.keys(parsed).sort()).toEqual([

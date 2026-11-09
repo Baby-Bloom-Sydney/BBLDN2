@@ -3,7 +3,7 @@
  *
  * - `readOwnProfile`: her name and the row's `updated_at` (kept exactly as the database wrote it — it is compared
  *   again on the next save). Never her address: that is her own row, `lib/settings/home-address.ts` (security H1).
- *   Her street line must never be written back to this row — parents may read it for a visible nanny.
+ *   Her street line must never be written back to this row (H1).
  * - `writeOwnProfile`: Contact details' conditional update — only while `updated_at` is still the version she loaded.
  *   No row matched = `stale` (changed since, by her in another tab or another save); nothing is written.
  * - The caller passes the client: the user-scoped one (`createClient`), so her own-row RLS applies. Server-only by

@@ -1,6 +1,6 @@
 /**
  * The Business page's model (ledger B06 §9.1 R2, R3, R5): pure helpers from her issuer, her bank details and her
- * profile address to the page's rows and edit form, and back to the one Save — only the records she changed, each
+ * home address to the page's rows and edit form, and back to the one Save — only the records she changed, each
  * with the version she loaded, and the whole page for the check.
  *
  * BB-wave1-041126/06b3-build, 2026-11-07; rewritten for edit mode by BB-wave1-041126/06b3-rework, 2026-11-09.
@@ -112,7 +112,7 @@ describe("the Save", () => {
     expect(changedParts(edit({ vatNumber: "GB1" }), initial, view, null, VERSIONS)).toEqual({});
   });
 
-  it("a picked address is sent with her profile's version", () => {
+  it("a picked address is sent with her home address's version", () => {
     const home = { line1: "7 New Road", line2: "", town: "London", postcode: "N1 1AA" };
     expect(changedParts(edit({ home }), initial, view, null, VERSIONS)).toEqual({ address: { ...home, expectedUpdatedAt: VERSIONS.home } });
   });

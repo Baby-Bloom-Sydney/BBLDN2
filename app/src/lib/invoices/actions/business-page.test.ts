@@ -64,6 +64,15 @@ describe("checkBusinessPage", () => {
     expect(checkBusinessPage({ business: SOLE, address: HOME }, false)).toEqual({});
   });
 
+  it("with no business details sent, her type on file decides (round 2 #5: R4 whatever the payload holds)", () => {
+    expect(checkBusinessPage({ bank: BANK }, false, "sole_trader")).toEqual({ address: PROFILE_MESSAGES.address });
+    expect(checkBusinessPage({ bank: BANK }, false, "partnership")).toEqual({ address: PROFILE_MESSAGES.address });
+    expect(checkBusinessPage({ bank: BANK }, false, "limited_company")).toEqual({});
+    expect(checkBusinessPage({ bank: BANK }, true, "sole_trader")).toEqual({});
+    expect(checkBusinessPage({ bank: BANK, address: HOME }, false, "sole_trader")).toEqual({});
+    expect(checkBusinessPage({ business: { ...SOLE, businessType: "limited_company", companyName: "T Ltd", companyNumber: "12345678", registeredOffice: "1 Row" } }, false, "sole_trader")).toEqual({});
+  });
+
   it("a limited company needs no address of hers: its registered office is its address", () => {
     const ltd = { ...SOLE, businessType: "limited_company", companyName: "Taylor Ltd", companyNumber: "12345678", registeredOffice: "1 Upper Street" };
     expect(checkBusinessPage({ business: ltd }, false)).toEqual({});

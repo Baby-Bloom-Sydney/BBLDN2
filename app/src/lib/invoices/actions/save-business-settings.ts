@@ -62,6 +62,14 @@ async function changedSince(proof: NannyProof, page: BusinessPageInput, own: Own
   return stale ? "stale" : null;
 }
 
+/** Her business type on file, read only when R4 turns on it: no business details sent, no address sent or on file
+ * (round 2 #5). `undefined` when it doesn't matter; null when it couldn't be read. */
+async function businessTypeOnFile(proof: NannyProof, page: BusinessPageInput, addressOnFile: boolean): Promise<string | undefined | null> {
+  if (page.business || page.address || addressOnFile) return undefined;
+  const issuer = await readIssuer(proof);
+  return issuer.ok ? issuer.value.businessType : null;
+}
+
 type Saved = NonNullable<ActionRefusal["saved"]>;
 
 /** A refusal, with what was already saved when something was. */
@@ -104,7 +112,10 @@ export async function saveBusinessSettings(input: unknown): Promise<BusinessSett
   const session = createClient();
   const [profile, own] = await Promise.all([readOwnProfile(session, proof.userId), readOwnHome(session, proof.userId)]);
   if (!profile || !own) return actionRefusal("error");
-  const fields = checkBusinessPage(page.data, hasStreetAndPostcode(own.home));
+  const onFile = hasStreetAndPostcode(own.home);
+  const typeOnFile = await businessTypeOnFile(proof, page.data, onFile);
+  if (typeOnFile === null) return actionRefusal("error");
+  const fields = checkBusinessPage(page.data, onFile, typeOnFile);
   if (Object.keys(fields).length > 0) return fieldsRefusal(fields);
   const since = await changedSince(proof, page.data, own);
   return since === null ? write(proof, page.data, profile) : actionRefusal(since);

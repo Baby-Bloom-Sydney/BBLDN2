@@ -30,6 +30,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 const show = (profile: ProfileFields = PROFILE, verified = false) =>
@@ -85,6 +86,45 @@ describe("Profile — edit and Save", () => {
     expect(screen.getByText("Choose your address")).toBeInTheDocument();
     expect(screen.getByLabelText("First name")).toHaveFocus();
     expect(updateNannyAccountSettings).not.toHaveBeenCalled();
+  });
+
+  it("typing in a marked field keeps her there while another is still marked (round 2 #1)", async () => {
+    show();
+    fireEvent.click(screen.getByRole("button", { name: "Edit profile" }));
+    fireEvent.change(screen.getByLabelText("First name"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "" } });
+    await save();
+    expect(screen.getByLabelText("First name")).toHaveFocus();
+    fireEvent.change(screen.getByLabelText("First name"), { target: { value: "S" } });
+    expect(screen.getByLabelText("First name")).toHaveFocus();
+    fireEvent.change(screen.getByLabelText("First name"), { target: { value: "Sophie" } });
+    expect(screen.getByLabelText("First name")).toHaveFocus();
+    expect(screen.getByLabelText("Last name")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("an address picked to clear its mark keeps her in the address box, though her first name is still marked (round 2 #1)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => (url.startsWith("/api/london-districts")
+        ? [{ district: "N1", prefix: "N1", label: "Islington" }]
+        : [{ sla: "7 NEW ROAD, LONDON N1 1AA", pid: "a", score: 1 }]),
+    })));
+    show({ ...PROFILE, address_line1: "", suburb: "", postcode: "" });
+    fireEvent.click(screen.getByRole("button", { name: "Edit profile" }));
+    fireEvent.change(screen.getByLabelText("First name"), { target: { value: "" } });
+    await save();
+    expect(screen.getByText("Choose your address")).toBeInTheDocument();
+    const box = screen.getByLabelText(/^Address/);
+    box.focus();
+    fireEvent.change(box, { target: { value: "7 new road" } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+    fireEvent.click(screen.getByRole("button", { name: "7 New Road, London N1 1aa" }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+    expect(screen.queryByText("Choose your address")).toBeNull();
+    expect(screen.getByLabelText(/^Address/)).toHaveFocus();
+    expect(screen.getByLabelText("First name")).toHaveAttribute("aria-invalid", "true");
+    vi.useRealTimers();
   });
 
   it("the alert goes once every marked field is fixed (coordinator, round 2)", async () => {

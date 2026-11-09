@@ -1,6 +1,6 @@
 /**
  * The Settings Business page's model (plan 06 §14.6 b3.3; ledger B06 §9.1 R2, R3, R5; brief 06 §0b). Pure and
- * client-safe: the server leaf maps her issuer, her bank details and her profile address into the page's props; the
+ * client-safe: the server leaf maps her issuer, her bank details and her home address into the page's props; the
  * page turns them into rows, into its edit form, and back into the one Save.
  *
  * - **What the browser gets:** her business details, her bank details in full (her own Settings page only; brief §0b 1)

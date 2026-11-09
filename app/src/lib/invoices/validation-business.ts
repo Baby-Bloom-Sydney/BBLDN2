@@ -8,7 +8,7 @@
  *   name. Fields that don't apply to her type are set to null, whatever was typed.
  * - **Names** (trading, company, partnership) are one line and never BabyBloom (plan R8: they print on a PDF that
  *   BabyBloom sends). A blank trading name means "my own name".
- * - **No address** (06b-3 rework R2): hers is her profile's, and a limited company's is its registered office.
+ * - **No address** (06b-3 rework R2): hers is her home address, and a limited company's is its registered office.
  * - **VAT:** not registered (any number or rate is dropped), or registered with a UK VAT number (spaces and hyphens
  *   stripped, upper-cased, "GB" added: GB + 9 or 12 digits) and a rate typed as a percent with up to 2 decimals,
  *   stored in basis points — 20% unless she changes it.

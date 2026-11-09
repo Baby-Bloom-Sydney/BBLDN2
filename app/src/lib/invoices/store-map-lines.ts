@@ -4,7 +4,7 @@
  * the `p_lines` the store sends. Pure: no I/O. A row or reply that doesn't fit is never silently dropped or guessed;
  * the caller fails the whole read (the 02 `mapRows` rule).
  *
- * 06b-3 rework (ledger B06 §9.1 R2, §9.2): the issuer's address is her profile's (a limited company's its registered
+ * 06b-3 rework (ledger B06 §9.1 R2, §9.2): the issuer's address is her home address (a limited company's its registered
  * office), with no `address_source`; it and a business save carry the version Settings sends back (`version`: the
  * database's text, never re-formatted — `instant` would cut its microseconds and every save would look stale).
  *
@@ -115,7 +115,7 @@ export interface Issuer {
   readonly name: string | null;
   readonly tradingName: string | null;
   readonly tradingNameSource: "business" | "name";
-  /** A limited company's registered office, else her profile address; null = none she can print. */
+  /** A limited company's registered office, else her home address; null = none she can print. */
   readonly address: string | null;
   readonly companyName: string | null;
   readonly companyNumber: string | null;

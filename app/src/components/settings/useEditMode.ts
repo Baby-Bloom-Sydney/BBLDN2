@@ -5,7 +5,8 @@
  *
  * - `begin` → fields in place, focus on the first (the checked radio of a group); `cancel` discards, focus back on Edit.
  * - `refuse(fields)` (the page's own check) and a server refusal by field: "Please check the details marked below.",
- *   each message under its field, focus on the first; nothing she typed is lost. `clearError` as she fixes a field;
+ *   each message under its field, focus on the first — on a refusal only, never as she types (round 2 #1: with two
+ *   marks, fixing one moved her to the next mid-word); nothing she typed is lost. `clearError` as she fixes a field;
  *   once she has fixed the last marked field the alert goes too, as it points at nothing (round 2, walk shot 2).
  * - `save(run)`: one at a time (a ref: React 18 batches state, so two submits can both start before a re-render).
  *   - saved → back to view once the refreshed page has arrived (the refresh runs in a transition, so the old values
@@ -18,6 +19,9 @@
  *   - any other refusal → its plain message, still editing, focus back on Save.
  * - While saving, "Saving…" is announced and Save stays focusable (`aria-disabled`, review round 1: a disabled button
  *   that has focus drops it to the page).
+ * - `armed`: what the unsaved-changes guard watches — editing, and not yet saved or answered stale. It goes off as soon
+ *   as the save lands, before the refreshed view arrives (round 2 #3: a link clicked just after Save never asks to
+ *   discard what is already saved).
  *
  * BB-wave1-041126/06b3-rework, 2026-11-09.
  */
@@ -38,6 +42,8 @@ export type SaveOutcome =
 
 export interface EditMode {
   readonly editing: boolean;
+  /** Editing with nothing saved yet: off once a save lands or is answered stale (the guard watches this). */
+  readonly armed: boolean;
   readonly saving: boolean;
   readonly notice: Notice | null;
   /** What a screen reader hears about the save: "Saving…", "Saved", or nothing. */
@@ -90,9 +96,10 @@ function useMarkedAlertClears(errors: Readonly<Record<string, string>>, setNotic
   }, [errors, setNotice]);
 }
 
-/** Focus on the first field when editing starts, on Edit when it ends, on the first marked field after a refusal,
- * on Save after a refusal or the give-up (`saveTurn` counts those). */
-function useEditFocus(editing: boolean, errors: Readonly<Record<string, string>>, saveTurn: number, refs: FocusRefs) {
+/** Focus on the first field when editing starts, on Edit when it ends, on the first marked field after a refusal by
+ * field (`refusals` counts those — never as a mark clears while she types), on Save after a plain refusal or the
+ * give-up (`saveTurn` counts those). */
+function useEditFocus(editing: boolean, refusals: number, saveTurn: number, refs: FocusRefs) {
   const { formRef, editRef, saveRef } = refs;
   const was = useRef(editing);
   useEffect(() => {
@@ -101,8 +108,8 @@ function useEditFocus(editing: boolean, errors: Readonly<Record<string, string>>
     was.current = editing;
   }, [editing, formRef, editRef]);
   useEffect(() => {
-    if (Object.keys(errors).length > 0) formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
-  }, [errors, formRef]);
+    if (refusals > 0) formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+  }, [refusals, formRef]);
   useEffect(() => {
     if (saveTurn > 0) saveRef.current?.focus();
   }, [saveTurn, saveRef]);
@@ -113,10 +120,12 @@ function useEditFocus(editing: boolean, errors: Readonly<Record<string, string>>
 function useMarks() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>(NO_ERRORS);
+  const [refusals, setRefusals] = useState(0);
   useMarkedAlertClears(errors, setNotice);
   const refuse = useCallback((fields: Readonly<Record<string, string>>) => {
     setErrors(fields);
     setNotice({ tone: "alert", text: EDIT_MESSAGES.checkMarked });
+    setRefusals((n) => n + 1);
   }, []);
   const clearError = useCallback((field: string) => {
     setErrors((current) => {
@@ -125,7 +134,11 @@ function useMarks() {
       return rest;
     });
   }, []);
-  return { notice, setNotice, errors, setErrors, refuse, clearError };
+  return { notice, setNotice, errors, setErrors, refusals, refuse, clearError };
+}
+
+function useEditRefs() {
+  return { editRef: useRef<HTMLButtonElement>(null), saveRef: useRef<HTMLButtonElement>(null), formRef: useRef<HTMLFormElement>(null) };
 }
 
 export function useEditMode(): EditMode {
@@ -133,17 +146,16 @@ export function useEditMode(): EditMode {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [refreshing, startRefresh] = useTransition();
-  const { notice, setNotice, errors, setErrors, refuse, clearError } = useMarks();
+  const { notice, setNotice, errors, setErrors, refusals, refuse, clearError } = useMarks();
   const [announcement, setAnnouncement] = useState("");
   const [saveTurn, setSaveTurn] = useState(0);
+  const [closing, setClosing] = useState(false);
   const inFlight = useRef(false);
-  const editRef = useRef<HTMLButtonElement>(null);
-  const saveRef = useRef<HTMLButtonElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
-  useEditFocus(editing, errors, saveTurn, { formRef, editRef, saveRef });
+  const { editRef, saveRef, formRef } = useEditRefs();
+  useEditFocus(editing, refusals, saveTurn, { formRef, editRef, saveRef });
 
   const reset = useCallback(() => { setNotice(null); setErrors(NO_ERRORS); setAnnouncement(""); }, [setNotice, setErrors]);
-  const begin = useCallback(() => { reset(); setEditing(true); }, [reset]);
+  const begin = useCallback(() => { reset(); setClosing(false); setEditing(true); }, [reset]);
   const cancel = useCallback(() => { reset(); setEditing(false); }, [reset]);
 
   const finish = useCallback((outcome: SaveOutcome | null) => {
@@ -152,6 +164,7 @@ export function useEditMode(): EditMode {
     if (outcome.kind === "fields") { refuse(outcome.fields); return; }
     if (outcome.kind === "refused") { setNotice({ tone: "alert", text: outcome.message }); setSaveTurn((n) => n + 1); return; }
     setErrors(NO_ERRORS);
+    setClosing(true); // saved, or overtaken (the latest replaces her edits): the guard stands down before the view
     startRefresh(() => {
       if (outcome.kind === "stale") setNotice({ tone: "status", text: EDIT_MESSAGES.stale });
       else setAnnouncement("Saved");
@@ -174,7 +187,6 @@ export function useEditMode(): EditMode {
     }
   }, [finish, setNotice]);
 
-  return {
-    editing, saving: saving || refreshing, notice, announcement, errors, editRef, saveRef, formRef, begin, cancel, refuse, clearError, save,
-  };
+  const armed = editing && !closing;
+  return { editing, armed, saving: saving || refreshing, notice, announcement, errors, editRef, saveRef, formRef, begin, cancel, refuse, clearError, save };
 }

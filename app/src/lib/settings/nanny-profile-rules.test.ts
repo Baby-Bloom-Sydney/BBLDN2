@@ -20,7 +20,7 @@ import {
 
 const HOME = { line1: "1 Upper Street", line2: "", town: "London", postcode: "N1 0AA" };
 
-describe("the address (R2: one record, her profile)", () => {
+describe("the address (R2: one record, her home address)", () => {
   it("a picked address keeps the verification shape: the street line is line 1 + line 2; no second line is stored", () => {
     expect(homeFromParsed({ line1: "Flat 2, 1 Upper Street", line2: "Islington", town: "London", postcode: "N1 0AA" }))
       .toEqual({ line1: "Flat 2, 1 Upper Street, Islington", line2: "", town: "London", postcode: "N1 0AA" });

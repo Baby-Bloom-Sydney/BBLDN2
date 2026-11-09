@@ -42,7 +42,7 @@ export function ContactDetailsSection({ title, contact }: { readonly title: stri
   const [mobile, setMobile] = useState(shown);
   const [loaded, setLoaded] = useState(() => ({ mobile: shown, version: contact.updated_at }));
   const changed = mode.editing && normaliseUkMobile(mobile.trim()) !== normaliseUkMobile(loaded.mobile.trim());
-  const guard = useUnsavedGuard(changed, mode.cancel);
+  const guard = useUnsavedGuard(mode.armed && changed, mode.cancel);
 
   const begin = () => {
     setMobile(shown);

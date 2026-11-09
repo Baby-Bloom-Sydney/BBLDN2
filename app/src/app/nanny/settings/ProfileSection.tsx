@@ -5,7 +5,7 @@
  * address — plain rows with one Edit for the page; in edit mode every field in place and one Save with the version she
  * loaded (`updateNannyAccountSettings`).
  *
- * - **Her address** is one record (her profile): shown in full, edited with the inline search, the same record the
+ * - **Her address** is one record (her home address, her own row): shown in full, edited with the inline search, the same record the
  *   Business page shows and her invoices print. It replaces the old Area and Postcode rows.
  * - **Never saved empty** (R4): first name, last name, date of birth (unless identity verification has locked them —
  *   then they stay locked rows, and the server refuses them too) and the address; the page checks with the server's
@@ -112,7 +112,7 @@ export function ProfileSection({ title, profile, identityVerified }: { readonly 
   const [form, setForm] = useState<ProfileForm>(() => formOf(profile));
   const [loaded, setLoaded] = useState(() => ({ form: formOf(profile), version: profile.updated_at, addressVersion: profile.address_updated_at }));
   const changes = mode.editing ? changesOf(form, loaded.form, identityVerified) : {};
-  const guard = useUnsavedGuard(mode.editing && Object.keys(changes).length > 0, mode.cancel);
+  const guard = useUnsavedGuard(mode.armed && Object.keys(changes).length > 0, mode.cancel);
   const set = (patch: Partial<ProfileForm>) => {
     Object.keys(patch).forEach((key) => mode.clearError(key === "home" ? "address" : key));
     setForm((current) => ({ ...current, ...patch }));

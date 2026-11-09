@@ -10,7 +10,7 @@
  *   she loaded; nothing changed → back to the rows without a call.
  * - The lifecycle (stale, the 30 s give-up, focus) is `useEditMode`'s; leaving with unsaved changes asks first
  *   (`useUnsavedGuard`).
- * - Her address is her profile's (R2): Profile and this page show and edit the one record.
+ * - Her address is her home address (R2; her own row): Profile and this page show and edit the one record.
  * - Review round 1: a refusal after part of the page was saved re-bases what was saved (`rebased`), so her retry sends
  *   only the rest; a refusal naming no field on the page shows its own words; fields are locked while saving; an error
  *   clears as she fixes its field.
@@ -59,15 +59,26 @@ function outcomeOf(result: BusinessSettingsResult): SaveOutcome {
 const errorKeysOf = (patch: Partial<BusinessForm>): string[] =>
   Object.keys(patch).map((key) => (key === "home" ? "address" : key)).filter((key) => key !== "accountNameTouched");
 
+/** The marks a choice hides with their fields (round 2 #4): a business type's own fields (a limited company has no
+ * address of hers), the VAT number when VAT registered goes back to No. */
+function hiddenKeysOf(patch: Partial<BusinessForm>): string[] {
+  const type = patch.businessType;
+  const byType = type === undefined ? [] : [
+    ...(type === "limited_company" ? ["address"] : ["companyName", "companyNumber", "registeredOffice"]),
+    ...(type === "partnership" ? [] : ["partnershipName"]),
+  ];
+  return patch.vatRegistered === false ? [...byType, "vatNumber"] : byType;
+}
+
 export function BusinessSettingsForm({ business, bank, home, versions }: BusinessSettingsFormProps) {
   const mode = useEditMode();
   const formId = useId();
   const [form, setForm] = useState<BusinessForm>(() => formFrom(business, bank, home));
   const [loaded, setLoaded] = useState<Loaded>(() => ({ form, versions }));
   const parts = mode.editing ? changedParts(form, loaded.form, business, bank, loaded.versions) : {};
-  const guard = useUnsavedGuard(mode.editing && Object.keys(parts).length > 0, mode.cancel);
+  const guard = useUnsavedGuard(mode.armed && Object.keys(parts).length > 0, mode.cancel);
   const set = (patch: Partial<BusinessForm>) => {
-    errorKeysOf(patch).forEach(mode.clearError);
+    [...errorKeysOf(patch), ...hiddenKeysOf(patch)].forEach(mode.clearError);
     setForm((current) => ({ ...current, ...patch }));
   };
 

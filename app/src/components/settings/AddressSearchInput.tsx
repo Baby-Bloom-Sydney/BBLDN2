@@ -40,7 +40,9 @@ export function AddressSearchInput({ id, search, onPick, disabled, autoFocus, de
   const options = () => [...(search.dropdownRef.current?.querySelectorAll<HTMLButtonElement>("[data-address-option]") ?? [])];
   const input = () => document.getElementById(id);
   const onFieldKey = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") e.preventDefault(); // a search box: Enter never submits the page
+    // inline in an edit page, a search box: Enter never submits the page; in the parent's dialog it saves the pick, as
+    // it always has (round 2 #6: parent Settings unchanged)
+    if (e.key === "Enter" && inline) e.preventDefault();
     if (e.key === "ArrowDown" && search.showDropdown) { e.preventDefault(); options()[0]?.focus(); }
     if (e.key === "Escape" && search.showDropdown) { e.preventDefault(); search.setShowDropdown(false); }
   };

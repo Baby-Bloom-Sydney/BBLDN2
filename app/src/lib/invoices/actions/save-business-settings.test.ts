@@ -13,7 +13,7 @@
  * Review round 1: her address is written first (a create in between snapshots old business details with an address
  * that already suits them); a refusal after an earlier write says what was saved, with its version, so the page can
  * re-base and a retry never reads as "changed elsewhere"; the version check reads only the bank row's version; the
- * alert goes to her sign-in email, which her own session can't rewrite.
+ * alert goes to her sign-in email.
  *
  * BB-wave1-041126/06b3-rework, 2026-11-09 (the email cases ported from 06b-3's `save-payment-details.test.ts`).
  */
@@ -166,6 +166,21 @@ describe("everything is checked before anything is written", () => {
     expect(saves()).toEqual([]);
   });
 
+  it("bank details alone, a sole trader on file and no address on file → refused by the address field (round 2 #5)", async () => {
+    session.reads.nanny_home_addresses = null;
+    expect(await saveBusinessSettings({ bank: BANK })).toMatchObject({ ok: false, fields: { address: PROFILE_MESSAGES.address } });
+    expect(saves()).toEqual([]);
+    f.rpcResults.nanny_invoice_issuer = { data: { ...ISSUER, business_type: "limited_company", company_name: "T Ltd", company_number: "12345678", registered_office: "1 Row" }, error: null };
+    expect(await saveBusinessSettings({ bank: BANK })).toEqual({ ok: true });
+  });
+
+  it("her type on file unreadable then → the plain failure, nothing written", async () => {
+    session.reads.nanny_home_addresses = null;
+    f.rpcResults.nanny_invoice_issuer = { data: null, error: { message: "x", code: "XX000" } };
+    expect(await saveBusinessSettings({ bank: BANK })).toMatchObject({ ok: false, error: "error" });
+    expect(saves()).toEqual([]);
+  });
+
   it("her profile unreadable → the plain failure, nothing written", async () => {
     session.reads.user_profiles = null;
     expect(await saveBusinessSettings({ business: BUSINESS })).toMatchObject({ ok: false, error: "error", message: EDIT_MESSAGES.gaveUp });
@@ -286,7 +301,7 @@ describe("the bank-change email (R7; security review M1, TS review M2)", () => {
     expect(`${String(sent.html)}${String(sent.text)}`).not.toMatch(/112233|200056|11114321|4321|••/);
   });
 
-  it("it goes to her sign-in email, not the profile's (which her own session could rewrite; security review M1)", async () => {
+  it("it goes to her sign-in email, not the profile's (security review M1)", async () => {
     getUserEmailInfo.mockResolvedValue({ email: "someone-else@example.test", firstName: "Sophie", lastName: "Taylor", userId: USER_ID });
     await saveBusinessSettings({ bank: BANK });
     expect((sendEmail.mock.calls[0]?.[0] as { to: string }).to).toBe(AUTH_EMAIL);

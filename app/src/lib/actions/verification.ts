@@ -538,20 +538,33 @@ export async function submitContactSection(
     return { success: false, error: 'Failed to save contact details' };
   }
 
-  // Her one address (ledger B06 §9.1 R2) as her home address: her own owner-only row, never her profile, which parents
-  // may read for a visible nanny (security H1 — coordinator, option (a), §9.11). What she has just confirmed replaces it
-  // whatever its version, and her profile's area (suburb, postcode — matching reads it; it overrides the self-reported
-  // suburb from the onboarding funnel, as before) follows in the same save, so Profile, Business and her invoices show
-  // what she just confirmed. It passes the same address rule as Settings first (security review L1). A refused or failed
-  // save is logged by its status only, never the address; the step stands.
-  const confirmed = { line1: data.address_line.trim(), line2: '', town: data.city.trim(), postcode: data.postcode.trim() };
-  const home = checkHomeAddress(confirmed) === null
-    ? await saveHomeAddress(user.id, confirmed, null, true)
-    : ({ status: 'invalid' } as const);
-  if (home.status !== 'saved') console.error('[submitContactSection] home address save failed', { status: home.status });
+  await saveConfirmedAddress(admin, user.id, data);
 
   revalidatePath('/nanny/verification');
   return { success: true, error: null };
+}
+
+/**
+ * Her one address (ledger B06 §9.1 R2) as her home address: her own owner-only row, never her profile (H1 —
+ * coordinator, option (a), §9.11). What she has just confirmed replaces it whatever its version, after the same address
+ * rule as Settings, and her profile's area (suburb, postcode — matching reads it; it overrides the self-reported suburb
+ * from the onboarding funnel) follows in the same save. Her area is always synced, as main does (round 2 #2): when the
+ * rule refuses the address or the save doesn't go through, the area is written on its own and only her home row is
+ * skipped. Logged by status or code only, never the address; the step stands either way.
+ */
+async function saveConfirmedAddress(admin: ReturnType<typeof createAdminClient>, userId: string, data: SubmitContactData): Promise<void> {
+  const confirmed = { line1: data.address_line.trim(), line2: '', town: data.city.trim(), postcode: data.postcode.trim() };
+  const home = checkHomeAddress(confirmed) === null
+    ? await saveHomeAddress(userId, confirmed, null, true)
+    : ({ status: 'invalid' } as const);
+  if (home.status === 'saved') return;
+  console.error('[submitContactSection] home address save failed', { status: home.status });
+  const { error } = await admin.from('user_profiles').update({
+    suburb: data.city.trim(),
+    postcode: data.postcode.trim(),
+    updated_at: new Date().toISOString(),
+  }).eq('user_id', userId);
+  if (error) console.error('[submitContactSection] area sync failed', { code: (error as { code?: string }).code ?? 'Error' });
 }
 
 // ── Get Full Verification Data (for page load pre-population) ──

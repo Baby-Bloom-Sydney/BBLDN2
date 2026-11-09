@@ -32,6 +32,7 @@ function Page() {
           <input aria-label="First name" value={name} onChange={(e) => { mode.clearError("firstName"); setName(e.target.value); }} aria-invalid={mode.errors.firstName ? true : undefined} />
           <input aria-label="Last name" onChange={() => mode.clearError("lastName")} aria-invalid={mode.errors.lastName ? true : undefined} />
           <button type="submit">{mode.saving ? "Saving…" : "Save"}</button>
+          <span>{mode.armed ? "guard armed" : "guard off"}</span>
           <button type="button" onClick={mode.cancel}>Cancel</button>
           <button type="button" onClick={() => mode.refuse({ lastName: "Enter your last name" })}>Check</button>
           <button type="button" onClick={() => mode.refuse({ firstName: "Enter your first name", lastName: "Enter your last name" })}>Check both</button>
@@ -199,6 +200,56 @@ describe("useEditMode", () => {
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     await act(async () => { fireEvent.submit(screen.getByLabelText("First name").closest("form") as HTMLFormElement); });
     expect(screen.getByRole("alert")).toHaveTextContent("Please check the details marked below.");
+  });
+
+  it("typing in a marked field keeps her there, with other fields still marked (round 2 #1: focus moves only on a refusal)", () => {
+    render(<Page />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check both" }));
+    expect(screen.getByLabelText("First name")).toHaveFocus();
+    fireEvent.change(screen.getByLabelText("First name"), { target: { value: "S" } });
+    expect(screen.getByLabelText("First name")).toHaveFocus();
+    fireEvent.change(screen.getByLabelText("First name"), { target: { value: "So" } });
+    expect(screen.getByLabelText("First name")).toHaveFocus();
+    expect(screen.getByLabelText("Last name")).toHaveAttribute("aria-invalid", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Check both" }));
+    expect(screen.getByLabelText("First name")).toHaveFocus();
+  });
+
+  it("the unsaved-changes guard is off once a save lands, before the refreshed view arrives (round 2 #3); stale too", async () => {
+    for (const kind of ["saved", "stale"] as const) {
+      let release = () => {};
+      gate = new Promise<void>((resolve) => { release = () => { gate = null; resolve(); }; });
+      next = async () => ({ kind });
+      const { unmount } = render(<WithRefresh />);
+      fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+      expect(screen.getByText("guard armed")).toBeInTheDocument();
+      await act(async () => { fireEvent.submit(screen.getByLabelText("First name").closest("form") as HTMLFormElement); });
+      expect(screen.getByRole("button", { name: "Saving…" })).toBeInTheDocument();
+      expect(screen.getByText("guard off")).toBeInTheDocument();
+      await act(async () => { release(); await Promise.resolve(); });
+      unmount();
+    }
+  });
+
+  it("a plain refusal, a refusal by field or the give-up keeps the guard armed (what she typed is still unsaved)", async () => {
+    const outcomes: SaveOutcome[] = [{ kind: "refused", message: "No." }, { kind: "fields", fields: { lastName: "Enter your last name" } }];
+    for (const outcome of outcomes) {
+      next = async () => outcome;
+      const { unmount } = render(<Page />);
+      fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+      await act(async () => { fireEvent.submit(screen.getByLabelText("First name").closest("form") as HTMLFormElement); });
+      expect(screen.getByText("guard armed")).toBeInTheDocument();
+      unmount();
+    }
+    vi.useFakeTimers();
+    next = () => new Promise(() => undefined);
+    render(<Page />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    act(() => { fireEvent.submit(screen.getByLabelText("First name").closest("form") as HTMLFormElement); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(SAVE_WAIT_MS); });
+    expect(screen.getByRole("alert")).toHaveTextContent("We couldn't save that. Please try again.");
+    expect(screen.getByText("guard armed")).toBeInTheDocument();
   });
 
   it("one save at a time: a second Save while one is in flight runs nothing", async () => {
