@@ -4,7 +4,8 @@
  * - switch off → `invoices_disabled` before the session or any client; no nanny session → `signed_out`;
  * - everything is checked before anything is written; each refusal is by field, with the page's messages;
  * - each record she changed carries the version she loaded: any record changed since → `stale`, nothing written;
- * - her address is her profile's (written with its version); a limited company needs none of hers;
+ * - her address is her home address — her own row, read with her session and saved with its version (security H1);
+ *   a limited company needs none of hers;
  * - a trading name equal to her own name is saved as none;
  * - a change to saved bank details sends the security email (capped, best effort, at most 5 s), no digits anywhere:
  *   not in the reply, the email or a log.
@@ -49,7 +50,8 @@ const ISSUER = {
   address: "1 Upper Street\nLondon\nN1 0AA", company_name: null, company_number: null, registered_office: null,
   partnership_name: null, vat_mode: "none", vat_rate_bp: null, vat_number: null, business_updated_at: V_BIZ,
 };
-const PROFILE = { first_name: "Sophie", last_name: "Taylor", address_line1: "1 Upper Street", address_line2: null, suburb: "London", postcode: "N1 0AA", updated_at: V_HOME };
+const PROFILE = { first_name: "Sophie", last_name: "Taylor", updated_at: "2027-02-15T10:00:00.444444+00:00" };
+const HOME_ROW = { line1: "1 Upper Street", town: "London", postcode: "N1 0AA", updated_at: V_HOME };
 const BANK_ROW = { account_name: "Sophie Taylor", sort_code: "112233", account_number: "87654321", updated_at: V_BANK };
 const BUSINESS = {
   businessType: "sole_trader", tradingName: "Taylor Childcare", companyName: "", companyNumber: "", registeredOffice: "",
@@ -98,8 +100,9 @@ beforeEach(() => {
   f.rpcResults.nanny_invoice_issuer = { data: ISSUER, error: null };
   f.rpcResults.nanny_business_details_save = { data: { status: "saved", changed: true, updated_at: NEWER }, error: null };
   f.rpcResults.nanny_payment_details_save = bankSaved(false, true);
+  f.rpcResults.nanny_home_address_save = { data: { status: "saved", changed: true, updated_at: NEWER }, error: null };
   createAdminClient.mockReset().mockReturnValue(f.client);
-  session = fakeAdmin({ user_profiles: PROFILE });
+  session = fakeAdmin({ user_profiles: PROFILE, nanny_home_addresses: HOME_ROW });
   session.writeResults.user_profiles = [{ updated_at: NEWER }];
   sessionClient.mockReset().mockReturnValue(session.client);
   getNannyId.mockReset().mockResolvedValue({ nannyId: NANNY_ID, userId: USER_ID });
@@ -158,7 +161,7 @@ describe("everything is checked before anything is written", () => {
   });
 
   it("a sole trader with no address on file and none picked is refused by the address field", async () => {
-    session.reads.user_profiles = { ...PROFILE, address_line1: null };
+    session.reads.nanny_home_addresses = null;
     expect(await saveBusinessSettings({ business: BUSINESS })).toMatchObject({ ok: false, fields: { address: PROFILE_MESSAGES.address } });
     expect(saves()).toEqual([]);
   });
@@ -168,6 +171,12 @@ describe("everything is checked before anything is written", () => {
     expect(await saveBusinessSettings({ business: BUSINESS })).toMatchObject({ ok: false, error: "error", message: EDIT_MESSAGES.gaveUp });
     expect(saves()).toEqual([]);
   });
+
+  it("her home address unreadable → the plain failure, nothing written", async () => {
+    session.readErrors.nanny_home_addresses = { message: "boom" };
+    expect(await saveBusinessSettings({ business: BUSINESS, address: ADDRESS })).toMatchObject({ ok: false, error: "error" });
+    expect(saves()).toEqual([]);
+  });
 });
 
 describe("saving the page", () => {
@@ -175,6 +184,10 @@ describe("saving the page", () => {
     const r = await saveBusinessSettings({ business: BUSINESS, address: ADDRESS, bank: BANK, nannyId: "b0600000-0000-4000-8000-000000000102" });
     expect(r).toEqual({ ok: true });
     expect(saves()).toEqual([
+      {
+        fn: "nanny_home_address_save",
+        args: { p_user: USER_ID, p_line1: "7 New Road", p_town: "London", p_postcode: "N1 1AA", p_expected_updated_at: V_HOME, p_any_version: false },
+      },
       {
         fn: "nanny_business_details_save",
         args: {
@@ -188,14 +201,13 @@ describe("saving the page", () => {
         args: { p_nanny: NANNY_ID, p_account_name: "S Taylor", p_sort_code: "200056", p_account_number: "11114321", p_expected_updated_at: V_BANK },
       },
     ]);
-    const [home] = writesTo(session, "user_profiles");
-    expect(home?.payload).toEqual({ address_line1: "7 New Road", address_line2: null, suburb: "London", postcode: "N1 1AA" });
-    expect(home?.filters).toEqual([["eq", "user_id", USER_ID], ["eq", "updated_at", V_HOME]]);
+    expect(writesTo(session, "user_profiles")).toEqual([]);
+    expect(writesTo(f, "user_profiles")).toEqual([]);
   });
 
   it("her address is written first, then her business details, then her bank details", async () => {
     await saveBusinessSettings({ business: BUSINESS, address: ADDRESS, bank: BANK });
-    expect(order).toEqual(["user_profiles update", "nanny_business_details_save", "nanny_payment_details_save"]);
+    expect(order).toEqual(["nanny_home_address_save", "nanny_business_details_save", "nanny_payment_details_save"]);
   });
 
   it("a refusal after an earlier write says what was saved, with its version (the page re-bases; a retry isn't stale)", async () => {
@@ -218,7 +230,7 @@ describe("saving the page", () => {
     expect(await saveBusinessSettings({ bank: BANK })).toEqual({ ok: true });
     expect(saves().map((c) => c.fn)).toEqual(["nanny_payment_details_save"]);
     expect(f.rpcCalls.map((c) => c.fn)).not.toContain("nanny_invoice_issuer");
-    expect(writesTo(session, "user_profiles")).toEqual([]);
+    expect(f.rpcCalls.map((c) => c.fn)).not.toContain("nanny_home_address_save");
   });
 
   it("a trading name equal to her own name (any case, spaces collapsed) is saved as none", async () => {
@@ -227,7 +239,7 @@ describe("saving the page", () => {
   });
 
   it("a limited company saves with no address of hers on file", async () => {
-    session.reads.user_profiles = { ...PROFILE, address_line1: null, postcode: null };
+    session.reads.nanny_home_addresses = null;
     const ltd = { ...BUSINESS, businessType: "limited_company", companyName: "Taylor Childcare Ltd", companyNumber: "12345678", registeredOffice: "9 Office Row\nLondon EC1A 1AA" };
     expect(await saveBusinessSettings({ business: ltd })).toEqual({ ok: true });
     expect(saves()[0]?.args).toMatchObject({ p_business_type: "limited_company", p_registered_office: "9 Office Row\nLondon EC1A 1AA" });
@@ -238,7 +250,7 @@ describe("stale: a record changed since she pressed Edit", () => {
   it.each([
     ["her business details", () => { f.rpcResults.nanny_invoice_issuer = { data: { ...ISSUER, business_updated_at: NEWER }, error: null }; }],
     ["her bank details", () => { f.reads.nanny_payment_details = { ...BANK_ROW, updated_at: NEWER }; }],
-    ["her profile (the address)", () => { session.reads.user_profiles = { ...PROFILE, updated_at: NEWER }; }],
+    ["her home address", () => { session.reads.nanny_home_addresses = { ...HOME_ROW, updated_at: NEWER }; }],
     ["bank details added elsewhere when she had none", () => { f.reads.nanny_payment_details = BANK_ROW; }],
   ])("%s → stale, nothing written", async (label, arrange) => {
     arrange();
@@ -246,13 +258,12 @@ describe("stale: a record changed since she pressed Edit", () => {
     expect(await saveBusinessSettings({ business: BUSINESS, address: ADDRESS, bank }))
       .toEqual({ ok: false, error: "stale", message: EDIT_MESSAGES.stale });
     expect(saves()).toEqual([]);
-    expect(writesTo(session, "user_profiles")).toEqual([]);
   });
 
   it("a change landing between the check and the write: the database answers stale", async () => {
     f.rpcResults.nanny_business_details_save = { data: { status: "stale" }, error: null };
     expect(await saveBusinessSettings({ business: BUSINESS })).toMatchObject({ ok: false, error: "stale" });
-    session.writeResults.user_profiles = [];
+    f.rpcResults.nanny_home_address_save = { data: { status: "stale" }, error: null };
     expect(await saveBusinessSettings({ address: ADDRESS })).toMatchObject({ ok: false, error: "stale" });
   });
 
@@ -354,8 +365,10 @@ describe("the database's refusals", () => {
     f.rpcResults.nanny_business_details_save = { data: null, error: { message: "Failing row contains (Taylor Childcare)", code: "23514" } };
     const r = await saveBusinessSettings({ business: BUSINESS });
     expect(r).toEqual({ ok: false, error: "error", message: "We couldn't save that. Please try again." });
-    session.writeErrors.user_profiles = { message: "boom" };
+    f.rpcResults.nanny_home_address_save = { data: null, error: { message: "boom", code: "XX000" } };
     expect(await saveBusinessSettings({ address: ADDRESS })).toMatchObject({ ok: false, error: "error" });
+    f.rpcResults.nanny_home_address_save = { data: { status: "invalid" }, error: null };
+    expect(await saveBusinessSettings({ address: ADDRESS })).toMatchObject({ ok: false, error: "invalid" });
     expect(sendEmail).not.toHaveBeenCalled();
   });
 });

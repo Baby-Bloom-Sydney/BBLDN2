@@ -38,6 +38,8 @@ export interface ProfileFields {
   readonly suburb: string;
   readonly postcode: string;
   readonly updated_at: string | null;
+  /** Her home address row's version (null = she has none): the Profile save checks it too (security H1). */
+  readonly address_updated_at: string | null;
 }
 
 interface ProfileForm {
@@ -108,7 +110,7 @@ export function ProfileSection({ title, profile, identityVerified }: { readonly 
   const mode = useEditMode();
   const id = useId();
   const [form, setForm] = useState<ProfileForm>(() => formOf(profile));
-  const [loaded, setLoaded] = useState(() => ({ form: formOf(profile), version: profile.updated_at }));
+  const [loaded, setLoaded] = useState(() => ({ form: formOf(profile), version: profile.updated_at, addressVersion: profile.address_updated_at }));
   const changes = mode.editing ? changesOf(form, loaded.form, identityVerified) : {};
   const guard = useUnsavedGuard(mode.editing && Object.keys(changes).length > 0, mode.cancel);
   const set = (patch: Partial<ProfileForm>) => {
@@ -119,7 +121,7 @@ export function ProfileSection({ title, profile, identityVerified }: { readonly 
   const begin = () => {
     const fresh = formOf(profile);
     setForm(fresh);
-    setLoaded({ form: fresh, version: profile.updated_at });
+    setLoaded({ form: fresh, version: profile.updated_at, addressVersion: profile.address_updated_at });
     mode.begin();
   };
   const submit = (event: FormEvent) => {
@@ -127,7 +129,9 @@ export function ProfileSection({ title, profile, identityVerified }: { readonly 
     const fields = checkProfileInput(wholeOf(form, identityVerified));
     if (Object.keys(fields).length > 0) return mode.refuse(fields);
     if (Object.keys(changes).length === 0) return mode.cancel();
-    void mode.save(async () => accountOutcome(await updateNannyAccountSettings({ ...changes, expected_updated_at: loaded.version })));
+    void mode.save(async () => accountOutcome(await updateNannyAccountSettings({
+      ...changes, expected_updated_at: loaded.version, expected_address_updated_at: loaded.addressVersion,
+    })));
   };
 
   return (

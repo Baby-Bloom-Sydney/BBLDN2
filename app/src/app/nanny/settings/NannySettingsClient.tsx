@@ -92,11 +92,13 @@ interface Props {
     date_of_birth: string;
     suburb: string;
     postcode: string;
-    /** Her address's street line (06b-3 rework R2: one address, her profile's). */
+    /** Her address's street line — from her own home address row (06b-3 rework R2; security H1), never her profile. */
     address_line1: string;
     address_line2: string;
     /** The profile row's version, sent back with a Save (stale otherwise). */
     updated_at: string | null;
+    /** Her home address row's version (null = none), sent back with a Profile save. */
+    address_updated_at: string | null;
   };
   verificationLevel: number;
   dbs: NannyDbsSettings | null;

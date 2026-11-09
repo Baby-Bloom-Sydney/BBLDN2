@@ -33,6 +33,8 @@ import { getUserEmailInfo } from '@/lib/email/helpers';
 import { promotePendingConnections, onNannyBarred } from '@/lib/connections/silent-hold';
 import { emailFooter } from "@/lib/email/brand";
 import { SITE_URL } from "@/lib/constants";
+import { saveHomeAddress } from '@/lib/settings/home-address';
+import { checkHomeAddress } from '@/lib/settings/nanny-profile-rules';
 
 // ── Shared auth helper ──
 
@@ -536,18 +538,17 @@ export async function submitContactSection(
     return { success: false, error: 'Failed to save contact details' };
   }
 
-  // Sync the verified address back to user_profiles (overrides the self-reported suburb from the onboarding
-  // funnel). 06b-3 rework (ledger B06 §9.1 R2): her one address — the street line too, as Settings stores it (no
-  // second line), so Profile, Business and her invoices show what she just confirmed.
-  const { error: syncErr } = await admin.from('user_profiles').update({
-    address_line1: data.address_line.trim(),
-    address_line2: null,
-    suburb: data.city.trim(),
-    postcode: data.postcode.trim(),
-    updated_at: new Date().toISOString(),
-  }).eq('user_id', user.id);
-  // invoices now print this address: a failed sync is logged (by code only, never the address), not ignored
-  if (syncErr) console.error('[submitContactSection] profile sync failed', { code: (syncErr as { code?: string }).code ?? 'Error' });
+  // Her one address (ledger B06 §9.1 R2) as her home address: her own owner-only row, never her profile, which parents
+  // may read for a visible nanny (security H1 — coordinator, option (a), §9.11). What she has just confirmed replaces it
+  // whatever its version, and her profile's area (suburb, postcode — matching reads it; it overrides the self-reported
+  // suburb from the onboarding funnel, as before) follows in the same save, so Profile, Business and her invoices show
+  // what she just confirmed. It passes the same address rule as Settings first (security review L1). A refused or failed
+  // save is logged by its status only, never the address; the step stands.
+  const confirmed = { line1: data.address_line.trim(), line2: '', town: data.city.trim(), postcode: data.postcode.trim() };
+  const home = checkHomeAddress(confirmed) === null
+    ? await saveHomeAddress(user.id, confirmed, null, true)
+    : ({ status: 'invalid' } as const);
+  if (home.status !== 'saved') console.error('[submitContactSection] home address save failed', { status: home.status });
 
   revalidatePath('/nanny/verification');
   return { success: true, error: null };

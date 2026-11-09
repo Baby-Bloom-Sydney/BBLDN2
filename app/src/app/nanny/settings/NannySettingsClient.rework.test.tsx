@@ -29,6 +29,7 @@ afterEach(() => {
 const PROFILE = {
   first_name: "Jane", last_name: "Doe", email: "jane@example.test", mobile_number: "+447700900123", date_of_birth: "1990-01-01",
   suburb: "London", postcode: "NW1 0AA", address_line1: "1 Camden Road", address_line2: "", updated_at: "2027-02-15T10:00:00.1+00:00",
+  address_updated_at: "2027-02-15T10:00:00.2+00:00",
 };
 const DBS: NannyDbsSettings = { state: "clear", number: "001234567890", issueDate: "2024-03-05", checkedAt: null };
 

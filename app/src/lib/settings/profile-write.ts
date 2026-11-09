@@ -1,13 +1,11 @@
 /**
- * Her profile row, read and written with the version she loaded (ledger B06 §9.1 R1, R2): the one writer the Profile,
- * Contact details and Business saves share, so "changed elsewhere" means the same thing on every page.
+ * Her profile row, read and written with the version she loaded (ledger B06 §9.1 R1).
  *
- * - `readOwnProfile`: her name, her address and the row's `updated_at` (kept exactly as the database wrote it — it is
- *   compared again on the next save).
- * - `writeOwnProfile`: a conditional update — only while `updated_at` is still the version she loaded. No row matched
- *   = `stale` (changed since, by her in another tab or by verification's residence step); nothing is written.
- * - `addressColumns`: her address as verification's residence step stores it (`address_line1` the street line,
- *   `address_line2` null, `suburb` the town, `postcode`).
+ * - `readOwnProfile`: her name and the row's `updated_at` (kept exactly as the database wrote it — it is compared
+ *   again on the next save). Never her address: that is her own row, `lib/settings/home-address.ts` (security H1).
+ *   Her street line must never be written back to this row — parents may read it for a visible nanny.
+ * - `writeOwnProfile`: Contact details' conditional update — only while `updated_at` is still the version she loaded.
+ *   No row matched = `stale` (changed since, by her in another tab or another save); nothing is written.
  * - The caller passes the client: the user-scoped one (`createClient`), so her own-row RLS applies. Server-only by
  *   use (it takes a client), never a `"use server"` file. Nothing here logs.
  *
@@ -15,13 +13,10 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { HomeAddress } from "./nanny-profile-rules";
 
 export interface OwnProfile {
   readonly firstName: string;
   readonly lastName: string;
-  /** Null when none of its parts is on file. */
-  readonly home: HomeAddress | null;
   /** The row's version; null when it has none yet. */
   readonly updatedAt: string | null;
 }
@@ -29,39 +24,18 @@ export interface OwnProfile {
 /** Saved (with the version now stored), stale (changed since: nothing written) or error. */
 export type ProfileWrite = { readonly status: "saved"; readonly updatedAt: string } | { readonly status: "stale" | "error" };
 
-const COLUMNS = "first_name, last_name, address_line1, address_line2, suburb, postcode, updated_at";
+const COLUMNS = "first_name, last_name, updated_at";
 
 interface ProfileRow {
   readonly first_name: string | null;
   readonly last_name: string | null;
-  readonly address_line1: string | null;
-  readonly address_line2: string | null;
-  readonly suburb: string | null;
-  readonly postcode: string | null;
   readonly updated_at: string | null;
-}
-
-function homeOf(row: ProfileRow): HomeAddress | null {
-  const home = { line1: row.address_line1 ?? "", line2: row.address_line2 ?? "", town: row.suburb ?? "", postcode: row.postcode ?? "" };
-  return Object.values(home).some((part) => part.trim() !== "") ? home : null;
 }
 
 export async function readOwnProfile(client: SupabaseClient, userId: string): Promise<OwnProfile | null> {
   const { data, error } = await client.from("user_profiles").select(COLUMNS).eq("user_id", userId).maybeSingle<ProfileRow>();
   if (error || !data) return null;
-  return { firstName: data.first_name ?? "", lastName: data.last_name ?? "", home: homeOf(data), updatedAt: data.updated_at ?? null };
-}
-
-/** "n1 0aa" → "N1 0AA". */
-const postcodeOf = (raw: string): string => {
-  const compact = raw.replace(/\s+/g, "").toUpperCase();
-  return compact.length > 3 ? `${compact.slice(0, -3)} ${compact.slice(-3)}` : compact;
-};
-
-/** A second line, if any, is folded into the street line (as `formatAddressLine` does), so nothing is dropped. */
-export function addressColumns(home: HomeAddress): Readonly<Record<string, string | null>> {
-  const street = [home.line1.trim(), home.line2.trim()].filter((part) => part !== "").join(", ");
-  return { address_line1: street, address_line2: null, suburb: home.town.trim(), postcode: postcodeOf(home.postcode) };
+  return { firstName: data.first_name ?? "", lastName: data.last_name ?? "", updatedAt: data.updated_at ?? null };
 }
 
 export async function writeOwnProfile(

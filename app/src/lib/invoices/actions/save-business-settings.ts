@@ -11,10 +11,12 @@
  * - **Everything is checked before anything is written** (`checkBusinessPage`, the same check the page runs); a
  *   refusal names each field.
  * - **Versions:** each record sent carries the version she loaded. All are compared first, so a record changed since
- *   (another tab, verification's residence step) answers `stale` and nothing is written; the database and the
- *   profile write compare again, under the lock / in the update, for a change that lands in between.
- * - Her address is her profile's, written with her own session (`writeOwnProfile`: RLS, her row only), and first:
- *   an invoice created in between then pairs her old business details with an address that already suits them.
+ *   (another tab, verification's residence step) answers `stale` and nothing is written; the database compares again,
+ *   under her lock, for a change that lands in between.
+ * - Her address is her home address — her own owner-only row, never her profile (security H1, coordinator option
+ *   (a), ledger B06 §9.11): read with her own session (RLS, her row only), saved through `nanny_home_address_save`
+ *   (her profile's area in step), and first: an invoice created in between then pairs her old business details with
+ *   an address that already suits them.
  * - A refusal after an earlier write says what was saved, with its version (`saved`), so the page re-bases and her
  *   retry isn't taken for a change made elsewhere (review round 1).
  * - **Bank details:** a change to saved details sends the security email (capped, best effort, at most 5 s). The full
@@ -27,8 +29,9 @@
  */
 
 import { nannyInvoicesEnabled } from "@/lib/features/flags";
+import { readOwnHome, saveHomeAddress, type OwnHome } from "@/lib/settings/home-address";
 import { hasStreetAndPostcode } from "@/lib/settings/nanny-profile-rules";
-import { addressColumns, readOwnProfile, writeOwnProfile, type OwnProfile } from "@/lib/settings/profile-write";
+import { readOwnProfile, type OwnProfile } from "@/lib/settings/profile-write";
 import { createClient } from "@/lib/supabase/server";
 import { sendPaymentDetailsChangedEmail } from "../emails/send-payment-details-changed";
 import { proveNanny, type NannyProof } from "../nanny-proof";
@@ -45,10 +48,8 @@ import {
 } from "./business-page";
 import { actionRefusal, fieldsRefusal, type ActionError, type ActionRefusal, type BusinessSettingsResult } from "./messages";
 
-type Session = ReturnType<typeof createClient>;
-
 /** Each record sent is still the version she loaded: null when so, else `stale` (or `error` when a read failed). */
-async function changedSince(proof: NannyProof, page: BusinessPageInput, profile: OwnProfile): Promise<ActionError | null> {
+async function changedSince(proof: NannyProof, page: BusinessPageInput, own: OwnHome): Promise<ActionError | null> {
   const [issuer, bank] = await Promise.all([
     page.business ? readIssuer(proof) : null,
     page.bank ? readBankVersion(proof) : null,
@@ -57,7 +58,7 @@ async function changedSince(proof: NannyProof, page: BusinessPageInput, profile:
   const stale =
     (issuer?.ok === true && issuer.value.businessUpdatedAt !== page.business?.expectedUpdatedAt) ||
     (bank?.ok === true && bank.value !== page.bank?.expectedUpdatedAt) ||
-    (page.address !== undefined && profile.updatedAt !== page.address.expectedUpdatedAt);
+    (page.address !== undefined && own.updatedAt !== page.address.expectedUpdatedAt);
   return stale ? "stale" : null;
 }
 
@@ -76,10 +77,10 @@ async function writeBusiness(proof: NannyProof, page: BusinessPageInput, profile
 }
 
 /** The writes — address, business, bank — the first refusal stops the rest. */
-async function write(proof: NannyProof, session: Session, page: BusinessPageInput, profile: OwnProfile): Promise<BusinessSettingsResult> {
+async function write(proof: NannyProof, page: BusinessPageInput, profile: OwnProfile): Promise<BusinessSettingsResult> {
   let saved: Saved = {};
   if (page.address) {
-    const written = await writeOwnProfile(session, proof.userId, addressColumns(homeOf(page.address)), page.address.expectedUpdatedAt);
+    const written = await saveHomeAddress(proof.userId, homeOf(page.address), page.address.expectedUpdatedAt);
     if (written.status !== "saved") return refusedAfter(written.status, saved);
     saved = { ...saved, home: written.updatedAt };
   }
@@ -101,10 +102,10 @@ export async function saveBusinessSettings(input: unknown): Promise<BusinessSett
   const page = businessPageInput.safeParse(input);
   if (!page.success) return actionRefusal("invalid");
   const session = createClient();
-  const profile = await readOwnProfile(session, proof.userId);
-  if (!profile) return actionRefusal("error");
-  const fields = checkBusinessPage(page.data, hasStreetAndPostcode(profile.home));
+  const [profile, own] = await Promise.all([readOwnProfile(session, proof.userId), readOwnHome(session, proof.userId)]);
+  if (!profile || !own) return actionRefusal("error");
+  const fields = checkBusinessPage(page.data, hasStreetAndPostcode(own.home));
   if (Object.keys(fields).length > 0) return fieldsRefusal(fields);
-  const since = await changedSince(proof, page.data, profile);
-  return since === null ? write(proof, session, page.data, profile) : actionRefusal(since);
+  const since = await changedSince(proof, page.data, own);
+  return since === null ? write(proof, page.data, profile) : actionRefusal(since);
 }

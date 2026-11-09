@@ -4,7 +4,7 @@
  * export of one becomes a browser-callable action).
  *
  * - `readIssuer`: her effective issuer from `nanny_invoice_issuer` — her business details, or the defaults that
- *   function holds in one place (a sole trader, her full name, her profile address — a limited company's registered
+ *   function holds in one place (a sole trader, her full name, her home address — a limited company's registered
  *   office — not VAT registered), and the version of her business details. No bank field, so Settings and the review
  *   can show it as it is.
  * - `saveBusiness`: her details parsed again here (`validation-business.ts`), then `nanny_business_details_save`,

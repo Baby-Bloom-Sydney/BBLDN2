@@ -5,9 +5,10 @@
  * Never: writes; never passes raw section codes to the client.
  * Brief 06 (plan 06 §14.6 b3.4; BB-wave1-041126/06b3-build, 2026-11-07): the Business section is a server leaf passed
  * in as a slot, only with the invoice switch on and `?s=business`, so no other view reads any invoice data.
- * 06b-3 rework (ledger B06 §9.1 R1, R2; BB-wave1-041126/06b3-rework, 2026-11-09): the profile read adds her street line
- * and the row's version (Profile, Contact details and Business save with it); her address goes to the Business leaf
- * from this same read (one record).
+ * 06b-3 rework (ledger B06 §9.1 R1, R2; BB-wave1-041126/06b3-rework, 2026-11-09): the profile read adds the row's
+ * version (Profile and Contact details save with it). Her address is her own home address row, read with her own
+ * session (security H1, coordinator option (a), §9.11) — never her profile's street line — and with its version goes
+ * to Profile and to the Business leaf (one record); with no row, her area from her profile is shown, as before.
  */
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -21,6 +22,7 @@ import { fetchPayoutOnboardingViewData } from "@/lib/payments/queryNannyPayoutOn
 import { payoutsEnabled } from "@/lib/payments/flags";
 import { nannyInvoicesEnabled } from "@/lib/features/flags";
 import { BusinessSettingsLeaf } from "@/app/nanny/invoices/business/BusinessSettingsLeaf";
+import { readOwnHome, shownHome } from "@/lib/settings/home-address";
 
 export default async function NannySettingsPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const supabase = createClient();
@@ -41,11 +43,12 @@ export default async function NannySettingsPage({ searchParams }: { searchParams
     payoutsData,
     historyRows,
     payoutOnboarding,
+    own,
   ] = await Promise.all([
     admin
       .from("user_profiles")
       .select(
-        "first_name, last_name, email, mobile_number, date_of_birth, suburb, postcode, address_line1, address_line2, updated_at",
+        "first_name, last_name, email, mobile_number, date_of_birth, suburb, postcode, updated_at",
       )
       .eq("user_id", user.id)
       .single(),
@@ -70,22 +73,27 @@ export default async function NannySettingsPage({ searchParams }: { searchParams
     showPayouts ? fetchPayoutsDashboardData(user.id) : null,
     showPayouts ? fetchPayoutHistory(user.id) : null,
     showPayouts ? fetchPayoutOnboardingViewData(user.id) : null,
+    // her home address: her own row, read with her own session (RLS: hers only) — never her profile (security H1)
+    readOwnHome(supabase, user.id),
   ]);
 
+  // what she sees: her home row, or with none her area from her profile (as before); unreadable → her area, no version,
+  // so a save of it is refused as stale rather than overwriting a row she didn't see
+  const home = shownHome(own?.home ?? null, { suburb: profileRes.data?.suburb ?? null, postcode: profileRes.data?.postcode ?? null });
+  const homeUpdatedAt = own?.updatedAt ?? null;
   const profile = {
     first_name: profileRes.data?.first_name || "",
     last_name: profileRes.data?.last_name || "",
     email: profileRes.data?.email || "",
     mobile_number: profileRes.data?.mobile_number || "",
     date_of_birth: profileRes.data?.date_of_birth || "",
-    suburb: profileRes.data?.suburb || "",
-    postcode: profileRes.data?.postcode || "",
-    address_line1: profileRes.data?.address_line1 || "",
-    address_line2: profileRes.data?.address_line2 || "",
+    suburb: home?.town ?? "",
+    postcode: home?.postcode ?? "",
+    address_line1: home?.line1 ?? "",
+    address_line2: home?.line2 ?? "",
     updated_at: profileRes.data?.updated_at ?? null,
+    address_updated_at: homeUpdatedAt,
   };
-  const home = { line1: profile.address_line1, line2: profile.address_line2, town: profile.suburb, postcode: profile.postcode };
-  const hasHome = Object.values(home).some((part) => part.trim() !== "");
 
   return (
     <NannySettingsClient
@@ -111,7 +119,7 @@ export default async function NannySettingsPage({ searchParams }: { searchParams
       }}
       businessSection={
         nannyInvoicesEnabled() && searchParams?.s === "business"
-          ? <BusinessSettingsLeaf home={hasHome ? home : null} homeUpdatedAt={profile.updated_at} />
+          ? <BusinessSettingsLeaf home={home} homeUpdatedAt={homeUpdatedAt} />
           : null
       }
     />

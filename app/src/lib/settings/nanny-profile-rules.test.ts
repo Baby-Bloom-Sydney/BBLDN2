@@ -68,6 +68,13 @@ describe("the address (R2: one record, her profile)", () => {
     expect(checkHomeAddress({ ...HOME, line1: "a".repeat(201) })).toBe(M.tooLong);
   });
 
+  it("refuses an address too long to print on an invoice: over 300 characters as printed (street line, town, postcode on their own lines; database review L5)", () => {
+    // 150 + ", " + 100, then the town and the postcode on their own lines: 301 with a 41-letter town, 300 with 40
+    const long = { line1: "a".repeat(150), line2: "b".repeat(100), town: "c".repeat(41), postcode: "n10aa" };
+    expect(checkHomeAddress(long)).toBe(M.tooLong);
+    expect(checkHomeAddress({ ...long, town: "c".repeat(40) })).toBeNull();
+  });
+
   it("accepts a whole UK address", () => {
     expect(checkHomeAddress(HOME)).toBeNull();
     expect(checkHomeAddress({ ...HOME, postcode: "sw1a1aa" })).toBeNull();

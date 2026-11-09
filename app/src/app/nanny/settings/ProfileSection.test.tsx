@@ -15,9 +15,11 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh, push: vi.fn() }
 import { ProfileSection, type ProfileFields } from "./ProfileSection";
 
 const VERSION = "2027-02-15T10:00:00.333333+00:00";
+const ADDRESS_VERSION = "2027-02-15T10:00:00.666666+00:00";
 const PROFILE: ProfileFields = {
   first_name: "Sophie", last_name: "Taylor", date_of_birth: "1995-03-12",
   address_line1: "1 Upper Street", address_line2: "", suburb: "London", postcode: "N1 0AA", updated_at: VERSION,
+  address_updated_at: ADDRESS_VERSION,
 };
 
 beforeEach(() => {
@@ -63,7 +65,10 @@ describe("Profile — edit and Save", () => {
     expect(screen.getByLabelText("Date of birth")).toHaveValue("1995-03-12");
     fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "Taylor-Brown" } });
     await save();
-    expect(updateNannyAccountSettings).toHaveBeenCalledWith({ last_name: "Taylor-Brown", expected_updated_at: VERSION });
+    // both rows she loaded go with it: her profile's version and her home address's (security H1: one atomic save)
+    expect(updateNannyAccountSettings).toHaveBeenCalledWith({
+      last_name: "Taylor-Brown", expected_updated_at: VERSION, expected_address_updated_at: ADDRESS_VERSION,
+    });
     expect(refresh).toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Edit profile" })).toHaveFocus();
   });

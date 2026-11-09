@@ -4,7 +4,7 @@
  * fixed, plain message each. The Settings pages check with these before Save calls the server, and
  * `updateNannyAccountSettings` checks again with the same functions, so both refuse the same things.
  *
- * - **One address** (R2): her profile's street line, town and postcode — what verification's residence step stores
+ * - **One address** (R2): her home address's street line, town and postcode (her own row — security H1) — what verification's residence step stores
  *   and her invoices print. A picked address keeps verification's shape (`formatAddressLine`: line 1 and line 2 on one
  *   street line, no second line stored). On file = a street line and a postcode.
  * - Client-safe and zod-free on purpose: this runs in the Settings page's own bundle (`/nanny/settings` first load
@@ -28,7 +28,7 @@ export const PROFILE_MESSAGES = Object.freeze({
 } as const);
 const M = PROFILE_MESSAGES;
 
-/** Her address as her profile holds it (the town is `suburb`). Blank parts are "". */
+/** Her address as Settings shows and edits it (her home address row; with none, her area). Blank parts are "". */
 export interface HomeAddress {
   readonly line1: string;
   readonly line2: string;
@@ -38,6 +38,8 @@ export interface HomeAddress {
 
 const NAME_MAX = 100;
 const ADDRESS_PART_MAX = 200;
+/** The issuer prints an address of at most 300 characters (amendment 21); a longer one could never be on an invoice. */
+const PRINTED_ADDRESS_MAX = 300;
 /**
  * Control, format (zero-width, bidi overrides), private-use and unassigned characters, line/paragraph separators,
  * default-ignorables and the braille blank — the class her invoices' text rule refuses (`validation.ts` ONE_LINE_BAD,
@@ -71,6 +73,15 @@ export function sameHome(a: HomeAddress | null, b: HomeAddress | null): boolean 
 
 const isText = (value: unknown): value is string => typeof value === "string";
 
+/** Its length as an invoice prints it: the street line (a second line folded in with ", "), the town and the postcode
+ * (stored with one space) on their own lines. */
+function printedLength(home: HomeAddress): number {
+  const street = [home.line1.trim(), home.line2.trim()].filter((part) => part !== "").join(", ");
+  const compact = home.postcode.replace(/\s+/g, "");
+  const lengths = [street.length, home.town.trim().length, compact.length + (compact.length > 3 ? 1 : 0)].filter((n) => n > 0);
+  return lengths.reduce((sum, n) => sum + n, 0) + Math.max(lengths.length - 1, 0);
+}
+
 /** An address she saves: four text parts, a street line, a UK postcode, plain text. Null when it's fine. */
 export function checkHomeAddress(value: unknown): string | null {
   if (typeof value !== "object" || value === null) return M.address;
@@ -81,6 +92,7 @@ export function checkHomeAddress(value: unknown): string | null {
   if (texts.some((part) => part.length > ADDRESS_PART_MAX)) return M.tooLong;
   if (texts.some((part) => NOT_PLAIN.test(part))) return M.address;
   const home = { line1: texts[0] ?? "", line2: texts[1] ?? "", town: texts[2] ?? "", postcode: texts[3] ?? "" };
+  if (printedLength(home) > PRINTED_ADDRESS_MAX) return M.tooLong;
   if (!hasStreetAndPostcode(home) || home.town.trim() === "" || !UK_POSTCODE_REGEX.test(home.postcode.trim())) return M.address;
   return null;
 }

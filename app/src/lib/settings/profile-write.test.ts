@@ -7,25 +7,21 @@
  */
 import { describe, expect, it } from "vitest";
 import { fakeAdmin } from "@/lib/payments/fake-admin.test-util";
-import { addressColumns, readOwnProfile, writeOwnProfile } from "./profile-write";
+import { readOwnProfile, writeOwnProfile } from "./profile-write";
 
 const USER = "b0600000-0000-4000-8000-000000000001";
 const VERSION = "2027-02-15T10:00:00.123456+00:00";
 
 describe("readOwnProfile", () => {
-  it("reads her name, address and version, hers only", async () => {
-    const f = fakeAdmin({
-      user_profiles: { first_name: "Sophie", last_name: "Taylor", address_line1: "1 Upper Street", address_line2: null, suburb: "London", postcode: "N1 0AA", updated_at: VERSION },
-    });
-    expect(await readOwnProfile(f.client, USER)).toEqual({
-      firstName: "Sophie", lastName: "Taylor", home: { line1: "1 Upper Street", line2: "", town: "London", postcode: "N1 0AA" }, updatedAt: VERSION,
-    });
+  it("reads her name and version, hers only — never an address (security H1: hers is her own row)", async () => {
+    const f = fakeAdmin({ user_profiles: { first_name: "Sophie", last_name: "Taylor", updated_at: VERSION } });
+    expect(await readOwnProfile(f.client, USER)).toEqual({ firstName: "Sophie", lastName: "Taylor", updatedAt: VERSION });
     expect(f.ops[0]?.filters).toEqual([["eq", "user_id", USER]]);
   });
 
-  it("no address parts → no home; no row or a failed read → null", async () => {
-    const f = fakeAdmin({ user_profiles: { first_name: "Sophie", last_name: "Taylor", address_line1: null, address_line2: null, suburb: null, postcode: null, updated_at: null } });
-    expect(await readOwnProfile(f.client, USER)).toMatchObject({ home: null, updatedAt: null });
+  it("no version yet → null version; no row or a failed read → null", async () => {
+    const f = fakeAdmin({ user_profiles: { first_name: "Sophie", last_name: "Taylor", updated_at: null } });
+    expect(await readOwnProfile(f.client, USER)).toEqual({ firstName: "Sophie", lastName: "Taylor", updatedAt: null });
     expect(await readOwnProfile(fakeAdmin({ user_profiles: null }).client, USER)).toBeNull();
     const failing = fakeAdmin();
     failing.readErrors.user_profiles = { message: "boom" };
@@ -58,10 +54,4 @@ describe("writeOwnProfile", () => {
     expect(await writeOwnProfile(f.client, USER, { first_name: "Sophie" }, VERSION)).toEqual({ status: "error" });
   });
 
-  it("stores an address as verification does: the street line (a second line folded into it), no second line, the town as suburb, the postcode", () => {
-    expect(addressColumns({ line1: "1 Upper Street", line2: " Islington ", town: " London ", postcode: "n1 0aa" })).toEqual({
-      address_line1: "1 Upper Street, Islington", address_line2: null, suburb: "London", postcode: "N1 0AA",
-    });
-    expect(addressColumns({ line1: "1 Upper Street", line2: "", town: "London", postcode: "N1 0AA" })).toMatchObject({ address_line1: "1 Upper Street" });
-  });
 });
