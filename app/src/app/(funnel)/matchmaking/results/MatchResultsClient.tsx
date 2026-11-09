@@ -11,7 +11,7 @@ import {
   ShieldCheck,
   CheckCircle,
 } from "lucide-react";
-import type { MatchResult } from "@/lib/matching/types";
+import type { PublicMatchResult } from "@/lib/matching/public-match";
 
 /* ── Fixed card width ──
    340px ≈ iPhone SE/mini viewport minus padding.
@@ -20,7 +20,7 @@ import type { MatchResult } from "@/lib/matching/types";
 const CARD_W = 345;
 
 interface MatchResultsClientProps {
-  matches: MatchResult[]; // top 4
+  matches: PublicMatchResult[]; // top 4
   totalEligible: number;
   leadId: string;
 }

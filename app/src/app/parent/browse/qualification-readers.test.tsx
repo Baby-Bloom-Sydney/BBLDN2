@@ -4,12 +4,12 @@
  */
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import type { MatchResult } from '@/lib/matching/types';
+import type { PublicMatchResult } from '@/lib/matching/public-match';
 import type { PublicNannyProfile } from '@/lib/actions/nanny';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }), usePathname: () => '/' }));
 vi.mock('@/app/brandkit1/NannyMatchCardBK', () => ({
-  NannyMatchCardBK: ({ match }: { match: MatchResult }) => <div data-testid="match">{match.nannyId}</div>,
+  NannyMatchCardBK: ({ match }: { match: PublicMatchResult }) => <div data-testid="match">{match.nannyId}</div>,
 }));
 vi.mock('@/components/ConnectModal', () => ({ ConnectModal: () => null }));
 vi.mock('@/app/brandkit1/NannyCardBK', () => ({
@@ -37,7 +37,7 @@ const L6 = 'Level 6 — degree in early years, EYTS or QTS';
 describe('BrowseMatchesClient — Qualifications sort uses the ladder rank', () => {
   it('orders L6 before L3 before an off-ladder value', () => {
     const m = (nannyId: string, highestQualification: string | null) =>
-      ({ nannyId, highestQualification, finalScore: 50, distanceKm: 1 }) as unknown as MatchResult;
+      ({ nannyId, highestQualification, finalScore: 50, distanceKm: 1 }) as unknown as PublicMatchResult;
     render(
       <BrowseMatchesClient
         matches={[m('off', 'A label not on the ladder'), m('l3', L3), m('l6', L6)]}
@@ -119,7 +119,7 @@ describe('BrowseNanniesTab — both Qualification sorts use the ladder rank', ()
 
   it('orders matches L6 → L3 → off-ladder on "Qualifications"', async () => {
     const m = (nannyId: string, highestQualification: string) =>
-      ({ nannyId, highestQualification, finalScore: 50, distanceKm: 1, nanny: {} }) as unknown as MatchResult;
+      ({ nannyId, highestQualification, finalScore: 50, distanceKm: 1, nanny: {} }) as unknown as PublicMatchResult;
     browse.matches = [m('off', 'A label not on the ladder'), m('l3', L3), m('l6', L6)];
     render(<BrowseNanniesTab initialView="matches" />);
     await screen.findAllByTestId('match');

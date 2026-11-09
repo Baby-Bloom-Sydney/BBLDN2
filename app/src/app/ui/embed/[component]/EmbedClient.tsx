@@ -57,6 +57,7 @@ import { ParentConnectionsClient } from "@/app/parent/connections/ParentConnecti
 import { AdminUsersClient } from "@/app/admin/users/AdminUsersClient";
 
 import type { MatchResult } from "@/lib/matching/types";
+import { publicMatch } from "@/lib/matching/public-match";
 
 function ClientOnly({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -65,7 +66,7 @@ function ClientOnly({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-const matchResult = MOCK_MATCH_RESULT as unknown as MatchResult;
+const matchResult = publicMatch(MOCK_MATCH_RESULT as unknown as MatchResult);
 
 const COMPONENTS: Record<string, { name: string; render: () => React.ReactNode }> = {
   "nanny-interviews": {

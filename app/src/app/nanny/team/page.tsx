@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NannyCard, NannyCardData, EmptyNannyState } from "@/components/NannyCard";
+import { publicNannyCard } from "@/lib/nanny-card";
 
 async function getNannies(): Promise<NannyCardData[]> {
   const supabase = createAdminClient();
@@ -66,7 +67,8 @@ async function getNannies(): Promise<NannyCardData[]> {
         date_of_birth: profile.date_of_birth || null,
       } as NannyCardData;
     })
-    .filter((n): n is NannyCardData => n !== null);
+    .filter((n): n is NannyCardData => n !== null)
+    .map(publicNannyCard);
 }
 
 export default async function OurTeamPage() {

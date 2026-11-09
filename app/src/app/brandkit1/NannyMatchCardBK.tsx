@@ -4,25 +4,15 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { MapPin, ShieldCheck, Clock, Baby, GraduationCap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import type { MatchResult } from "@/lib/matching/types";
+import type { PublicMatchResult } from "@/lib/matching/public-match";
 import { ExpandableBadges, abbreviateQualification, type TraitBadge } from "./ExpandableBadges";
 
 interface NannyMatchCardBKProps {
-  match: MatchResult;
+  match: PublicMatchResult;
   linkBase?: string;
 }
 
-function computeAge(dob: string | null | undefined): number | null {
-  if (!dob) return null;
-  const birth = new Date(dob);
-  const now = new Date();
-  let years = now.getFullYear() - birth.getFullYear();
-  const m = now.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) years--;
-  return years > 0 && years < 120 ? years : null;
-}
-
-function buildBadges(match: MatchResult): TraitBadge[] {
+function buildBadges(match: PublicMatchResult): TraitBadge[] {
   const badges: TraitBadge[] = [];
   const n = match.nanny;
   if (n.total_experience_years && n.total_experience_years > 0) {
@@ -65,7 +55,7 @@ function getMatchBadgeStyle(score: number) {
 export function NannyMatchCardBK({ match, linkBase = "/parent/browse" }: NannyMatchCardBKProps) {
   const { nanny, profile, breakdown } = match;
   const initials = `${profile.first_name[0]}${profile.last_name[0]}`;
-  const age = computeAge(profile.date_of_birth);
+  const age = profile.age;
   const headline = (nanny.ai_content?.headline as string) || null;
   const isVerified = true; // matching engine filters verification_level >= 3
 

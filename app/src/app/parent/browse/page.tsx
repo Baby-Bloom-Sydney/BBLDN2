@@ -162,7 +162,7 @@ export default async function ParentBrowsePage({
 
   // Fetch data based on view
   let browseData: { nannies: NannyCardData[]; total: number } | null = null;
-  let matchData: { matches: import("@/lib/matching/types").MatchResult[]; stats: { totalEligible: number; returned: number } } | null = null;
+  let matchData: { matches: import("@/lib/matching/public-match").PublicMatchResult[]; stats: { totalEligible: number; returned: number } } | null = null;
   let hasPosition = false;
 
   if (view === "matches" && isParent) {

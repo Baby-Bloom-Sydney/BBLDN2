@@ -5,7 +5,7 @@
  * BB-wave1-041126, 2026-11-09.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fakeAdmin, writesTo, type FakeAdmin } from "@/lib/payments/fake-admin.test-util";
+import { fakeAdmin, writesTo, type FakeAdmin, type Op } from "@/lib/payments/fake-admin.test-util";
 
 let admin: FakeAdmin;
 const createUser = vi.fn();
@@ -26,19 +26,28 @@ beforeEach(() => {
   createUser.mockReset().mockResolvedValue({ data: { user: { id: "user-new" } }, error: null });
   admin = fakeAdmin({ nanny_leads: LEAD });
   admin.writeResults.nannies = { id: "nanny-new" };
+  // the claim (a conditional update returning the lead) succeeds unless a test says otherwise
+  admin.writeResults.nanny_leads = (op: Op) => ((op.payload as { converted_at?: unknown }).converted_at ? [{ id: "lead-1" }] : null);
 });
 
 describe("convertLeadToAccount — once", () => {
   it.each([
     ["has an account", { auth_user_id: "user-1" }],
     ["is marked converted", { lead_status: "converted" }],
-    ["has a conversion time", { converted_at: "2026-11-01T10:00:00Z" }],
-  ])("refuses a lead that %s, creating nothing", async (_label, converted) => {
+  ])("refuses a lead that %s, writing nothing", async (_label, converted) => {
     admin.reads.nanny_leads = { ...LEAD, ...converted };
     const result = await convertLeadToAccount("lead-1", "pw-123456", "other@example.test");
     expect(result).toEqual({ success: false, error: "An account with this email already exists. Please sign in instead." });
     expect(createUser).not.toHaveBeenCalled();
     expect(admin.ops.filter((o) => o.kind !== "select")).toEqual([]);
+  });
+
+  it("refuses a lead another conversion holds (its claim is refused), creating nothing", async () => {
+    admin.writeResults.nanny_leads = [];
+    const result = await convertLeadToAccount("lead-1", "pw-123456");
+    expect(result).toEqual({ success: false, error: "An account with this email already exists. Please sign in instead." });
+    expect(createUser).not.toHaveBeenCalled();
+    expect(admin.ops.filter((o) => o.kind !== "select").map((o) => o.table)).toEqual(["nanny_leads"]);
   });
 
   it("converts a lead not yet converted", async () => {

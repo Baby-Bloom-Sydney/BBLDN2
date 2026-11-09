@@ -175,6 +175,7 @@ import {
 
 // ── Types ──
 import type { MatchResult } from "@/lib/matching/types";
+import { publicMatch } from "@/lib/matching/public-match";
 import { BRAND, SITE_NAME } from "@/lib/constants";
 
 // ════════════════════════════════════════════════════════════════════
@@ -319,7 +320,7 @@ export function UIShowcaseClient({
   const [connectModalOpen, setConnectModalOpen] = useState(false);
   const [connectionPopupOpen, setConnectionPopupOpen] = useState(false);
 
-  const matchResult = MOCK_MATCH_RESULT as unknown as MatchResult;
+  const matchResult = publicMatch(MOCK_MATCH_RESULT as unknown as MatchResult);
 
   const SECTIONS = [
     { id: "primitives", title: "UI Primitives (shadcn)", range: "CMP-001 to CMP-017", count: 17 },

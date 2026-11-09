@@ -16,17 +16,25 @@ const h = vi.hoisted(() => ({
 
 function query(table: string) {
   const result = (data: unknown) => Promise.resolve({ data, error: null });
+  // the conversion first claims the lead (a conditional update returning it)
+  let claim = false;
   const builder: Record<string, unknown> = {
     select: () => builder,
     eq: () => builder,
-    update: () => builder,
+    is: () => builder,
+    neq: () => builder,
+    or: () => builder,
+    update: (row: Row) => {
+      claim = table === 'nanny_leads' && row.converted_at !== undefined && row.lead_status === undefined;
+      return builder;
+    },
     upsert: () => result(null),
     single: () => result(table === 'nanny_leads' ? h.lead : { id: 'nanny-1' }),
     insert: (row: Row) => {
       h.inserts.push({ table, row });
       return Object.assign(result(null), { select: () => ({ single: () => result({ id: 'nanny-1' }) }) });
     },
-    then: (resolve: (v: unknown) => unknown) => resolve({ data: null, error: null }),
+    then: (resolve: (v: unknown) => unknown) => resolve({ data: claim ? [{ id: 'lead-1' }] : null, error: null }),
   };
   return builder;
 }

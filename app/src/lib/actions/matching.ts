@@ -14,7 +14,7 @@ import { BRACKET_KEYS, formatLondonDate } from '@/lib/timezone';
 import type { BracketKey } from '@/lib/timezone';
 import { CONNECTION_STAGE, HIDDEN_CONNECTION_STAGES, POSITION_STAGE, POSITION_STATUS } from '@/lib/position/constants';
 import { funnelLog } from '@/lib/position/logger';
-import type { MatchResult } from '@/lib/matching/types';
+import { publicMatch, type PublicMatchResult } from '@/lib/matching/public-match';
 import { emailHeader } from "@/lib/email/brand";
 import {
   APP_URL,
@@ -32,7 +32,7 @@ import {
 
 export interface MatchesResponse {
   data: {
-    matches: MatchResult[];
+    matches: PublicMatchResult[];
     stats: {
       totalEligible: number;
       returned: number;
@@ -151,7 +151,7 @@ export async function getMatchesForPosition(): Promise<MatchesResponse> {
 
   return {
     data: {
-      matches,
+      matches: matches.map(publicMatch),
       stats: {
         totalEligible,
         returned: matches.length,

@@ -24,7 +24,7 @@ import { fetchBrowseNannies } from "@/lib/actions/browse";
 import { getMatchesForPosition } from "@/lib/actions/matching";
 import { getPosition } from "@/lib/actions/parent";
 import { EmptyState } from "@/components/dashboard/EmptyState";
-import type { MatchResult } from "@/lib/matching/types";
+import type { PublicMatchResult } from "@/lib/matching/public-match";
 import { qualificationRank } from "@/lib/nanny-options";
 
 /* ─── Constants ─── */
@@ -70,7 +70,7 @@ function sortNannies(nannies: NannyCardData[], sortBy: AllSortKey): NannyCardDat
   return sorted;
 }
 
-function sortMatches(matches: MatchResult[], sortBy: MatchSortKey): MatchResult[] {
+function sortMatches(matches: PublicMatchResult[], sortBy: MatchSortKey): PublicMatchResult[] {
   const sorted = [...matches];
   switch (sortBy) {
     case "score":
@@ -122,7 +122,7 @@ export function BrowseNanniesTab({ initialView = "all", onViewChange }: BrowseNa
   const [displayNannies, setDisplayNannies] = useState<NannyCardData[]>([]);
   const [loadingPage, setLoadingPage] = useState(true);
 
-  const [matches, setMatches] = useState<MatchResult[]>([]);
+  const [matches, setMatches] = useState<PublicMatchResult[]>([]);
   const [matchStats, setMatchStats] = useState<{ totalEligible: number; returned: number }>({ totalEligible: 0, returned: 0 });
   const [hasPosition, setHasPosition] = useState(false);
 

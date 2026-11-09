@@ -271,6 +271,29 @@ export async function updateNannyLead(
 
 // ── N5: Convert lead to full account ──
 
+const ALREADY_CONVERTED = "An account with this email already exists. Please sign in instead.";
+/** A claim this old with no account is a conversion that never finished; it can be taken again. */
+const CLAIM_STALE_MS = 10 * 60 * 1000;
+
+/** Claims the lead for one conversion in a single conditional write (true when this call holds it). */
+async function claimLead(admin: ReturnType<typeof createAdminClient>, leadId: string): Promise<boolean> {
+  const staleBefore = new Date(Date.now() - CLAIM_STALE_MS).toISOString();
+  const { data, error } = await admin
+    .from("nanny_leads")
+    .update({ converted_at: new Date().toISOString() })
+    .eq("id", leadId)
+    .is("auth_user_id", null)
+    .neq("lead_status", "converted")
+    .or(`converted_at.is.null,converted_at.lt.${staleBefore}`)
+    .select("id");
+  return !error && Array.isArray(data) && data.length === 1;
+}
+
+/** Gives the claim back when no account came of it. */
+async function releaseLead(admin: ReturnType<typeof createAdminClient>, leadId: string): Promise<void> {
+  await admin.from("nanny_leads").update({ converted_at: null }).eq("id", leadId).is("auth_user_id", null);
+}
+
 export async function convertLeadToAccount(
   leadId: string,
   password: string,
@@ -291,12 +314,9 @@ export async function convertLeadToAccount(
       return { success: false, error: "Application not found." };
     }
 
-    // An application becomes an account once.
-    if (lead.auth_user_id || lead.converted_at || lead.lead_status === "converted") {
-      return {
-        success: false,
-        error: "An account with this email already exists. Please sign in instead.",
-      };
+    // An application becomes an account once: refused when it has one, and claimed before the account is made.
+    if (lead.auth_user_id || lead.lead_status === "converted" || !(await claimLead(adminClient, leadId))) {
+      return { success: false, error: ALREADY_CONVERTED };
     }
 
     // Use the email from the account creation form (may differ from lead email)
@@ -316,6 +336,7 @@ export async function convertLeadToAccount(
 
     if (authError || !authData.user) {
       console.error("Auth create error:", authError);
+      await releaseLead(adminClient, leadId);
       if (
         authError?.message.includes("already registered") ||
         authError?.message.includes("already been registered")
@@ -564,6 +585,7 @@ export async function convertLeadToAccount(
       // Cleanup: delete auth user if any downstream insert failed
       console.error("Conversion error, cleaning up:", innerError);
       await adminClient.auth.admin.deleteUser(userId);
+      await releaseLead(adminClient, leadId);
       return {
         success: false,
         error: "Failed to create account. Please try again.",
