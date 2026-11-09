@@ -16,6 +16,7 @@ import { CONNECTION_STAGE, HIDDEN_CONNECTION_STAGES, POSITION_STAGE, POSITION_ST
 import { funnelLog } from '@/lib/position/logger';
 import { publicMatch, type PublicMatchResult } from '@/lib/matching/public-match';
 import { profileAge } from '@/lib/profile-age';
+import { isUnseenByParent } from '@/lib/connections/silent-hold';
 import { emailHeader } from "@/lib/email/brand";
 import {
   APP_URL,
@@ -746,12 +747,14 @@ export async function getDfyConnections(
     return { data: null, error: 'Failed to fetch connections.' };
   }
 
-  if (!connections || connections.length === 0) {
+  // the rows the family doesn't see yet (a held DFY accept) stay out — the silent hold's own definition
+  const shown = (connections ?? []).filter((c) => !isUnseenByParent({ connection_stage: c.connection_stage, source: 'dfy' }));
+  if (shown.length === 0) {
     return { data: [], error: null };
   }
 
   // Get match data from dfy_match_notifications
-  const nannyIds = connections.map(c => c.nanny_id);
+  const nannyIds = shown.map(c => c.nanny_id);
   const { data: notifications } = await adminClient
     .from('dfy_match_notifications')
     .select('id, nanny_id, match_score, distance_km, metadata')
@@ -791,7 +794,7 @@ export async function getDfyConnections(
     ])
   );
 
-  const result: DfyConnection[] = connections.map(c => {
+  const result: DfyConnection[] = shown.map(c => {
     const notification = notificationMap.get(c.nanny_id);
     const nanny = nannyMap.get(c.nanny_id);
     const profile = nanny ? profileMap.get(nanny.user_id) : null;
@@ -893,6 +896,17 @@ export async function declineDfyConnection(
 // 10. GET DFY STATUS FOR POSITION (Parent)
 // ════════════════════════════════════════════════════════════════════════════
 
+/** The nannies whose DFY answer on this position is still at stage 9 (not yet on the family's list). */
+async function heldDfyNannyIds(adminClient: ReturnType<typeof createAdminClient>, positionId: string): Promise<Set<string>> {
+  const { data } = await adminClient
+    .from('connection_requests')
+    .select('nanny_id')
+    .eq('position_id', positionId)
+    .eq('source', 'dfy')
+    .eq('connection_stage', CONNECTION_STAGE.ACCEPTED_PENDING);
+  return new Set((data ?? []).map((r) => r.nanny_id as string));
+}
+
 export async function getDfyStatus(): Promise<{
   activated: boolean;
   activatedAt: string | null;
@@ -948,14 +962,12 @@ export async function getDfyStatus(): Promise<{
   // Get counts by status (re-fetch after potential wave processing)
   const { data: notifications } = await adminClient
     .from('dfy_match_notifications')
-    .select('status')
+    .select('nanny_id, status')
     .eq('position_id', position.id);
 
-  let interestedCount = 0;
-
-  for (const n of notifications ?? []) {
-    if (n.status === 'interested') interestedCount++;
-  }
+  // an answer counts once the family's DFY list shows it (stage 10 on), as getDfyConnections lists them
+  const held = await heldDfyNannyIds(adminClient, position.id);
+  const interestedCount = (notifications ?? []).filter((n) => n.status === 'interested' && !held.has(n.nanny_id)).length;
 
   // Count DFY connections
   const { count: connectedCount } = await adminClient
@@ -963,7 +975,8 @@ export async function getDfyStatus(): Promise<{
     .select('id', { count: 'exact', head: true })
     .eq('position_id', position.id)
     .eq('source', 'dfy')
-    .not('connection_stage', 'in', `(${[...HIDDEN_CONNECTION_STAGES, CONNECTION_STAGE.ACTIVE].join(',')})`);
+    .not('connection_stage', 'in', `(${[...HIDDEN_CONNECTION_STAGES, CONNECTION_STAGE.ACTIVE].join(',')})`)
+    .neq('connection_stage', CONNECTION_STAGE.ACCEPTED_PENDING);
 
   return {
     activated: true,

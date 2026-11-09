@@ -33,18 +33,20 @@ vi.mock("./position-funnel", () => ({ checkPostIntroOutcomes: vi.fn(async () => 
 vi.mock("@/lib/chat/proactive/action-triggered", () => ({ dispatchActionTriggeredInBackground: h.dispatch }));
 vi.mock("@/lib/position/logger", () => ({ funnelLog: vi.fn() }));
 
-import { acceptConnectionRequest, getParentConnectionRequests, scheduleConnectionTime } from "./connection";
+import {
+  acceptConnectionRequest, cancelConnectionRequest, declineConnectionRequest, getParentConnectionRequests, scheduleConnectionTime,
+} from "./connection";
 
 const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
 const SLOTS = [`${day(2)}_morning`, `${day(2)}_midday`, `${day(3)}_afternoon`, `${day(4)}_evening`, `${day(4)}_morning`];
 const FUTURE = "2099-01-01T00:00:00Z";
 
-function seed(level: number, stage = 0, status = "pending") {
+function seed(level: number, stage = 0, status = "pending", source = "parent") {
   h.db = createMemoryDb({
     nannies: [{ id: "n1", user_id: "nanny-u", verification_level: level, hourly_rate_min: 20 }],
     parents: [{ id: "p1", user_id: "parent-u" }],
     connection_requests: [
-      { id: "c1", parent_id: "p1", nanny_id: "n1", position_id: "pos1", status, connection_stage: stage, source: "parent",
+      { id: "c1", parent_id: "p1", nanny_id: "n1", position_id: "pos1", status, connection_stage: stage, source,
         proposed_times: SLOTS, expires_at: FUTURE, created_at: "2026-10-06T00:00:00Z" },
     ],
     user_profiles: [],
@@ -88,10 +90,45 @@ describe("silent hold (#10)", () => {
     expect(data[0].connection_stage).toBe(0);
   });
 
-  // Pinned as found on main @ 9e1d67a: scheduleConnectionTime checks `status === 'accepted'` only, and a held
-  // stage-9 row is already `accepted`, so a parent who calls the action directly can schedule against a held accept.
-  // The parent UI never offers it (G7 remaps the row to Request Sent). Owner: hardening — listed in LEDGER/3d.md.
-  it.fails("G10 later stages refuse a held stage-9 row (scheduleConnectionTime)", async () => {
+  it("G7b the stage-9 request reads as the request sent: still pending, no slots, no response yet", async () => {
+    seed(3, 9, "accepted");
+    h.user = { id: "parent-u" };
+    const { data } = await getParentConnectionRequests();
+    expect(data[0]).toMatchObject({ connection_stage: 0, status: "pending", proposed_times: [], responded_at: null });
+  });
+
+  it("G11 her own stage-4 application isn't a request to accept or decline; the family hears nothing", async () => {
+    seed(3, 4, "pending", "manual");
+    expect((await acceptConnectionRequest("c1", SLOTS)).success).toBe(false);
+    expect((await declineConnectionRequest("c1", "busy")).success).toBe(false);
+    expect(req()).toMatchObject({ status: "pending", connection_stage: 4 });
+    expect(h.createInboxMessage).not.toHaveBeenCalled();
+    expect(h.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("G11 a family's request (stage 0) is still declined as before", async () => {
+    seed(3);
+    expect((await declineConnectionRequest("c1", "busy")).success).toBe(true);
+    expect(req()).toMatchObject({ status: "declined", connection_stage: 2 });
+  });
+
+  it("G12 removing a row the family never saw (a stage-9 DFY answer) tells the family nothing", async () => {
+    seed(3, 9, "accepted", "dfy");
+    h.parentId = null;
+    expect((await cancelConnectionRequest("c1")).success).toBe(true);
+    expect(req().status).toBe("cancelled");
+    expect(h.createInboxMessage.mock.calls.map((c) => (c as unknown as [{ userId: string }])[0].userId)).not.toContain("parent-u");
+  });
+
+  it("G12 removing a request the family sent still tells the family", async () => {
+    seed(3, 9, "accepted", "parent");
+    h.parentId = null;
+    expect((await cancelConnectionRequest("c1")).success).toBe(true);
+    expect(h.createInboxMessage.mock.calls.map((c) => (c as unknown as [{ userId: string }])[0].userId)).toContain("parent-u");
+  });
+
+  // scheduling books an accepted connection only (stage 10); a stage-9 row stays as it is until Approve releases it
+  it("G10 later stages refuse a held stage-9 row (scheduleConnectionTime)", async () => {
     seed(3, 9, "accepted");
     h.user = { id: "parent-u" };
     const r = await scheduleConnectionTime("c1", day(2), 9, 0);

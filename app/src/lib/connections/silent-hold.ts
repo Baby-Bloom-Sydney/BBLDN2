@@ -75,8 +75,8 @@ const HIDDEN: readonly number[] = HIDDEN_CONNECTION_STAGES;
 /** The columns a drop reads (the `LiveRow` shape). */
 export const CONNECTION_COLUMNS = 'id, parent_id, position_id, connection_stage, status, source, parent_phone_shared';
 
-/** True for the held rows a parent never saw: stage 4, and a DFY stage 9. */
-export function isUnseenByParent(r: LiveRow): boolean {
+/** True for the held rows a parent never saw: stage 4, and a DFY stage 9 (reads the stage and the source only). */
+export function isUnseenByParent(r: Pick<LiveRow, 'connection_stage' | 'source'>): boolean {
   if (r.connection_stage === CONNECTION_STAGE.NANNY_APPLIED_PENDING) return true;
   return r.connection_stage === CONNECTION_STAGE.ACCEPTED_PENDING && r.source === 'dfy';
 }

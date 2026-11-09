@@ -28,6 +28,7 @@ import {
   HIDDEN_CONNECTION_STAGES,
 } from "@/lib/position/constants";
 import { funnelLog } from "@/lib/position/logger";
+import { isUnseenByParent } from "@/lib/connections/silent-hold";
 import {
   checkPostIntroOutcomes,
   checkPostTrialOutcomes,
@@ -63,6 +64,8 @@ export interface ConnectionRequest {
 
   // Funnel (new — nullable until fully migrated)
   connection_stage: number | null;
+  /** Where the row came from ("manual", "dfy", …). */
+  source?: string | null;
   intro_outcome_reported_at: string | null;
   fill_initiated_by: "nanny" | "parent" | null;
   trial_date: string | null;
@@ -523,7 +526,7 @@ export async function acceptConnectionRequest(
   // Fetch request (use adminClient to bypass RLS)
   const { data: request, error: fetchErr } = await adminClient
     .from("connection_requests")
-    .select("id, parent_id, nanny_id, status")
+    .select("id, parent_id, nanny_id, status, connection_stage")
     .eq("id", requestId)
     .eq("nanny_id", nannyInfo.nannyId)
     .single();
@@ -532,7 +535,8 @@ export async function acceptConnectionRequest(
     return { success: false, error: "Connection request not found." };
   }
 
-  if (request.status !== "pending") {
+  // a family's request (stage 0) is what she accepts
+  if (request.status !== "pending" || request.connection_stage !== CONNECTION_STAGE.REQUEST_SENT) {
     return { success: false, error: "This request is no longer pending." };
   }
 
@@ -546,7 +550,7 @@ export async function acceptConnectionRequest(
       ? CONNECTION_STAGE.ACCEPTED
       : CONNECTION_STAGE.ACCEPTED_PENDING;
 
-  const { error: updateErr } = await adminClient
+  const { data: accepted, error: updateErr } = await adminClient
     .from("connection_requests")
     .update({
       status: "accepted",
@@ -557,11 +561,16 @@ export async function acceptConnectionRequest(
       updated_at: now,
     })
     .eq("id", requestId)
-    .eq("status", "pending");
+    .eq("status", "pending")
+    .eq("connection_stage", CONNECTION_STAGE.REQUEST_SENT)
+    .select("id");
 
   if (updateErr) {
     console.error("[Connection] Accept error:", updateErr);
     return { success: false, error: "Failed to accept connection." };
+  }
+  if (!accepted || accepted.length === 0) {
+    return { success: false, error: "This request is no longer pending." };
   }
 
   funnelLog(
@@ -696,7 +705,7 @@ export async function scheduleConnectionTime(
   // Fetch request with proposed_times
   const { data: request, error: fetchErr } = await adminClient
     .from("connection_requests")
-    .select("id, parent_id, nanny_id, status, proposed_times")
+    .select("id, parent_id, nanny_id, status, connection_stage, proposed_times")
     .eq("id", requestId)
     .eq("parent_id", parentId)
     .single();
@@ -705,7 +714,8 @@ export async function scheduleConnectionTime(
     return { success: false, error: "Connection request not found." };
   }
 
-  if (request.status !== "accepted") {
+  // a meet is booked from an accepted connection only (stage 10)
+  if (request.status !== "accepted" || request.connection_stage !== CONNECTION_STAGE.ACCEPTED) {
     return {
       success: false,
       error: "This connection is not ready to be scheduled.",
@@ -760,8 +770,8 @@ export async function scheduleConnectionTime(
 
   const nowIso = new Date().toISOString();
 
-  // Update request
-  const { error: updateErr } = await adminClient
+  // Update request — the same accepted connection (status and stage) the check above read
+  const { data: updated, error: updateErr } = await adminClient
     .from("connection_requests")
     .update({
       status: "confirmed",
@@ -772,11 +782,16 @@ export async function scheduleConnectionTime(
       updated_at: nowIso,
     })
     .eq("id", requestId)
-    .eq("status", "accepted");
+    .eq("status", "accepted")
+    .eq("connection_stage", CONNECTION_STAGE.ACCEPTED)
+    .select("id");
 
   if (updateErr) {
     console.error("[Connection] Schedule error:", updateErr);
     return { success: false, error: "Failed to schedule connection." };
+  }
+  if (!updated || updated.length === 0) {
+    return { success: false, error: "This connection is not ready to be scheduled." };
   }
 
   funnelLog("schedule", requestId, "10 → 20", { confirmedTime: selectedTime });
@@ -947,7 +962,7 @@ export async function declineConnectionRequest(
 
   const { data: request, error: fetchErr } = await adminClient
     .from("connection_requests")
-    .select("id, parent_id, nanny_id, status")
+    .select("id, parent_id, nanny_id, status, connection_stage")
     .eq("id", requestId)
     .eq("nanny_id", nannyInfo.nannyId)
     .single();
@@ -956,11 +971,12 @@ export async function declineConnectionRequest(
     return { success: false, error: "Connection request not found." };
   }
 
-  if (request.status !== "pending") {
+  // a family's request (stage 0) is what she declines
+  if (request.status !== "pending" || request.connection_stage !== CONNECTION_STAGE.REQUEST_SENT) {
     return { success: false, error: "This request is no longer pending." };
   }
 
-  const { error: updateErr } = await adminClient
+  const { data: declined, error: updateErr } = await adminClient
     .from("connection_requests")
     .update({
       status: "declined",
@@ -970,11 +986,16 @@ export async function declineConnectionRequest(
       updated_at: now,
     })
     .eq("id", requestId)
-    .eq("status", "pending");
+    .eq("status", "pending")
+    .eq("connection_stage", CONNECTION_STAGE.REQUEST_SENT)
+    .select("id");
 
   if (updateErr) {
     console.error("[Connection] Decline error:", updateErr);
     return { success: false, error: "Failed to decline connection." };
+  }
+  if (!declined || declined.length === 0) {
+    return { success: false, error: "This request is no longer pending." };
   }
 
   funnelLog("decline", requestId, "0 → 2", { nannyId: nannyInfo.nannyId });
@@ -1068,7 +1089,7 @@ export async function cancelConnectionRequest(
   // Fetch request
   const { data: request, error: fetchErr } = await adminClient
     .from("connection_requests")
-    .select("id, parent_id, nanny_id, status")
+    .select("id, parent_id, nanny_id, status, connection_stage, source")
     .eq("id", requestId)
     .single();
 
@@ -1145,7 +1166,8 @@ export async function cancelConnectionRequest(
         referenceType: "connection_request",
       });
     }
-  } else {
+  } else if (!isUnseenByParent(request)) {
+    // the family hears only about a row their own screens showed (the silent hold's own definition)
     const { data: parentData } = await adminClient
       .from("parents")
       .select("user_id")
@@ -1222,7 +1244,8 @@ export async function getParentConnectionRequests(): Promise<{
     })
     .map((req) => {
       if (req.connection_stage === CONNECTION_STAGE.ACCEPTED_PENDING) {
-        return { ...req, connection_stage: CONNECTION_STAGE.REQUEST_SENT };
+        // read as the request she sent: still pending, no slots, no response yet
+        return { ...req, connection_stage: CONNECTION_STAGE.REQUEST_SENT, status: "pending", proposed_times: [], responded_at: null };
       }
       return req;
     });

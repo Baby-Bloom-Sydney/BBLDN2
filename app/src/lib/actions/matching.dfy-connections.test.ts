@@ -40,8 +40,10 @@ describe("getDfyConnections — the matched nanny as the cards and the schedule 
     expect(data?.[0]?.nanny).toMatchObject({ firstName: "Nina", lastName: "Walkerton" });
   });
 
-  it("returns every row the read returns", async () => {
+  it("lists the accepted and later rows, and leaves out the rows the family doesn't see yet (stages 4 and 9)", async () => {
     admin.reads.connection_requests = [
+      { id: "c-9", nanny_id: "n-1", connection_stage: 9, proposed_times: ["2026-11-12_morning"], confirmed_time: null, position_id: "pos-1" },
+      { id: "c-4", nanny_id: "n-1", connection_stage: 4, proposed_times: [], confirmed_time: null, position_id: "pos-1" },
       { id: "c-1", nanny_id: "n-1", connection_stage: 10, proposed_times: [], confirmed_time: null, position_id: "pos-1" },
       { id: "c-2", nanny_id: "n-1", connection_stage: 20, proposed_times: [], confirmed_time: null, position_id: "pos-1" },
     ];

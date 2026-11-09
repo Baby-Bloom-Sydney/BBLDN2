@@ -24,6 +24,8 @@ import {
   type BracketKey,
 } from "@/lib/timezone";
 import { isTerminal } from "./connections-translator";
+import { isUnseenByParent } from "@/lib/connections/silent-hold";
+import type { ConnectionRequestWithDetails } from "@/lib/actions/connection";
 import {
   resolveConnectionForWrite,
   requireCounterpartyDisplayName,
@@ -48,10 +50,8 @@ async function proposeDeclineConnection(
   }
 
   const stage = connection.connection_stage;
-  const declinable =
-    stage === CONNECTION_STAGE.REQUEST_SENT ||
-    stage === CONNECTION_STAGE.NANNY_APPLIED_PENDING ||
-    stage === CONNECTION_STAGE.ACCEPTED_PENDING;
+  // a family's request (stage 0) is what she declines
+  const declinable = stage === CONNECTION_STAGE.REQUEST_SENT;
   if (!declinable) {
     return {
       success: false,
@@ -101,11 +101,7 @@ async function applyDeclineConnection(
   }
 
   const stage = connection.connection_stage;
-  if (
-    stage !== CONNECTION_STAGE.REQUEST_SENT &&
-    stage !== CONNECTION_STAGE.NANNY_APPLIED_PENDING &&
-    stage !== CONNECTION_STAGE.ACCEPTED_PENDING
-  ) {
+  if (stage !== CONNECTION_STAGE.REQUEST_SENT) {
     return {
       success: false,
       error:
@@ -172,8 +168,9 @@ async function proposeCancelConnection(
   const cpRes = requireCounterpartyDisplayName(connection, role);
   if (!cpRes.ok) return { success: false, error: cpRes.error };
   const displayName = cpRes.displayName;
-  const otherPartyNotice =
-    role === "parent"
+  const otherPartyNotice = !familyHearsOfCancel(role, connection)
+    ? ""
+    : role === "parent"
       ? `${displayName} will be notified in their inbox.`
       : `The family will be notified in their inbox.`;
 
@@ -184,11 +181,17 @@ async function proposeCancelConnection(
       connection_id: connection.id,
       counterparty_name: displayName,
       email_side_effect: false,
-      preview: `You're about to cancel your connection with ${displayName}. ${otherPartyNotice} You can send a new request later if you change your mind.`,
+      preview: [`You're about to cancel your connection with ${displayName}.`, otherPartyNotice, "You can send a new request later if you change your mind."].filter(Boolean).join(" "),
       next_call:
         "Read this back to the user and ask 'yes / cancel'. When they confirm, call apply_cancel_connection with the same connection_id.",
     },
   };
+}
+
+/** The family hears of a cancel only for a row their own screens showed (the silent hold's own definition). */
+function familyHearsOfCancel(role: string, connection: ConnectionRequestWithDetails): boolean {
+  if (role === "parent") return true;
+  return !isUnseenByParent({ connection_stage: connection.connection_stage ?? CONNECTION_STAGE.REQUEST_SENT, source: connection.source ?? null });
 }
 
 async function applyCancelConnection(
@@ -231,7 +234,7 @@ async function applyCancelConnection(
       action: "cancel",
       connection_id: connection.id,
       counterparty_name: displayName,
-      message: `Cancelled. ${displayName} will see this in their inbox.`,
+      message: familyHearsOfCancel(role, connection) ? `Cancelled. ${displayName} will see this in their inbox.` : "Cancelled.",
     },
     tile: {
       kind: "connection_request",
@@ -315,10 +318,8 @@ async function proposeAcceptConnection(
   }
 
   const stage = connection.connection_stage;
-  if (
-    stage !== CONNECTION_STAGE.REQUEST_SENT &&
-    stage !== CONNECTION_STAGE.NANNY_APPLIED_PENDING
-  ) {
+  // a family's request (stage 0) is what she accepts
+  if (stage !== CONNECTION_STAGE.REQUEST_SENT) {
     return {
       success: false,
       error:
@@ -380,10 +381,8 @@ async function applyAcceptConnection(
   }
 
   const stage = connection.connection_stage;
-  if (
-    stage !== CONNECTION_STAGE.REQUEST_SENT &&
-    stage !== CONNECTION_STAGE.NANNY_APPLIED_PENDING
-  ) {
+  // a family's request (stage 0) is what she accepts
+  if (stage !== CONNECTION_STAGE.REQUEST_SENT) {
     return {
       success: false,
       error:
