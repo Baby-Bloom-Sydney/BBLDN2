@@ -16,7 +16,6 @@ import { CONNECTION_STAGE, HIDDEN_CONNECTION_STAGES, POSITION_STAGE, POSITION_ST
 import { funnelLog } from '@/lib/position/logger';
 import { publicMatch, type PublicMatchResult } from '@/lib/matching/public-match';
 import { profileAge } from '@/lib/profile-age';
-import { isUnseenByParent, type LiveRow } from '@/lib/connections/silent-hold';
 import { emailHeader } from "@/lib/email/brand";
 import {
   APP_URL,
@@ -61,7 +60,6 @@ export interface DfyConnection {
   unmetRequirements: string[];
   nanny: {
     firstName: string;
-    /** The initial of her last name (the cards show first name and initial). */
     lastName: string;
     suburb: string | null;
     profilePicUrl: string | null;
@@ -737,7 +735,7 @@ export async function getDfyConnections(
   // Get DFY connections (source='dfy') for this position — exclude cancelled/declined
   const { data: connections, error } = await adminClient
     .from('connection_requests')
-    .select('id, nanny_id, connection_stage, proposed_times, confirmed_time, position_id, parent_id, status, parent_phone_shared')
+    .select('id, nanny_id, connection_stage, proposed_times, confirmed_time, position_id')
     .eq('position_id', positionId)
     .eq('source', 'dfy')
     .not('connection_stage', 'in', `(${[...HIDDEN_CONNECTION_STAGES, CONNECTION_STAGE.ACTIVE].join(',')})`)
@@ -748,14 +746,12 @@ export async function getDfyConnections(
     return { data: null, error: 'Failed to fetch connections.' };
   }
 
-  // the rows a family never sees (a held DFY accept) stay out — the silent hold's own definition
-  const shown = (connections ?? []).filter((c) => !isUnseenByParent({ ...c, source: 'dfy' } satisfies LiveRow));
-  if (shown.length === 0) {
+  if (!connections || connections.length === 0) {
     return { data: [], error: null };
   }
 
   // Get match data from dfy_match_notifications
-  const nannyIds = shown.map(c => c.nanny_id);
+  const nannyIds = connections.map(c => c.nanny_id);
   const { data: notifications } = await adminClient
     .from('dfy_match_notifications')
     .select('id, nanny_id, match_score, distance_km, metadata')
@@ -795,7 +791,7 @@ export async function getDfyConnections(
     ])
   );
 
-  const result: DfyConnection[] = shown.map(c => {
+  const result: DfyConnection[] = connections.map(c => {
     const notification = notificationMap.get(c.nanny_id);
     const nanny = nannyMap.get(c.nanny_id);
     const profile = nanny ? profileMap.get(nanny.user_id) : null;
@@ -819,7 +815,7 @@ export async function getDfyConnections(
       unmetRequirements: unmet,
       nanny: {
         firstName: profile?.first_name ?? 'Nanny',
-        lastName: (profile?.last_name ?? '').charAt(0),
+        lastName: profile?.last_name ?? '',
         suburb: profile?.suburb ?? null,
         profilePicUrl: profile?.profile_picture_url ?? null,
         hourlyRateMin: nanny?.hourly_rate_min ?? null,

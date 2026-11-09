@@ -1,6 +1,7 @@
 /**
- * The connection lists give each side the other as their screens show them: first name and last initial; the
- * family's list carries no phone field (the intro popup has its own reader). BB-wave1-041126, 2026-11-09.
+ * The connection lists give each side the other's name (the screens show first name and initial; the assistant finds
+ * a connection by first or last name); the family's list carries no phone field (the intro popup has its own
+ * reader). BB-wave1-041126, 2026-11-09.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeAdmin, type FakeAdmin, type Op } from "@/lib/payments/fake-admin.test-util";
@@ -38,18 +39,17 @@ beforeEach(() => {
 });
 
 describe("connection lists", () => {
-  it("the family's list: the nanny's first name and last initial, no phone field", async () => {
+  it("the family's list: the nanny's first and last name, no phone field", async () => {
     h.role = "parent";
     const { data } = await getParentConnectionRequests();
-    expect(data[0]?.nanny).toMatchObject({ first_name: "Nina", last_name: "W" });
+    expect(data[0]?.nanny).toMatchObject({ first_name: "Nina", last_name: "Walkerton" });
     expect(data[0]).not.toHaveProperty("nanny_phone_shared");
-    expect(JSON.stringify(data)).not.toMatch(/Walkerton|7700900999/);
+    expect(JSON.stringify(data)).not.toMatch(/7700900999/);
   });
 
-  it("the nanny's list: the family's first name and last initial", async () => {
+  it("the nanny's list: the family's first and last name", async () => {
     h.role = "nanny";
     const { data } = await getNannyConnectionRequests();
-    expect(data[0]?.parent).toMatchObject({ first_name: "Pat", last_name: "P" });
-    expect(JSON.stringify(data)).not.toMatch(/Parkerton/);
+    expect(data[0]?.parent).toMatchObject({ first_name: "Pat", last_name: "Parkerton" });
   });
 });

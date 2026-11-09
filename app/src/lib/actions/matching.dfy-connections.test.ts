@@ -1,6 +1,6 @@
 /**
- * `getDfyConnections` gives the position's parent each matched nanny as the cards show her: her age, never her date
- * of birth or account id. BB-wave1-041126, 2026-11-09.
+ * `getDfyConnections` gives the position's parent each matched nanny as the cards and the schedule dialog show her:
+ * her name and her age, never her date of birth or account id. BB-wave1-041126, 2026-11-09.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeAdmin, type FakeAdmin } from "@/lib/payments/fake-admin.test-util";
@@ -27,7 +27,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-describe("getDfyConnections — the matched nanny as the cards show her", () => {
+describe("getDfyConnections — the matched nanny as the cards and the schedule dialog show her", () => {
   it("gives her age, never her date of birth, account id, email or mobile", async () => {
     const { data } = await getDfyConnections("pos-1");
     expect(data?.[0]?.nanny).toMatchObject({ firstName: "Nina", age: 33 });
@@ -35,19 +35,17 @@ describe("getDfyConnections — the matched nanny as the cards show her", () => 
     expect(JSON.stringify(data)).not.toMatch(/1993-03-03|u-private-1|nina\.private|7700900999/);
   });
 
-  it("gives the initial of her last name (the cards show first name and initial)", async () => {
+  it("gives her full name (the schedule dialog is built from first and last name)", async () => {
     const { data } = await getDfyConnections("pos-1");
-    expect(data?.[0]?.nanny.lastName).toBe("W");
-    expect(JSON.stringify(data)).not.toMatch(/Walkerton/);
+    expect(data?.[0]?.nanny).toMatchObject({ firstName: "Nina", lastName: "Walkerton" });
   });
 
-  it("leaves out the rows the family never sees (a held DFY accept, a held application)", async () => {
+  it("returns every row the read returns", async () => {
     admin.reads.connection_requests = [
-      { id: "c-held", nanny_id: "n-1", connection_stage: 9, proposed_times: [], confirmed_time: null, position_id: "pos-1" },
-      { id: "c-applied", nanny_id: "n-1", connection_stage: 4, proposed_times: [], confirmed_time: null, position_id: "pos-1" },
       { id: "c-1", nanny_id: "n-1", connection_stage: 10, proposed_times: [], confirmed_time: null, position_id: "pos-1" },
+      { id: "c-2", nanny_id: "n-1", connection_stage: 20, proposed_times: [], confirmed_time: null, position_id: "pos-1" },
     ];
     const { data } = await getDfyConnections("pos-1");
-    expect(data?.map((c) => c.connectionId)).toEqual(["c-1"]);
+    expect(data?.map((c) => c.connectionId)).toEqual(["c-1", "c-2"]);
   });
 });

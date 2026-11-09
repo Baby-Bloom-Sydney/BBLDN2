@@ -1970,7 +1970,6 @@ export async function getParentPlacement(): Promise<{
   data: {
     id: string;
     nannyId: string;
-    /** First name and last initial ("Nina W."). */
     nannyName: string;
     nannySuburb: string;
     nannyPhoto: string | null;
@@ -2038,7 +2037,7 @@ export async function getParentPlacement(): Promise<{
       .single();
 
     if (profile) {
-      nannyName = [profile.first_name, profile.last_name ? `${profile.last_name.charAt(0)}.` : ""].filter(Boolean).join(" ");
+      nannyName = `${profile.first_name} ${profile.last_name}`;
       nannySuburb = profile.suburb || "";
       nannyPhoto = profile.profile_picture_url;
       nannyAge = profileAge(profile.date_of_birth ?? null);

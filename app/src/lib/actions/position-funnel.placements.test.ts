@@ -1,7 +1,8 @@
 /**
- * Placements as each side's screens show the other: the family sees the nanny's first name and last initial and her
- * age (her contact details for the active placement); the nanny never gets the family's date of birth, and their
- * contact details only for an active placement. BB-wave1-041126, 2026-11-09.
+ * Placements as each side's screens show the other: the family gets the hired nanny's name and age, plus her contact
+ * details for an active placement (the assistant's placement reply names her in full; the cards show first name and
+ * initial); the nanny gets the family's contact details only for an active placement, never their date of birth.
+ * BB-wave1-041126, 2026-11-09.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeAdmin, type FakeAdmin, type Op } from "@/lib/payments/fake-admin.test-util";
@@ -31,7 +32,7 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("getParentPlacement — the hired nanny as the family's screens show her", () => {
-  it("first name and last initial, her age; her contact details for the active placement; never her date of birth", async () => {
+  it("her full name, her age; her contact details for the active placement; never her date of birth", async () => {
     admin = fakeAdmin({
       nanny_placements: { id: "pl-1", nanny_id: "n-1", weekly_hours: 30, hourly_rate: 18, hired_at: "2026-11-01T00:00:00Z", start_date: "2026-11-03" },
       nannies: { user_id: "u-nanny", total_experience_years: 6, nanny_experience_years: 4, hourly_rate_min: 18 },
@@ -39,9 +40,9 @@ describe("getParentPlacement — the hired nanny as the family's screens show he
       nanny_credentials: [],
     });
     const { data } = await getParentPlacement();
-    expect(data).toMatchObject({ nannyName: "Nina W.", nannyAge: 33, nannyEmail: "nina.private@example.test", nannyPhone: "+447700900999" });
+    expect(data).toMatchObject({ nannyName: "Nina Walkerton", nannyAge: 33, nannyEmail: "nina.private@example.test", nannyPhone: "+447700900999" });
     expect(data).not.toHaveProperty("nannyDateOfBirth");
-    expect(JSON.stringify(data)).not.toMatch(/1993-03-03|Walkerton/);
+    expect(JSON.stringify(data)).not.toMatch(/1993-03-03/);
   });
 });
 

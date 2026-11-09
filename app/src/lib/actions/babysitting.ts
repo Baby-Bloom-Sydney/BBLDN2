@@ -1758,13 +1758,26 @@ export async function parentAcceptNanny(
   // narrate that side. Only the booked nanny hears from Katie here.
   //
   // `family_phrase` is passed as a COMPLETE subject phrase so the
-  // template never has to prepend/append words around it. Her babysitting
-  // screens show no family name, so the narration uses the neutral phrase.
+  // template never has to prepend/append words around it ("The" + bare
+  // word → grammar break). When we can resolve the parent's first name
+  // we pass "The Chen family"; otherwise we pass the neutral fallback
+  // and the template still reads cleanly.
   if (nannyRow) {
     const slotForTemplate = (slots ?? [])[0]
       ? formatSlotDisplay((slots ?? [])[0])
       : "your booking";
-    const familyPhrase = "A family";
+    const { data: parentRow } = await adminClient
+      .from("parents")
+      .select("user_id")
+      .eq("id", bsr.parent_id)
+      .maybeSingle();
+    const parentEmailForName = parentRow
+      ? await getUserEmailInfo(parentRow.user_id).catch(() => null)
+      : null;
+    const familyPhrase =
+      parentEmailForName && parentEmailForName.lastName
+        ? `The ${parentEmailForName.lastName} family`
+        : "A family";
     dispatchActionTriggeredInBackground({
       triggerId: "bsr.accepted_by_parent",
       recipientUserId: nannyRow.user_id,
@@ -1834,8 +1847,23 @@ export async function parentDeclineNanny(
     .eq("id", nannyId)
     .maybeSingle();
   if (nannyRowForDecline) {
-    // her babysitting screens show no family name: the neutral phrase
-    const familyPhrase = "That family";
+    const { data: bsrParentRow } = await adminClient
+      .from("babysitting_requests")
+      .select("parent_id")
+      .eq("id", babysittingRequestId)
+      .maybeSingle();
+    let familyPhrase = "That family";
+    if (bsrParentRow?.parent_id) {
+      const { data: pRow } = await adminClient
+        .from("parents")
+        .select("user_id")
+        .eq("id", bsrParentRow.parent_id)
+        .maybeSingle();
+      if (pRow) {
+        const info = await getUserEmailInfo(pRow.user_id).catch(() => null);
+        if (info?.lastName) familyPhrase = `The ${info.lastName} family`;
+      }
+    }
     dispatchActionTriggeredInBackground({
       triggerId: "bsr.declined_by_parent",
       recipientUserId: nannyRowForDecline.user_id,
