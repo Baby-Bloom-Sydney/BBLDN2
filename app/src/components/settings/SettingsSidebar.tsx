@@ -46,7 +46,7 @@ export function SettingsSidebar({
       className="hidden lg:sticky lg:top-24 lg:block lg:self-start"
     >
       {groupLabel && (
-        <h4 className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+        <h4 className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
           {groupLabel}
         </h4>
       )}

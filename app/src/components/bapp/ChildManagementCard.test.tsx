@@ -19,6 +19,7 @@ const state = vi.hoisted(() => ({
   removeNannyCalls: [] as string[],
   nannyLeaveCalls: [] as string[],
   deleteChildCalls: [] as string[],
+  gate: null as Promise<void> | null,
 }));
 
 beforeEach(() => {
@@ -29,6 +30,7 @@ beforeEach(() => {
   state.removeNannyCalls = [];
   state.nannyLeaveCalls = [];
   state.deleteChildCalls = [];
+  state.gate = null;
 });
 
 vi.mock("next/navigation", () => ({
@@ -42,10 +44,12 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/actions/bapp/child-clients", () => ({
   removeNannyFromChild: vi.fn(async (id: string) => {
     state.removeNannyCalls.push(id);
+    await state.gate;
     return state.removeNannyResult;
   }),
   nannyLeaveChild: vi.fn(async (id: string) => {
     state.nannyLeaveCalls.push(id);
+    await state.gate;
     return state.nannyLeaveResult;
   }),
   deleteChild: vi.fn(async (id: string) => {
@@ -201,6 +205,30 @@ describe("ChildManagementCard — nanny role", () => {
       expect(state.nannyLeaveCalls).toEqual(["child-1"]);
       expect(state.refreshCalls).toBe(1);
     });
+  });
+
+  it("while leaving, the button reads Leaving… (06b-3 rework R6; the parent's labels are unchanged)", async () => {
+    let open: () => void = () => undefined;
+    state.gate = new Promise<void>((r) => { open = r; });
+    render(<ChildManagementCard items={[oliver]} role="nanny" />);
+    fireEvent.click(screen.getByRole("button", { name: /leave child/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /^leave$/i }));
+    expect(await screen.findByRole("button", { name: "Leaving…" })).toBeDisabled();
+    open();
+    await waitFor(() => expect(state.refreshCalls).toBe(1));
+  });
+});
+
+describe("ChildManagementCard — parent role, while working (unchanged by 06b-3 rework)", () => {
+  it("Remove still reads Working...", async () => {
+    let open: () => void = () => undefined;
+    state.gate = new Promise<void>((r) => { open = r; });
+    render(<ChildManagementCard items={[oliver]} role="parent" />);
+    fireEvent.click(screen.getByRole("button", { name: /remove nanny/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /^remove$/i }));
+    expect(await screen.findByRole("button", { name: "Working..." })).toBeDisabled();
+    open();
+    await waitFor(() => expect(state.refreshCalls).toBe(1));
   });
 });
 

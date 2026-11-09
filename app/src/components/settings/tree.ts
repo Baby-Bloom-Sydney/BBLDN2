@@ -45,6 +45,10 @@ export interface SettingsNode {
   /** Marks the node visually as destructive (rose tint). Used by
    *  the close-account leaf. */
   danger?: boolean;
+  /** Leaf-only, opt-in (06b-3 rework, ledger B06 §9.1 R1): the leaf
+   *  draws its own title row — an editable page's one Edit button
+   *  sits beside its title — so the shell draws only the breadcrumb. */
+  ownHeader?: boolean;
 }
 
 /** Walk a tree to locate a node by id, returning the node + the

@@ -82,7 +82,7 @@ export function SettingsRow({
         {value}
       </span>
     ) : (
-      <span className="text-sm italic text-slate-400">{PLACEHOLDER}</span>
+      <span className="text-sm italic text-slate-500">{PLACEHOLDER}</span>
     ));
 
   return (
@@ -101,7 +101,7 @@ export function SettingsRow({
         <div className="text-xs font-medium text-slate-500">{label}</div>
         <div className="mt-0.5 truncate">{valueNode}</div>
         {caption && (
-          <div className="mt-0.5 text-[11px] text-slate-400">{caption}</div>
+          <div className="mt-0.5 text-[11px] text-slate-500">{caption}</div>
         )}
       </div>
 
