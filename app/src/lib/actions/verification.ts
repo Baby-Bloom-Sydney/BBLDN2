@@ -35,6 +35,7 @@ import { emailFooter } from "@/lib/email/brand";
 import { SITE_URL } from "@/lib/constants";
 import { saveHomeAddress } from '@/lib/settings/home-address';
 import { checkHomeAddress } from '@/lib/settings/nanny-profile-rules';
+import { failureCode } from '@/lib/failure-code';
 
 // ── Shared auth helper ──
 
@@ -234,7 +235,7 @@ export async function submitIdentitySection(
       .eq('id', existing.id);
 
     if (updateErr) {
-      console.error('[submitIdentitySection] Update failed:', updateErr);
+      console.error('[submitIdentitySection] Update failed', { code: failureCode(updateErr) });
       return { success: false, error: `Failed to save identity data: ${updateErr.message}` };
     }
     verificationId = existing.id;
@@ -260,7 +261,7 @@ export async function submitIdentitySection(
       .single();
 
     if (insertErr || !inserted) {
-      console.error('[submitIdentitySection] Insert failed:', insertErr);
+      console.error('[submitIdentitySection] Insert failed', { code: failureCode(insertErr) });
       return { success: false, error: `Failed to create verification record: ${insertErr?.message ?? 'unknown'}` };
     }
     verificationId = inserted.id;
@@ -317,7 +318,7 @@ export async function submitIdentityForManualReview(): Promise<{ success: boolea
     .eq('id', existing.id);
 
   if (updateErr) {
-    console.error('[submitIdentityForManualReview] Update failed:', updateErr);
+    console.error('[submitIdentityForManualReview] Update failed', { code: failureCode(updateErr) });
     return { success: false, error: 'Failed to submit for manual review' };
   }
 
@@ -484,7 +485,7 @@ export async function submitWWCCSection(
     .eq('id', existing.id);
 
   if (updateErr) {
-    console.error('[submitWWCCSection] Update failed:', updateErr);
+    console.error('[submitWWCCSection] Update failed', { code: failureCode(updateErr) });
     return { success: false, error: DBS_ERRORS.save };
   }
 
@@ -534,7 +535,7 @@ export async function submitContactSection(
     .eq('user_id', user.id);
 
   if (updateErr) {
-    console.error('[submitContactSection] Update failed:', updateErr);
+    console.error('[submitContactSection] Update failed', { code: failureCode(updateErr) });
     return { success: false, error: 'Failed to save contact details' };
   }
 
@@ -564,7 +565,7 @@ async function saveConfirmedAddress(admin: ReturnType<typeof createAdminClient>,
     postcode: data.postcode.trim(),
     updated_at: new Date().toISOString(),
   }).eq('user_id', userId);
-  if (error) console.error('[submitContactSection] area sync failed', { code: (error as { code?: string }).code ?? 'Error' });
+  if (error) console.error('[submitContactSection] area sync failed', { code: failureCode(error) });
 }
 
 // ── Get Full Verification Data (for page load pre-population) ──

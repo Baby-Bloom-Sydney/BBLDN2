@@ -17,6 +17,8 @@
  * the op) is the `data` a write answers — so an `.insert().select().single()` or a claim's `.update(…).select()` can
  * return rows — and `delete` is a write kind. With no `writeResults` entry a write answers `data: null`, as before.
  * Each write op also records the options it was given (`upsert`'s `onConflict` / `ignoreDuplicates`).
+ *
+ * Add-only again (BB-wave1-041126, 2026-11-09): a write error may carry a `code` and `details`, as PostgREST's do.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -42,7 +44,7 @@ export interface FakeAdmin {
   client: SupabaseClient;
   ops: Op[];
   reads: Record<string, unknown>;
-  writeErrors: Record<string, { message: string } | undefined>;
+  writeErrors: Record<string, { message: string; code?: string; details?: string } | undefined>;
   rpcCalls: RpcCall[];
   rpcResults: Record<string, RpcResult | undefined>;
   readErrors: Record<string, { message: string; code?: string } | undefined>;

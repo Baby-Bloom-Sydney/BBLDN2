@@ -4,6 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { openai } from "@/lib/ai/client";
+import { failureCode } from "@/lib/failure-code";
+import { identityLocked } from "@/lib/settings/identity-lock";
+import { splitProfileUpdate, touchesIdentity, type UpdateNannyProfileData } from "@/lib/settings/nanny-profile-keys";
+import { PROFILE_MESSAGES } from "@/lib/settings/nanny-profile-rules";
 
 // ── Public nanny profile fetch (for /nannies/[id] page) ──
 
@@ -367,72 +371,6 @@ export async function getNannyProfile(): Promise<{
   };
 }
 
-export interface UpdateNannyProfileData {
-  // user_profiles fields
-  first_name?: string;
-  last_name?: string;
-  mobile_number?: string | null;
-  date_of_birth?: string | null;
-  suburb?: string;
-  postcode?: string;
-  profile_picture_url?: string | null;
-
-  // nannies fields
-  gender?: string | null;
-  nationality?: string | null;
-  languages?: string[] | null;
-
-  total_experience_years?: number | null;
-  nanny_experience_years?: number | null;
-  under_3_experience_years?: number | null;
-  newborn_experience_years?: number | null;
-  experience_details?: string | null;
-
-  role_types_preferred?: string[] | null;
-  level_of_support_offered?: string[] | null;
-
-  hourly_rate_min?: number | null;
-  pay_frequency?: string[] | null;
-  immediate_start_available?: boolean;
-  placement_ongoing_preferred?: boolean;
-  start_date_earliest?: string | null;
-  end_date_latest?: string | null;
-
-  max_children?: number | null;
-  min_child_age_months?: number | null;
-  max_child_age_months?: number | null;
-  additional_needs_ok?: boolean;
-
-  sydney_resident?: boolean | null;
-  residency_status?: string | null;
-  right_to_work?: boolean | null;
-  drivers_license?: boolean | null;
-  has_car?: boolean | null;
-  comfortable_with_pets?: boolean | null;
-  vaccination_status?: boolean | null;
-  non_smoker?: boolean | null;
-
-  hobbies_interests?: string | null;
-  strengths_traits?: string | null;
-  skills_training?: string | null;
-
-  // V2 onboarding fields
-  motivation?: string | null;
-  personality_traits?: string[] | null;
-  professional_values?: string[] | null;
-  childcare_roles?: { role: string; duration: number }[] | null;
-  photo_1_url?: string | null;
-  photo_2_url?: string | null;
-  photo_3_url?: string | null;
-
-  // Related table fields
-  highest_qualification?: string | null;
-  certificates?: string[];
-  assurances?: string[];
-  available_days?: string[];
-  schedule?: Record<string, string[]>;
-}
-
 export async function updateNannyProfile(
   data: UpdateNannyProfileData,
 ): Promise<{ success: boolean; error: string | null }> {
@@ -444,6 +382,13 @@ export async function updateNannyProfile(
   } = await supabase.auth.getUser();
   if (authError || !user) {
     return { success: false, error: "Not authenticated" };
+  }
+
+  // Only the fields on the lists, each to its row; her name and date of birth stay fixed after identity verification
+  const split = splitProfileUpdate(data);
+  if (!split.ok) return { success: false, error: "Failed to update profile" };
+  if (touchesIdentity(split.profile) && (await identityLocked(user.id))) {
+    return { success: false, error: PROFILE_MESSAGES.locked };
   }
 
   // Server-side profanity check on free-text fields
@@ -458,35 +403,7 @@ export async function updateNannyProfile(
     };
   }
 
-  // Fields that go to user_profiles
-  const profileFieldNames = [
-    "first_name",
-    "last_name",
-    "mobile_number",
-    "date_of_birth",
-    "suburb",
-    "postcode",
-    "profile_picture_url",
-  ];
-  // Fields that go to related tables
-  const relatedFieldNames = [
-    "highest_qualification",
-    "certificates",
-    "assurances",
-    "available_days",
-    "schedule",
-  ];
-
-  const profileData: Record<string, unknown> = {};
-  const nannyData: Record<string, unknown> = {};
-
-  for (const [key, value] of Object.entries(data)) {
-    if (profileFieldNames.includes(key)) {
-      profileData[key] = value;
-    } else if (!relatedFieldNames.includes(key)) {
-      nannyData[key] = value;
-    }
-  }
+  const { profile: profileData, nanny: nannyData } = split;
 
   // Update user_profiles if we have profile data
   if (Object.keys(profileData).length > 0) {
@@ -496,7 +413,7 @@ export async function updateNannyProfile(
       .eq("user_id", user.id);
 
     if (profileError) {
-      console.error("Profile update error:", profileError);
+      console.error("Profile update error", { code: failureCode(profileError) });
       return { success: false, error: "Failed to update profile" };
     }
   }
@@ -509,7 +426,7 @@ export async function updateNannyProfile(
       .eq("user_id", user.id);
 
     if (nannyError) {
-      console.error("Nanny update error:", nannyError);
+      console.error("Nanny update error", { code: failureCode(nannyError) });
       return { success: false, error: "Failed to update nanny data" };
     }
   }
