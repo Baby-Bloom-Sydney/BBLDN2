@@ -1017,7 +1017,8 @@ export async function declineConnectionRequest(
     parentId: request.parent_id,
     nannyId: request.nanny_id,
     eventType: "declined",
-    eventData: reason ? { reason } : {},
+    // the reason stays on the row, read by the server's own paths; the event records only the decline
+    eventData: {},
   });
 
   // Inbox message for parent (neutral — no reason shown)

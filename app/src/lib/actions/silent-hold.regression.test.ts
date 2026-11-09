@@ -127,7 +127,15 @@ describe("silent hold (#10)", () => {
   it("G11 a family's request (stage 0) is still declined as before", async () => {
     seed(3);
     expect((await declineConnectionRequest("c1", "busy")).success).toBe(true);
-    expect(req()).toMatchObject({ status: "declined", connection_stage: 2 });
+    expect(req()).toMatchObject({ status: "declined", connection_stage: 2, decline_reason: "busy" });
+  });
+
+  it("G11b the decline's log event carries no reason (the row keeps it)", async () => {
+    seed(3);
+    await declineConnectionRequest("c1", "Not free at weekends");
+    const declined = h.log.mock.calls.map(([e]) => e).filter((e) => e.eventType === "declined");
+    expect(declined).toHaveLength(1);
+    expect(JSON.stringify(declined[0].eventData ?? {})).not.toMatch(/Not free at weekends|reason/);
   });
 
   it("G12 removing a row the family never saw (a stage-9 DFY answer) tells the family nothing", async () => {
