@@ -45,6 +45,8 @@ export interface SettingsRowProps {
   mono?: boolean;
   /** Hide the bottom border (use on the last row of a subsection). */
   isLast?: boolean;
+  /** Opt-in (06b-3 rework, a11y review M6): the value wraps instead of being cut off with an ellipsis. */
+  wrap?: boolean;
 }
 
 const PLACEHOLDER = "Not set";
@@ -66,6 +68,7 @@ export function SettingsRow({
   badge,
   mono,
   isLast,
+  wrap,
 }: SettingsRowProps) {
   const isInteractive = !!onClick && !locked;
   const Wrapper = isInteractive ? "button" : "div";
@@ -99,7 +102,7 @@ export function SettingsRow({
     >
       <div className="flex-1 min-w-0">
         <div className="text-xs font-medium text-slate-500">{label}</div>
-        <div className="mt-0.5 truncate">{valueNode}</div>
+        <div className={cn("mt-0.5", wrap ? "min-w-0 break-words" : "truncate")}>{valueNode}</div>
         {caption && (
           <div className="mt-0.5 text-[11px] text-slate-500">{caption}</div>
         )}

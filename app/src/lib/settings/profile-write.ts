@@ -26,7 +26,8 @@ export interface OwnProfile {
   readonly updatedAt: string | null;
 }
 
-export type ProfileWrite = "saved" | "stale" | "error";
+/** Saved (with the version now stored), stale (changed since: nothing written) or error. */
+export type ProfileWrite = { readonly status: "saved"; readonly updatedAt: string } | { readonly status: "stale" | "error" };
 
 const COLUMNS = "first_name, last_name, address_line1, address_line2, suburb, postcode, updated_at";
 
@@ -57,8 +58,10 @@ const postcodeOf = (raw: string): string => {
   return compact.length > 3 ? `${compact.slice(0, -3)} ${compact.slice(-3)}` : compact;
 };
 
+/** A second line, if any, is folded into the street line (as `formatAddressLine` does), so nothing is dropped. */
 export function addressColumns(home: HomeAddress): Readonly<Record<string, string | null>> {
-  return { address_line1: home.line1.trim(), address_line2: null, suburb: home.town.trim(), postcode: postcodeOf(home.postcode) };
+  const street = [home.line1.trim(), home.line2.trim()].filter((part) => part !== "").join(", ");
+  return { address_line1: street, address_line2: null, suburb: home.town.trim(), postcode: postcodeOf(home.postcode) };
 }
 
 export async function writeOwnProfile(
@@ -70,6 +73,8 @@ export async function writeOwnProfile(
   const mine = client.from("user_profiles").update(fields).eq("user_id", userId);
   const guarded = expectedUpdatedAt === null ? mine.is("updated_at", null) : mine.eq("updated_at", expectedUpdatedAt);
   const { data, error } = await guarded.select("updated_at");
-  if (error) return "error";
-  return Array.isArray(data) && data.length > 0 ? "saved" : "stale";
+  if (error) return { status: "error" };
+  const row: unknown = Array.isArray(data) ? data[0] : undefined;
+  const version = typeof row === "object" && row !== null ? (row as { updated_at?: unknown }).updated_at : undefined;
+  return typeof version === "string" ? { status: "saved", updatedAt: version } : { status: "stale" };
 }

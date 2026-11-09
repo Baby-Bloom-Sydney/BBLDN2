@@ -19,6 +19,8 @@ export type ActionRefusal = {
   readonly message: string;
   /** Field → its message, when the page's check refused fields (nothing was written). */
   readonly fields?: Readonly<Record<string, string>>;
+  /** Records written before the refusal, each with the version now stored, so the page re-bases (review round 1). */
+  readonly saved?: Readonly<Partial<Record<"home" | "business" | "bank", string>>>;
 };
 
 /** `saveBusinessSettings`: saved (nothing of hers comes back), or refused. */

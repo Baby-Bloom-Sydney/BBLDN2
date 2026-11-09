@@ -9,6 +9,11 @@
  * - a change to saved bank details sends the security email (capped, best effort, at most 5 s), no digits anywhere:
  *   not in the reply, the email or a log.
  *
+ * Review round 1: her address is written first (a create in between snapshots old business details with an address
+ * that already suits them); a refusal after an earlier write says what was saved, with its version, so the page can
+ * re-base and a retry never reads as "changed elsewhere"; the version check reads only the bank row's version; the
+ * alert goes to her sign-in email, which her own session can't rewrite.
+ *
  * BB-wave1-041126/06b3-rework, 2026-11-09 (the email cases ported from 06b-3's `save-payment-details.test.ts`).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -58,7 +63,34 @@ const bankSaved = (firstSave: boolean, changed: boolean) => ({
 
 let f: FakeAdmin;
 let session: FakeAdmin;
+let order: string[];
+let bankSelects: string[];
 const spies: Array<ReturnType<typeof vi.spyOn>> = [];
+const AUTH_EMAIL = "admin+b06-01@babybloomnannies.co.uk";
+
+/** Records the order of writes across both clients, the bank row's selected columns, and gives the fake an auth API. */
+function instrument() {
+  order = [];
+  bankSelects = [];
+  const svc = f.client as unknown as Record<string, unknown> & { from: (t: string) => Record<string, unknown>; rpc: (fn: string, a: unknown) => unknown };
+  const rpc = svc.rpc;
+  svc.rpc = (fn: string, args: unknown) => (fn.endsWith("_save") && order.push(fn), rpc(fn, args));
+  const from = svc.from;
+  svc.from = (table: string) => {
+    const b = from(table);
+    if (table !== "nanny_payment_details") return b;
+    const select = b.select as (c: string) => unknown;
+    return { ...b, select: (c: string) => (bankSelects.push(c), select(c)) };
+  };
+  svc.auth = { admin: { getUserById: vi.fn(async () => ({ data: { user: { email: AUTH_EMAIL } }, error: null })) } };
+  const mine = session.client as unknown as { from: (t: string) => Record<string, unknown> };
+  const sFrom = mine.from;
+  mine.from = (table: string) => {
+    const b = sFrom(table);
+    const update = b.update as (p: unknown) => unknown;
+    return { ...b, update: (p: unknown) => (order.push(`${table} update`), update(p)) };
+  };
+}
 
 beforeEach(() => {
   vi.stubEnv("NANNY_INVOICES_ENABLED", "true");
@@ -71,6 +103,7 @@ beforeEach(() => {
   session.writeResults.user_profiles = [{ updated_at: NEWER }];
   sessionClient.mockReset().mockReturnValue(session.client);
   getNannyId.mockReset().mockResolvedValue({ nannyId: NANNY_ID, userId: USER_ID });
+  instrument();
   getUserEmailInfo.mockReset().mockResolvedValue({ email: "admin+b06-01@babybloomnannies.co.uk", firstName: "Sophie", lastName: "Taylor", userId: USER_ID });
   sendEmail.mockReset().mockResolvedValue({ success: true, messageId: "m1" });
   spies.splice(0);
@@ -160,6 +193,27 @@ describe("saving the page", () => {
     expect(home?.filters).toEqual([["eq", "user_id", USER_ID], ["eq", "updated_at", V_HOME]]);
   });
 
+  it("her address is written first, then her business details, then her bank details", async () => {
+    await saveBusinessSettings({ business: BUSINESS, address: ADDRESS, bank: BANK });
+    expect(order).toEqual(["user_profiles update", "nanny_business_details_save", "nanny_payment_details_save"]);
+  });
+
+  it("a refusal after an earlier write says what was saved, with its version (the page re-bases; a retry isn't stale)", async () => {
+    f.rpcResults.nanny_payment_details_save = { data: null, error: { message: "lock timeout", code: "55P03" } };
+    expect(await saveBusinessSettings({ business: BUSINESS, address: ADDRESS, bank: BANK })).toEqual({
+      ok: false, error: "busy", message: "Your details are being saved elsewhere — try again in a moment.",
+      saved: { home: NEWER, business: NEWER },
+    });
+    f.rpcResults.nanny_business_details_save = { data: { status: "nanny_inactive" }, error: null };
+    expect(await saveBusinessSettings({ business: BUSINESS, address: ADDRESS })).toMatchObject({ error: "nanny_inactive", saved: { home: NEWER } });
+    expect(await saveBusinessSettings({ business: BUSINESS })).not.toHaveProperty("saved");
+  });
+
+  it("the version check reads only the bank row's version, not her numbers", async () => {
+    await saveBusinessSettings({ bank: BANK });
+    expect(bankSelects).toEqual(["updated_at"]);
+  });
+
   it("only the records sent are read and written (bank only)", async () => {
     expect(await saveBusinessSettings({ bank: BANK })).toEqual({ ok: true });
     expect(saves().map((c) => c.fn)).toEqual(["nanny_payment_details_save"]);
@@ -215,10 +269,24 @@ describe("the bank-change email (R7; security review M1, TS review M2)", () => {
     expect(sendEmail).toHaveBeenCalledTimes(1);
     const sent = sendEmail.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(sent).toMatchObject({
-      to: "admin+b06-01@babybloomnannies.co.uk", subject: "Your BabyBloom bank details were changed",
+      to: AUTH_EMAIL, subject: "Your BabyBloom bank details were changed",
       replyTo: SUPPORT_INBOX, emailType: "invoice_payment_details_changed", recipientUserId: USER_ID,
     });
     expect(`${String(sent.html)}${String(sent.text)}`).not.toMatch(/112233|200056|11114321|4321|••/);
+  });
+
+  it("it goes to her sign-in email, not the profile's (which her own session could rewrite; security review M1)", async () => {
+    getUserEmailInfo.mockResolvedValue({ email: "someone-else@example.test", firstName: "Sophie", lastName: "Taylor", userId: USER_ID });
+    await saveBusinessSettings({ bank: BANK });
+    expect((sendEmail.mock.calls[0]?.[0] as { to: string }).to).toBe(AUTH_EMAIL);
+    expect((f.client as unknown as { auth: { admin: { getUserById: ReturnType<typeof vi.fn> } } }).auth.admin.getUserById).toHaveBeenCalledWith(USER_ID);
+  });
+
+  it("no sign-in email → no alert, logged by code; the save stands", async () => {
+    (f.client as unknown as { auth: unknown }).auth = { admin: { getUserById: vi.fn(async () => ({ data: { user: null }, error: { message: "x" } })) } };
+    expect(await saveBusinessSettings({ bank: BANK })).toEqual({ ok: true });
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenLastCalledWith("[invoices] the details-changed email failed", { code: "no_account_email" });
   });
 
   it("the first save and an unchanged re-save send none", async () => {

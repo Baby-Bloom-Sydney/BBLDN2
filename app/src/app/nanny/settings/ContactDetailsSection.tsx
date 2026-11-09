@@ -10,14 +10,13 @@
 
 import { useId, useState, type FormEvent } from "react";
 import { DiscardChangesDialog } from "@/components/settings/DiscardChangesDialog";
-import { EditNotice } from "@/components/settings/EditNotice";
 import { EditRow, TextField } from "@/components/settings/SettingsFields";
 import { SettingsEditHeader } from "@/components/settings/SettingsEditHeader";
 import { SettingsRow } from "@/components/settings/SettingsRow";
 import { SettingsSubsection } from "@/components/settings/SettingsSubsection";
 import { useEditMode } from "@/components/settings/useEditMode";
 import { useUnsavedGuard } from "@/components/settings/useUnsavedGuard";
-import { updateNannyAccountSettings } from "@/lib/actions/nanny";
+import { updateNannyAccountSettings } from "@/lib/actions/nanny-account-settings";
 import { checkProfileInput } from "@/lib/settings/nanny-profile-rules";
 import { formatUkMobile, normaliseUkMobile } from "@/lib/uk-contact";
 import { accountOutcome } from "./account-outcome";
@@ -31,7 +30,7 @@ export interface ContactFields {
 function EmailRows({ email }: { readonly email: string }) {
   return (
     <SettingsSubsection header="Email">
-      <SettingsRow label="Email address" value={email} badge={email ? { label: "Verified", tone: "success" } : undefined} isLast />
+      <SettingsRow label="Email address" value={email} badge={email ? { label: "Verified", tone: "success" } : undefined} isLast wrap />
     </SettingsSubsection>
   );
 }
@@ -60,22 +59,24 @@ export function ContactDetailsSection({ title, contact }: { readonly title: stri
 
   return (
     <div className="space-y-5">
-      <SettingsEditHeader title={title} editing={mode.editing} saving={mode.saving} onEdit={begin} onCancel={mode.cancel} formId={`${id}-form`} editRef={mode.editRef} />
-      <EditNotice notice={mode.notice} />
+      <SettingsEditHeader title={title} editing={mode.editing} saving={mode.saving} onEdit={begin} onCancel={mode.cancel} formId={`${id}-form`}
+        editRef={mode.editRef} saveRef={mode.saveRef} notice={mode.notice} announcement={mode.announcement} />
       <div className="space-y-6">
         <EmailRows email={contact.email} />
         {mode.editing ? (
           <form id={`${id}-form`} ref={mode.formRef} onSubmit={submit} noValidate>
-            <SettingsSubsection header="Phone">
-              <EditRow isLast>
-                <TextField id={`${id}-mobile`} label="Mobile number" value={mobile} onChange={setMobile} error={mode.errors.mobile}
-                  input={{ type: "tel", inputMode: "tel", autoComplete: "tel", placeholder: "07XXX XXX XXX" }} />
-              </EditRow>
-            </SettingsSubsection>
+            <fieldset disabled={mode.saving} className="m-0 min-w-0 border-0 p-0">
+              <SettingsSubsection header="Phone">
+                <EditRow isLast>
+                  <TextField id={`${id}-mobile`} label="Mobile number" value={mobile} onChange={(v) => { mode.clearError("mobile"); setMobile(v); }}
+                    error={mode.errors.mobile} input={{ type: "tel", inputMode: "tel", autoComplete: "tel", placeholder: "07XXX XXX XXX" }} required />
+                </EditRow>
+              </SettingsSubsection>
+            </fieldset>
           </form>
         ) : (
           <SettingsSubsection header="Phone">
-            <SettingsRow label="Mobile number" value={shown || undefined} isLast />
+            <SettingsRow label="Mobile number" value={shown || undefined} isLast wrap />
           </SettingsSubsection>
         )}
       </div>

@@ -30,7 +30,8 @@ function caughtHref(event: MouseEvent): { readonly href: string; readonly link: 
   if (!(link instanceof HTMLAnchorElement) || link.target === "_blank" || link.hasAttribute("download")) return null;
   const url = new URL(link.href, window.location.href);
   if (url.origin !== window.location.origin) return null;
-  const href = `${url.pathname}${url.search}${url.hash}`;
+  // never a path starting "//": pushed, that reads as another site (security review L3)
+  const href = `${url.pathname.replace(/^[/]{2,}/, "/")}${url.search}${url.hash}`;
   return url.pathname + url.search === window.location.pathname + window.location.search ? null : { href, link };
 }
 

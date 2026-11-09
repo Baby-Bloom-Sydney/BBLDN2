@@ -11,13 +11,15 @@
  * - The lifecycle (stale, the 30 s give-up, focus) is `useEditMode`'s; leaving with unsaved changes asks first
  *   (`useUnsavedGuard`).
  * - Her address is her profile's (R2): Profile and this page show and edit the one record.
+ * - Review round 1: a refusal after part of the page was saved re-bases what was saved (`rebased`), so her retry sends
+ *   only the rest; a refusal naming no field on the page shows its own words; fields are locked while saving; an error
+ *   clears as she fixes its field.
  *
  * BB-wave1-041126/06b3-build, 2026-11-07; rewritten for edit mode by BB-wave1-041126/06b3-rework, 2026-11-09.
  */
 
 import { useId, useState, type FormEvent } from "react";
 import { DiscardChangesDialog } from "@/components/settings/DiscardChangesDialog";
-import { EditNotice } from "@/components/settings/EditNotice";
 import { SettingsEditHeader } from "@/components/settings/SettingsEditHeader";
 import { useEditMode, type SaveOutcome } from "@/components/settings/useEditMode";
 import { useUnsavedGuard } from "@/components/settings/useUnsavedGuard";
@@ -27,7 +29,9 @@ import { saveBusinessSettings } from "@/lib/invoices/actions/save-business-setti
 import { hasStreetAndPostcode, type HomeAddress } from "@/lib/settings/nanny-profile-rules";
 import { BusinessFields } from "./BusinessFields";
 import { BusinessRows } from "./BusinessRows";
-import { changedParts, formFrom, wholePage, type BankView, type BusinessForm, type BusinessView, type Versions } from "./business-view";
+import {
+  changedParts, formFrom, rebased, wholePage, type BankView, type BusinessForm, type BusinessView, type Loaded, type Versions,
+} from "./business-view";
 
 export interface BusinessSettingsFormProps {
   readonly business: BusinessView;
@@ -38,21 +42,34 @@ export interface BusinessSettingsFormProps {
 
 export const BUSINESS_TITLE = "Business";
 
+/** The fields this page shows, by the keys a refusal names them with. */
+const PAGE_FIELDS = new Set([
+  "tradingName", "companyName", "companyNumber", "registeredOffice", "partnershipName", "vatNumber", "address", "accountName", "sortCode", "accountNumber",
+]);
+
 function outcomeOf(result: BusinessSettingsResult): SaveOutcome {
   if (result.ok) return { kind: "saved" };
   if (result.error === "stale") return { kind: "stale" };
-  if (result.fields) return { kind: "fields", fields: result.fields };
-  return { kind: "refused", message: result.message };
+  const fields = result.fields ?? {};
+  if (Object.keys(fields).some((key) => PAGE_FIELDS.has(key))) return { kind: "fields", fields };
+  return { kind: "refused", message: Object.values(fields)[0] ?? result.message };
 }
+
+/** The error a change clears: the field's own (her address's key is `address`). */
+const errorKeysOf = (patch: Partial<BusinessForm>): string[] =>
+  Object.keys(patch).map((key) => (key === "home" ? "address" : key)).filter((key) => key !== "accountNameTouched");
 
 export function BusinessSettingsForm({ business, bank, home, versions }: BusinessSettingsFormProps) {
   const mode = useEditMode();
   const formId = useId();
   const [form, setForm] = useState<BusinessForm>(() => formFrom(business, bank, home));
-  const [loaded, setLoaded] = useState<{ readonly form: BusinessForm; readonly versions: Versions }>(() => ({ form, versions }));
+  const [loaded, setLoaded] = useState<Loaded>(() => ({ form, versions }));
   const parts = mode.editing ? changedParts(form, loaded.form, business, bank, loaded.versions) : {};
   const guard = useUnsavedGuard(mode.editing && Object.keys(parts).length > 0, mode.cancel);
-  const set = (patch: Partial<BusinessForm>) => setForm((current) => ({ ...current, ...patch }));
+  const set = (patch: Partial<BusinessForm>) => {
+    errorKeysOf(patch).forEach(mode.clearError);
+    setForm((current) => ({ ...current, ...patch }));
+  };
 
   const begin = () => {
     const fresh = formFrom(business, bank, home);
@@ -65,17 +82,24 @@ export function BusinessSettingsForm({ business, bank, home, versions }: Busines
     const fields = checkBusinessPage(wholePage(form, loaded.form, business, bank, loaded.versions), hasStreetAndPostcode(form.home));
     if (Object.keys(fields).length > 0) return mode.refuse(fields);
     if (Object.keys(parts).length === 0) return mode.cancel();
-    void mode.save(async () => outcomeOf(await saveBusinessSettings(parts)));
+    const submitted = form;
+    void mode.save(async () => {
+      const result = await saveBusinessSettings(parts);
+      const saved = result.ok ? undefined : result.saved;
+      if (saved) setLoaded((current) => rebased(current, submitted, saved));
+      return outcomeOf(result);
+    });
   };
 
   return (
     <div className="space-y-5">
       <SettingsEditHeader title={BUSINESS_TITLE} editing={mode.editing} saving={mode.saving} onEdit={begin} onCancel={mode.cancel}
-        formId={formId} editRef={mode.editRef} />
-      <EditNotice notice={mode.notice} />
+        formId={formId} editRef={mode.editRef} saveRef={mode.saveRef} notice={mode.notice} announcement={mode.announcement} />
       {mode.editing ? (
-        <form id={formId} ref={mode.formRef} onSubmit={submit} noValidate className="space-y-6">
-          <BusinessFields form={form} set={set} view={business} errors={mode.errors} />
+        <form id={formId} ref={mode.formRef} onSubmit={submit} noValidate>
+          <fieldset disabled={mode.saving} className="m-0 min-w-0 space-y-6 border-0 p-0">
+            <BusinessFields form={form} set={set} view={business} errors={mode.errors} />
+          </fieldset>
         </form>
       ) : (
         <div className="space-y-6">

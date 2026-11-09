@@ -37,7 +37,8 @@ describe("writeOwnProfile", () => {
   it("writes only if the row is still the version she loaded", async () => {
     const f = fakeAdmin();
     f.writeResults.user_profiles = [{ updated_at: "2027-02-15T10:05:00.000001+00:00" }];
-    expect(await writeOwnProfile(f.client, USER, { mobile_number: "07700900123" }, VERSION)).toBe("saved");
+    expect(await writeOwnProfile(f.client, USER, { mobile_number: "07700900123" }, VERSION))
+      .toEqual({ status: "saved", updatedAt: "2027-02-15T10:05:00.000001+00:00" });
     expect(f.ops[0]).toMatchObject({ kind: "update", payload: { mobile_number: "07700900123" } });
     expect(f.ops[0]?.filters).toEqual([["eq", "user_id", USER], ["eq", "updated_at", VERSION]]);
   });
@@ -45,21 +46,22 @@ describe("writeOwnProfile", () => {
   it("a row with no version yet is matched as such", async () => {
     const f = fakeAdmin();
     f.writeResults.user_profiles = [{ updated_at: VERSION }];
-    expect(await writeOwnProfile(f.client, USER, { first_name: "Sophie" }, null)).toBe("saved");
+    expect(await writeOwnProfile(f.client, USER, { first_name: "Sophie" }, null)).toEqual({ status: "saved", updatedAt: VERSION });
     expect(f.ops[0]?.filters).toEqual([["eq", "user_id", USER], ["is", "updated_at", null]]);
   });
 
   it("no row matched → stale (changed since); a write error → error", async () => {
     const f = fakeAdmin();
     f.writeResults.user_profiles = [];
-    expect(await writeOwnProfile(f.client, USER, { first_name: "Sophie" }, VERSION)).toBe("stale");
+    expect(await writeOwnProfile(f.client, USER, { first_name: "Sophie" }, VERSION)).toEqual({ status: "stale" });
     f.writeErrors.user_profiles = { message: "boom" };
-    expect(await writeOwnProfile(f.client, USER, { first_name: "Sophie" }, VERSION)).toBe("error");
+    expect(await writeOwnProfile(f.client, USER, { first_name: "Sophie" }, VERSION)).toEqual({ status: "error" });
   });
 
-  it("stores an address as verification does: the street line, no second line, the town as suburb, the postcode", () => {
-    expect(addressColumns({ line1: "1 Upper Street, Islington", line2: "ignored", town: " London ", postcode: "n1 0aa" })).toEqual({
+  it("stores an address as verification does: the street line (a second line folded into it), no second line, the town as suburb, the postcode", () => {
+    expect(addressColumns({ line1: "1 Upper Street", line2: " Islington ", town: " London ", postcode: "n1 0aa" })).toEqual({
       address_line1: "1 Upper Street, Islington", address_line2: null, suburb: "London", postcode: "N1 0AA",
     });
+    expect(addressColumns({ line1: "1 Upper Street", line2: "", town: "London", postcode: "N1 0AA" })).toMatchObject({ address_line1: "1 Upper Street" });
   });
 });

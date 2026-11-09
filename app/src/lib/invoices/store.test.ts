@@ -32,6 +32,7 @@ import {
   createInvoice,
   finishInvoice,
   readBankDetailsForSettings,
+  readBankVersion,
   readFamilyRows,
   readFullDetailsForInvoicePdf,
   readMaskedDetails,
@@ -249,6 +250,21 @@ describe("readBankDetailsForSettings (06b-3 rework R3: her own Settings page onl
     expect(await readBankDetailsForSettings(nanny)).toEqual({ ok: false, error: "error" });
     f.reads.nanny_payment_details = { account_name: "x", sort_code: "112233", account_number: "87654321", updated_at: "never" };
     expect(await readBankDetailsForSettings(nanny)).toEqual({ ok: false, error: "error" });
+  });
+});
+
+describe("readBankVersion (review round 1: the stale check never reads her numbers)", () => {
+  it("selects only the version, hers only; none saved → null; a failed read → error", async () => {
+    f.reads.nanny_payment_details = { updated_at: VERSION };
+    expect(await readBankVersion(nanny)).toEqual({ ok: true, value: VERSION });
+    expect(columnsOn("nanny_payment_details")).toBe("updated_at");
+    expect(filtersOf("nanny_payment_details")).toEqual([["eq", "nanny_id", NANNY_ID]]);
+    f.reads.nanny_payment_details = null;
+    expect(await readBankVersion(nanny)).toEqual({ ok: true, value: null });
+    f.readErrors.nanny_payment_details = { message: "boom", code: "XX000" };
+    expect(await readBankVersion(nanny)).toEqual({ ok: false, error: "error" });
+    vi.stubEnv("NANNY_INVOICES_ENABLED", "");
+    expect(await readBankVersion(nanny)).toEqual({ ok: false, error: "invoices_disabled" });
   });
 });
 

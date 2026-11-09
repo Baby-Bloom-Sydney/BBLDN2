@@ -10,6 +10,7 @@ import type { Issuer } from "@/lib/invoices/store-map-lines";
 import {
   accountNameShown,
   bankRows,
+  rebased,
   businessTypeLabel,
   changedParts,
   formFrom,
@@ -126,6 +127,27 @@ describe("the Save", () => {
   it("saved bank details re-typed the same are no change (spaces and hyphens ignored)", () => {
     const saved = formFrom(view, BANK, HOME);
     expect(changedParts({ ...saved, sortCode: "11 22 33" }, saved, view, BANK, VERSIONS)).toEqual({});
+  });
+
+  it("a limited company never sends an address (its field is hidden), even one picked before switching", () => {
+    const home = { line1: "7 New Road", line2: "", town: "London", postcode: "N1 1AA" };
+    const ltd = edit({ home, businessType: "limited_company", companyName: "T Ltd", companyNumber: "12345678", registeredOffice: "2 Office Row" });
+    expect(changedParts(ltd, initial, view, null, VERSIONS)).not.toHaveProperty("address");
+    expect(wholePage(ltd, initial, view, null, VERSIONS)).not.toHaveProperty("address");
+  });
+
+  it("after a refusal that followed a write, the saved records are re-based: their values and versions (review round 1)", () => {
+    const submitted = edit({ tradingName: "Little Steps", sortCode: "11-22-33", accountNumber: "1" });
+    const loaded = { form: initial, versions: VERSIONS };
+    const next = rebased(loaded, submitted, { business: "2027-02-15T11:00:00.1+00:00" });
+    expect(next.versions).toEqual({ ...VERSIONS, business: "2027-02-15T11:00:00.1+00:00" });
+    expect(changedParts(submitted, next.form, view, null, next.versions)).toEqual({
+      bank: { accountName: "Sophie Taylor", sortCode: "11-22-33", accountNumber: "1", expectedUpdatedAt: null },
+    });
+    const home = { line1: "7 New Road", line2: "", town: "London", postcode: "N1 1AA" };
+    const withHome = rebased(loaded, edit({ home }), { home: "v-home" });
+    expect(withHome.form.home).toEqual(home);
+    expect(withHome.versions.home).toBe("v-home");
   });
 
   it("the whole page for the check: the business always, bank when saved or typed, the address only when picked", () => {

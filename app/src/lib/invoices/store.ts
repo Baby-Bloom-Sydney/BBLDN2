@@ -123,6 +123,14 @@ export async function readBankDetailsForSettings(proof: NannyProof): Promise<Inv
   return nannyGate(proof) ?? readDetails("readBankDetailsForSettings", proof, SETTINGS_BANK_COLUMNS, settingsBankRow);
 }
 
+/** Only the version of her bank details (null = none saved): a Save's stale check never needs her numbers. */
+export async function readBankVersion(proof: NannyProof): Promise<InvoiceResult<string | null>> {
+  const gate = nannyGate(proof);
+  if (gate) return gate;
+  const read = await readDetails("readBankVersion", proof, "updated_at", z.object({ updated_at: version }));
+  return read.ok ? invoiceOk(read.value?.updated_at ?? null) : read;
+}
+
 /** Save or replace her details (parsed again here) if the row is still the version she loaded; masks in the reply. */
 export async function saveDetails(proof: NannyProof, input: unknown, expectedUpdatedAt: string | null): Promise<InvoiceResult<SavedDetails>> {
   const gate = nannyGate(proof);

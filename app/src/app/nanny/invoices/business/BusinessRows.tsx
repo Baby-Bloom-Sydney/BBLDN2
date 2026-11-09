@@ -27,13 +27,13 @@ function WhoRows({ view, home }: { readonly view: BusinessView; readonly home: H
       <SettingsRow label="Business type" value={businessTypeLabel(view.businessType)} />
       {ltd && (
         <>
-          <SettingsRow label="Company name" value={view.companyName} />
+          <SettingsRow label="Company name" value={view.companyName} wrap />
           <SettingsRow label="Company number" value={view.companyNumber} />
           <SettingsRow label="Registered office" display={<Lines lines={officeLines(view.registeredOffice)} />} />
         </>
       )}
-      {view.businessType === "partnership" && <SettingsRow label="Partnership name" value={view.partnershipName} />}
-      <SettingsRow label="Trading name" value={view.tradingName ?? NO_TRADING_NAME} isLast={ltd} />
+      {view.businessType === "partnership" && <SettingsRow label="Partnership name" value={view.partnershipName} wrap />}
+      <SettingsRow label="Trading name" value={view.tradingName ?? NO_TRADING_NAME} isLast={ltd} wrap />
       {!ltd && <SettingsRow label="Address" display={<Lines lines={homeLines(home)} />} isLast />}
     </SettingsSubsection>
   );
@@ -66,7 +66,7 @@ function BankRows({ bank }: { readonly bank: BankView | null }) {
   return (
     <SettingsSubsection header="Bank details">
       {rows.map((r, i) => (
-        <SettingsRow key={r.label} label={r.label} value={r.value} mono={r.label !== "Name on account"} isLast={i === rows.length - 1} />
+        <SettingsRow key={r.label} label={r.label} value={r.value} mono={r.label !== "Name on account"} isLast={i === rows.length - 1} wrap />
       ))}
     </SettingsSubsection>
   );

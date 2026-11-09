@@ -164,9 +164,10 @@ const sameBusiness = (a: BusinessPart, b: BusinessPart): boolean =>
   JSON.stringify({ ...a, tradingName: a.tradingName.trim(), vatNumber: digits(a.vatNumber).toUpperCase() }) ===
   JSON.stringify({ ...b, tradingName: b.tradingName.trim(), vatNumber: digits(b.vatNumber).toUpperCase() });
 
-/** The whole page, for the check: her business always, her bank details once saved or typed, an address she picked. */
+/** The whole page, for the check: her business always, her bank details once saved or typed, an address she picked
+ * (never for a limited company: its field is hidden and its registered office is its address). */
 export function wholePage(form: BusinessForm, initial: BusinessForm, view: BusinessView, bank: BankView | null, versions: Versions): BusinessPageInput {
-  const picked = !sameHome(form.home, initial.home) && form.home !== null;
+  const picked = form.businessType !== "limited_company" && !sameHome(form.home, initial.home) && form.home !== null;
   return {
     business: businessPart(form, versions.business),
     ...(picked && form.home ? { address: { ...form.home, expectedUpdatedAt: versions.home } } : {}),
@@ -184,4 +185,29 @@ export function changedParts(form: BusinessForm, initial: BusinessForm, view: Bu
     ...(page.address ? { address: page.address } : {}),
     ...(bankChanged ? { bank: page.bank } : {}),
   };
+}
+
+/** What the page loaded: the form as it began and the versions it sends back. */
+export interface Loaded {
+  readonly form: BusinessForm;
+  readonly versions: Versions;
+}
+
+/** The records a refusal says were saved before it (`saveBusinessSettings`), each with its version. */
+export type SavedVersions = Readonly<Partial<Record<"home" | "business" | "bank", string>>>;
+
+/** After a refusal that followed a write: what was saved becomes the new baseline, values and versions, so her retry
+ * sends only the rest and is never taken for a change made elsewhere (review round 1). */
+export function rebased(loaded: Loaded, submitted: BusinessForm, saved: SavedVersions): Loaded {
+  const form: BusinessForm = {
+    ...loaded.form,
+    ...(saved.business ? {
+      businessType: submitted.businessType, tradingName: submitted.tradingName, companyName: submitted.companyName,
+      companyNumber: submitted.companyNumber, registeredOffice: submitted.registeredOffice, partnershipName: submitted.partnershipName,
+      vatRegistered: submitted.vatRegistered, vatCharged: submitted.vatCharged, vatNumber: submitted.vatNumber,
+    } : {}),
+    ...(saved.home ? { home: submitted.home } : {}),
+    ...(saved.bank ? { accountName: submitted.accountName, accountNameTouched: true, sortCode: submitted.sortCode, accountNumber: submitted.accountNumber } : {}),
+  };
+  return { form, versions: { ...loaded.versions, ...saved } };
 }

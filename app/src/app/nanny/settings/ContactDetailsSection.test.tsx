@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
 const { updateNannyAccountSettings, refresh } = vi.hoisted(() => ({ updateNannyAccountSettings: vi.fn(), refresh: vi.fn() }));
-vi.mock("@/lib/actions/nanny", () => ({ updateNannyAccountSettings }));
+vi.mock("@/lib/actions/nanny-account-settings", () => ({ updateNannyAccountSettings }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh, push: vi.fn() }) }));
 
 import { ContactDetailsSection } from "./ContactDetailsSection";
@@ -56,6 +56,17 @@ describe("Contact details", () => {
     await save();
     expect(screen.getByText("Enter a valid UK mobile number.")).toBeInTheDocument();
     expect(updateNannyAccountSettings).not.toHaveBeenCalled();
+  });
+
+  it("the mobile is marked required; its error clears as she types (review round 1)", async () => {
+    render(<ContactDetailsSection title="Contact details" contact={CONTACT} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit contact details" }));
+    expect(screen.getByLabelText("Mobile number")).toHaveAttribute("aria-required", "true");
+    fireEvent.change(screen.getByLabelText("Mobile number"), { target: { value: "" } });
+    await save();
+    expect(screen.getByLabelText("Mobile number")).toHaveAttribute("aria-invalid", "true");
+    fireEvent.change(screen.getByLabelText("Mobile number"), { target: { value: "07" } });
+    expect(screen.getByLabelText("Mobile number")).not.toHaveAttribute("aria-invalid");
   });
 
   it("the same number typed another way is no change", async () => {

@@ -19,7 +19,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
-const INVALID = "aria-[invalid=true]:border-rose-400 aria-[invalid=true]:focus-visible:ring-rose-400";
+/** A refused field: rose-600, at least 3:1 against white (a11y review M5). */
+const INVALID = "aria-[invalid=true]:border-rose-600 aria-[invalid=true]:focus-visible:ring-rose-600";
 
 type InputExtras = Pick<InputHTMLAttributes<HTMLInputElement>, "autoComplete" | "inputMode" | "maxLength" | "placeholder" | "spellCheck" | "type"> &
   Readonly<Partial<Record<`data-${string}`, string>>>;
@@ -33,16 +34,19 @@ export interface TextFieldProps {
   readonly error?: string;
   /** A text area (an address) instead of one line. */
   readonly multiline?: boolean;
+  /** Never saved empty: exposed to assistive technology (`aria-required`; a11y review M4). */
+  readonly required?: boolean;
   readonly input?: InputExtras;
 }
 
 const describedBy = (id: string, hint: boolean, error: boolean): string | undefined =>
   [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter((x) => x !== null).join(" ") || undefined;
 
-export function TextField({ id, label, value, onChange, hint, error, multiline = false, input }: TextFieldProps) {
+export function TextField({ id, label, value, onChange, hint, error, multiline = false, required = false, input }: TextFieldProps) {
   const control = {
     id,
     value,
+    "aria-required": required ? true : undefined,
     "aria-invalid": error ? true : undefined,
     "aria-describedby": describedBy(id, hint !== undefined, error !== undefined),
     className: INVALID,

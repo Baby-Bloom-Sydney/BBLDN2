@@ -5,6 +5,8 @@
  *   invoices), not only by the page;
  * - one address, stored as verification stores it;
  * - the version she loaded: a row changed since answers `stale`, nothing written.
+ * Review round 1: its own file (out of the 1,100-line `nanny.ts`); the version is required and the input narrowed;
+ * the lock also holds on `nannies.identity_verified` (trigger-protected); a plain sign-in message.
  *
  * BB-wave1-041126/06b3-rework, 2026-11-09.
  */
@@ -38,11 +40,11 @@ beforeEach(() => {
   signedIn = true;
   session = fakeAdmin();
   session.writeResults.user_profiles = [{ updated_at: "2027-02-15T10:05:00.000001+00:00" }];
-  admin = fakeAdmin({ nannies: { verification_level: 1 } });
+  admin = fakeAdmin({ nannies: { verification_level: 1, identity_verified: false } });
 });
 
-async function save(data: Record<string, unknown>) {
-  const { updateNannyAccountSettings } = await import("./nanny");
+async function save(data: unknown) {
+  const { updateNannyAccountSettings } = await import("./nanny-account-settings");
   return updateNannyAccountSettings(data as Parameters<typeof updateNannyAccountSettings>[0]);
 }
 
@@ -77,6 +79,12 @@ describe("updateNannyAccountSettings — Profile", () => {
     expect(admin.ops.find((o) => o.table === "nannies")?.filters).toEqual([["eq", "user_id", USER]]);
   });
 
+  it("identity verified by its own (protected) flag locks too, whatever the level says", async () => {
+    admin.reads.nannies = { verification_level: 0, identity_verified: true };
+    expect(await save({ last_name: "Else", expected_updated_at: VERSION })).toMatchObject({ code: "locked" });
+    expect(admin.ops.find((o) => o.table === "nannies")?.kind).toBe("select");
+  });
+
   it("a verified nanny can still change her address", async () => {
     admin.reads.nannies = { verification_level: 2 };
     expect(await save({ address: HOME, expected_updated_at: VERSION })).toEqual({ success: true, error: null });
@@ -91,6 +99,14 @@ describe("updateNannyAccountSettings — Profile", () => {
     session.writeResults.user_profiles = [];
     expect(await save({ address: HOME, expected_updated_at: VERSION }))
       .toEqual({ success: false, error: EDIT_MESSAGES.stale, code: "stale" });
+  });
+
+  it("the version she loaded is required, and the input must be an object; else invalid, nothing written", async () => {
+    expect(await save({ address: HOME })).toMatchObject({ success: false, code: "invalid" });
+    expect(await save({ address: HOME, expected_updated_at: 7 })).toMatchObject({ code: "invalid" });
+    expect(await save(null)).toMatchObject({ code: "invalid" });
+    expect(await save("x")).toMatchObject({ code: "invalid" });
+    expect(writesTo(session, "user_profiles")).toEqual([]);
   });
 
   it("a failed write → the plain failure; nothing to write → success with no write", async () => {
@@ -116,7 +132,7 @@ describe("updateNannyAccountSettings — Contact details", () => {
 describe("updateNannyAccountSettings — the session", () => {
   it("signed out → not authenticated, no read, no write", async () => {
     signedIn = false;
-    expect(await save({ mobile_number: "07700900123", expected_updated_at: VERSION })).toEqual({ success: false, error: "Not authenticated" });
+    expect(await save({ mobile_number: "07700900123", expected_updated_at: VERSION })).toEqual({ success: false, error: "Please sign in again, then try once more." });
     expect(session.ops).toEqual([]);
   });
 });

@@ -11,7 +11,8 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(params.s),
   usePathname: () => "/nanny/settings",
 }));
-vi.mock("@/lib/actions/nanny", () => ({ updateNannyAccountSettings: vi.fn(), deactivateNannyAccount: vi.fn() }));
+vi.mock("@/lib/actions/nanny", () => ({ deactivateNannyAccount: vi.fn() }));
+vi.mock("@/lib/actions/nanny-account-settings", () => ({ updateNannyAccountSettings: vi.fn() }));
 vi.mock("@/lib/actions/account-security", () => ({ requestPasswordChange: vi.fn() }));
 
 import { NannySettingsClient, type NannyDbsSettings } from "./NannySettingsClient";
@@ -76,8 +77,8 @@ describe("NannySettingsClient — DBS", () => {
 
   it("shows 'New certificate needed' as the pill and the row when 23", () => {
     show({ ...base, state: "new_info" });
-    // pill + row value, in each pane
-    expect(screen.getAllByText("New certificate needed").length % 2).toBe(0);
+    // the section's pill, the certificate row's badge and the Update Service value (one pane since the 06b-3 rework)
+    expect(screen.getAllByText("New certificate needed")).toHaveLength(3);
     has("New certificate needed");
     expect(screen.queryByText("Expired")).toBeNull();
   });

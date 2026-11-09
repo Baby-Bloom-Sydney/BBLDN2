@@ -28,7 +28,8 @@ export function DiscardChangesDialog({ open, onKeepEditing, onDiscard, onClosed 
         <DialogHeader>
           <DialogTitle>{EDIT_MESSAGES.discardTitle}</DialogTitle>
         </DialogHeader>
-        <DialogFooter className="gap-2 sm:gap-0">
+        {/* Keep editing first and on top on a phone: the visual order follows the focus order (a11y review L3) */}
+        <DialogFooter className="flex-col gap-2 sm:flex-row sm:gap-0">
           <Button type="button" variant="outline" onClick={onKeepEditing} autoFocus>
             Keep editing
           </Button>

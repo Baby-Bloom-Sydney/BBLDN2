@@ -95,7 +95,7 @@ describe("useEditMode", () => {
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     await act(async () => { fireEvent.submit(screen.getByLabelText("First name").closest("form") as HTMLFormElement); });
     expect(refresh).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("status")).toHaveTextContent("These details were changed elsewhere. The latest are now showing.");
+    expect(screen.getByRole("alert")).toHaveTextContent("These details were changed elsewhere. The latest are now showing.");
     expect(screen.getByRole("button", { name: "Edit" })).toHaveFocus();
   });
 

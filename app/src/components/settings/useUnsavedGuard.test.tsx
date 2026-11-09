@@ -57,6 +57,15 @@ describe("useUnsavedGuard — links inside the app", () => {
     await waitFor(() => expect(screen.getByRole("link", { name: "Contact details" })).toHaveFocus());
   });
 
+  it("changed: Escape on the confirm keeps editing too", async () => {
+    render(<Page dirty />);
+    click("Contact details");
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(push).not.toHaveBeenCalled();
+    expect(onDiscard).not.toHaveBeenCalled();
+  });
+
   it("changed: Discard drops the changes and goes where she clicked", () => {
     render(<Page dirty />);
     click("Contact details");

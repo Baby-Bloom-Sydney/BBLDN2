@@ -6,7 +6,7 @@
  */
 
 import type { SaveOutcome } from "@/components/settings/useEditMode";
-import type { UpdateNannyAccountResult } from "@/lib/actions/nanny";
+import type { UpdateNannyAccountResult } from "@/lib/actions/nanny-account-settings";
 import { EDIT_MESSAGES } from "@/lib/settings/edit-messages";
 
 export function accountOutcome(result: UpdateNannyAccountResult): SaveOutcome {

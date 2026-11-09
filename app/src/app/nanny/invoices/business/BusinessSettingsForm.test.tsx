@@ -106,11 +106,41 @@ describe("edit (R1, R3, R5)", () => {
     show();
     edit();
     fireEvent.click(screen.getByRole("radio", { name: "Limited company" }));
-    expect(screen.queryByLabelText("Address")).toBeNull();
+    expect(screen.queryByLabelText(/^Address/)).toBeNull();
     fireEvent.change(screen.getByLabelText("Company name"), { target: { value: "Taylor Ltd" } });
     expect(screen.getByLabelText("Company number")).toBeInTheDocument();
     expect(screen.getByLabelText("Registered office")).toBeInTheDocument();
     expect(screen.getByLabelText("Name on account")).toHaveValue("Taylor Ltd");
+  });
+
+  it("a partnership: its name; a company's number and office typed; VAT added; her own Name on account and account number", async () => {
+    show();
+    edit();
+    fireEvent.click(screen.getByRole("radio", { name: "Partnership" }));
+    fireEvent.change(screen.getByLabelText("Partnership name"), { target: { value: "Taylor & Shah" } });
+    expect(screen.getByLabelText("Name on account")).toHaveValue("Taylor & Shah");
+    fireEvent.click(screen.getByRole("radio", { name: "Limited company" }));
+    fireEvent.change(screen.getByLabelText("Company number"), { target: { value: "12345678" } });
+    fireEvent.change(screen.getByLabelText("Registered office"), { target: { value: "2 Office Row" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Sole trader" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Yes" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Added to rates" }));
+    fireEvent.change(screen.getByLabelText("VAT number"), { target: { value: "GB 123 4567 89" } });
+    fireEvent.click(screen.getByRole("radio", { name: "No" }));
+    expect(screen.queryByLabelText("VAT number")).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: "Yes" }));
+    expect(screen.getByLabelText("VAT number")).toHaveValue("GB 123 4567 89");
+    fireEvent.change(screen.getByLabelText("Name on account"), { target: { value: "S Taylor" } });
+    fireEvent.change(screen.getByLabelText("Sort code"), { target: { value: "11-22-33" } });
+    fireEvent.change(screen.getByLabelText("Account number"), { target: { value: "87654321" } });
+    await save();
+    expect(saveBusinessSettings).toHaveBeenCalledWith({
+      business: {
+        businessType: "sole_trader", tradingName: "", companyName: "", companyNumber: "", registeredOffice: "", partnershipName: "",
+        vatMode: "added", vatNumber: "GB 123 4567 89", expectedUpdatedAt: null,
+      },
+      bank: { accountName: "S Taylor", sortCode: "11-22-33", accountNumber: "87654321", expectedUpdatedAt: null },
+    });
   });
 
   it("saved bank details are pre-filled in full", () => {
@@ -190,8 +220,51 @@ describe("Save (R1, R4, R5)", () => {
     expect(screen.getByText("Enter your own name or business name.")).toBeInTheDocument();
     saveBusinessSettings.mockResolvedValueOnce({ ok: false, error: "stale", message: "These details were changed elsewhere. The latest are now showing." });
     await save();
-    expect(screen.getByRole("status")).toHaveTextContent("These details were changed elsewhere. The latest are now showing.");
+    expect(screen.getByRole("alert")).toHaveTextContent("These details were changed elsewhere. The latest are now showing.");
     expect(screen.getByRole("button", { name: "Edit business" })).toBeInTheDocument();
+  });
+
+  it("a refusal after part of the page was saved: the retry sends only the rest, with the new version, never 'stale' for her own change", async () => {
+    saveBusinessSettings.mockResolvedValueOnce({
+      ok: false, error: "busy", message: "Your details are being saved elsewhere — try again in a moment.", saved: { business: "2027-02-15T11:00:00.1+00:00" },
+    });
+    show();
+    edit();
+    fireEvent.change(screen.getByLabelText("Trading name"), { target: { value: "Little Steps" } });
+    fireEvent.change(screen.getByLabelText("Sort code"), { target: { value: "11-22-33" } });
+    fireEvent.change(screen.getByLabelText("Account number"), { target: { value: "87654321" } });
+    await save();
+    expect(screen.getByRole("alert")).toHaveTextContent("being saved elsewhere");
+    await save();
+    expect(saveBusinessSettings).toHaveBeenLastCalledWith({
+      bank: { accountName: "Sophie Taylor", sortCode: "11-22-33", accountNumber: "87654321", expectedUpdatedAt: null },
+    });
+  });
+
+  it("a refusal naming no field on the page shows its message, not 'marked below' with nothing marked", async () => {
+    saveBusinessSettings.mockResolvedValueOnce({ ok: false, error: "invalid", message: "Please check the details marked below.", fields: { vatRate: "Enter a VAT rate" } });
+    show();
+    edit();
+    fireEvent.change(screen.getByLabelText("Trading name"), { target: { value: "x" } });
+    await save();
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter a VAT rate");
+  });
+
+  it("while saving, the fields are locked; an error clears as she fixes its field; required fields are marked", async () => {
+    let resolve: (v: unknown) => void = () => undefined;
+    saveBusinessSettings.mockImplementationOnce(() => new Promise((r) => { resolve = r; }));
+    show();
+    edit();
+    fireEvent.change(screen.getByLabelText("Trading name"), { target: { value: "x" } });
+    act(() => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
+    expect(screen.getByLabelText("Trading name")).toBeDisabled();
+    await act(async () => { resolve({ ok: false, error: "invalid", message: "x", fields: { tradingName: "Enter your own name or business name." } }); });
+    expect(screen.getByLabelText("Trading name")).toHaveAttribute("aria-invalid", "true");
+    fireEvent.change(screen.getByLabelText("Trading name"), { target: { value: "y" } });
+    expect(screen.getByLabelText("Trading name")).not.toHaveAttribute("aria-invalid");
+    fireEvent.click(screen.getByRole("radio", { name: "Limited company" }));
+    for (const label of ["Company name", "Company number", "Registered office"]) expect(screen.getByLabelText(label)).toHaveAttribute("aria-required", "true");
+    expect(screen.getByLabelText("Trading name")).not.toHaveAttribute("aria-required");
   });
 
   it("any other refusal: its message, still editing", async () => {

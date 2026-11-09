@@ -4,6 +4,9 @@
  * NOT a `"use server"` file: it logs through `db.ts`, and every async export of a `"use server"` file is callable from
  * a browser (`boundary.test.ts`).
  *
+ * **To her sign-in email** (`auth.users`), not the profile's, which her own session can rewrite (06b-3 rework, security
+ * review M1); her first name still comes from her profile.
+ *
  * Best effort: it never throws. A missing profile, a provider failure or a throw is logged by code only; the save it
  * follows has already happened. The email carries no digit of her details and replies to the support inbox.
  *
@@ -64,10 +67,23 @@ export async function sendPaymentDetailsChangedEmail(userId: string): Promise<vo
   if (outcome === "timeout") logFailure(LABEL, { code: "timeout" });
 }
 
+/** Her sign-in email, or null when it can't be read. */
+async function accountEmail(userId: string): Promise<string | null> {
+  const admin = serviceClient();
+  if (!admin) return null;
+  const { data, error } = await admin.auth.admin.getUserById(userId);
+  return error || typeof data.user?.email !== "string" || data.user.email === "" ? null : data.user.email;
+}
+
 async function send(userId: string): Promise<void> {
   try {
     if (await capped(userId)) {
       console.warn(`[invoices] ${LABEL} skipped`, { code: "alert_cap" });
+      return;
+    }
+    const to = await accountEmail(userId);
+    if (to === null) {
+      logFailure(LABEL, { code: "no_account_email" });
       return;
     }
     const who = await getUserEmailInfo(userId);
@@ -77,7 +93,7 @@ async function send(userId: string): Promise<void> {
     }
     const email = paymentDetailsChangedEmail({ firstName: who.firstName, changedAt: new Date().toISOString() });
     const sent = await sendEmail({
-      to: who.email,
+      to,
       subject: email.subject,
       html: email.html,
       text: email.text,

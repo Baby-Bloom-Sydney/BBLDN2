@@ -53,6 +53,10 @@ describe("the address (R2: one record, her profile)", () => {
     ["no postcode", { ...HOME, postcode: " " }],
     ["a postcode that isn't one", { ...HOME, postcode: "NOT A CODE" }],
     ["a control character", { ...HOME, line1: "1 Upper\tStreet" }],
+    ["a zero-width space", { ...HOME, line1: "1 Upper\u200bStreet" }],
+    ["a bidi override", { ...HOME, town: "Lon\u202edon" }],
+    ["a line separator", { ...HOME, line1: "1 Upper\u2028Street" }],
+    ["no town", { ...HOME, town: " " }],
     ["a missing part", { line1: "1 Upper Street", postcode: "N1 0AA" }],
     ["a number for a part", { ...HOME, town: 7 }],
     ["not an object", "1 Upper Street, London N1 0AA"],
@@ -71,6 +75,14 @@ describe("the address (R2: one record, her profile)", () => {
 });
 
 describe("names, date of birth and mobile (R4; today's rules)", () => {
+  it("a name is plain text: no control, invisible or bidi characters (a joiner, which some scripts need, is kept)", () => {
+    expect(checkName("Sophie\u202eTaylor", M.firstName)).toBe(M.plain);
+    expect(checkName("Sophie\u200b", M.firstName)).toBe(M.plain);
+    expect(checkName("Sophie\nTaylor", M.firstName)).toBe(M.plain);
+    expect(checkName("\u0928\u094d\u200d\u0928", M.firstName)).toBeNull();
+    expect(M.plain).toBe("Use plain text, without special characters");
+  });
+
   it("a name is required and at most 100 characters", () => {
     expect(checkName("Sophie", M.firstName)).toBeNull();
     expect(checkName("   ", M.firstName)).toBe(M.firstName);

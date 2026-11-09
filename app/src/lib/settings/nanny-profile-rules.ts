@@ -23,6 +23,7 @@ export const PROFILE_MESSAGES = Object.freeze({
   mobileRequired: "Mobile number is required.",
   mobile: "Enter a valid UK mobile number.",
   tooLong: "That's too long — please shorten it",
+  plain: "Use plain text, without special characters",
   locked: "Your name and date of birth can't be changed after identity verification.",
 } as const);
 const M = PROFILE_MESSAGES;
@@ -37,7 +38,14 @@ export interface HomeAddress {
 
 const NAME_MAX = 100;
 const ADDRESS_PART_MAX = 200;
-const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
+/**
+ * Control, format (zero-width, bidi overrides), private-use and unassigned characters, line/paragraph separators,
+ * default-ignorables and the braille blank — the class her invoices' text rule refuses (`validation.ts` ONE_LINE_BAD,
+ * amendment 21's `nanny_invoice_text_ok`), so what she saves here can print (review round 1: security L1/L2).
+ */
+const NOT_PLAIN = /[\p{C}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}\u2800]/u;
+/** In a name, a joiner (ZWNJ / ZWJ), which some scripts need, is allowed; the invoice drops it when printing. */
+const NAME_NOT_PLAIN = /(?![\u200c\u200d])[\p{C}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}\u2800]/u;
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /** A picked address, stored as verification stores it: the street line (line 1 and line 2), no second line. */
@@ -71,17 +79,18 @@ export function checkHomeAddress(value: unknown): string | null {
   if (!parts.every(isText)) return M.address;
   const texts = parts as string[];
   if (texts.some((part) => part.length > ADDRESS_PART_MAX)) return M.tooLong;
-  if (texts.some((part) => CONTROL.test(part))) return M.address;
+  if (texts.some((part) => NOT_PLAIN.test(part))) return M.address;
   const home = { line1: texts[0] ?? "", line2: texts[1] ?? "", town: texts[2] ?? "", postcode: texts[3] ?? "" };
-  if (!hasStreetAndPostcode(home) || !UK_POSTCODE_REGEX.test(home.postcode.trim())) return M.address;
+  if (!hasStreetAndPostcode(home) || home.town.trim() === "" || !UK_POSTCODE_REGEX.test(home.postcode.trim())) return M.address;
   return null;
 }
 
-/** A name she must give. */
+/** A name she must give: plain text (it prints on her invoices), at most 100 characters. */
 export function checkName(value: unknown, missing: string): string | null {
   const text = isText(value) ? value.trim() : "";
   if (text === "") return missing;
-  return text.length > NAME_MAX ? M.tooLong : null;
+  if (text.length > NAME_MAX) return M.tooLong;
+  return NAME_NOT_PLAIN.test(text) ? M.plain : null;
 }
 
 /** Today's rule: required, and a real calendar date (the date input's `YYYY-MM-DD`). */

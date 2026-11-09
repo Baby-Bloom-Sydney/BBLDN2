@@ -160,3 +160,20 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ──────────────────────────────────────────────────────────────────
+   Settings edit mode (06b-3 rework, a11y review H1, WCAG 2.4.11).
+   While an editable page's header is pinned (`data-pinned="true"`),
+   the scrolling area keeps room under it, so a field brought into
+   view by focus (Tab, or the first refused field) is never hidden
+   behind it. Below xl the main panel scrolls; from xl the document
+   does, under the 64px app bar.
+   ────────────────────────────────────────────────────────────────── */
+main:has([data-pinned="true"]) {
+  scroll-padding-top: 8rem;
+}
+@media (min-width: 1280px) {
+  html:has([data-pinned="true"]) {
+    scroll-padding-top: 12rem;
+  }
+}

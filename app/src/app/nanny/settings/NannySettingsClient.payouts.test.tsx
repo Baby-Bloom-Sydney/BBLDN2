@@ -12,7 +12,8 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(params.s),
   usePathname: () => "/nanny/settings",
 }));
-vi.mock("@/lib/actions/nanny", () => ({ updateNannyAccountSettings: vi.fn(), deactivateNannyAccount: vi.fn() }));
+vi.mock("@/lib/actions/nanny", () => ({ deactivateNannyAccount: vi.fn() }));
+vi.mock("@/lib/actions/nanny-account-settings", () => ({ updateNannyAccountSettings: vi.fn() }));
 vi.mock("@/lib/actions/account-security", () => ({ requestPasswordChange: vi.fn() }));
 vi.mock("@/components/payments/UpcomingPayoutsView", () => ({ UpcomingPayoutsView: () => <div data-testid="upcoming" /> }));
 vi.mock("@/components/payments/PayoutHistoryView", () => ({ PayoutHistoryView: () => <div data-testid="history" /> }));

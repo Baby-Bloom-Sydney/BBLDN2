@@ -30,7 +30,7 @@ afterEach(() => {
 });
 
 async function search(text: string) {
-  fireEvent.change(screen.getByLabelText("Address"), { target: { value: text } });
+  fireEvent.change(screen.getByLabelText(/^Address/), { target: { value: text } });
   await act(async () => { await vi.advanceTimersByTimeAsync(250); });
 }
 
@@ -40,7 +40,7 @@ describe("AddressSearchField", () => {
     render(<AddressSearchField id="home" value={HOME} onPick={onPick} />);
     expect(screen.getByText("1 Upper Street")).toBeInTheDocument();
     expect(screen.getByText("N1 0AA")).toBeInTheDocument();
-    expect(screen.getByLabelText("Address")).toHaveValue("");
+    expect(screen.getByLabelText(/^Address/)).toHaveValue("");
     await search("7 new");
     expect(screen.getByText("1 Upper Street")).toBeInTheDocument();
     expect(onPick).not.toHaveBeenCalled();
@@ -52,7 +52,7 @@ describe("AddressSearchField", () => {
     await search("7 new");
     fireEvent.click(screen.getByRole("button", { name: "7 New Road, London N1 1aa" }));
     expect(onPick).toHaveBeenCalledWith({ line1: "7 New Road", line2: "", town: "London", postcode: "N1 1AA" });
-    expect(screen.getByLabelText("Address")).toHaveValue("");
+    expect(screen.getByLabelText(/^Address/)).toHaveValue("");
   });
 
   it("an address outside the service area is not taken", async () => {
@@ -67,7 +67,7 @@ describe("AddressSearchField", () => {
   it("no address on file reads Not added; an error is shown and wired to the field", () => {
     render(<AddressSearchField id="home" value={null} onPick={vi.fn()} error="Choose your address" />);
     expect(screen.getByText("Not added")).toBeInTheDocument();
-    const input = screen.getByLabelText("Address");
+    const input = screen.getByLabelText(/^Address/);
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(input).toHaveAccessibleDescription(/Choose your address/);
   });
@@ -75,10 +75,10 @@ describe("AddressSearchField", () => {
   it("keyboard: arrow down to the results, Escape back to the field", async () => {
     render(<AddressSearchField id="home" value={HOME} onPick={vi.fn()} />);
     await search("7 new");
-    fireEvent.keyDown(screen.getByLabelText("Address"), { key: "ArrowDown" });
+    fireEvent.keyDown(screen.getByLabelText(/^Address/), { key: "ArrowDown" });
     expect(screen.getByRole("button", { name: "7 New Road, London N1 1aa" })).toHaveFocus();
     fireEvent.keyDown(screen.getByRole("button", { name: "7 New Road, London N1 1aa" }), { key: "Escape" });
-    expect(screen.getByLabelText("Address")).toHaveFocus();
+    expect(screen.getByLabelText(/^Address/)).toHaveFocus();
     expect(screen.queryByRole("button", { name: "7 New Road, London N1 1aa" })).toBeNull();
   });
 });

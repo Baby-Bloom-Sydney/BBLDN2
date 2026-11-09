@@ -15,7 +15,8 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(params.s),
   usePathname: () => "/nanny/settings",
 }));
-vi.mock("@/lib/actions/nanny", () => ({ updateNannyAccountSettings: vi.fn(), deactivateNannyAccount: vi.fn() }));
+vi.mock("@/lib/actions/nanny", () => ({ deactivateNannyAccount: vi.fn() }));
+vi.mock("@/lib/actions/nanny-account-settings", () => ({ updateNannyAccountSettings: vi.fn() }));
 vi.mock("@/lib/actions/account-security", () => ({ requestPasswordChange: vi.fn() }));
 
 import { NannySettingsClient, type NannyDbsSettings } from "./NannySettingsClient";
@@ -49,12 +50,12 @@ describe("nanny Settings — the rework", () => {
 
   it("Profile and Contact details: one title each, with its Edit", () => {
     show("s=profile");
-    expect(screen.getAllByRole("heading", { level: 2, name: "Profile" })).toHaveLength(2); // the mobile and desktop panes
-    expect(screen.getAllByRole("button", { name: "Edit profile" })).toHaveLength(2);
+    expect(screen.getAllByRole("heading", { level: 2, name: "Profile" })).toHaveLength(1); // one section for every width
+    expect(screen.getAllByRole("button", { name: "Edit profile" })).toHaveLength(1);
     cleanup();
     show("s=contact");
-    expect(screen.getAllByRole("heading", { level: 2, name: "Contact details" })).toHaveLength(2);
-    expect(screen.getAllByRole("button", { name: "Edit contact details" })).toHaveLength(2);
+    expect(screen.getAllByRole("heading", { level: 2, name: "Contact details" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Edit contact details" })).toHaveLength(1);
   });
 
   it("the menu says Contact us, and its page's title too", () => {

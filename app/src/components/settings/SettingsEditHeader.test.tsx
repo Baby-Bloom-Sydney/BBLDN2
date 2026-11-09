@@ -46,9 +46,9 @@ describe("SettingsEditHeader", () => {
     expect(screen.getByRole("heading", { name: "Profile" }).closest("[data-pinned]")).toHaveAttribute("data-pinned", "true");
   });
 
-  it("saving: Save reads Saving… and both are disabled", () => {
+  it("saving: Save reads Saving… and is aria-disabled (still focusable); Cancel is disabled", () => {
     show(true, true);
-    expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Saving…" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
   });
 });

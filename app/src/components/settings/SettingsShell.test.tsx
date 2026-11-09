@@ -39,4 +39,11 @@ describe("SettingsShell", () => {
     render(<SettingsShell title="Settings" basePath="/x" tree={TREE} activeId="security" renderLeaf={leaf} />);
     expect(screen.getAllByRole("heading", { level: 2, name: "Security" }).length).toBeGreaterThan(0);
   });
+
+  it("a section renders once, for every width (review round 1: two copies lost edit mode across the breakpoint)", () => {
+    render(<SettingsShell title="Settings" basePath="/x" tree={TREE} activeId="security" renderLeaf={leaf} />);
+    expect(screen.getAllByTestId("leaf-security")).toHaveLength(1);
+    expect(screen.getAllByRole("heading", { level: 2, name: "Security" })).toHaveLength(1);
+    expect(screen.getByRole("navigation", { name: "Settings sections" }).closest(".hidden")).not.toBeNull();
+  });
 });

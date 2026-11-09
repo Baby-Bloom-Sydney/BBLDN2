@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
 const { updateNannyAccountSettings, refresh } = vi.hoisted(() => ({ updateNannyAccountSettings: vi.fn(), refresh: vi.fn() }));
-vi.mock("@/lib/actions/nanny", () => ({ updateNannyAccountSettings }));
+vi.mock("@/lib/actions/nanny-account-settings", () => ({ updateNannyAccountSettings }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh, push: vi.fn() }) }));
 
 import { ProfileSection, type ProfileFields } from "./ProfileSection";
@@ -88,7 +88,7 @@ describe("Profile — edit and Save", () => {
     expect(screen.queryByLabelText("First name")).toBeNull();
     expect(screen.queryByLabelText("Date of birth")).toBeNull();
     expect(within(row("Full legal name").parentElement as HTMLElement).getByText("Verified")).toBeInTheDocument();
-    expect(screen.getByLabelText("Address")).toHaveFocus();
+    expect(screen.getByLabelText(/^Address/)).toHaveFocus();
     await save();
     expect(updateNannyAccountSettings).not.toHaveBeenCalled();
   });
@@ -102,7 +102,7 @@ describe("Profile — edit and Save", () => {
     expect(screen.getByText("Enter your last name")).toBeInTheDocument();
     updateNannyAccountSettings.mockResolvedValueOnce({ success: false, error: "These details were changed elsewhere. The latest are now showing.", code: "stale" });
     await save();
-    expect(screen.getByRole("status")).toHaveTextContent("These details were changed elsewhere. The latest are now showing.");
+    expect(screen.getByRole("alert")).toHaveTextContent("These details were changed elsewhere. The latest are now showing.");
   });
 
   it("a locked refusal or a failure: its message, still editing", async () => {
@@ -113,6 +113,20 @@ describe("Profile — edit and Save", () => {
     await save();
     expect(screen.getByRole("alert")).toHaveTextContent("can't be changed after identity verification");
     expect(screen.getByLabelText("First name")).toHaveValue("Sophia");
+  });
+
+  it("required fields are marked; an error clears as she fixes its field; the rows wrap long values (review round 1)", async () => {
+    show();
+    fireEvent.click(screen.getByRole("button", { name: "Edit profile" }));
+    for (const label of ["First name", "Last name", "Date of birth"]) expect(screen.getByLabelText(label)).toHaveAttribute("aria-required", "true");
+    expect(screen.getByLabelText(/^Address/)).toHaveAttribute("aria-required", "true");
+    fireEvent.change(screen.getByLabelText("First name"), { target: { value: "" } });
+    await save();
+    expect(screen.getByLabelText("First name")).toHaveAttribute("aria-invalid", "true");
+    fireEvent.change(screen.getByLabelText("First name"), { target: { value: "S" } });
+    expect(screen.getByLabelText("First name")).not.toHaveAttribute("aria-invalid");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByText("Sophie Taylor").parentElement?.className).toMatch(/break-words/);
   });
 
   it("unchanged: Save goes back to the rows without a call", async () => {

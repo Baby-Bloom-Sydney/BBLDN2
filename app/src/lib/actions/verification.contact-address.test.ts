@@ -39,6 +39,15 @@ describe("submitContactSection — her one address (R2)", () => {
     expect(writesTo(admin, "verifications")[0]?.payload).toMatchObject({ address_line: "1 Upper Street, Islington", city: "London", postcode: "N1 0AA" });
   });
 
+  it("a failed profile sync is logged by code, not ignored (review round 1)", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    admin.writeErrors.user_profiles = { message: "Failing row contains (1 Upper Street)" };
+    await submitContactSection(CONTACT);
+    expect(spy).toHaveBeenCalledWith("[submitContactSection] profile sync failed", { code: "Error" });
+    expect(JSON.stringify(spy.mock.calls)).not.toMatch(/Upper Street/);
+    spy.mockRestore();
+  });
+
   it("a missing street line writes nothing", async () => {
     expect(await submitContactSection({ ...CONTACT, address_line: " " })).toMatchObject({ success: false });
     expect(admin.ops).toEqual([]);

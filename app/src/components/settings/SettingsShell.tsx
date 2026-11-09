@@ -168,24 +168,10 @@ export function SettingsShell({
         {/* ── Mobile root menu ────────────────────────────────── */}
         {isRoot && <MobileMenu basePath={basePath} tree={tree} />}
 
-        {/* ── Mobile non-root content ─────────────────────────── */}
-        {!isRoot && (
-          <div className="lg:hidden">
-            <SectionView
-              node={node}
-              path={path}
-              basePath={basePath}
-              renderLeaf={renderLeaf}
-              branchDangerLinks={branchDangerLinks}
-              isBranch={isBranch}
-              sectionHeader={sectionHeader}
-            />
-          </div>
-        )}
-
-        {/* ── Desktop sidebar + content ───────────────────────── */}
-        <div className="hidden lg:grid lg:grid-cols-[260px_1fr] lg:gap-10">
-          <div>
+        {/* ── Sidebar + content (06b-3 rework review: one section for every width, so an editable page is
+             one instance and keeps its edit mode across the lg breakpoint; the sidebar shows from lg) ── */}
+        <div className={isRoot ? "hidden lg:grid lg:grid-cols-[260px_1fr] lg:gap-10" : "lg:grid lg:grid-cols-[260px_1fr] lg:gap-10"}>
+          <div className="hidden lg:block">
             <header className="mb-6 px-3">
               <h1 className="text-xl font-bold text-slate-900">{title}</h1>
             </header>

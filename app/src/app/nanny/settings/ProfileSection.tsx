@@ -18,7 +18,6 @@
 import { useId, useState, type FormEvent } from "react";
 import { AddressSearchField } from "@/components/settings/AddressSearchField";
 import { DiscardChangesDialog } from "@/components/settings/DiscardChangesDialog";
-import { EditNotice } from "@/components/settings/EditNotice";
 import { EditRow, TextField } from "@/components/settings/SettingsFields";
 import { SettingsEditHeader } from "@/components/settings/SettingsEditHeader";
 import { SettingsRow } from "@/components/settings/SettingsRow";
@@ -26,7 +25,7 @@ import { SettingsSubsection } from "@/components/settings/SettingsSubsection";
 import { useEditMode } from "@/components/settings/useEditMode";
 import { useUnsavedGuard } from "@/components/settings/useUnsavedGuard";
 import { ValueLines } from "@/components/settings/ValueLines";
-import { updateNannyAccountSettings } from "@/lib/actions/nanny";
+import { updateNannyAccountSettings } from "@/lib/actions/nanny-account-settings";
 import { checkProfileInput, homeLines, sameHome, type HomeAddress, type ProfileInput } from "@/lib/settings/nanny-profile-rules";
 import { accountOutcome } from "./account-outcome";
 
@@ -54,7 +53,8 @@ function formatDate(iso: string): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  // a date-only value is midnight UTC: shown in UTC, it is the same day wherever she is
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 }
 
 function homeOf(profile: ProfileFields): HomeAddress | null {
@@ -87,9 +87,9 @@ function PersonRows({ profile, locked }: { readonly profile: ProfileFields; read
   return (
     <>
       <SettingsRow label="Full legal name" value={`${profile.first_name} ${profile.last_name}`.trim() || undefined}
-        locked={locked} badge={locked ? VERIFIED : undefined} />
+        locked={locked} badge={locked ? VERIFIED : undefined} wrap />
       <SettingsRow label="Date of birth" value={profile.date_of_birth ? formatDate(profile.date_of_birth) : undefined}
-        locked={locked} badge={locked ? VERIFIED : undefined} />
+        locked={locked} badge={locked ? VERIFIED : undefined} wrap />
     </>
   );
 }
@@ -97,9 +97,9 @@ function PersonRows({ profile, locked }: { readonly profile: ProfileFields; read
 function PersonFields({ form, set, errors, id }: { readonly form: ProfileForm; readonly set: (p: Partial<ProfileForm>) => void; readonly errors: Readonly<Record<string, string>>; readonly id: string }) {
   return (
     <>
-      <EditRow><TextField id={`${id}-first`} label="First name" value={form.firstName} onChange={(v) => set({ firstName: v })} error={errors.firstName} input={{ autoComplete: "given-name" }} /></EditRow>
-      <EditRow><TextField id={`${id}-last`} label="Last name" value={form.lastName} onChange={(v) => set({ lastName: v })} error={errors.lastName} input={{ autoComplete: "family-name" }} /></EditRow>
-      <EditRow><TextField id={`${id}-dob`} label="Date of birth" value={form.dateOfBirth} onChange={(v) => set({ dateOfBirth: v })} error={errors.dateOfBirth} input={{ type: "date", autoComplete: "bday" }} /></EditRow>
+      <EditRow><TextField id={`${id}-first`} label="First name" value={form.firstName} onChange={(v) => set({ firstName: v })} error={errors.firstName} input={{ autoComplete: "given-name" }} required /></EditRow>
+      <EditRow><TextField id={`${id}-last`} label="Last name" value={form.lastName} onChange={(v) => set({ lastName: v })} error={errors.lastName} input={{ autoComplete: "family-name" }} required /></EditRow>
+      <EditRow><TextField id={`${id}-dob`} label="Date of birth" value={form.dateOfBirth} onChange={(v) => set({ dateOfBirth: v })} error={errors.dateOfBirth} input={{ type: "date", autoComplete: "bday" }} required /></EditRow>
     </>
   );
 }
@@ -111,7 +111,10 @@ export function ProfileSection({ title, profile, identityVerified }: { readonly 
   const [loaded, setLoaded] = useState(() => ({ form: formOf(profile), version: profile.updated_at }));
   const changes = mode.editing ? changesOf(form, loaded.form, identityVerified) : {};
   const guard = useUnsavedGuard(mode.editing && Object.keys(changes).length > 0, mode.cancel);
-  const set = (patch: Partial<ProfileForm>) => setForm((current) => ({ ...current, ...patch }));
+  const set = (patch: Partial<ProfileForm>) => {
+    Object.keys(patch).forEach((key) => mode.clearError(key === "home" ? "address" : key));
+    setForm((current) => ({ ...current, ...patch }));
+  };
 
   const begin = () => {
     const fresh = formOf(profile);
@@ -129,14 +132,16 @@ export function ProfileSection({ title, profile, identityVerified }: { readonly 
 
   return (
     <div className="space-y-5">
-      <SettingsEditHeader title={title} editing={mode.editing} saving={mode.saving} onEdit={begin} onCancel={mode.cancel} formId={`${id}-form`} editRef={mode.editRef} />
-      <EditNotice notice={mode.notice} />
+      <SettingsEditHeader title={title} editing={mode.editing} saving={mode.saving} onEdit={begin} onCancel={mode.cancel} formId={`${id}-form`}
+        editRef={mode.editRef} saveRef={mode.saveRef} notice={mode.notice} announcement={mode.announcement} />
       {mode.editing ? (
         <form id={`${id}-form`} ref={mode.formRef} onSubmit={submit} noValidate>
-          <SettingsSubsection header="Personal information">
-            {identityVerified ? <PersonRows profile={profile} locked /> : <PersonFields form={form} set={set} errors={mode.errors} id={id} />}
-            <EditRow isLast><AddressSearchField id={`${id}-address`} value={form.home} onPick={(home) => set({ home })} error={mode.errors.address} /></EditRow>
-          </SettingsSubsection>
+          <fieldset disabled={mode.saving} className="m-0 min-w-0 border-0 p-0">
+            <SettingsSubsection header="Personal information">
+              {identityVerified ? <PersonRows profile={profile} locked /> : <PersonFields form={form} set={set} errors={mode.errors} id={id} />}
+              <EditRow isLast><AddressSearchField id={`${id}-address`} value={form.home} onPick={(home) => set({ home })} error={mode.errors.address} required /></EditRow>
+            </SettingsSubsection>
+          </fieldset>
         </form>
       ) : (
         <SettingsSubsection header="Personal information">

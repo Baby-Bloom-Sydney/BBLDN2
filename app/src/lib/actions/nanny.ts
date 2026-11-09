@@ -4,10 +4,6 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { openai } from "@/lib/ai/client";
-import { normaliseUkMobile } from "@/lib/uk-contact";
-import { EDIT_MESSAGES } from "@/lib/settings/edit-messages";
-import { checkProfileInput, PROFILE_MESSAGES, type HomeAddress } from "@/lib/settings/nanny-profile-rules";
-import { addressColumns, writeOwnProfile } from "@/lib/settings/profile-write";
 
 // ── Public nanny profile fetch (for /nannies/[id] page) ──
 
@@ -634,79 +630,7 @@ export async function isProfileComplete(): Promise<boolean> {
   return true;
 }
 
-// ── Account Settings ──
-//
-// The Profile and Contact details Save (ledger B06 §9.1 R1, R2, R4; BB-wave1-041126/06b3-rework, 2026-11-09):
-// - the same required-field rules as the page (`checkProfileInput`), each refusal by field, nothing written;
-// - her name and date of birth are locked once identity verification is done (level ≥ 2) — checked here on the
-//   server, not only by the page (they print on her invoices); an unreadable level locks too;
-// - one address (R2), stored as verification stores it (`addressColumns`);
-// - the version she loaded (`expected_updated_at`): a row changed since answers `stale`, nothing written. Without it
-//   (no caller today) the write is unconditional, as before.
-
-export interface UpdateNannyAccountData {
-  first_name?: string;
-  last_name?: string;
-  date_of_birth?: string | null;
-  mobile_number?: string | null;
-  address?: HomeAddress | null;
-  /** The profile row's `updated_at` she loaded (null = none yet). */
-  expected_updated_at?: string | null;
-}
-
-export interface UpdateNannyAccountResult {
-  success: boolean;
-  error: string | null;
-  code?: "invalid" | "locked" | "stale";
-  fields?: Readonly<Record<string, string>>;
-}
-
-const IDENTITY_VERIFIED_LEVEL = 2;
-const LOCKED_KEYS = ["first_name", "last_name", "date_of_birth"] as const;
-
-/** Name and date of birth are locked after identity verification; an unreadable level counts as locked. */
-async function identityLocked(userId: string): Promise<boolean> {
-  const { data, error } = await createAdminClient().from("nannies").select("verification_level").eq("user_id", userId).maybeSingle();
-  if (error) return true;
-  return (data?.verification_level ?? 0) >= IDENTITY_VERIFIED_LEVEL;
-}
-
-/** The profile columns this save writes (only the fields sent), trimmed and normalised. */
-function accountColumns(data: UpdateNannyAccountData): Record<string, string | null> {
-  return {
-    ...(data.first_name !== undefined ? { first_name: data.first_name.trim() } : {}),
-    ...(data.last_name !== undefined ? { last_name: data.last_name.trim() } : {}),
-    ...(data.date_of_birth !== undefined ? { date_of_birth: data.date_of_birth } : {}),
-    ...(data.mobile_number !== undefined ? { mobile_number: normaliseUkMobile((data.mobile_number ?? "").trim()) } : {}),
-    ...(data.address ? addressColumns(data.address) : {}),
-  };
-}
-
-export async function updateNannyAccountSettings(data: UpdateNannyAccountData): Promise<UpdateNannyAccountResult> {
-  const supabase = createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) return { success: false, error: "Not authenticated" };
-
-  const { expected_updated_at: expected, ...input } = data;
-  const fields = checkProfileInput(input);
-  if (Object.keys(fields).length > 0) return { success: false, error: EDIT_MESSAGES.checkMarked, code: "invalid", fields };
-  if (LOCKED_KEYS.some((key) => key in input) && (await identityLocked(user.id))) {
-    return { success: false, error: PROFILE_MESSAGES.locked, code: "locked" };
-  }
-
-  const columns = accountColumns(input);
-  if (Object.keys(columns).length > 0) {
-    const written = expected === undefined
-      ? ((await supabase.from("user_profiles").update(columns).eq("user_id", user.id)).error ? "error" : "saved")
-      : await writeOwnProfile(supabase, user.id, columns, expected);
-    if (written === "stale") return { success: false, error: EDIT_MESSAGES.stale, code: "stale" };
-    if (written === "error") return { success: false, error: "Failed to update account info" };
-  }
-
-  revalidatePath("/nanny/settings");
-  revalidatePath("/nanny/profile");
-  return { success: true, error: null };
-}
+// ── Account Settings: `updateNannyAccountSettings` lives in `nanny-account-settings.ts` (06b-3 rework) ──
 
 export async function updateAccountEmail(
   newEmail: string,
