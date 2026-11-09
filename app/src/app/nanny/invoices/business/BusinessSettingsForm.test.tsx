@@ -164,6 +164,22 @@ describe("Save (R1, R4, R5)", () => {
     expect(saveBusinessSettings).not.toHaveBeenCalled();
   });
 
+  it("the alert goes once every marked field is filled (coordinator, round 2: walk shot 2)", async () => {
+    show();
+    edit();
+    fireEvent.click(screen.getByRole("radio", { name: "Limited company" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Yes" }));
+    await save();
+    expect(screen.getByRole("alert")).toHaveTextContent("Please check the details marked below.");
+    fireEvent.change(screen.getByLabelText("Company name"), { target: { value: "Taylor Childcare Ltd" } });
+    fireEvent.change(screen.getByLabelText("Company number"), { target: { value: "12345678" } });
+    expect(screen.getByRole("alert")).toHaveTextContent("Please check the details marked below.");
+    fireEvent.change(screen.getByLabelText("Registered office"), { target: { value: "2 Office Row" } });
+    fireEvent.change(screen.getByLabelText("VAT number"), { target: { value: "GB 123 4567 89" } });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText("Enter the company's registered name")).toBeNull();
+  });
+
   it("an address is required for a sole trader", async () => {
     show(SOLE, null, null);
     edit();

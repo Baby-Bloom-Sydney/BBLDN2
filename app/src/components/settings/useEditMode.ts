@@ -5,12 +5,14 @@
  *
  * - `begin` → fields in place, focus on the first (the checked radio of a group); `cancel` discards, focus back on Edit.
  * - `refuse(fields)` (the page's own check) and a server refusal by field: "Please check the details marked below.",
- *   each message under its field, focus on the first; nothing she typed is lost. `clearError` as she fixes a field.
+ *   each message under its field, focus on the first; nothing she typed is lost. `clearError` as she fixes a field;
+ *   once she has fixed the last marked field the alert goes too, as it points at nothing (round 2, walk shot 2).
  * - `save(run)`: one at a time (a ref: React 18 batches state, so two submits can both start before a re-render).
  *   - saved → back to view once the refreshed page has arrived (the refresh runs in a transition, so the old values
  *     never flash), focus on Edit, "Saved" announced;
  *   - stale → back to view showing the latest (also in the transition): "These details were changed elsewhere. The
- *     latest are now showing.";
+ *     latest are now showing." — set in the transition too, so it arrives with the latest, never over her form (round 2);
+ *     "Saved" likewise;
  *   - no answer within `SAVE_WAIT_MS`, or a throw (offline, a stale deploy) → "We couldn't save that. Please try
  *     again.", still editing, the view underneath refreshed (06b-3 round-2 L1), focus back on Save;
  *   - any other refusal → its plain message, still editing, focus back on Save.
@@ -20,7 +22,7 @@
  * BB-wave1-041126/06b3-rework, 2026-11-09.
  */
 
-import { useCallback, useEffect, useRef, useState, useTransition, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { useRouter } from "next/navigation";
 import { EDIT_MESSAGES } from "@/lib/settings/edit-messages";
 import type { Notice } from "./EditNotice";
@@ -77,6 +79,17 @@ interface FocusRefs {
   readonly saveRef: RefObject<HTMLButtonElement>;
 }
 
+/** The "check the details marked below" alert goes when the marks go from some to none: she fixed the last one. Only
+ * that alert (a stale or plain message stays), and only on that change (a refusal with no field keeps it). */
+function useMarkedAlertClears(errors: Readonly<Record<string, string>>, setNotice: Dispatch<SetStateAction<Notice | null>>) {
+  const hadMarks = useRef(false);
+  useEffect(() => {
+    const marked = Object.keys(errors).length > 0;
+    if (hadMarks.current && !marked) setNotice((shown) => (shown?.text === EDIT_MESSAGES.checkMarked ? null : shown));
+    hadMarks.current = marked;
+  }, [errors, setNotice]);
+}
+
 /** Focus on the first field when editing starts, on Edit when it ends, on the first marked field after a refusal,
  * on Save after a refusal or the give-up (`saveTurn` counts those). */
 function useEditFocus(editing: boolean, errors: Readonly<Record<string, string>>, saveTurn: number, refs: FocusRefs) {
@@ -95,24 +108,12 @@ function useEditFocus(editing: boolean, errors: Readonly<Record<string, string>>
   }, [saveTurn, saveRef]);
 }
 
-export function useEditMode(): EditMode {
-  const router = useRouter();
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [refreshing, startRefresh] = useTransition();
+/** The page's notice and its marked fields: `refuse` marks them with the alert, `clearError` unmarks one as she fixes
+ * it, and the alert goes with the last mark. */
+function useMarks() {
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [announcement, setAnnouncement] = useState("");
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>(NO_ERRORS);
-  const [saveTurn, setSaveTurn] = useState(0);
-  const inFlight = useRef(false);
-  const editRef = useRef<HTMLButtonElement>(null);
-  const saveRef = useRef<HTMLButtonElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
-  useEditFocus(editing, errors, saveTurn, { formRef, editRef, saveRef });
-
-  const reset = () => { setNotice(null); setErrors(NO_ERRORS); setAnnouncement(""); };
-  const begin = useCallback(() => { reset(); setEditing(true); }, []);
-  const cancel = useCallback(() => { reset(); setEditing(false); }, []);
+  useMarkedAlertClears(errors, setNotice);
   const refuse = useCallback((fields: Readonly<Record<string, string>>) => {
     setErrors(fields);
     setNotice({ tone: "alert", text: EDIT_MESSAGES.checkMarked });
@@ -124,6 +125,26 @@ export function useEditMode(): EditMode {
       return rest;
     });
   }, []);
+  return { notice, setNotice, errors, setErrors, refuse, clearError };
+}
+
+export function useEditMode(): EditMode {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [refreshing, startRefresh] = useTransition();
+  const { notice, setNotice, errors, setErrors, refuse, clearError } = useMarks();
+  const [announcement, setAnnouncement] = useState("");
+  const [saveTurn, setSaveTurn] = useState(0);
+  const inFlight = useRef(false);
+  const editRef = useRef<HTMLButtonElement>(null);
+  const saveRef = useRef<HTMLButtonElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  useEditFocus(editing, errors, saveTurn, { formRef, editRef, saveRef });
+
+  const reset = useCallback(() => { setNotice(null); setErrors(NO_ERRORS); setAnnouncement(""); }, [setNotice, setErrors]);
+  const begin = useCallback(() => { reset(); setEditing(true); }, [reset]);
+  const cancel = useCallback(() => { reset(); setEditing(false); }, [reset]);
 
   const finish = useCallback((outcome: SaveOutcome | null) => {
     setAnnouncement("");
@@ -131,10 +152,13 @@ export function useEditMode(): EditMode {
     if (outcome.kind === "fields") { refuse(outcome.fields); return; }
     if (outcome.kind === "refused") { setNotice({ tone: "alert", text: outcome.message }); setSaveTurn((n) => n + 1); return; }
     setErrors(NO_ERRORS);
-    if (outcome.kind === "stale") setNotice({ tone: "status", text: EDIT_MESSAGES.stale });
-    else setAnnouncement("Saved");
-    startRefresh(() => { setEditing(false); router.refresh(); });
-  }, [refuse, router]);
+    startRefresh(() => {
+      if (outcome.kind === "stale") setNotice({ tone: "status", text: EDIT_MESSAGES.stale });
+      else setAnnouncement("Saved");
+      setEditing(false);
+      router.refresh();
+    });
+  }, [refuse, router, setNotice, setErrors]);
 
   const save = useCallback(async (run: () => Promise<SaveOutcome>) => {
     if (inFlight.current) return;
@@ -148,7 +172,7 @@ export function useEditMode(): EditMode {
       inFlight.current = false;
       setSaving(false);
     }
-  }, [finish]);
+  }, [finish, setNotice]);
 
   return {
     editing, saving: saving || refreshing, notice, announcement, errors, editRef, saveRef, formRef, begin, cancel, refuse, clearError, save,

@@ -82,6 +82,16 @@ describe("Profile — edit and Save", () => {
     expect(updateNannyAccountSettings).not.toHaveBeenCalled();
   });
 
+  it("the alert goes once every marked field is fixed (coordinator, round 2)", async () => {
+    show();
+    fireEvent.click(screen.getByRole("button", { name: "Edit profile" }));
+    fireEvent.change(screen.getByLabelText("First name"), { target: { value: " " } });
+    await save();
+    expect(screen.getByRole("alert")).toHaveTextContent("Please check the details marked below.");
+    fireEvent.change(screen.getByLabelText("First name"), { target: { value: "Sophie" } });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("identity verified: name and date of birth stay locked rows; only the address can change", async () => {
     show(PROFILE, true);
     fireEvent.click(screen.getByRole("button", { name: "Edit profile" }));

@@ -69,6 +69,16 @@ describe("Contact details", () => {
     expect(screen.getByLabelText("Mobile number")).not.toHaveAttribute("aria-invalid");
   });
 
+  it("the alert goes once the mobile is fixed (coordinator, round 2)", async () => {
+    render(<ContactDetailsSection title="Contact details" contact={CONTACT} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit contact details" }));
+    fireEvent.change(screen.getByLabelText("Mobile number"), { target: { value: "" } });
+    await save();
+    expect(screen.getByRole("alert")).toHaveTextContent("Please check the details marked below.");
+    fireEvent.change(screen.getByLabelText("Mobile number"), { target: { value: "07700 900123" } });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("the same number typed another way is no change", async () => {
     render(<ContactDetailsSection title="Contact details" contact={CONTACT} />);
     fireEvent.click(screen.getByRole("button", { name: "Edit contact details" }));
