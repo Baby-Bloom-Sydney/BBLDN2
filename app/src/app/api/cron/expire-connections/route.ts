@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
   // Find all pending/accepted requests past expiry
   const { data: stale } = await supabase
     .from('connection_requests')
-    .select('id, parent_id, nanny_id, status, connection_stage, source')
+    .select('id, parent_id, nanny_id, status, connection_stage')
     .in('status', ['pending', 'accepted'])
     .lt('expires_at', now)
     .or(NOT_HELD); // a held row has no clock: it waits for the approve
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
   let expired = 0;
 
   for (const req of stale ?? []) {
-    if (isHeld(req)) continue; // never expired, no INT-005 or INT-006, while it is held
+    if (isHeld(req)) continue; // never expired, no expiry message or email, while it is held
     const wasAccepted = req.status === 'accepted';
     const plan = expiryFor(req);
 

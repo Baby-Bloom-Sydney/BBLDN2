@@ -8,7 +8,7 @@
  * plus `storage.from(bucket).createSignedUrl(path)`. Filters apply to updates, so the atomic claims
  * (`update(...).eq('cross_check_status','pending')`) behave as they do in Postgres.
  *
- * `or('a.is.null,a.not.in.(4,9)')` — added add-only (S-1 round 9) for the expiry's held-row filter: a comma list of
+ * `or('a.is.null,a.not.in.(4,9)')` — added for the expiry's held-row filter: a comma list of
  * `col.is.null`, `col.eq.v`, `col.in.(…)` and `col.not.in.(…)`, any one true. `not()` stays a no-op, as before.
  *
  * `checks` mirrors the London CHECK constraints a pipeline write can hit (LDN2/schema/04_constraints.sql +

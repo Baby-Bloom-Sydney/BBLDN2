@@ -127,7 +127,7 @@ async function expireStaleRequests(
 
   const query = supabase
     .from("connection_requests")
-    .select("id, parent_id, nanny_id, status, connection_stage, source")
+    .select("id, parent_id, nanny_id, status, connection_stage")
     .in("status", ["pending", "accepted"])
     .lt("expires_at", now)
     .or(NOT_HELD); // a held row has no clock: it waits for the approve

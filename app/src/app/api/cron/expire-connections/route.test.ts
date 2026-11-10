@@ -60,7 +60,7 @@ describe("/api/cron/expire-connections — a held row has no clock", () => {
     expect(h.db.tables.connection_requests.filter((r) => HELD.includes(String(r.id)))).toEqual(before);
   });
 
-  it("logs, messages and emails nothing about a held row (no INT-005, no INT-006)", async () => {
+  it("logs, messages and emails nothing about a held row", async () => {
     await run();
     const ids = (calls: unknown[][]) => calls.map(([m]) => (m as { connectionRequestId?: string; referenceId?: string }).connectionRequestId ?? (m as { referenceId?: string }).referenceId);
     expect(ids(h.log.mock.calls).filter((id) => HELD.includes(String(id)))).toEqual([]);
