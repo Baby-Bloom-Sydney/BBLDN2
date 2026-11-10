@@ -2,7 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getNannyId } from './connection';
-import { CONNECTION_STAGE } from '@/lib/position/constants';
+import { CONNECTION_STAGE, CONNECTION_WAIT_WINDOW_MS } from '@/lib/position/constants';
 
 export async function applyToPosition(positionId: string): Promise<{
   success: boolean;
@@ -51,7 +51,7 @@ export async function applyToPosition(positionId: string): Promise<{
 
   // Create connection request — level 3 gets pending stage, level 4+ gets real stage
   const verificationLevel = nanny.verification_level ?? 0;
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const expiresAt = new Date(Date.now() + CONNECTION_WAIT_WINDOW_MS).toISOString();
 
   const { error: insertError } = await admin
     .from('connection_requests')

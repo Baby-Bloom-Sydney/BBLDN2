@@ -12,7 +12,7 @@ import { sendEmail } from '@/lib/email/resend';
 import { getUserEmailInfo } from '@/lib/email/helpers';
 import { BRACKET_KEYS, formatLondonDate } from '@/lib/timezone';
 import type { BracketKey } from '@/lib/timezone';
-import { CONNECTION_STAGE, HIDDEN_CONNECTION_STAGES, POSITION_STAGE, POSITION_STATUS } from '@/lib/position/constants';
+import { CONNECTION_STAGE, CONNECTION_WAIT_WINDOW_MS, HIDDEN_CONNECTION_STAGES, POSITION_STAGE, POSITION_STATUS } from '@/lib/position/constants';
 import { funnelLog } from '@/lib/position/logger';
 import { publicMatch, type PublicMatchResult } from '@/lib/matching/public-match';
 import { profileAge } from '@/lib/profile-age';
@@ -571,12 +571,15 @@ export async function respondToDfyMatch(
   }
 
   const now = new Date().toISOString();
-  const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
 
   // Create connection_request — level 3 gets pending stage, level 4+ gets real stage
   const dfyStage = verificationLevel >= 4
     ? CONNECTION_STAGE.ACCEPTED
     : CONNECTION_STAGE.ACCEPTED_PENDING;
+  // the family has 72 hours to book; an answer waiting for approval has 7 days
+  const expiresAt = new Date(
+    Date.now() + (dfyStage === CONNECTION_STAGE.ACCEPTED ? 72 * 60 * 60 * 1000 : CONNECTION_WAIT_WINDOW_MS),
+  ).toISOString();
 
   const { data: connection, error: insertErr } = await adminClient
     .from('connection_requests')

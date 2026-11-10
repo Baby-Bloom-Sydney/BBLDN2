@@ -3,7 +3,7 @@
  * written green before 3d's first edit. 00-RULINGS #10: at level 3 her accept is held at stage 9, the parent sees
  * "Request Sent" and is not notified; only Approve (level 4) releases it.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createMemoryDb, type MemoryDb } from "../../../tests/fakes/memory-supabase";
 
 const h = vi.hoisted(() => ({
@@ -187,20 +187,28 @@ describe("silent hold (#10)", () => {
   });
 });
 
-// A held row has no clock while it is held — it waits for the admin's approve, which gives a fresh window.
-// Held = stage 4 (her application) or stage 9 (her answer), whatever the source.
-describe("a held row has no clock", () => {
+// A held row (stage 4: her application; stage 9: her answer, below level 4) has a 7-day window: inside it the expiry
+// leaves the row and the family sees it as waiting; past it, it expires as any other row does.
+describe("a held row has 7 days", () => {
   const PAST = "2020-01-01T00:00:00Z";
-  const HELD = [
-    [4, "pending", "parent"],
-    [4, "pending", "dfy"],
-    [9, "accepted", "parent"],
-    [9, "accepted", "dfy"],
-  ] as const;
+  const DAY = 86_400_000;
+  const toParent = () => h.createInboxMessage.mock.calls.map((c) => (c as unknown as [{ userId: string; body?: string }])[0]).filter((m) => m.userId === "parent-u");
+  afterEach(() => vi.useRealTimers());
 
-  it.each(HELD)("G14 the lists' expiry leaves a held row (stage %i, %s, %s) past its time as it is, and tells nobody", async (stage, status, source) => {
-    seed(3, stage, status, source);
-    req().expires_at = PAST;
+  it.each([
+    [3, 9, 7 * DAY],
+    [4, 10, 3 * DAY],
+  ] as const)("G18 her accept at level %i (stage %i) gives the family's window: %i ms", async (level, stage, window) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-11T09:00:00.000Z"));
+    seed(level);
+    await acceptConnectionRequest("c1", SLOTS);
+    expect(req()).toMatchObject({ connection_stage: stage, expires_at: new Date(Date.parse("2026-11-11T09:00:00.000Z") + window).toISOString() });
+  });
+
+  it.each(["parent", "dfy"] as const)("G14 her held answer (%s) at day 4, inside its 7 days: both lists leave it, nobody is told", async (source) => {
+    seed(3, 9, "accepted", source);
+    Object.assign(req(), { created_at: new Date(Date.now() - 4 * DAY).toISOString(), expires_at: new Date(Date.now() + 3 * DAY).toISOString() });
     const before = { ...req() };
     h.user = { id: "parent-u" };
     await getParentConnectionRequests();
@@ -208,8 +216,40 @@ describe("a held row has no clock", () => {
     await getNannyConnectionRequests();
     expect(req()).toEqual(before);
     expect(h.createInboxMessage).not.toHaveBeenCalled();
-    expect(h.sendEmail).not.toHaveBeenCalled();
     expect(h.log).not.toHaveBeenCalled();
+  });
+
+  it("G14c past its 7 days, the family's request she answered expires as the request they sent; the family and she are told", async () => {
+    seed(3, 9, "accepted", "parent");
+    req().expires_at = PAST;
+    h.user = { id: "parent-u" };
+    await getParentConnectionRequests();
+    expect(req()).toMatchObject({ status: "expired", connection_stage: 1 });
+    expect(toParent().map((m) => m.body)).toEqual([expect.stringMatching(/did not respond/)]);
+    expect(h.createInboxMessage.mock.calls.map((c) => (c as unknown as [{ userId: string }])[0].userId)).toContain("nanny-u");
+    expect(h.log.mock.calls.map(([e]) => [e.eventType, e.eventData?.held ?? false])).toEqual([["expired", false]]);
+  });
+
+  it("G14d past its 7 days, a DFY answer the family never saw expires quietly for the family (logged as held)", async () => {
+    seed(3, 9, "accepted", "dfy");
+    req().expires_at = PAST;
+    h.user = { id: "parent-u" };
+    await getParentConnectionRequests();
+    expect(req()).toMatchObject({ status: "expired", connection_stage: 11 });
+    expect(toParent()).toEqual([]);
+    expect(h.log.mock.calls.map(([e]) => [e.eventType, e.eventData?.held ?? false])).toEqual([["expired", true]]);
+  });
+
+  it("G14e her application to a position since closed expires at its 7 days; the family never hears", async () => {
+    seed(3, 4, "pending", "manual");
+    h.db.tables.nanny_positions[0].status = "closed";
+    req().expires_at = PAST;
+    h.user = { id: "nanny-u" };
+    await getNannyConnectionRequests();
+    expect(req()).toMatchObject({ status: "expired", connection_stage: 1 });
+    expect(toParent()).toEqual([]);
+    expect(h.createInboxMessage.mock.calls.map((c) => (c as unknown as [{ userId: string }])[0].userId)).toEqual(["nanny-u"]);
+    expect(h.log.mock.calls.map(([e]) => [e.eventType, e.eventData?.held ?? false])).toEqual([["expired", true]]);
   });
 
   it.each([
@@ -222,12 +262,12 @@ describe("a held row has no clock", () => {
     h.user = { id: "parent-u" };
     await getParentConnectionRequests();
     expect(req()).toMatchObject({ status: "expired", connection_stage: to });
-    expect(h.createInboxMessage.mock.calls.map((c) => (c as unknown as [{ userId: string }])[0].userId)).toContain("parent-u");
+    expect(toParent()).toHaveLength(1);
   });
 
-  it("G15 the family's held request past its own 72 hours still reads as sent and waiting: no time shown, never expired", async () => {
+  it("G15 at day 4 the family's held request reads as sent and waiting: past its own 72 hours, no time shown, never expired", async () => {
     seed(3, 9, "accepted");
-    Object.assign(req(), { created_at: new Date(Date.now() - 5 * 86_400_000).toISOString(), expires_at: PAST });
+    Object.assign(req(), { created_at: new Date(Date.now() - 4 * DAY).toISOString(), expires_at: new Date(Date.now() + 3 * DAY).toISOString() });
     h.user = { id: "parent-u" };
     const { data } = await getParentConnectionRequests();
     expect(data).toHaveLength(1);
@@ -238,20 +278,18 @@ describe("a held row has no clock", () => {
   it.each([
     [9, "accepted"],
     [4, "pending"],
-  ] as const)("G16 her own held row (stage %i) past its time: as it is, with no time shown; ahead of it, the time as stored", async (stage, status) => {
+  ] as const)("G16 her own held row (stage %i) inside its 7 days shows its time as stored", async (stage, status) => {
     seed(3, stage, status, "manual");
-    req().expires_at = PAST;
+    const stored = new Date(Date.now() + 3 * DAY).toISOString();
+    req().expires_at = stored;
     h.user = { id: "nanny-u" };
-    const late = await getNannyConnectionRequests();
-    expect(late.data[0]).toMatchObject({ connection_stage: stage, status, expires_at: null });
-    req().expires_at = FUTURE;
-    const early = await getNannyConnectionRequests();
-    expect(early.data[0]).toMatchObject({ connection_stage: stage, status, expires_at: FUTURE });
+    const { data } = await getNannyConnectionRequests();
+    expect(data[0]).toMatchObject({ connection_stage: stage, status, expires_at: stored });
   });
 
-  it("G17 held for 5 days, the expiry leaves it, the approve releases it with a fresh 72 hours, and the family books", async () => {
+  it("G17 at day 4 the expiry leaves it, the approve releases it with a fresh 72 hours, and the family books", async () => {
     seed(3, 9, "accepted");
-    Object.assign(req(), { created_at: new Date(Date.now() - 5 * 86_400_000).toISOString(), expires_at: new Date(Date.now() - 2 * 86_400_000).toISOString() });
+    Object.assign(req(), { created_at: new Date(Date.now() - 4 * DAY).toISOString(), expires_at: new Date(Date.now() + 3 * DAY).toISOString() });
     h.user = { id: "parent-u" };
     await getParentConnectionRequests();
     expect(req()).toMatchObject({ status: "accepted", connection_stage: 9 });
@@ -259,8 +297,26 @@ describe("a held row has no clock", () => {
     await promotePendingConnections(h.db.client() as never, "n1", "nanny-u");
     expect(req().connection_stage).toBe(10);
     expect(Date.parse(String(req().expires_at)) - released).toBeGreaterThanOrEqual(72 * 3_600_000 - 5_000);
+    expect(Date.parse(String(req().expires_at)) - released).toBeLessThan(72 * 3_600_000 + 5_000);
     const booked = await scheduleConnectionTime("c1", day(2), 9, 0);
     expect(booked.success).toBe(true);
     expect(req().connection_stage).toBe(20);
+  });
+
+  it("G19 she is turned down without a bar (level 3 → 2): her held answer expires at its 7 days, as the request the family sent", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-11T09:00:00.000Z"));
+    seed(3);
+    await acceptConnectionRequest("c1", SLOTS);
+    h.db.tables.nannies[0].verification_level = 2;
+    vi.clearAllMocks();
+    vi.setSystemTime(new Date("2026-11-17T09:00:00.000Z"));          // day 6: still waiting
+    h.user = { id: "parent-u" };
+    await getParentConnectionRequests();
+    expect(req()).toMatchObject({ status: "accepted", connection_stage: 9 });
+    vi.setSystemTime(new Date("2026-11-18T10:00:00.000Z"));          // past its 7 days
+    await getParentConnectionRequests();
+    expect(req()).toMatchObject({ status: "expired", connection_stage: 1 });
+    expect(toParent().map((m) => m.body)).toEqual([expect.stringMatching(/did not respond/)]);
   });
 });

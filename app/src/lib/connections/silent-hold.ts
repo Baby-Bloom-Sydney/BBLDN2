@@ -32,7 +32,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email/resend';
 import { getUserEmailInfo } from '@/lib/email/helpers';
 import { sendBarredAdminAlert } from '@/lib/email/dbs-emails';
-import { CONNECTION_STAGE, HIDDEN_CONNECTION_STAGES } from '@/lib/position/constants';
+import { CONNECTION_STAGE, CONNECTION_WAIT_WINDOW_MS, HIDDEN_CONNECTION_STAGES } from '@/lib/position/constants';
 import { createInboxMessage } from '@/lib/actions/connection-helpers';
 import { emailHeader } from '@/lib/email/brand';
 import { SITE_URL } from '@/lib/constants';
@@ -76,18 +76,12 @@ const HIDDEN: readonly number[] = HIDDEN_CONNECTION_STAGES;
 export const CONNECTION_COLUMNS = 'id, parent_id, position_id, connection_stage, status, source, parent_phone_shared';
 
 /** The two held stages: her application (4) and her answer (9) below level 4, whatever the source. */
-export const HELD_STAGES: readonly number[] = [CONNECTION_STAGE.NANNY_APPLIED_PENDING, CONNECTION_STAGE.ACCEPTED_PENDING];
+const HELD_STAGES: readonly number[] = [CONNECTION_STAGE.NANNY_APPLIED_PENDING, CONNECTION_STAGE.ACCEPTED_PENDING];
 
-/**
- * A held row has no clock while it is held: no expiry touches it until the admin's approve releases it with a fresh
- * window. A row with no stage isn't held.
- */
+/** A row waiting for the admin's approve (its 7-day window, `CONNECTION_WAIT_WINDOW_MS`). A row with no stage isn't held. */
 export function isHeld(r: { connection_stage: number | null }): boolean {
   return r.connection_stage !== null && HELD_STAGES.includes(r.connection_stage);
 }
-
-/** The expiry reads' filter for "not held" (PostgREST `or`): a row with no stage counts as not held. */
-export const NOT_HELD = `connection_stage.is.null,connection_stage.not.in.(${HELD_STAGES.join(',')})`;
 
 /** The time a screen shows for a held row: as stored while it is still ahead, none once passed (it never runs out). */
 export function heldExpiryShown(expiresAt: string | null, now: number = Date.now()): string | null {
@@ -205,8 +199,6 @@ export async function onNannyBarred(
 
 /** The family's window to book a meet once she has accepted — the same 72 hours an accept at level 4 gives. */
 const SCHEDULING_WINDOW_MS = 72 * 60 * 60 * 1000;
-/** The family's window to answer an application — the same 7 days an application at level 4 gets (`jobs.ts`). */
-const APPLICATION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 export async function promotePendingConnections(
   admin: AdminClient,
@@ -254,7 +246,7 @@ export async function promotePendingConnections(
         .from('connection_requests')
         .update({
           connection_stage: CONNECTION_STAGE.NANNY_APPLIED,
-          expires_at: new Date(Date.now() + APPLICATION_WINDOW_MS).toISOString(),
+          expires_at: new Date(Date.now() + CONNECTION_WAIT_WINDOW_MS).toISOString(),
           updated_at: now,
         })
         .eq('id', app.id)

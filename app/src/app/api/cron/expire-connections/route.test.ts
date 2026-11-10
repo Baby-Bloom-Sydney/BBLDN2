@@ -1,7 +1,7 @@
 /**
- * The expiry cron follows the lazy expiry's rules (`expireStaleRequests`): a held row (stage 4 or 9, any source) has
- * no clock while it is held — it is never expired and nobody is told; every other stale row expires and the family
- * hears about it. BB-wave1-041126, 2026-11-09.
+ * The expiry cron follows the lazy expiry's rules (`expireStaleRequests`): the family hears about a row only when
+ * their own screens showed it, and a request they sent still reads as sent when it expires.
+ * BB-wave1-041126, 2026-11-09.
  */
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -33,15 +33,13 @@ beforeEach(() => {
   h.email.mockClear();
   h.db = createMemoryDb({
     nannies: [{ id: "n1", user_id: "nanny-u" }],
-    parents: ["a", "b", "c", "d", "e", "f", "g"].map((x) => ({ id: `p-${x}`, user_id: `parent-${x}` })),
+    parents: ["a", "b", "c", "d", "e"].map((x) => ({ id: `p-${x}`, user_id: `parent-${x}` })),
     connection_requests: [
       row("c-sent", "pending", 0, "manual", "p-a"),        // a family's request, unanswered
       row("c-accepted", "accepted", 10, "manual", "p-b"),  // accepted, no meet booked
       row("c-held-9", "accepted", 9, "manual", "p-c"),     // a family's request, answered below level 4
       row("c-held-dfy", "accepted", 9, "dfy", "p-d"),      // a DFY answer below level 4
       row("c-held-4", "pending", 4, "manual", "p-e"),      // an application below level 4
-      row("c-held-4-dfy", "pending", 4, "dfy", "p-f"),     // the same, from a DFY source
-      { ...row("c-no-stage", "pending", 0, "manual", "p-g"), connection_stage: null }, // an old row with no stage
     ],
   });
 });
@@ -51,63 +49,69 @@ const run = () => GET(new NextRequest("http://localhost/api/cron/expire-connecti
 const stageOf = (id: string) => h.db.tables.connection_requests.find((r) => r.id === id)?.connection_stage;
 const toParents = () => h.inbox.mock.calls.map(([m]) => m).filter((m) => m.userId.startsWith("parent-"));
 
-const HELD = ["c-held-9", "c-held-dfy", "c-held-4", "c-held-4-dfy"];
-
-describe("/api/cron/expire-connections — a held row has no clock", () => {
-  it("leaves every held row past its time as it is", async () => {
-    const before = h.db.tables.connection_requests.filter((r) => HELD.includes(String(r.id))).map((r) => ({ ...r }));
+describe("/api/cron/expire-connections — the family hears only about rows their screens showed", () => {
+  it("expires every stale row, each to the lazy expiry's stage", async () => {
     expect((await run()).status).toBe(200);
-    expect(h.db.tables.connection_requests.filter((r) => HELD.includes(String(r.id)))).toEqual(before);
+    expect(h.db.tables.connection_requests.every((r) => r.status === "expired")).toBe(true);
+    expect([stageOf("c-sent"), stageOf("c-accepted"), stageOf("c-held-9"), stageOf("c-held-dfy"), stageOf("c-held-4")]).toEqual([1, 11, 1, 11, 1]);
   });
 
-  it("logs, messages and emails nothing about a held row", async () => {
+  it("logs the expiry of a row the family never saw as held", async () => {
     await run();
-    const ids = (calls: unknown[][]) => calls.map(([m]) => (m as { connectionRequestId?: string; referenceId?: string }).connectionRequestId ?? (m as { referenceId?: string }).referenceId);
-    expect(ids(h.log.mock.calls).filter((id) => HELD.includes(String(id)))).toEqual([]);
-    expect(ids(h.inbox.mock.calls).filter((id) => HELD.includes(String(id)))).toEqual([]);
-    expect(h.email.mock.calls.map(([m]) => m.to).filter((to) => /parent-[cdef]@/.test(to))).toEqual([]);
-    expect(h.log.mock.calls.some(([e]) => e.eventData?.held === true)).toBe(false);
-  });
-});
-
-describe("/api/cron/expire-connections — every other stale row expires and the family hears about it", () => {
-  it("expires the request they sent, the accepted one and an old row with no stage, each to the lazy expiry's stage", async () => {
-    await run();
-    expect([stageOf("c-sent"), stageOf("c-accepted"), stageOf("c-no-stage")]).toEqual([1, 11, 1]);
-    expect(h.db.tables.connection_requests.filter((r) => !HELD.includes(String(r.id))).every((r) => r.status === "expired")).toBe(true);
+    const held = h.log.mock.calls.filter(([e]) => e.eventData?.held === true).map(([e]) => e.connectionRequestId).sort();
+    expect(held).toEqual(["c-held-4", "c-held-dfy"]);
   });
 
-  it("messages and emails those families, and the nanny", async () => {
+  it("messages and emails the family for the request they sent, the accepted one and the answered request (as sent)", async () => {
     await run();
     const byParent = Object.fromEntries(toParents().map((m) => [m.userId, m.body]));
-    expect(Object.keys(byParent).sort()).toEqual(["parent-a", "parent-b", "parent-g"]);
-    expect(byParent["parent-a"]).toMatch(/did not respond/);
+    expect(Object.keys(byParent).sort()).toEqual(["parent-a", "parent-b", "parent-c"]);
+    expect(byParent["parent-c"]).toMatch(/did not respond/);
     expect(byParent["parent-b"]).toMatch(/not scheduled/);
     expect(h.email.mock.calls.map(([m]) => m.to).filter((to) => to.startsWith("parent-")).sort())
-      .toEqual(["parent-a@example.test", "parent-b@example.test", "parent-g@example.test"]);
-    expect(h.inbox.mock.calls.map(([m]) => m.userId).filter((u) => u === "nanny-u")).toHaveLength(3);
+      .toEqual(["parent-a@example.test", "parent-b@example.test", "parent-c@example.test"]);
   });
 });
 
 describe("/api/cron/expire-connections — a row that moved on after the read", () => {
-  it("sends no expiry messages for a row booked between the read and the write", async () => {
+  it("sends no expiry messages for a row released or scheduled between the read and the write", async () => {
     h.db = createMemoryDb({
       nannies: [{ id: "n1", user_id: "nanny-u" }],
       parents: [{ id: "p-a", user_id: "parent-a" }],
-      connection_requests: [row("c-moved", "accepted", 10, "manual", "p-a")],
+      connection_requests: [row("c-moved", "accepted", 9, "manual", "p-a")],
     });
     const client = h.db.client() as { from: (t: string) => { update: (p: unknown) => unknown } };
     const realFrom = client.from.bind(client);
-    // the family books a time after the cron's read: the row is at 20 when the cron writes
+    // the release lands after the cron's read: the row is at 10 when the cron writes
     let reads = 0;
     vi.spyOn(client, "from").mockImplementation((t: string) => {
-      if (t === "connection_requests" && reads++ === 1) Object.assign(h.db.tables.connection_requests[0], { connection_stage: 20, status: "confirmed" });
+      if (t === "connection_requests" && reads++ === 1) h.db.tables.connection_requests[0].connection_stage = 10;
       return realFrom(t) as never;
     });
     h.db.client = () => client;
     await run();
-    expect(h.db.tables.connection_requests[0]).toMatchObject({ status: "confirmed", connection_stage: 20 });
+    expect(h.db.tables.connection_requests[0]).toMatchObject({ status: "accepted", connection_stage: 10 });
     expect(h.inbox).not.toHaveBeenCalled();
     expect(h.email).not.toHaveBeenCalled();
+  });
+});
+
+describe("/api/cron/expire-connections — a held answer inside its 7 days", () => {
+  it("leaves it as it is and tells nobody (day 4: her 7 days run to day 7)", async () => {
+    const ahead = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    h.db = createMemoryDb({
+      nannies: [{ id: "n1", user_id: "nanny-u" }],
+      parents: [{ id: "p-a", user_id: "parent-a" }, { id: "p-b", user_id: "parent-b" }],
+      connection_requests: [
+        { ...row("c-day4", "accepted", 9, "manual", "p-a"), expires_at: ahead },
+        { ...row("c-day4-dfy", "accepted", 9, "dfy", "p-b"), expires_at: ahead },
+      ],
+    });
+    const before = h.db.tables.connection_requests.map((r) => ({ ...r }));
+    expect((await run()).status).toBe(200);
+    expect(h.db.tables.connection_requests).toEqual(before);
+    expect(h.inbox).not.toHaveBeenCalled();
+    expect(h.email).not.toHaveBeenCalled();
+    expect(h.log).not.toHaveBeenCalled();
   });
 });

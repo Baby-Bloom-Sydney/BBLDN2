@@ -8,9 +8,6 @@
  * plus `storage.from(bucket).createSignedUrl(path)`. Filters apply to updates, so the atomic claims
  * (`update(...).eq('cross_check_status','pending')`) behave as they do in Postgres.
  *
- * `or('a.is.null,a.not.in.(4,9)')` — added for the expiry's held-row filter: a comma list of
- * `col.is.null`, `col.eq.v`, `col.in.(…)` and `col.not.in.(…)`, any one true. `not()` stays a no-op, as before.
- *
  * `checks` mirrors the London CHECK constraints a pipeline write can hit (LDN2/schema/04_constraints.sql +
  * amendment 10). A write that breaks one returns `{ error }` and changes nothing — as Postgres does.
  */
@@ -22,22 +19,6 @@ export interface MemoryDb {
   /** Every update/insert, in order: table + the payload (for "one UPDATE" assertions). */
   writes: { table: string; op: "update" | "insert" | "delete"; payload: Row }[];
   client: () => unknown;
-}
-
-/** One PostgREST `or()` list, as a row filter: `col.is.null`, `col.eq.v`, `col.in.(…)`, `col.not.in.(…)`. */
-function orFilter(expr: string): Filter {
-  const terms = expr.match(/[^,(]+(?:\([^)]*\))?/g) ?? [];
-  const tests = terms.map((term): Filter => {
-    const [col, ...rest] = term.split(".");
-    const op = rest.join(".");
-    const list = (v: string) => v.replace(/^.*\(|\)$/g, "").split(",").map((x) => x.trim());
-    if (op === "is.null") return (r) => (r[col] ?? null) === null;
-    if (op.startsWith("eq.")) return (r) => String(r[col]) === op.slice(3);
-    if (op.startsWith("not.in.")) return (r) => r[col] != null && !list(op).includes(String(r[col]));
-    if (op.startsWith("in.")) return (r) => list(op).includes(String(r[col]));
-    throw new Error(`memory-supabase: unsupported or() term ${term}`);
-  });
-  return (r) => tests.some((t) => t(r));
 }
 
 const DBS_RESULTS = ["BLANK_NO_NEW_INFO", "NON_BLANK_NO_NEW_INFO", "NEW_INFO", "NO_MATCH_FOUND"];
@@ -152,7 +133,6 @@ export function createMemoryDb(seed: Record<string, Row[]> = {}): MemoryDb {
       gt: (c: string, v: string) => (filters.push((r) => String(r[c]) > v), b),
       gte: (c: string, v: string) => (filters.push((r) => String(r[c]) >= v), b),
       not: () => b,
-      or: (expr: string) => (filters.push(orFilter(expr)), b),
       // `filter('col->>key', 'eq', value)` — the JSON text operator, enough for the 3i VER-003 marker read.
       filter: (c: string, op: string, v: unknown) => {
         const [col, key] = c.split("->>");

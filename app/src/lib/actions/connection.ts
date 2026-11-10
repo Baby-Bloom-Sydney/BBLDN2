@@ -21,14 +21,9 @@ import {
   formatLondonDate,
 } from "@/lib/timezone";
 import type { BracketKey } from "@/lib/timezone";
-import {
-  CONNECTION_STAGE,
-  POSITION_STAGE,
-  POSITION_STATUS,
-  HIDDEN_CONNECTION_STAGES,
-} from "@/lib/position/constants";
+import { CONNECTION_STAGE, POSITION_STAGE, POSITION_STATUS, HIDDEN_CONNECTION_STAGES, CONNECTION_WAIT_WINDOW_MS } from "@/lib/position/constants";
 import { funnelLog } from "@/lib/position/logger";
-import { HELD_STAGES, heldExpiryShown, isHeld, isUnseenByParent, NOT_HELD } from "@/lib/connections/silent-hold";
+import { heldExpiryShown, isHeld, isUnseenByParent } from "@/lib/connections/silent-hold";
 import {
   checkPostIntroOutcomes,
   checkPostTrialOutcomes,
@@ -127,10 +122,9 @@ async function expireStaleRequests(
 
   const query = supabase
     .from("connection_requests")
-    .select("id, parent_id, nanny_id, status, connection_stage")
+    .select("id, parent_id, nanny_id, status, connection_stage, source")
     .in("status", ["pending", "accepted"])
-    .lt("expires_at", now)
-    .or(NOT_HELD); // a held row has no clock: it waits for the approve
+    .lt("expires_at", now);
 
   if (filter.nanny_id) query.eq("nanny_id", filter.nanny_id);
   if (filter.parent_id) query.eq("parent_id", filter.parent_id);
@@ -138,13 +132,27 @@ async function expireStaleRequests(
   const { data: stale } = await query;
 
   for (const req of stale ?? []) {
-    if (isHeld(req)) continue; // never expired and nobody told while it is held
+    // Determine correct expiry stage based on pending status
+    const isPendingApp =
+      req.connection_stage === CONNECTION_STAGE.NANNY_APPLIED_PENDING;
+    const isPendingAcceptDfy =
+      req.connection_stage === CONNECTION_STAGE.ACCEPTED_PENDING &&
+      req.source === "dfy";
+    const isPendingAcceptParent =
+      req.connection_stage === CONNECTION_STAGE.ACCEPTED_PENDING &&
+      req.source !== "dfy";
 
-    // every row here is one the family's screens showed
-    const expireStage =
-      req.status === "accepted"
-        ? CONNECTION_STAGE.SCHEDULE_EXPIRED
-        : CONNECTION_STAGE.REQUEST_EXPIRED;
+    // Stage 4 and parent-initiated stage 9: expire to REQUEST_EXPIRED
+    // (from parent's perspective, nanny never responded)
+    let expireStage: number;
+    if (isPendingApp || isPendingAcceptParent) {
+      expireStage = CONNECTION_STAGE.REQUEST_EXPIRED;
+    } else {
+      expireStage =
+        req.status === "accepted"
+          ? CONNECTION_STAGE.SCHEDULE_EXPIRED
+          : CONNECTION_STAGE.REQUEST_EXPIRED;
+    }
 
     // the same row as read (status and stage): a row released or scheduled since gets no expiry and no messages
     const expiring = supabase
@@ -158,7 +166,7 @@ async function expireStaleRequests(
       .in("status", ["pending", "accepted"]);
     const { data: expired, error: expireErr } = await (req.connection_stage === null
       ? expiring.is("connection_stage", null)
-      : expiring.eq("connection_stage", req.connection_stage).not("connection_stage", "in", `(${HELD_STAGES.join(",")})`)
+      : expiring.eq("connection_stage", req.connection_stage)
     ).select("id");
     if (expireErr) console.error("[Connection] Expire error:", { code: expireErr.code ?? null });
     if (!expired || expired.length === 0) continue;
@@ -182,14 +190,19 @@ async function expireStaleRequests(
 
     const expiredStatus = req.status as string;
 
-    if (parentData) {
+    // Parent notification — skip for connections parent never saw
+    const skipParentNotification = isPendingApp || isPendingAcceptDfy;
+
+    if (parentData && !skipParentNotification) {
       await createInboxMessage({
         userId: parentData.user_id,
         type: "connection_expired",
         title: "Connection request expired",
-        body: expiredStatus === "accepted"
-          ? "Your accepted connection has expired because a meet and greet was not scheduled in time."
-          : "Your connection request has expired as the nanny did not respond in time.",
+        body: isPendingAcceptParent
+          ? "Your connection request has expired as the nanny did not respond in time."
+          : expiredStatus === "accepted"
+            ? "Your accepted connection has expired because a meet and greet was not scheduled in time."
+            : "Your connection request has expired as the nanny did not respond in time.",
         actionUrl: "/parent/connections",
         referenceId: req.id,
         referenceType: "connection_request",
@@ -220,6 +233,7 @@ async function expireStaleRequests(
       parentId: req.parent_id,
       nannyId: req.nanny_id,
       eventType: "expired",
+      ...(skipParentNotification ? { eventData: { held: true } } : {}),
     });
   }
 }
@@ -531,14 +545,16 @@ export async function acceptConnectionRequest(
   }
 
   const now = new Date().toISOString();
-  // Parent has 72 hours to pick a time
-  const newExpiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
 
   // Update request — level 3 gets pending stage, level 4+ gets real stage
   const acceptStage =
     verificationLevel >= 4
       ? CONNECTION_STAGE.ACCEPTED
       : CONNECTION_STAGE.ACCEPTED_PENDING;
+  // Parent has 72 hours to pick a time; an accept waiting for approval has 7 days
+  const newExpiresAt = new Date(
+    Date.now() + (acceptStage === CONNECTION_STAGE.ACCEPTED ? 72 * 60 * 60 * 1000 : CONNECTION_WAIT_WINDOW_MS),
+  ).toISOString();
 
   const { data: accepted, error: updateErr } = await adminClient
     .from("connection_requests")
