@@ -4,21 +4,19 @@ import { createInboxMessage, logConnectionEvent } from '@/lib/actions/connection
 import { sendEmail } from '@/lib/email/resend';
 import { getUserEmailInfo } from '@/lib/email/helpers';
 import { CONNECTION_STAGE } from '@/lib/position/constants';
-import { isUnseenByParent } from '@/lib/connections/silent-hold';
+import { HELD_STAGES, isHeld, NOT_HELD } from '@/lib/connections/silent-hold';
 import { emailFooter } from "@/lib/email/brand";
 import { SITE_URL } from "@/lib/constants";
 
 /**
- * The lazy expiry's rules (`expireStaleRequests` in lib/actions/connection.ts): the family hears only about a row their
- * own screens showed, and a request they sent that she answered below level 4 expires as the request they sent.
+ * The lazy expiry's rules (`expireStaleRequests` in lib/actions/connection.ts): a held row (stage 4 or 9) has no clock
+ * and never reaches here; every other row is one the family's screens showed, so the family hears about it.
  */
-function expiryFor(req: { status: string; connection_stage: number; source: string | null }) {
-  const answeredBelowFour = req.connection_stage === CONNECTION_STAGE.ACCEPTED_PENDING && req.source !== 'dfy';
-  const asSent = req.status === 'pending' || answeredBelowFour;
+function expiryFor(req: { status: string }) {
+  const accepted = req.status === 'accepted';
   return {
-    stage: asSent ? CONNECTION_STAGE.REQUEST_EXPIRED : CONNECTION_STAGE.SCHEDULE_EXPIRED,
-    tellFamily: !isUnseenByParent(req),
-    familyReadsAccepted: !asSent,
+    stage: accepted ? CONNECTION_STAGE.SCHEDULE_EXPIRED : CONNECTION_STAGE.REQUEST_EXPIRED,
+    familyReadsAccepted: accepted,
   };
 }
 
@@ -52,11 +50,13 @@ export async function GET(request: NextRequest) {
     .from('connection_requests')
     .select('id, parent_id, nanny_id, status, connection_stage, source')
     .in('status', ['pending', 'accepted'])
-    .lt('expires_at', now);
+    .lt('expires_at', now)
+    .or(NOT_HELD); // a held row has no clock: it waits for the approve
 
   let expired = 0;
 
   for (const req of stale ?? []) {
+    if (isHeld(req)) continue; // never expired, no INT-005 or INT-006, while it is held
     const wasAccepted = req.status === 'accepted';
     const plan = expiryFor(req);
 
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
     // the stage this plan was read at
     const { data: updated, error } = await (req.connection_stage === null
       ? expiring.is('connection_stage', null)
-      : expiring.eq('connection_stage', req.connection_stage)
+      : expiring.eq('connection_stage', req.connection_stage).not('connection_stage', 'in', `(${HELD_STAGES.join(',')})`)
     ).select('id');
     if (error) console.error('[ExpireCron] expire error:', { code: error.code ?? null });
 
@@ -88,7 +88,6 @@ export async function GET(request: NextRequest) {
       parentId: req.parent_id,
       nannyId: req.nanny_id,
       eventType: 'expired',
-      ...(plan.tellFamily ? {} : { eventData: { held: true } }),
     });
 
     // Get user IDs
@@ -104,8 +103,8 @@ export async function GET(request: NextRequest) {
       .eq('id', req.parent_id)
       .single();
 
-    // Parent inbox + email (INT-005) — only for a row the family's screens showed
-    if (parentData && plan.tellFamily) {
+    // Parent inbox + email (INT-005)
+    if (parentData) {
       await createInboxMessage({
         userId: parentData.user_id,
         type: 'connection_expired',

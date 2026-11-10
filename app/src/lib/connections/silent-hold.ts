@@ -75,6 +75,25 @@ const HIDDEN: readonly number[] = HIDDEN_CONNECTION_STAGES;
 /** The columns a drop reads (the `LiveRow` shape). */
 export const CONNECTION_COLUMNS = 'id, parent_id, position_id, connection_stage, status, source, parent_phone_shared';
 
+/** The two held stages: her application (4) and her answer (9) below level 4, whatever the source. */
+export const HELD_STAGES: readonly number[] = [CONNECTION_STAGE.NANNY_APPLIED_PENDING, CONNECTION_STAGE.ACCEPTED_PENDING];
+
+/**
+ * A held row has no clock while it is held: no expiry touches it until the admin's approve releases it with a fresh
+ * window. A row with no stage isn't held.
+ */
+export function isHeld(r: { connection_stage: number | null }): boolean {
+  return r.connection_stage !== null && HELD_STAGES.includes(r.connection_stage);
+}
+
+/** The expiry reads' filter for "not held" (PostgREST `or`): a row with no stage counts as not held. */
+export const NOT_HELD = `connection_stage.is.null,connection_stage.not.in.(${HELD_STAGES.join(',')})`;
+
+/** The time a screen shows for a held row: as stored while it is still ahead, none once passed (it never runs out). */
+export function heldExpiryShown(expiresAt: string | null, now: number = Date.now()): string | null {
+  return expiresAt && Date.parse(expiresAt) > now ? expiresAt : null;
+}
+
 /** True for the held rows a parent never saw: stage 4, and a DFY stage 9 (reads the stage and the source only). */
 export function isUnseenByParent(r: Pick<LiveRow, 'connection_stage' | 'source'>): boolean {
   if (r.connection_stage === CONNECTION_STAGE.NANNY_APPLIED_PENDING) return true;
@@ -186,6 +205,8 @@ export async function onNannyBarred(
 
 /** The family's window to book a meet once she has accepted — the same 72 hours an accept at level 4 gives. */
 const SCHEDULING_WINDOW_MS = 72 * 60 * 60 * 1000;
+/** The family's window to answer an application — the same 7 days an application at level 4 gets (`jobs.ts`). */
+const APPLICATION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 export async function promotePendingConnections(
   admin: AdminClient,
@@ -227,10 +248,15 @@ export async function promotePendingConnections(
   // 4. Promote stage 4 → 5 for active positions
   for (const app of pendingApps || []) {
     if (activePositionIds.has(app.position_id)) {
-      // released only while still held (stage 4, pending) when this write lands
+      // released only while still held (stage 4, pending) when this write lands; the hold stopped the clock, so the
+      // family's window to answer starts now
       const { data: released, error: releaseErr } = await admin
         .from('connection_requests')
-        .update({ connection_stage: CONNECTION_STAGE.NANNY_APPLIED, updated_at: now })
+        .update({
+          connection_stage: CONNECTION_STAGE.NANNY_APPLIED,
+          expires_at: new Date(Date.now() + APPLICATION_WINDOW_MS).toISOString(),
+          updated_at: now,
+        })
         .eq('id', app.id)
         .eq('connection_stage', CONNECTION_STAGE.NANNY_APPLIED_PENDING)
         .eq('status', 'pending')

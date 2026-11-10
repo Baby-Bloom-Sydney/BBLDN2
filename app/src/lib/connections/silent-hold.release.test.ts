@@ -1,7 +1,7 @@
 /**
  * Approve releases a nanny's held rows (`promotePendingConnections`): a stage-9 accept becomes 10 with a fresh
- * 72-hour scheduling window, a stage-4 application becomes 5, and the family is told — only for a row still held
- * when the release writes it. BB-wave1-041126, 2026-11-09.
+ * 72-hour scheduling window, a stage-4 application becomes 5 with a fresh application window, and the family is
+ * told — only for a row still held when the release writes it. BB-wave1-041126, 2026-11-09.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryDb, type MemoryDb } from "../../../tests/fakes/memory-supabase";
@@ -49,6 +49,19 @@ describe("promotePendingConnections — the release", () => {
     await run();
     expect(get("c4")).toMatchObject({ connection_stage: 5, status: "pending" });
     expect(h.inbox.mock.calls.map(([m]) => [m.userId, m.type])).toEqual([["parent-u", "new_application"]]);
+  });
+
+  // the hold stopped the clock, so a row held longer than its window is released with a fresh one
+  it("releases an accept held for more than 72 hours with a fresh 72-hour window", async () => {
+    seed([{ ...row("c9", 9, "accepted"), expires_at: "2026-11-05T12:00:00.000Z" }]);
+    await run();
+    expect(get("c9")).toMatchObject({ connection_stage: 10, status: "accepted", expires_at: "2026-11-12T12:00:00.000Z" });
+  });
+
+  it("releases an application held past its 7 days with a fresh application window (as one written at level 4)", async () => {
+    seed([{ ...row("c4", 4, "pending"), expires_at: "2026-11-01T12:00:00.000Z" }]);
+    await run();
+    expect(get("c4")).toMatchObject({ connection_stage: 5, status: "pending", expires_at: "2026-11-16T12:00:00.000Z" });
   });
 
   it("leaves a row that moved on between the release's read and its write, and tells nobody", async () => {

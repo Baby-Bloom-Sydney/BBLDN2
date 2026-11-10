@@ -33,10 +33,13 @@ vi.mock("@/lib/email/helpers", () => ({ getUserEmailInfo: vi.fn(async () => ({ e
 vi.mock("./position-funnel", () => ({ checkPostIntroOutcomes: vi.fn(async () => {}), checkPostTrialOutcomes: vi.fn(async () => {}) }));
 vi.mock("@/lib/chat/proactive/action-triggered", () => ({ dispatchActionTriggeredInBackground: h.dispatch }));
 vi.mock("@/lib/position/logger", () => ({ funnelLog: vi.fn() }));
+vi.mock("@/lib/email/dbs-emails", () => ({ sendBarredAdminAlert: vi.fn() }));
 
 import {
-  acceptConnectionRequest, cancelConnectionRequest, declineConnectionRequest, getParentConnectionRequests, scheduleConnectionTime,
+  acceptConnectionRequest, cancelConnectionRequest, declineConnectionRequest, getNannyConnectionRequests, getParentConnectionRequests,
+  scheduleConnectionTime,
 } from "./connection";
+import { promotePendingConnections } from "@/lib/connections/silent-hold";
 
 const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
 const SLOTS = [`${day(2)}_morning`, `${day(2)}_midday`, `${day(3)}_afternoon`, `${day(4)}_evening`, `${day(4)}_morning`];
@@ -46,6 +49,7 @@ function seed(level: number, stage = 0, status = "pending", source = "parent") {
   h.db = createMemoryDb({
     nannies: [{ id: "n1", user_id: "nanny-u", verification_level: level, hourly_rate_min: 20 }],
     parents: [{ id: "p1", user_id: "parent-u" }],
+    nanny_positions: [{ id: "pos1", status: "active" }],
     connection_requests: [
       { id: "c1", parent_id: "p1", nanny_id: "n1", position_id: "pos1", status, connection_stage: stage, source,
         proposed_times: SLOTS, expires_at: FUTURE, created_at: "2026-10-06T00:00:00Z" },
@@ -108,11 +112,13 @@ describe("silent hold (#10)", () => {
 
   it("G7b the stage-9 request reads as the request sent: still pending, no slots, no response yet", async () => {
     seed(3, 9, "accepted");
+    const sent = new Date(Date.now() - 86_400_000).toISOString();
+    req().created_at = sent;
     h.user = { id: "parent-u" };
     const { data } = await getParentConnectionRequests();
     expect(data[0]).toMatchObject({ connection_stage: 0, status: "pending", proposed_times: [], responded_at: null });
     // the request's own expiry (sent + 72 hours), not the one her answer set
-    expect(data[0].expires_at).toBe("2026-10-09T00:00:00.000Z");
+    expect(data[0].expires_at).toBe(new Date(Date.parse(sent) + 72 * 3_600_000).toISOString());
   });
 
   it("G11 her own stage-4 application isn't a request to accept or decline; the family hears nothing", async () => {
@@ -153,30 +159,22 @@ describe("silent hold (#10)", () => {
     expect(h.createInboxMessage.mock.calls.map((c) => (c as unknown as [{ userId: string }])[0].userId)).toContain("parent-u");
   });
 
-  it("G13 the list's expiry leaves a row that moved on after its read (released to 10), and tells nobody", async () => {
-    seed(3, 9, "accepted");
+  it("G13 the list's expiry leaves a row that moved on after its read (booked to 20), and tells nobody", async () => {
+    seed(4, 10, "accepted");
     h.db.tables.connection_requests[0].expires_at = "2020-01-01T00:00:00Z";
     h.user = { id: "parent-u" };
     const client = h.db.client() as { from: (t: string) => unknown };
     const realFrom = client.from.bind(client);
     let reads = 0;
-    // the release lands between the expiry's read and its write
+    // the family books a time between the expiry's read and its write
     client.from = (t: string) => {
-      if (t === "connection_requests" && reads++ === 1) Object.assign(req(), { connection_stage: 10, expires_at: FUTURE });
+      if (t === "connection_requests" && reads++ === 1) Object.assign(req(), { connection_stage: 20, status: "confirmed" });
       return realFrom(t);
     };
     h.db.client = () => client;
     await getParentConnectionRequests();
-    expect(req()).toMatchObject({ status: "accepted", connection_stage: 10 });
+    expect(req()).toMatchObject({ status: "confirmed", connection_stage: 20 });
     expect(h.createInboxMessage).not.toHaveBeenCalled();
-  });
-
-  it("G13b the list's expiry of a row the family never saw is logged as held", async () => {
-    seed(3, 9, "accepted", "dfy");
-    h.db.tables.connection_requests[0].expires_at = "2020-01-01T00:00:00Z";
-    h.user = { id: "parent-u" };
-    await getParentConnectionRequests();
-    expect(h.log.mock.calls.map(([e]) => [e.eventType, e.eventData?.held ?? false])).toEqual([["expired", true]]);
   });
 
   // scheduling books an accepted connection only (stage 10); a stage-9 row stays as it is until Approve releases it
@@ -186,5 +184,83 @@ describe("silent hold (#10)", () => {
     const r = await scheduleConnectionTime("c1", day(2), 9, 0);
     expect(r.success).toBe(false);
     expect(req().connection_stage).toBe(9);
+  });
+});
+
+// A held row has no clock while it is held — it waits for the admin's approve, which gives a fresh window.
+// Held = stage 4 (her application) or stage 9 (her answer), whatever the source.
+describe("a held row has no clock", () => {
+  const PAST = "2020-01-01T00:00:00Z";
+  const HELD = [
+    [4, "pending", "parent"],
+    [4, "pending", "dfy"],
+    [9, "accepted", "parent"],
+    [9, "accepted", "dfy"],
+  ] as const;
+
+  it.each(HELD)("G14 the lists' expiry leaves a held row (stage %i, %s, %s) past its time as it is, and tells nobody", async (stage, status, source) => {
+    seed(3, stage, status, source);
+    req().expires_at = PAST;
+    const before = { ...req() };
+    h.user = { id: "parent-u" };
+    await getParentConnectionRequests();
+    h.user = { id: "nanny-u" };
+    await getNannyConnectionRequests();
+    expect(req()).toEqual(before);
+    expect(h.createInboxMessage).not.toHaveBeenCalled();
+    expect(h.sendEmail).not.toHaveBeenCalled();
+    expect(h.log).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [0, "pending", 1],
+    [10, "accepted", 11],
+    [null, "pending", 1],
+  ] as const)("G14b a row the family saw (stage %s, %s) still expires on its time, to %i, and the family is told", async (stage, status, to) => {
+    seed(4, 0, status);
+    Object.assign(req(), { connection_stage: stage, expires_at: PAST });
+    h.user = { id: "parent-u" };
+    await getParentConnectionRequests();
+    expect(req()).toMatchObject({ status: "expired", connection_stage: to });
+    expect(h.createInboxMessage.mock.calls.map((c) => (c as unknown as [{ userId: string }])[0].userId)).toContain("parent-u");
+  });
+
+  it("G15 the family's held request past its own 72 hours still reads as sent and waiting: no time shown, never expired", async () => {
+    seed(3, 9, "accepted");
+    Object.assign(req(), { created_at: new Date(Date.now() - 5 * 86_400_000).toISOString(), expires_at: PAST });
+    h.user = { id: "parent-u" };
+    const { data } = await getParentConnectionRequests();
+    expect(data).toHaveLength(1);
+    expect(data[0]).toMatchObject({ connection_stage: 0, status: "pending", proposed_times: [], responded_at: null, expires_at: null });
+    expect(req()).toMatchObject({ status: "accepted", connection_stage: 9 });
+  });
+
+  it.each([
+    [9, "accepted"],
+    [4, "pending"],
+  ] as const)("G16 her own held row (stage %i) past its time: as it is, with no time shown; ahead of it, the time as stored", async (stage, status) => {
+    seed(3, stage, status, "manual");
+    req().expires_at = PAST;
+    h.user = { id: "nanny-u" };
+    const late = await getNannyConnectionRequests();
+    expect(late.data[0]).toMatchObject({ connection_stage: stage, status, expires_at: null });
+    req().expires_at = FUTURE;
+    const early = await getNannyConnectionRequests();
+    expect(early.data[0]).toMatchObject({ connection_stage: stage, status, expires_at: FUTURE });
+  });
+
+  it("G17 held for 5 days, the expiry leaves it, the approve releases it with a fresh 72 hours, and the family books", async () => {
+    seed(3, 9, "accepted");
+    Object.assign(req(), { created_at: new Date(Date.now() - 5 * 86_400_000).toISOString(), expires_at: new Date(Date.now() - 2 * 86_400_000).toISOString() });
+    h.user = { id: "parent-u" };
+    await getParentConnectionRequests();
+    expect(req()).toMatchObject({ status: "accepted", connection_stage: 9 });
+    const released = Date.now();
+    await promotePendingConnections(h.db.client() as never, "n1", "nanny-u");
+    expect(req().connection_stage).toBe(10);
+    expect(Date.parse(String(req().expires_at)) - released).toBeGreaterThanOrEqual(72 * 3_600_000 - 5_000);
+    const booked = await scheduleConnectionTime("c1", day(2), 9, 0);
+    expect(booked.success).toBe(true);
+    expect(req().connection_stage).toBe(20);
   });
 });

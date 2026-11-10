@@ -28,7 +28,7 @@ import {
   HIDDEN_CONNECTION_STAGES,
 } from "@/lib/position/constants";
 import { funnelLog } from "@/lib/position/logger";
-import { isUnseenByParent } from "@/lib/connections/silent-hold";
+import { HELD_STAGES, heldExpiryShown, isHeld, isUnseenByParent, NOT_HELD } from "@/lib/connections/silent-hold";
 import {
   checkPostIntroOutcomes,
   checkPostTrialOutcomes,
@@ -129,7 +129,8 @@ async function expireStaleRequests(
     .from("connection_requests")
     .select("id, parent_id, nanny_id, status, connection_stage, source")
     .in("status", ["pending", "accepted"])
-    .lt("expires_at", now);
+    .lt("expires_at", now)
+    .or(NOT_HELD); // a held row has no clock: it waits for the approve
 
   if (filter.nanny_id) query.eq("nanny_id", filter.nanny_id);
   if (filter.parent_id) query.eq("parent_id", filter.parent_id);
@@ -137,27 +138,13 @@ async function expireStaleRequests(
   const { data: stale } = await query;
 
   for (const req of stale ?? []) {
-    // Determine correct expiry stage based on pending status
-    const isPendingApp =
-      req.connection_stage === CONNECTION_STAGE.NANNY_APPLIED_PENDING;
-    const isPendingAcceptDfy =
-      req.connection_stage === CONNECTION_STAGE.ACCEPTED_PENDING &&
-      req.source === "dfy";
-    const isPendingAcceptParent =
-      req.connection_stage === CONNECTION_STAGE.ACCEPTED_PENDING &&
-      req.source !== "dfy";
+    if (isHeld(req)) continue; // never expired and nobody told while it is held
 
-    // Stage 4 and parent-initiated stage 9: expire to REQUEST_EXPIRED
-    // (from parent's perspective, nanny never responded)
-    let expireStage: number;
-    if (isPendingApp || isPendingAcceptParent) {
-      expireStage = CONNECTION_STAGE.REQUEST_EXPIRED;
-    } else {
-      expireStage =
-        req.status === "accepted"
-          ? CONNECTION_STAGE.SCHEDULE_EXPIRED
-          : CONNECTION_STAGE.REQUEST_EXPIRED;
-    }
+    // every row here is one the family's screens showed
+    const expireStage =
+      req.status === "accepted"
+        ? CONNECTION_STAGE.SCHEDULE_EXPIRED
+        : CONNECTION_STAGE.REQUEST_EXPIRED;
 
     // the same row as read (status and stage): a row released or scheduled since gets no expiry and no messages
     const expiring = supabase
@@ -171,7 +158,7 @@ async function expireStaleRequests(
       .in("status", ["pending", "accepted"]);
     const { data: expired, error: expireErr } = await (req.connection_stage === null
       ? expiring.is("connection_stage", null)
-      : expiring.eq("connection_stage", req.connection_stage)
+      : expiring.eq("connection_stage", req.connection_stage).not("connection_stage", "in", `(${HELD_STAGES.join(",")})`)
     ).select("id");
     if (expireErr) console.error("[Connection] Expire error:", { code: expireErr.code ?? null });
     if (!expired || expired.length === 0) continue;
@@ -195,19 +182,14 @@ async function expireStaleRequests(
 
     const expiredStatus = req.status as string;
 
-    // Parent notification — skip for connections parent never saw
-    const skipParentNotification = isPendingApp || isPendingAcceptDfy;
-
-    if (parentData && !skipParentNotification) {
+    if (parentData) {
       await createInboxMessage({
         userId: parentData.user_id,
         type: "connection_expired",
         title: "Connection request expired",
-        body: isPendingAcceptParent
-          ? "Your connection request has expired as the nanny did not respond in time."
-          : expiredStatus === "accepted"
-            ? "Your accepted connection has expired because a meet and greet was not scheduled in time."
-            : "Your connection request has expired as the nanny did not respond in time.",
+        body: expiredStatus === "accepted"
+          ? "Your accepted connection has expired because a meet and greet was not scheduled in time."
+          : "Your connection request has expired as the nanny did not respond in time.",
         actionUrl: "/parent/connections",
         referenceId: req.id,
         referenceType: "connection_request",
@@ -238,7 +220,6 @@ async function expireStaleRequests(
       parentId: req.parent_id,
       nannyId: req.nanny_id,
       eventType: "expired",
-      ...(skipParentNotification ? { eventData: { held: true } } : {}),
     });
   }
 }
@@ -1268,11 +1249,12 @@ export async function getParentConnectionRequests(): Promise<{
     })
     .map((req) => {
       if (req.connection_stage === CONNECTION_STAGE.ACCEPTED_PENDING) {
-        // read as the request she sent: still pending, no slots, no response yet, the request's own expiry
+        // read as the request she sent: still pending, no slots, no response yet, the request's own expiry — and,
+        // once that has passed, no time at all: a held row has no clock, so it still waits for her reply
         const requestExpiry = new Date(new Date(req.created_at).getTime() + REQUEST_WINDOW_MS).toISOString();
         return {
           ...req, connection_stage: CONNECTION_STAGE.REQUEST_SENT, status: "pending", proposed_times: [], responded_at: null,
-          expires_at: requestExpiry, updated_at: req.created_at,
+          expires_at: heldExpiryShown(requestExpiry), updated_at: req.created_at,
         };
       }
       return req;
@@ -1383,6 +1365,8 @@ export async function getNannyConnectionRequests(): Promise<{
 
       return {
         ...req,
+        // her held row has no clock: once its time has passed it shows none rather than reading as run out
+        ...(isHeld(req) ? { expires_at: heldExpiryShown(req.expires_at) } : {}),
         parent: {
           id: req.parent_id,
           user_id: parent?.user_id || "",
