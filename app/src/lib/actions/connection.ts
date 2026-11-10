@@ -1266,7 +1266,7 @@ export async function getParentConnectionRequests(): Promise<{
     .map((req) => {
       if (req.connection_stage === CONNECTION_STAGE.ACCEPTED_PENDING) {
         // read as the request she sent: still pending, no slots, no response yet, the request's own expiry — and,
-        // once that has passed, no time at all: a held row has no clock, so it still waits for her reply
+        // once that has passed, no time at all: the row itself has 7 days, so it still waits for her reply
         const requestExpiry = new Date(new Date(req.created_at).getTime() + REQUEST_WINDOW_MS).toISOString();
         return {
           ...req, connection_stage: CONNECTION_STAGE.REQUEST_SENT, status: "pending", proposed_times: [], responded_at: null,
@@ -1381,7 +1381,7 @@ export async function getNannyConnectionRequests(): Promise<{
 
       return {
         ...req,
-        // her held row has no clock: once its time has passed it shows none rather than reading as run out
+        // her held row: once its time has passed it shows none rather than reading as run out
         ...(isHeld(req) ? { expires_at: heldExpiryShown(req.expires_at) } : {}),
         parent: {
           id: req.parent_id,

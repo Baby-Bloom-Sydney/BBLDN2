@@ -83,7 +83,7 @@ export function isHeld(r: { connection_stage: number | null }): boolean {
   return r.connection_stage !== null && HELD_STAGES.includes(r.connection_stage);
 }
 
-/** The time a screen shows for a held row: as stored while it is still ahead, none once passed (it never runs out). */
+/** The time a screen shows for a held row: as given while it is still ahead, none once passed (the row's own 7 days may not be). */
 export function heldExpiryShown(expiresAt: string | null, now: number = Date.now()): string | null {
   return expiresAt && Date.parse(expiresAt) > now ? expiresAt : null;
 }
@@ -240,8 +240,8 @@ export async function promotePendingConnections(
   // 4. Promote stage 4 → 5 for active positions
   for (const app of pendingApps || []) {
     if (activePositionIds.has(app.position_id)) {
-      // released only while still held (stage 4, pending) when this write lands; the hold stopped the clock, so the
-      // family's window to answer starts now
+      // released only while still held (stage 4, pending) when this write lands; the family's window to answer
+      // starts now, a fresh 7 days
       const { data: released, error: releaseErr } = await admin
         .from('connection_requests')
         .update({

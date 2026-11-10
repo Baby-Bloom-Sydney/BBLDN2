@@ -51,7 +51,7 @@ describe("promotePendingConnections — the release", () => {
     expect(h.inbox.mock.calls.map(([m]) => [m.userId, m.type])).toEqual([["parent-u", "new_application"]]);
   });
 
-  // the hold stopped the clock, so a row held longer than its window is released with a fresh one
+  // a row held longer than the family's 72 hours is released with a fresh window
   it("releases an accept held for more than 72 hours with a fresh 72-hour window", async () => {
     seed([{ ...row("c9", 9, "accepted"), expires_at: "2026-11-05T12:00:00.000Z" }]);
     await run();
