@@ -69,10 +69,12 @@ function strings(v: unknown): string[] {
   if (v && typeof v === "object") return Object.values(v).flatMap(strings);
   return [];
 }
+/** No tag but the bare formatting tags, and no comment (a `<` that starts no tag is text, kept as typed). */
 function onlyFormatting(v: unknown) {
   for (const s of strings(v)) {
-    const tags = s.match(/<[^>]*>/g) ?? [];
+    const tags = s.match(/<\/?[a-zA-Z][^>]*>/g) ?? [];
     expect(tags.every((t) => /^<\/?(p|br|strong|b|em|i)>$/.test(t)), s).toBe(true);
+    expect(s).not.toContain("<!--");
   }
 }
 const written = (table: string) => h.updates.filter((u) => u.table === table).map((u) => u.row);
@@ -135,5 +137,45 @@ describe("profile text writers store only the formatting tags", () => {
     onlyFormatting(row.ai_content);
     onlyFormatting(row.ai_bio);
     expect((row.ai_content as { bio_summary: { about: string } }).bio_summary.about).toBe("<p>a</p>");
+  });
+});
+
+describe("profile text typed with < and > is stored exactly as typed (as before)", () => {
+  const TYPED_HEADLINE = "Kids <5 · 2 > 1 · <3";
+  const TYPED_ABOUT = "<p>Kids <5</p><p>2 > 1</p><p><3</p>";
+
+  it("her own edit (updateNannyAIContent)", async () => {
+    await updateNannyAIContent("nanny-1", { headline: TYPED_HEADLINE, bio_summary: { about: TYPED_ABOUT }, tags: ["<3", "2 > 1"] });
+    const [row] = written("nannies");
+    const stored = row.ai_content as { headline: string; bio_summary: { about: string }; tags: string[] };
+    expect(stored.headline).toBe(TYPED_HEADLINE);
+    expect(stored.bio_summary.about).toBe(TYPED_ABOUT);
+    expect(stored.tags).toEqual(["<3", "2 > 1"]);
+  });
+
+  it("the applicant's generated profile (generateOnboardingAIContent): stored and returned as written", async () => {
+    h.modelOutput = `<headline>${TYPED_HEADLINE}</headline><about>${TYPED_ABOUT}</about><bio>Pitch <3</bio>`;
+    h.rows.nanny_leads = { id: "lead-1", first_name: "Nia", residency: {}, experience: {}, preferences: {}, matching: {}, about_you: {}, salary: {}, availability: {}, qualifications: {} };
+    const res = (await generateOnboardingAIContent("lead-1")) as unknown as { aiContent: { headline: string; bio_summary: { about: string } }; bio: string };
+    expect(res.aiContent.headline).toBe(TYPED_HEADLINE);
+    expect(res.aiContent.bio_summary.about).toBe(TYPED_ABOUT);
+    expect(res.bio).toBe("Pitch <3");
+    const row = written("nanny_leads").find((r) => r.ai_content);
+    expect((row?.ai_content as { headline: string }).headline).toBe(TYPED_HEADLINE);
+  });
+
+  it("the regenerated profile (regenerateNannyAIContent)", async () => {
+    h.modelOutput = `<headline>${TYPED_HEADLINE}</headline><about>${TYPED_ABOUT}</about>`;
+    await regenerateNannyAIContent();
+    const row = written("nannies").find((r) => r.ai_content);
+    expect((row?.ai_content as { headline: string }).headline).toBe(TYPED_HEADLINE);
+    expect((row?.ai_content as { bio_summary: { about: string } }).bio_summary.about).toBe(TYPED_ABOUT);
+  });
+
+  it("the applicant's lead update (updateNannyLead)", async () => {
+    await updateNannyLead("lead-1", { ai_bio: "Pitch <3", ai_content: { headline: TYPED_HEADLINE } });
+    const [row] = written("nanny_leads");
+    expect(row.ai_bio).toBe("Pitch <3");
+    expect((row.ai_content as { headline: string }).headline).toBe(TYPED_HEADLINE);
   });
 });

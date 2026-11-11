@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { safeHtml, safeHtmlDeep } from "./safe-html";
+import { cleanHtml, cleanHtmlDeep, safeHtml } from "./safe-html";
 
 describe("safeHtml — profile text keeps its formatting tags and nothing else", () => {
   it.each([
@@ -63,21 +63,45 @@ describe("safeHtml — profile text keeps its formatting tags and nothing else",
   });
 });
 
-describe("safeHtmlDeep — every string in stored profile content", () => {
-  it("cleans nested strings and keeps the shape and other values", () => {
+describe("cleanHtml — on write: the same tags, every other character as typed", () => {
+  it.each(["Kids <5", "2 > 1", "<3", "<p>Kids <5</p><p>2 > 1</p><p><3</p>", "a & b &amp; c", "O'Brien \"Nanny\"", "Line one<br>Line two"])(
+    "stores %j exactly as typed",
+    (typed) => {
+      expect(cleanHtml(typed)).toBe(typed);
+    },
+  );
+
+  it("removes the same markup safeHtml removes, without escaping the rest", () => {
+    expect(cleanHtml("<p onclick=\"x()\">Kids <5</p><img src=x onerror=alert(1)><script>steal()</script><!-- c -->2 > 1"))
+      .toBe("<p>Kids <5</p>2 > 1");
+  });
+
+  it("leaves nothing a raw render would run", () => {
+    const out = cleanHtml("<a href=\"javascript:alert(1)\">x</a><svg onload=1></svg><iframe src=y></iframe><style>p{}</style>");
+    expect(out).toBe("x");
+  });
+
+  it("renders the same text through safeHtml as the browser shows for what was typed", () => {
+    const typed = "<p>Kids <5</p><p>2 > 1</p><p><3</p>";
+    expect(safeHtml(cleanHtml(typed))).toBe("<p>Kids &lt;5</p><p>2 &gt; 1</p><p>&lt;3</p>");
+  });
+});
+
+describe("cleanHtmlDeep — every string in stored profile content", () => {
+  it("cleans nested strings and keeps the shape, the typed characters and other values", () => {
     const stored = {
       headline: "<p>Hi</p><img src=x onerror=alert(1)>",
-      bio_summary: { about: "<p>a</p><script>x()</script>", values: "<p>b</p>" },
-      list: ["<b>x</b>", "<svg onload=y>"],
+      bio_summary: { about: "<p>a</p><script>x()</script>", values: "<p>Kids <5, 2 > 1</p>" },
+      list: ["<b>x</b>", "<svg onload=y>", "<3"],
       ai_model: "o4-mini",
       generated_at: "2026-11-11T00:00:00.000Z",
       count: 3,
       empty: null,
     };
-    expect(safeHtmlDeep(stored)).toEqual({
+    expect(cleanHtmlDeep(stored)).toEqual({
       headline: "<p>Hi</p>",
-      bio_summary: { about: "<p>a</p>", values: "<p>b</p>" },
-      list: ["<b>x</b>", ""],
+      bio_summary: { about: "<p>a</p>", values: "<p>Kids <5, 2 > 1</p>" },
+      list: ["<b>x</b>", "", "<3"],
       ai_model: "o4-mini",
       generated_at: "2026-11-11T00:00:00.000Z",
       count: 3,
@@ -87,7 +111,7 @@ describe("safeHtmlDeep — every string in stored profile content", () => {
 
   it("does not change the object it was given", () => {
     const stored = { headline: "<img src=x onerror=alert(1)>" };
-    safeHtmlDeep(stored);
+    cleanHtmlDeep(stored);
     expect(stored.headline).toBe("<img src=x onerror=alert(1)>");
   });
 });

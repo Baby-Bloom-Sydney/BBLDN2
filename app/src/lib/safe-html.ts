@@ -1,9 +1,13 @@
 /**
  * Profile text is stored as a little HTML: paragraphs, line breaks and bold (`<p>`, `<br>`, `<strong>`), plus the
- * inline emphasis tags. `safeHtml` keeps exactly those tags, written bare (no attributes), keeps the text of any other
- * tag, drops script and style blocks and comments, and escapes every other angle bracket. Its output can be rendered
- * as HTML: the only tags left are the ones it writes itself. A pure string function, so it behaves the same on the
- * server and in the browser.
+ * inline emphasis tags. Those tags are kept, written bare (no attributes); any other tag is dropped and its text kept;
+ * script and style blocks and comments go.
+ *
+ * - `cleanHtml` (on write): only that — every other character stays as typed, including a `<` or `>` that starts no
+ *   tag, so screens that show the text as plain text read it as before.
+ * - `safeHtml` (at every raw-HTML render): the same, and every other angle bracket escaped, so the only tags left are
+ *   the ones it writes itself.
+ * Pure string functions, so they behave the same on the server and in the browser.
  */
 
 const KEPT_TAGS = new Set(["p", "br", "strong", "b", "em", "i"]);
@@ -23,25 +27,35 @@ function keptTag(closing: string, name: string): string {
   return `<${closing}${tag}>`;
 }
 
-export function safeHtml(html: string | null | undefined): string {
-  if (!html) return "";
-  const text = html.replace(BLOCKS, "").replace(COMMENTS, "");
+function rebuild(html: string, text: (s: string) => string): string {
+  const source = html.replace(BLOCKS, "").replace(COMMENTS, "");
   let out = "";
   let last = 0;
-  for (const m of text.matchAll(TAG)) {
+  for (const m of source.matchAll(TAG)) {
     const at = m.index ?? 0;
-    out += escapeText(text.slice(last, at)) + keptTag(m[1], m[2]);
+    out += text(source.slice(last, at)) + keptTag(m[1], m[2]);
     last = at + m[0].length;
   }
-  return out + escapeText(text.slice(last));
+  return out + text(source.slice(last));
 }
 
-/** `safeHtml` over every string in stored profile content (objects and arrays copied, other values kept). */
-export function safeHtmlDeep<T>(value: T): T {
-  if (typeof value === "string") return safeHtml(value) as T;
-  if (Array.isArray(value)) return value.map((v) => safeHtmlDeep(v)) as T;
+/** At render: the kept tags, bare; everything else as text. */
+export function safeHtml(html: string | null | undefined): string {
+  if (!html) return "";
+  return rebuild(html, escapeText);
+}
+
+/** On write: the kept tags, bare; other tags, blocks and comments removed; every other character as typed. */
+export function cleanHtml(html: string): string {
+  return rebuild(html, (s) => s);
+}
+
+/** `cleanHtml` over every string in stored profile content (objects and arrays copied, other values kept). */
+export function cleanHtmlDeep<T>(value: T): T {
+  if (typeof value === "string") return cleanHtml(value) as T;
+  if (Array.isArray(value)) return value.map((v) => cleanHtmlDeep(v)) as T;
   if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, safeHtmlDeep(v)])) as T;
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, cleanHtmlDeep(v)])) as T;
   }
   return value;
 }

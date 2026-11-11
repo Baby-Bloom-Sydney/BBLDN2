@@ -158,3 +158,18 @@ describe('convertLeadToAccount — profile text', () => {
     expect(nanny.ai_content).toEqual({ headline: 'Warm ', bio_summary: { about: '<p>About</p>' } });
   });
 });
+
+describe('convertLeadToAccount — profile text typed with < and >', () => {
+  it('copies it exactly as typed', async () => {
+    h.lead = {
+      ...leadWith({ residency_status: 'settled', right_to_work: true }, {}),
+      ai_bio: 'Pitch <3',
+      ai_content: { headline: 'Kids <5 · 2 > 1', bio_summary: { about: '<p>Kids <5</p>' } },
+    };
+    const res = await convertLeadToAccount('lead-1', 'pw-123456');
+    expect(res.success).toBe(true);
+    const [nanny] = insertsInto('nannies');
+    expect(nanny.ai_bio).toBe('Pitch <3');
+    expect(nanny.ai_content).toEqual({ headline: 'Kids <5 · 2 > 1', bio_summary: { about: '<p>Kids <5</p>' } });
+  });
+});

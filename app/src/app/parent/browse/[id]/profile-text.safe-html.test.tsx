@@ -91,3 +91,36 @@ describe("profile text: formatting renders as before", () => {
     expect(container.innerHTML).toContain("Line one<br>Line two");
   });
 });
+
+describe("profile text typed with < and > reads as it did before", () => {
+  const TYPED = {
+    headline: "Kids <5 · 2 > 1 · <3",
+    parent_pitch: "Kids <5<br>2 > 1<br><3",
+    bio_summary: { about: "<p>Kids <5</p><p>2 > 1</p><p><3</p>", personality: "<p>Kind</p>", values: "<p>V</p>", what_i_offer: "<p>O</p>", background: "<p>B</p>" },
+    experience_summary: "<p>E</p>",
+    skills_highlight: "<strong>Skill</strong><br>",
+  };
+  /** What a browser showed for the stored text when it was rendered raw (the old render). */
+  const rawText = (html: string) => {
+    const d = document.createElement("div");
+    d.innerHTML = html;
+    return d.textContent ?? "";
+  };
+
+  it("in the family's view: the headline and the about text", () => {
+    const { container } = render(<ParentNannyProfileView nanny={nanny(TYPED)} />);
+    expect(rawText(TYPED.headline)).toBe("Kids <5 · 2 > 1 · <3");
+    expect(container.textContent).toContain(rawText(TYPED.headline));
+    expect(container.textContent).toContain(rawText(TYPED.bio_summary.about));
+  });
+
+  it("in the matchmaking view: the pitch", () => {
+    const { container } = render(<NannyProfileView nanny={nanny(TYPED)} isParent />);
+    expect(container.textContent).toContain(rawText(TYPED.parent_pitch));
+  });
+
+  it("on the signed-out match card: the headline", () => {
+    const { container } = render(<PublicMatchCard match={match(TYPED)} />);
+    expect(container.textContent).toContain(rawText(TYPED.headline));
+  });
+});

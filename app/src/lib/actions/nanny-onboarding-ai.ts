@@ -3,7 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { openai } from '@/lib/ai/client';
 import { V2_SYSTEM_PROMPT, buildV2Prompt, parseAIProfileSections, generateV2Checklist } from '@/lib/ai/nanny-profile-prompts';
-import { safeHtml, safeHtmlDeep } from '@/lib/safe-html';
+import { cleanHtml, cleanHtmlDeep } from '@/lib/safe-html';
 
 interface GenerateAIContentResult {
   success: boolean;
@@ -103,7 +103,7 @@ export async function generateOnboardingAIContent(leadId: string): Promise<Gener
     });
 
     // Build ai_content JSONB (only the formatting tags kept)
-    const aiContent: Record<string, unknown> = safeHtmlDeep({
+    const aiContent: Record<string, unknown> = cleanHtmlDeep({
       headline: sections.headline || '',
       parent_pitch: sections.bio || '',
       bio_summary: {
@@ -119,7 +119,7 @@ export async function generateOnboardingAIContent(leadId: string): Promise<Gener
       generated_at: new Date().toISOString(),
     });
 
-    const aiBio = safeHtml(sections.bio || '');
+    const aiBio = cleanHtml(sections.bio || '');
 
     // Save to nanny_leads
     await adminClient
