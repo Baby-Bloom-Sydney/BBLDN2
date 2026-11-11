@@ -53,8 +53,9 @@ describe("bookingDaysLeft — days to book her meet and greet", () => {
   });
 
   it("reads her times on the London clock across the October change", () => {
-    const now = Date.parse("2026-10-24T06:00:00.000Z");
-    // 25 Oct 19:45 London is 19:45Z (GMT from that morning); less 12h = 07:45Z, 25h45m from now
+    const now = Date.parse("2026-10-24T07:00:00.000Z");
+    // 25 Oct 19:45 London is 19:45Z (GMT from that morning); less 12h = 07:45Z, 24h45m from now → 2 (read as BST it
+    // would be 06:45Z, 23h45m → 1)
     expect(bookingDaysLeft(row({ expiresAt: iso(now + 7 * DAY), proposedTimes: ["2026-10-25_evening"] }), now)).toBe(2);
   });
 });

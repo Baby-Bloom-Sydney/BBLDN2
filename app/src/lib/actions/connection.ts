@@ -24,6 +24,7 @@ import type { BracketKey } from "@/lib/timezone";
 import { CONNECTION_STAGE, POSITION_STAGE, POSITION_STATUS, HIDDEN_CONNECTION_STAGES, CONNECTION_WAIT_WINDOW_MS } from "@/lib/position/constants";
 import { funnelLog } from "@/lib/position/logger";
 import { heldExpiryShown, isHeld, isUnseenByParent } from "@/lib/connections/silent-hold";
+import { escapeText } from "@/lib/email/templates/call-email-parts";
 import { bookingDaysLeftLine } from "@/lib/connections/booking-days-left";
 import { familySawAtExpiry } from "@/lib/connections/expired-rows";
 import {
@@ -637,7 +638,7 @@ export async function acceptConnectionRequest(
         html: `<div style="${baseStyle}">
           ${emailHeader()}
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">Great news! ${nannyName} has accepted your connection request and shared their available times. Check their availability and pick a slot for your meet and greet.</p>
-          ${daysLeft ? `<p style="color: #6B7280; font-size: 14px; margin-top: 8px;">${daysLeft}.</p>` : ""}
+          ${daysLeft ? `<p style="color: #6B7280; font-size: 14px; margin-top: 8px;">${escapeText(daysLeft)}.</p>` : ""}
           <p style="margin-top: 24px;"><a href="${appUrl}/parent/connections" style="${btnStyle}">Pick a Time</a></p>
         </div>`,
         emailType: "interview_confirmed",

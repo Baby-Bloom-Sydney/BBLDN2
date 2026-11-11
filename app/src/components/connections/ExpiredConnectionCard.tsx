@@ -24,7 +24,6 @@ export function ExpiredConnectionCard({
   pendingRequestCount: number;
 }) {
   const [connecting, setConnecting] = useState(false);
-  const lastName = connection.nannyName.slice(connection.nannyFirstName.length).trim();
   return (
     <div className="rounded-lg border border-slate-100 bg-white p-3 space-y-3">
       <div className="flex items-center justify-between gap-3">
@@ -38,7 +37,10 @@ export function ExpiredConnectionCard({
             </div>
           )}
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-slate-900">{connection.nannyName}</p>
+            <p className="truncate text-sm font-medium text-slate-900">
+              {/* as each list shows her: Matched Nannies by first name, Connections by full name */}
+              {connection.source === "dfy" ? connection.nannyFirstName : connection.nannyName}
+            </p>
             {connection.nannySuburb && (
               <p className="flex items-center gap-1 text-xs text-slate-500">
                 <MapPin className="h-3 w-3" aria-hidden="true" />
@@ -61,7 +63,7 @@ export function ExpiredConnectionCard({
         nanny={{
           id: connection.nannyId,
           first_name: connection.nannyFirstName,
-          last_name: lastName,
+          last_name: connection.nannyLastName,
           suburb: connection.nannySuburb,
           hourly_rate_min: null,
           profile_picture_url: connection.nannyPhoto,

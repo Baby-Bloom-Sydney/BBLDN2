@@ -50,8 +50,8 @@ describe("the position page — time left and expired connections", () => {
         upcomingIntros={[]}
         pendingRequestCount={0}
         expiredConnections={[
-          { connectionId: "r1", nannyId: "nA", nannyFirstName: "Sarah", nannyName: "Sarah Jones", nannySuburb: "Bow", nannyPhoto: null, source: "parent", expiredBecause: "no_reply" },
-          { connectionId: "r2", nannyId: "nB", nannyFirstName: "Cleo", nannyName: "Cleo Hart", nannySuburb: "Kew", nannyPhoto: null, source: "dfy", expiredBecause: "not_booked" },
+          { connectionId: "r1", nannyId: "nA", nannyFirstName: "Sarah", nannyLastName: "Jones", nannyName: "Sarah Jones", nannySuburb: "Bow", nannyPhoto: null, source: "parent", expiredBecause: "no_reply" },
+          { connectionId: "r2", nannyId: "nB", nannyFirstName: "Cleo", nannyLastName: "Jones", nannyName: "Cleo Hart", nannySuburb: "Kew", nannyPhoto: null, source: "dfy", expiredBecause: "not_booked" },
         ]}
       />,
     );

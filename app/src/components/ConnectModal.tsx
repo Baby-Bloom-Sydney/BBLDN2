@@ -226,7 +226,14 @@ export function ConnectModal({
               </div>
             </div>
           ) : showLimit ? (
-            <AtLimitView firstName={firstName} onClose={onClose} />
+            <AtLimitView
+              firstName={firstName}
+              onClose={() => {
+                // a later open reads her count afresh
+                setLimitRefused(false);
+                onClose();
+              }}
+            />
           ) : (
             /* ── Main Form ── */
             <form onSubmit={handleSubmit} className="space-y-5">

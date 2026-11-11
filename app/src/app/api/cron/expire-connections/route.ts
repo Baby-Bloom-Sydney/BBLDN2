@@ -68,6 +68,7 @@ export async function GET(request: NextRequest) {
     .lt('expires_at', now);
 
   let expired = 0;
+  const offerFor = new Map<string, boolean>();
 
   for (const req of stale ?? []) {
     const wasAccepted = req.status === 'accepted';
@@ -134,7 +135,10 @@ export async function GET(request: NextRequest) {
       const parentInfo = await getUserEmailInfo(parentData.user_id);
       if (parentInfo) {
         // the Complimentary matchmaker call, only when its page would take her
-        const callOffer = (await callOfferForExpiredFamily(parentData.user_id, req.parent_id)) ? connectionExpiredCallOfferHtml() : '';
+        // one check per family in a run
+        const offered = offerFor.get(req.parent_id) ?? (await callOfferForExpiredFamily(parentData.user_id, req.parent_id));
+        offerFor.set(req.parent_id, offered);
+        const callOffer = offered ? connectionExpiredCallOfferHtml() : '';
         sendEmail({
           to: parentInfo.email,
           subject: 'Connection request expired',

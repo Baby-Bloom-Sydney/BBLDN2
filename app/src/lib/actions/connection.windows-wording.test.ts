@@ -90,6 +90,16 @@ describe("her accept and its release: the family's days to book", () => {
     expect(htmlTo()).not.toContain("3 days");
   });
 
+  it("escapes her name in the line", async () => {
+    const helpers = await import("@/lib/email/helpers");
+    vi.mocked(helpers.getUserEmailInfo).mockResolvedValue({ email: "x@example.test", firstName: "<b>Sophie</b>", lastName: "T" } as never);
+    seed(0, "pending");
+    h.user = { id: "nanny-u" };
+    await acceptConnectionRequest("c1", SLOTS);
+    expect(htmlTo()).toContain("4 days left to book your meet and greet with &lt;b&gt;Sophie&lt;/b&gt;");
+    vi.mocked(helpers.getUserEmailInfo).mockResolvedValue({ email: "x@example.test", firstName: "Sophie", lastName: "Taylor" } as never);
+  });
+
   it("leaves the line out once her times have passed", async () => {
     seed(9, "accepted", 3);
     h.db.tables.connection_requests[0].proposed_times = ["2026-11-11_morning"];

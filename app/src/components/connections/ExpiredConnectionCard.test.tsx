@@ -9,7 +9,7 @@ import { ExpiredConnectionCard } from "./ExpiredConnectionCard";
 import { BookingDaysLeftNote } from "./BookingDaysLeftNote";
 
 const expired = (because: "no_reply" | "not_booked") => ({
-  connectionId: "r1", nannyId: "nA", nannyFirstName: "Sarah", nannyName: "Sarah Jones", nannySuburb: "Islington",
+  connectionId: "r1", nannyId: "nA", nannyFirstName: "Sarah", nannyLastName: "Jones", nannyName: "Sarah Jones", nannySuburb: "Islington",
   nannyPhoto: null, source: "parent", expiredBecause: because,
 });
 
@@ -37,6 +37,16 @@ describe("ExpiredConnectionCard", () => {
     render(<ExpiredConnectionCard connection={expired("no_reply")} pendingRequestCount={5} />);
     fireEvent.click(screen.getByRole("button", { name: "Connect with Sarah again" }));
     expect(screen.getByRole("heading", { name: "You have 5 open requests" })).toBeInTheDocument();
+  });
+});
+
+describe("ExpiredConnectionCard — her name as each list shows it", () => {
+  it("shows a matched nanny by her first name, and a family-sent one by her full name", () => {
+    const { rerender } = render(<ExpiredConnectionCard connection={{ ...expired("not_booked"), source: "dfy" }} pendingRequestCount={0} />);
+    expect(screen.queryByText("Sarah Jones")).toBeNull();
+    expect(screen.getByText("Sarah")).toBeInTheDocument();
+    rerender(<ExpiredConnectionCard connection={expired("no_reply")} pendingRequestCount={0} />);
+    expect(screen.getByText("Sarah Jones")).toBeInTheDocument();
   });
 });
 

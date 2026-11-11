@@ -111,7 +111,7 @@ const dfyAccepted: unknown = {
   nanny: { firstName: "Dana", lastName: "Fox", suburb: "Islington", profilePicUrl: null, hourlyRateMin: 20, experienceYears: 4, aiHeadline: null, age: 30, schedule: null },
 };
 const expired = (id: string, first: string, source: string, because: "no_reply" | "not_booked"): Expired => ({
-  connectionId: id, nannyId: `nanny-${first}`, nannyFirstName: first, nannyName: `${first} Hart`, nannySuburb: "Bow", nannyPhoto: null, source, expiredBecause: because,
+  connectionId: id, nannyId: `nanny-${first}`, nannyFirstName: first, nannyLastName: "Jones", nannyName: `${first} Hart`, nannySuburb: "Bow", nannyPhoto: null, source, expiredBecause: because,
 });
 
 function renderHub(props: Partial<HubProps>) {

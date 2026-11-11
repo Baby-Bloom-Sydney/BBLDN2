@@ -36,6 +36,7 @@ import { CONNECTION_STAGE, CONNECTION_WAIT_WINDOW_MS, HIDDEN_CONNECTION_STAGES }
 import { createInboxMessage } from '@/lib/actions/connection-helpers';
 import { emailHeader } from '@/lib/email/brand';
 import { SITE_URL } from '@/lib/constants';
+import { escapeText } from '@/lib/email/templates/call-email-parts';
 import { bookingDaysLeftLine } from './booking-days-left';
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -370,7 +371,7 @@ export async function promotePendingConnections(
               html: `<div style="${baseStyle}">
                 ${emailHeader()}
                 <p style="color: #374151; font-size: 16px; line-height: 1.6;">Great news! ${nannyName} has accepted your connection request and shared their available times. Check their availability and pick a slot for your meet and greet.</p>
-                ${daysLeft ? `<p style="color: #6B7280; font-size: 14px; margin-top: 8px;">${daysLeft}.</p>` : ''}
+                ${daysLeft ? `<p style="color: #6B7280; font-size: 14px; margin-top: 8px;">${escapeText(daysLeft)}.</p>` : ''}
                 <p style="margin-top: 24px;"><a href="${appUrl}/parent/connections" style="${btnStyle}">Pick a Time</a></p>
               </div>`,
               emailType: 'interview_confirmed',

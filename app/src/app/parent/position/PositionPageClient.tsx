@@ -1017,8 +1017,7 @@ export function PositionPageClient({
                 {/* ── Empty state: no DFY, no connections ── */}
                 {!hasDfy &&
                   dfyConnections.length === 0 &&
-                  nonDfyIntros.length === 0 &&
-                  expiredConnections.length === 0 && (
+                  nonDfyIntros.length === 0 && (
                     <div className="text-center py-6 space-y-4">
                       <div className="flex items-center justify-center gap-4">
                         {/* 5g (P-23): the tier checkout is hidden unless LEGACY_TIER_CHECKOUT_ENABLED. */}

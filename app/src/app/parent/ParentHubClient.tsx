@@ -1659,7 +1659,8 @@ export function ParentHubClient({
                                 ? ` (${nonDfyIntros.length})`
                                 : ""}
                             </p>
-                            {nonDfyIntros.length > 0 && (
+                            {(nonDfyIntros.length > 0 ||
+                              expiredFamily.length > 0) && (
                               <Link
                                 href="/parent?t=childcare&s=nannies"
                                 className="inline-flex items-center gap-0.5 text-xs text-slate-400 hover:text-slate-600 transition-colors"

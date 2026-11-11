@@ -92,6 +92,22 @@ describe("readFamilyExpiredConnections — the expired rows the family's lists k
     expect(rows.map((r) => r.connectionId)).toEqual(["e2"]);
   });
 
+  it("leaves out a nanny who is no longer on the platform (suspended, deactivated or inactive)", async () => {
+    const d = db(
+      [
+        row("s", "nA", 1, "expired", "parent", "2026-11-01T10:00:00Z"),
+        row("d", "nB", 11, "expired", "parent", "2026-11-01T10:00:00Z"),
+        row("i", "nC", 1, "expired", "parent", "2026-11-01T10:00:00Z"),
+        row("ok", "nD", 1, "expired", "parent", "2026-11-01T10:00:00Z"),
+      ],
+      ["s", "d", "i", "ok"].map((id) => expiredLog(id, { family_saw: "request" })),
+    );
+    const statuses: Record<string, string> = { nA: "suspended", nB: "deactivated", nC: "inactive", nD: "active" };
+    for (const n of d.tables.nannies) n.status = statuses[n.id as string] ?? "active";
+    const rows = await readFamilyExpiredConnections(d.client() as never, "p1");
+    expect(rows.map((r) => r.connectionId)).toEqual(["ok"]);
+  });
+
   it("reads nothing more when the family has no expired row", async () => {
     const d = db([row("live", "nA", 0, "pending", "parent", "2026-11-01T10:00:00Z")], []);
     expect(await readFamilyExpiredConnections(d.client() as never, "p1")).toEqual([]);
