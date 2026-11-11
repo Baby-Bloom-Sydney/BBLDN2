@@ -26,9 +26,9 @@ describe("ConnectionDetailPopup — time left", () => {
     expect(screen.getByText("Sarah accepted! Pick a time for your meet and greet.")).toBeInTheDocument();
   });
 
-  it("shows the nanny her countdown in days and hours at 7 days", () => {
+  it("shows the nanny her countdown in whole days at 7 days", () => {
     render(<ConnectionDetailPopup intro={intro(0, new Date(Date.now() + 7 * DAY - 60_000).toISOString(), "pending")} open onOpenChange={vi.fn()} role="nanny" />);
-    expect(screen.getByText("6d 23h to respond")).toBeInTheDocument();
+    expect(screen.getByText("7 days to respond")).toBeInTheDocument();
     expect(screen.queryByText(/left to book/)).toBeNull();
   });
 });
