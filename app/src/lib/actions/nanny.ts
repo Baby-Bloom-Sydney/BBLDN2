@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { openai } from "@/lib/ai/client";
 import { failureCode } from "@/lib/failure-code";
+import { safeHtmlDeep } from "@/lib/safe-html";
 import { profileAge } from "@/lib/profile-age";
 import { identityLocked } from "@/lib/settings/identity-lock";
 import { splitProfileUpdate, touchesIdentity, type UpdateNannyProfileData } from "@/lib/settings/nanny-profile-keys";
@@ -704,10 +705,10 @@ export async function updateNannyAIContent(
     };
   }
 
-  // Deep-merge updates into existing ai_content (handles nested bio_summary)
+  // Deep-merge updates into existing ai_content (handles nested bio_summary); only the formatting tags are kept
   const existing = (nanny.ai_content as Record<string, unknown>) || {};
   const merged = { ...existing };
-  for (const [key, value] of Object.entries(updates)) {
+  for (const [key, value] of Object.entries(safeHtmlDeep(updates))) {
     if (
       typeof value === "object" &&
       value !== null &&
@@ -952,7 +953,7 @@ export async function regenerateNannyAIContent(): Promise<{
     await admin
       .from("nannies")
       .update({
-        ai_content: aiContent,
+        ai_content: safeHtmlDeep(aiContent),
         last_regenerated_at: new Date().toISOString(),
       })
       .eq("id", nanny.id);

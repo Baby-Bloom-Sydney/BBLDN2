@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/admin/require-admin";
+import { notFound } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 
 /**
@@ -16,7 +17,8 @@ export default async function AdminSupportInboxPage({
 }: {
   searchParams: { status?: string; category?: string };
 }) {
-  await requireAdmin();
+  const gate = await requireAdmin();
+  if (gate.error) notFound();
   const admin = createAdminClient();
 
   let query = admin

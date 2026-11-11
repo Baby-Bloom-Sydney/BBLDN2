@@ -34,6 +34,7 @@ import { syncNannyVerificationState } from '@/lib/verification-sync';
 import { sendEmail } from '@/lib/email/resend';
 import { openai } from '@/lib/ai/client';
 import { V2_SYSTEM_PROMPT, buildV2Prompt, parseAIProfileSections, generateV2Checklist } from '@/lib/ai/nanny-profile-prompts';
+import { safeHtmlDeep } from '@/lib/safe-html';
 import { emailFooter } from "@/lib/email/brand";
 import { adminFromAddress } from "@/lib/constants";
 import { requireAdmin } from '@/lib/admin/require-admin';
@@ -590,7 +591,7 @@ export async function adminRegenerateNannyBio(
 
     await admin
       .from('nannies')
-      .update({ ai_content: aiContent })
+      .update({ ai_content: safeHtmlDeep(aiContent) })
       .eq('id', nanny.id);
   } catch (err) {
     console.error('[adminRegenerateNannyBio] AI error:', err);

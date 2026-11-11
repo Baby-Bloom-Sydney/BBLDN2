@@ -11,6 +11,7 @@ import { getScoreBadgeStyle } from "@/components/match/match-helpers";
 import { BADGE_ICONS } from "@/components/profile/profile-helpers";
 import type { PublicMatchResult } from "@/lib/matching/public-match";
 import { qualificationBadgeLabel } from "@/lib/matching/qualification-display";
+import { safeHtml } from "@/lib/safe-html";
 
 interface PublicMatchCardProps {
   match: PublicMatchResult;
@@ -105,7 +106,7 @@ export function PublicMatchCard({ match }: PublicMatchCardProps) {
             <div
               className="mt-3 text-sm text-slate-600 leading-relaxed [&_p]:mb-0 overflow-hidden"
               style={{ display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}
-              dangerouslySetInnerHTML={{ __html: headline }}
+              dangerouslySetInnerHTML={{ __html: safeHtml(headline) }}
             />
           )}
 

@@ -1,4 +1,6 @@
+import { notFound } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { requireAdmin } from '@/lib/admin/require-admin';
 import { PositionApplyClient } from './PositionApplyClient';
 
 export interface RealPosition {
@@ -183,6 +185,8 @@ async function fetchActivePositions(): Promise<RealPosition[]> {
 }
 
 export default async function PositionApplyTestPage() {
+  const gate = await requireAdmin();
+  if (gate.error) notFound();
   const positions = await fetchActivePositions();
 
   // Dummy applicants for parent view demo

@@ -11,9 +11,11 @@ interface PhotoUploadProps {
   required?: boolean;
   circular?: boolean;
   size?: 'default' | 'lg';
+  /** The applicant's lead, sent with the file so the upload can check it. */
+  leadId?: string | null;
 }
 
-export function PhotoUpload({ value, onChange, label = 'Upload photo', required = false, circular = false, size = 'default' }: PhotoUploadProps) {
+export function PhotoUpload({ value, onChange, label = 'Upload photo', required = false, circular = false, size = 'default', leadId = null }: PhotoUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -34,6 +36,7 @@ export function PhotoUpload({ value, onChange, label = 'Upload photo', required 
     try {
       const formData = new FormData();
       formData.append('file', file);
+      if (leadId) formData.append('leadId', leadId);
 
       const res = await fetch('/api/upload/nanny-photo', {
         method: 'POST',

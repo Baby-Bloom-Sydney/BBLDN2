@@ -24,6 +24,7 @@ import {
   Check,
   AlertTriangle,
 } from "lucide-react";
+import { safeHtml } from "@/lib/safe-html";
 
 // ── Helpers ──
 
@@ -247,7 +248,7 @@ export function NannyProfileView({
               <div className="mt-3">
                 <div
                   className="text-sm text-slate-700 leading-relaxed [&_p]:mb-3 [&_p:last-child]:mb-0"
-                  dangerouslySetInnerHTML={{ __html: tagline.replace(/<\/?p>/g, "") }}
+                  dangerouslySetInnerHTML={{ __html: safeHtml(tagline.replace(/<\/?p>/g, "")) }}
                 />
               </div>
             )}
@@ -379,7 +380,7 @@ export function NannyProfileView({
             {bioContent ? (
               <div
                 className="text-sm text-slate-700 leading-relaxed [&_p]:mb-3 [&_p:last-child]:mb-0"
-                dangerouslySetInnerHTML={{ __html: bioContent }}
+                dangerouslySetInnerHTML={{ __html: safeHtml(bioContent) }}
               />
             ) : (
               <div className="space-y-4">
@@ -400,13 +401,13 @@ export function NannyProfileView({
           <>
             {bioSummary.about && (
               <SectionCard title="About Me">
-                <div className="text-sm text-slate-700 leading-relaxed [&_p]:mb-3 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: bioSummary.about }} />
+                <div className="text-sm text-slate-700 leading-relaxed [&_p]:mb-3 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: safeHtml(bioSummary.about) }} />
               </SectionCard>
             )}
             {(experienceContent || nanny.total_experience_years) && (
               <SectionCard title="Experience">
                 {experienceContent ? (
-                  <div className="text-sm text-slate-700 leading-relaxed [&_p]:mb-3 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: experienceContent }} />
+                  <div className="text-sm text-slate-700 leading-relaxed [&_p]:mb-3 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: safeHtml(experienceContent) }} />
                 ) : (
                   <div className="space-y-1 text-sm text-slate-700">
                     {nanny.total_experience_years !== null && <p>{nanny.total_experience_years} years total childcare experience</p>}
@@ -419,17 +420,17 @@ export function NannyProfileView({
             )}
             {bioSummary.traits && (
               <SectionCard title="Strengths">
-                <div className="text-sm text-slate-700 leading-relaxed [&_p]:mb-3 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: bioSummary.traits }} />
+                <div className="text-sm text-slate-700 leading-relaxed [&_p]:mb-3 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: safeHtml(bioSummary.traits) }} />
               </SectionCard>
             )}
             {bioSummary.background && (
               <SectionCard title="Background & Skills">
-                <div className="text-sm text-slate-700 leading-relaxed [&_p]:mb-3 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: bioSummary.background }} />
+                <div className="text-sm text-slate-700 leading-relaxed [&_p]:mb-3 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: safeHtml(bioSummary.background) }} />
               </SectionCard>
             )}
             {bioSummary.services && (
               <SectionCard title="Services">
-                <div className="text-sm text-slate-700 leading-relaxed [&_p]:mb-3 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: bioSummary.services }} />
+                <div className="text-sm text-slate-700 leading-relaxed [&_p]:mb-3 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: safeHtml(bioSummary.services) }} />
               </SectionCard>
             )}
             {!bioSummary.about && !bioSummary.traits && (
@@ -477,7 +478,7 @@ export function NannyProfileView({
             {checklistContent ? (
               <div
                 className="text-sm text-slate-700 leading-relaxed [&_p]:mb-3 [&_p:last-child]:mb-0 [&_br]:block [&_br]:my-0.5"
-                dangerouslySetInnerHTML={{ __html: checklistContent }}
+                dangerouslySetInnerHTML={{ __html: safeHtml(checklistContent) }}
               />
             ) : (
               <div className="space-y-4 text-sm">

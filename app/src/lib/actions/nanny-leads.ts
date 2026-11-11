@@ -30,6 +30,7 @@ import { emailFooter } from "@/lib/email/brand";
 import { BRAND, SITE_NAME, SITE_URL } from "@/lib/constants";
 import { RIGHT_TO_WORK_OPTIONS, rightToWorkFor, type RightToWorkKey } from "@/lib/nanny-options";
 import { failureCode } from "@/lib/failure-code";
+import { safeHtml, safeHtmlDeep } from "@/lib/safe-html";
 
 /**
  * The right-to-work pair written to `nannies` on conversion. Only one of `RIGHT_TO_WORK_OPTIONS`' keys is accepted;
@@ -241,8 +242,8 @@ export async function updateNannyLead(
     if (data.salary) updateData.salary = data.salary;
     if (data.matching) updateData.matching = data.matching;
     if (data.about_you) updateData.about_you = data.about_you;
-    if (data.ai_bio !== undefined) updateData.ai_bio = data.ai_bio;
-    if (data.ai_content !== undefined) updateData.ai_content = data.ai_content;
+    if (data.ai_bio !== undefined) updateData.ai_bio = typeof data.ai_bio === "string" ? safeHtml(data.ai_bio) : data.ai_bio;
+    if (data.ai_content !== undefined) updateData.ai_content = safeHtmlDeep(data.ai_content);
     if (data.lead_status) updateData.lead_status = data.lead_status;
     if (data.funnel_step) updateData.funnel_step = data.funnel_step;
 
@@ -466,8 +467,8 @@ export async function convertLeadToAccount(
           photo_2_url: aboutYou.photo_2_url,
           photo_3_url: aboutYou.photo_3_url,
           // AI content (N4)
-          ai_bio: lead.ai_bio,
-          ai_content: lead.ai_content || {},
+          ai_bio: typeof lead.ai_bio === "string" ? safeHtml(lead.ai_bio) : lead.ai_bio,
+          ai_content: safeHtmlDeep(lead.ai_content || {}),
           // Derived nanny experience from childcare roles
           nanny_experience_years:
             experience.childcare_roles?.length > 0

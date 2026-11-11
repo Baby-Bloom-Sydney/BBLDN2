@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/admin/require-admin";
+import { notFound } from "next/navigation";
 import { getAdminUserData } from "@/lib/admin/getAdminUserData";
 import { SubscriptionDetailHeader } from "./SubscriptionDetailHeader";
 import { SubscriptionStatsGrid } from "./SubscriptionStatsGrid";
@@ -29,7 +30,8 @@ export default async function AdminUserSubscriptionPage({
 }: {
   params: { userId: string };
 }) {
-  await requireAdmin();
+  const gate = await requireAdmin();
+  if (gate.error) notFound();
   const admin = createAdminClient();
   // 4a-i (P-23): the payout rows and the nanny's payout logs are hidden unless PAYOUTS_ENABLED.
   const showPayouts = payoutsEnabled();
