@@ -117,8 +117,8 @@ describe("silent hold (#10)", () => {
     h.user = { id: "parent-u" };
     const { data } = await getParentConnectionRequests();
     expect(data[0]).toMatchObject({ connection_stage: 0, status: "pending", proposed_times: [], responded_at: null });
-    // the request's own expiry (sent + 72 hours), not the one her answer set
-    expect(data[0].expires_at).toBe(new Date(Date.parse(sent) + 72 * 3_600_000).toISOString());
+    // the request's own expiry (sent + 7 days), not the one her answer set
+    expect(data[0].expires_at).toBe(new Date(Date.parse(sent) + 7 * 86_400_000).toISOString());
   });
 
   it("G11 her own stage-4 application isn't a request to accept or decline; the family hears nothing", async () => {
@@ -197,7 +197,7 @@ describe("a held row has 7 days", () => {
 
   it.each([
     [3, 9, 7 * DAY],
-    [4, 10, 3 * DAY],
+    [4, 10, 7 * DAY],
   ] as const)("G18 her accept at level %i (stage %i) gives the family's window: %i ms", async (level, stage, window) => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-11-11T09:00:00.000Z"));
@@ -265,9 +265,9 @@ describe("a held row has 7 days", () => {
     expect(toParent()).toHaveLength(1);
   });
 
-  it("G15 at day 4 the family's held request reads as sent and waiting: past its own 72 hours, no time shown, never expired", async () => {
+  it("G15 at day 8 the family's held request reads as sent and waiting: past its own 7 days, no time shown, never expired", async () => {
     seed(3, 9, "accepted");
-    Object.assign(req(), { created_at: new Date(Date.now() - 4 * DAY).toISOString(), expires_at: new Date(Date.now() + 3 * DAY).toISOString() });
+    Object.assign(req(), { created_at: new Date(Date.now() - 8 * DAY).toISOString(), expires_at: new Date(Date.now() + 3 * DAY).toISOString() });
     h.user = { id: "parent-u" };
     const { data } = await getParentConnectionRequests();
     expect(data).toHaveLength(1);
@@ -287,7 +287,7 @@ describe("a held row has 7 days", () => {
     expect(data[0]).toMatchObject({ connection_stage: stage, status, expires_at: stored });
   });
 
-  it("G17 at day 4 the expiry leaves it, the approve releases it with a fresh 72 hours, and the family books", async () => {
+  it("G17 at day 4 the expiry leaves it, the approve releases it with a fresh 7 days, and the family books", async () => {
     seed(3, 9, "accepted");
     Object.assign(req(), { created_at: new Date(Date.now() - 4 * DAY).toISOString(), expires_at: new Date(Date.now() + 3 * DAY).toISOString() });
     h.user = { id: "parent-u" };
@@ -296,8 +296,8 @@ describe("a held row has 7 days", () => {
     const released = Date.now();
     await promotePendingConnections(h.db.client() as never, "n1", "nanny-u");
     expect(req().connection_stage).toBe(10);
-    expect(Date.parse(String(req().expires_at)) - released).toBeGreaterThanOrEqual(72 * 3_600_000 - 5_000);
-    expect(Date.parse(String(req().expires_at)) - released).toBeLessThan(72 * 3_600_000 + 5_000);
+    expect(Date.parse(String(req().expires_at)) - released).toBeGreaterThanOrEqual(7 * DAY - 5_000);
+    expect(Date.parse(String(req().expires_at)) - released).toBeLessThan(7 * DAY + 5_000);
     const booked = await scheduleConnectionTime("c1", day(2), 9, 0);
     expect(booked.success).toBe(true);
     expect(req().connection_stage).toBe(20);

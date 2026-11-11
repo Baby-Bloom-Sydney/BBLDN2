@@ -23,6 +23,7 @@ import {
   type ConnectionRole,
 } from "./connections-translator";
 import { asUserFacingRole } from "./utils";
+import { bookingDaysLeftLine } from "@/lib/connections/booking-days-left";
 
 export interface ConnectionSummary {
   id: string;
@@ -124,7 +125,14 @@ export function summarise(
     next_step: nextStepForUser(req.connection_stage, role, {
       fillInitiatedBy: req.fill_initiated_by,
     }),
-    time_left: timeLeft(req.expires_at),
+    // the family hears only the days left to book once she has accepted; the nanny hears her time left
+    time_left:
+      role === "parent"
+        ? bookingDaysLeftLine(
+            { connectionStage: req.connection_stage, expiresAt: req.expires_at, proposedTimes: req.proposed_times },
+            firstName,
+          )
+        : timeLeft(req.expires_at),
     confirmed_time: req.confirmed_time,
   };
 }

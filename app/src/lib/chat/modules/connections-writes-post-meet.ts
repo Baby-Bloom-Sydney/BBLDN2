@@ -457,8 +457,8 @@ async function proposeSendConnectionRequest(
       message_preview: message ? message.slice(0, 200) : null,
       email_side_effect: true,
       preview: message
-        ? `You're about to send a connection request to this nanny with this message:\n"${message}"\nThey'll get an email and inbox notification and have 3 days to respond.`
-        : `You're about to send a connection request to this nanny (no personal message attached). They'll get an email and inbox notification and have 3 days to respond.`,
+        ? `You're about to send a connection request to this nanny with this message:\n"${message}"\nThey'll get an email and inbox notification and have 7 days to respond.`
+        : `You're about to send a connection request to this nanny (no personal message attached). They'll get an email and inbox notification and have 7 days to respond.`,
       next_call:
         "Read the preview back. On a clear yes, call apply_send_connection_request with the same nanny_id and message.",
     },
@@ -535,6 +535,13 @@ async function applySendConnectionRequest(
           "You'll need to create a nanny position first. Open the Position section from your hub (or visit /parent/request) and tell us about your family's needs — it only takes a few minutes.",
       };
     }
+    if (result.error === CONNECTION_ERRORS.AT_LIMIT) {
+      return {
+        success: false,
+        error:
+          "You have 5 open requests. That's the most at one time. To connect with this nanny, please step back from one of your other requests first.",
+      };
+    }
     return {
       success: false,
       error: result.error ?? "Failed to send connection request.",
@@ -556,7 +563,7 @@ async function applySendConnectionRequest(
       nanny_id: nannyId,
       request_id: result.requestId,
       message:
-        "Request sent. They've got 3 days to respond — I'll let you know when they do.",
+        "Request sent. They've got 7 days to respond — I'll let you know when they do.",
     },
     tile: {
       kind: "connection_request",

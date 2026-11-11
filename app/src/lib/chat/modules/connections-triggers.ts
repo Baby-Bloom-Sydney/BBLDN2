@@ -30,7 +30,7 @@ export const connectionsTriggers: ProactiveTrigger[] = [
     event: "connection.created",
     mode: "template",
     template:
-      "New request from {family_name}. They're in {suburb} and want to meet. You've got 3 days to respond — want me to walk you through accept or decline?",
+      "New request from {family_name}. They're in {suburb} and want to meet. You've got 7 days to respond — want me to walk you through accept or decline?",
     resolvePayload: async (event) => ({
       family_name: str(event.payload.family_name, "a family"),
       suburb: str(event.payload.suburb, BRAND.city),
@@ -44,7 +44,7 @@ export const connectionsTriggers: ProactiveTrigger[] = [
     event: "connection.accepted",
     mode: "template",
     template:
-      "{nanny_name} accepted! They've shared their availability — pick a time for your meet and greet. You've got 3 days before it expires.",
+      "{nanny_name} accepted! They've shared their availability — pick a time for your meet and greet.",
     resolvePayload: async (event) => ({
       nanny_name: str(event.payload.nanny_name, "The nanny"),
       connection_id: str(event.payload.connection_id, ""),

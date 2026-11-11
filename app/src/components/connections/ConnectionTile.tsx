@@ -33,6 +33,7 @@
 import { Clock, Calendar, ChevronRight, PhoneCall } from "lucide-react";
 import type { ConnectionRequestWithDetails } from "@/lib/actions/connection";
 import { formatLondonDate } from "@/lib/timezone";
+import { BookingDaysLeftNote } from "./BookingDaysLeftNote";
 
 export type ViewerRole = "nanny" | "parent";
 
@@ -151,6 +152,12 @@ export function ConnectionTile({
             <p className="text-xs text-slate-500">Awaiting response</p>
           )}
           {isAccepted && <p className="text-xs text-blue-600">Pick a time</p>}
+          {viewerRole === "parent" && isAccepted && (
+            <BookingDaysLeftNote
+              row={{ connectionStage: request.connection_stage, expiresAt: request.expires_at, proposedTimes: request.proposed_times }}
+              name={cpFirst}
+            />
+          )}
         </div>
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
@@ -159,7 +166,7 @@ export function ConnectionTile({
             Pick a Time
           </span>
         )}
-        {(isPending || isAccepted) && timeLeft && (
+        {viewerRole === "nanny" && (isPending || isAccepted) && timeLeft && (
           <span
             className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
               urgent ? "bg-red-100 text-red-700" : "bg-amber-50 text-amber-700"

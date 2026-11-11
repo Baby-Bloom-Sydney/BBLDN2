@@ -1,6 +1,6 @@
 /**
  * Approve releases a nanny's held rows (`promotePendingConnections`): a stage-9 accept becomes 10 with a fresh
- * 72-hour scheduling window, a stage-4 application becomes 5 with a fresh application window, and the family is
+ * 7-day scheduling window, a stage-4 application becomes 5 with a fresh application window, and the family is
  * told — only for a row still held when the release writes it. BB-wave1-041126, 2026-11-09.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -37,10 +37,10 @@ function seed(rows: Record<string, unknown>[]) {
 const run = () => promotePendingConnections(h.db.client() as never, "n1", "nanny-u");
 
 describe("promotePendingConnections — the release", () => {
-  it("releases a held accept to stage 10 with a fresh 72-hour window, and tells the family", async () => {
+  it("releases a held accept to stage 10 with a fresh 7-day window, and tells the family", async () => {
     seed([row("c9", 9, "accepted")]);
     await run();
-    expect(get("c9")).toMatchObject({ connection_stage: 10, status: "accepted", expires_at: "2026-11-12T12:00:00.000Z" });
+    expect(get("c9")).toMatchObject({ connection_stage: 10, status: "accepted", expires_at: "2026-11-16T12:00:00.000Z" });
     expect(h.inbox.mock.calls.map(([m]) => [m.userId, m.type])).toEqual([["parent-u", "connection_accepted"]]);
   });
 
@@ -51,11 +51,11 @@ describe("promotePendingConnections — the release", () => {
     expect(h.inbox.mock.calls.map(([m]) => [m.userId, m.type])).toEqual([["parent-u", "new_application"]]);
   });
 
-  // a row held longer than the family's 72 hours is released with a fresh window
-  it("releases an accept held for more than 72 hours with a fresh 72-hour window", async () => {
-    seed([{ ...row("c9", 9, "accepted"), expires_at: "2026-11-05T12:00:00.000Z" }]);
+  // a row held longer than the family's 7 days is released with a fresh window
+  it("releases an accept held for more than 7 days with a fresh 7-day window", async () => {
+    seed([{ ...row("c9", 9, "accepted"), expires_at: "2026-11-01T12:00:00.000Z" }]);
     await run();
-    expect(get("c9")).toMatchObject({ connection_stage: 10, status: "accepted", expires_at: "2026-11-12T12:00:00.000Z" });
+    expect(get("c9")).toMatchObject({ connection_stage: 10, status: "accepted", expires_at: "2026-11-16T12:00:00.000Z" });
   });
 
   it("releases an application held past its 7 days with a fresh application window (as one written at level 4)", async () => {

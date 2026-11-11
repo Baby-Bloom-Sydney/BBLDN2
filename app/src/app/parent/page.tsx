@@ -7,6 +7,7 @@ import {
   getParentUpcomingIntros,
 } from "@/lib/actions/position-funnel";
 import { getDfyStatus } from "@/lib/actions/matching";
+import { getParentExpiredConnections, getParentOpenRequestCount } from "@/lib/actions/expired-connections";
 import { getParentBabysittingRequests } from "@/lib/actions/babysitting";
 import { babysittingEnabled, callBookingEnabled } from "@/lib/features/flags";
 import { getPendingInvitesForUser } from "@/lib/actions/bapp/child-invites";
@@ -76,6 +77,8 @@ export default async function ParentHubPage({ searchParams }: { searchParams: Se
     educationChildrenRes,
     pendingInvitesResult,
     callCard,
+    expiredResult,
+    pendingRequestCount,
   ] = await Promise.all([
     getParentPlacement(),
     position?.id
@@ -98,6 +101,9 @@ export default async function ParentHubPage({ searchParams }: { searchParams: Se
     user ? getPendingInvitesForUser() : Promise.resolve({ data: [] }),
     // Brief 04 (B7): not called while CALL_BOOKING_ENABLED is off, so no call table is read.
     callBookingEnabled() && user ? loadHubCall(user.id).catch(noCallCard) : Promise.resolve(null),
+    // the connections that ran out of time while she could see them, and her open requests (the Connect form's limit)
+    getParentExpiredConnections(),
+    getParentOpenRequestCount(),
   ]);
 
   const placement = placementResult.data;
@@ -142,6 +148,8 @@ export default async function ParentHubPage({ searchParams }: { searchParams: Se
         confirmedNannies={confirmedNannies}
         showFillButton={!!showFillButton}
         upcomingIntros={upcomingIntros}
+        expiredConnections={expiredResult.data}
+        pendingRequestCount={pendingRequestCount}
         dfyTier={dfyTier}
         dfyExpiresAt={dfyExpiresAt}
         dfyActivated={dfyActivated}

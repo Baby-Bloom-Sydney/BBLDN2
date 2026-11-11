@@ -17,6 +17,10 @@ vi.mock("@/lib/actions/position-funnel", () => ({
 }));
 vi.mock("@/lib/actions/matching", () => ({ getDfyStatus: vi.fn(async () => ({ tier: null, expiresAt: null, activated: false })) }));
 vi.mock("@/lib/actions/babysitting", () => ({ getParentBabysittingRequests: vi.fn(async () => empty) }));
+vi.mock("@/lib/actions/expired-connections", () => ({
+  getParentExpiredConnections: vi.fn(async () => empty),
+  getParentOpenRequestCount: vi.fn(async () => 0),
+}));
 vi.mock("@/lib/actions/bapp/child-invites", () => ({ getPendingInvitesForUser: vi.fn(async () => empty) }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: () => ({ auth: { getUser: async () => ({ data: { user: { id: "u-1" } } }) } }) }));
 vi.mock("@/lib/supabase/admin", () => {

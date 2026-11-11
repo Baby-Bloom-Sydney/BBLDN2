@@ -24,6 +24,9 @@ import type { BracketKey } from "@/lib/timezone";
 import { CONNECTION_STAGE, POSITION_STAGE, POSITION_STATUS, HIDDEN_CONNECTION_STAGES, CONNECTION_WAIT_WINDOW_MS } from "@/lib/position/constants";
 import { funnelLog } from "@/lib/position/logger";
 import { heldExpiryShown, isHeld, isUnseenByParent } from "@/lib/connections/silent-hold";
+import { escapeText } from "@/lib/email/templates/call-email-parts";
+import { bookingDaysLeftLine } from "@/lib/connections/booking-days-left";
+import { familySawAtExpiry } from "@/lib/connections/expired-rows";
 import {
   checkPostIntroOutcomes,
   checkPostTrialOutcomes,
@@ -228,12 +231,14 @@ async function expireStaleRequests(
       });
     }
 
+    // what the family saw of it, for their lists (expired-rows.ts); a held row stays held
+    const familySaw = skipParentNotification ? null : familySawAtExpiry(req);
     await logConnectionEvent({
       connectionRequestId: req.id,
       parentId: req.parent_id,
       nannyId: req.nanny_id,
       eventType: "expired",
-      ...(skipParentNotification ? { eventData: { held: true } } : {}),
+      ...(skipParentNotification ? { eventData: { held: true } } : familySaw ? { eventData: { family_saw: familySaw } } : {}),
     });
   }
 }
@@ -297,12 +302,9 @@ export async function createConnectionRequest(
     .eq("parent_id", parentId)
     .eq("status", "pending");
 
+  // the modal and the assistant show the limit message for this code
   if (count !== null && count >= 5) {
-    return {
-      success: false,
-      error:
-        "You have reached the maximum of 5 open connection requests. Wait for a response or cancel an existing request.",
-    };
+    return { success: false, error: CONNECTION_ERRORS.AT_LIMIT };
   }
 
   // No duplicate with same nanny (exclude terminal stages so parents can reconnect)
@@ -322,8 +324,8 @@ export async function createConnectionRequest(
     };
   }
 
-  // expires_at = 72 hours from now
-  const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
+  // expires_at = 7 days from now
+  const expiresAt = new Date(Date.now() + CONNECTION_WAIT_WINDOW_MS).toISOString();
 
   // Insert
   const { data: request, error } = await supabase
@@ -422,7 +424,7 @@ export async function createConnectionRequest(
         subject: `New connection request from ${parentName}`,
         html: `<div style="${baseStyle}">
           ${emailHeader()}
-          <p style="color: #374151; font-size: 16px; line-height: 1.6;">${parentName} from ${parentSuburb} would like to connect with you for a meet and greet. Review their request and respond within 3 days.</p>
+          <p style="color: #374151; font-size: 16px; line-height: 1.6;">${parentName} from ${parentSuburb} would like to connect with you for a meet and greet. Review their request and respond within 7 days.</p>
           <p style="margin-top: 24px;"><a href="${appUrl}/nanny/inbox" style="${btnStyle}">View Request</a></p>
         </div>`,
         emailType: "interview_request",
@@ -551,10 +553,8 @@ export async function acceptConnectionRequest(
     verificationLevel >= 4
       ? CONNECTION_STAGE.ACCEPTED
       : CONNECTION_STAGE.ACCEPTED_PENDING;
-  // Parent has 72 hours to pick a time; an accept waiting for approval has 7 days
-  const newExpiresAt = new Date(
-    Date.now() + (acceptStage === CONNECTION_STAGE.ACCEPTED ? 72 * 60 * 60 * 1000 : CONNECTION_WAIT_WINDOW_MS),
-  ).toISOString();
+  // the family has 7 days to pick a time; an accept waiting for approval has 7 days too
+  const newExpiresAt = new Date(Date.now() + CONNECTION_WAIT_WINDOW_MS).toISOString();
 
   const { data: accepted, error: updateErr } = await adminClient
     .from("connection_requests")
@@ -620,8 +620,12 @@ export async function acceptConnectionRequest(
       referenceType: "connection_request",
     });
 
-    // Email to parent: pick a time
+    // Email to parent: pick a time, with the days left to book from her offered times
     const parentEmailInfo = await getUserEmailInfo(parentData.user_id);
+    const daysLeft = bookingDaysLeftLine(
+      { connectionStage: CONNECTION_STAGE.ACCEPTED, expiresAt: newExpiresAt, proposedTimes: availableSlots },
+      nannyName,
+    );
     if (parentEmailInfo) {
       const appUrl =
         SITE_URL;
@@ -634,7 +638,7 @@ export async function acceptConnectionRequest(
         html: `<div style="${baseStyle}">
           ${emailHeader()}
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">Great news! ${nannyName} has accepted your connection request and shared their available times. Check their availability and pick a slot for your meet and greet.</p>
-          <p style="color: #6B7280; font-size: 14px; margin-top: 8px;">You have 3 days to schedule a time.</p>
+          ${daysLeft ? `<p style="color: #6B7280; font-size: 14px; margin-top: 8px;">${escapeText(daysLeft)}</p>` : ""}
           <p style="margin-top: 24px;"><a href="${appUrl}/parent/connections" style="${btnStyle}">Pick a Time</a></p>
         </div>`,
         emailType: "interview_confirmed",
@@ -1207,8 +1211,8 @@ export async function cancelConnectionRequest(
 
 // ── 6. Get Parent Connection Requests ──
 
-/** A family's request is open for 72 hours from when it was sent (createConnectionRequest). */
-const REQUEST_WINDOW_MS = 72 * 60 * 60 * 1000;
+/** A family's request is open for 7 days from when it was sent (createConnectionRequest). */
+const REQUEST_WINDOW_MS = CONNECTION_WAIT_WINDOW_MS;
 /**
  * The columns of a connection the family's screens read. Her decline reason and the shared-phone fields are not among
  * them (her phone reaches the family through the intro's own reader, getParentUpcomingIntros).

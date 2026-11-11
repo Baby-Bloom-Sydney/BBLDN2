@@ -36,6 +36,8 @@ import { CONNECTION_STAGE, CONNECTION_WAIT_WINDOW_MS, HIDDEN_CONNECTION_STAGES }
 import { createInboxMessage } from '@/lib/actions/connection-helpers';
 import { emailHeader } from '@/lib/email/brand';
 import { SITE_URL } from '@/lib/constants';
+import { escapeText } from '@/lib/email/templates/call-email-parts';
+import { bookingDaysLeftLine } from './booking-days-left';
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -197,8 +199,8 @@ export async function onNannyBarred(
 
 // ── Silent Hold: Promote pending connections on level 4 ──
 
-/** The family's window to book a meet once she has accepted — the same 72 hours an accept at level 4 gives. */
-const SCHEDULING_WINDOW_MS = 72 * 60 * 60 * 1000;
+/** The family's window to book a meet once she has accepted — the same 7 days an accept at level 4 gives. */
+const SCHEDULING_WINDOW_MS = CONNECTION_WAIT_WINDOW_MS;
 
 export async function promotePendingConnections(
   admin: AdminClient,
@@ -215,7 +217,7 @@ export async function promotePendingConnections(
   // 2. Find all stage 9 connections (pending acceptances)
   const { data: pendingAccepts } = await admin
     .from('connection_requests')
-    .select('id, parent_id, position_id, source')
+    .select('id, parent_id, position_id, source, proposed_times')
     .eq('nanny_id', nannyId)
     .eq('connection_stage', CONNECTION_STAGE.ACCEPTED_PENDING);
 
@@ -295,11 +297,12 @@ export async function promotePendingConnections(
     if (activePositionIds.has(acc.position_id)) {
       // released only while still held (stage 9, accepted) when this write lands; the family's booking window
       // starts now
+      const releasedUntil = new Date(Date.now() + SCHEDULING_WINDOW_MS).toISOString();
       const { data: released, error: releaseErr } = await admin
         .from('connection_requests')
         .update({
           connection_stage: CONNECTION_STAGE.ACCEPTED,
-          expires_at: new Date(Date.now() + SCHEDULING_WINDOW_MS).toISOString(),
+          expires_at: releasedUntil,
           updated_at: now,
         })
         .eq('id', acc.id)
@@ -358,13 +361,17 @@ export async function promotePendingConnections(
           });
 
           if (parentEmailInfo) {
+            const daysLeft = bookingDaysLeftLine(
+              { connectionStage: CONNECTION_STAGE.ACCEPTED, expiresAt: releasedUntil, proposedTimes: acc.proposed_times ?? null },
+              nannyName,
+            );
             sendEmail({
               to: parentEmailInfo.email,
               subject: `${nannyName} accepted your connection request!`,
               html: `<div style="${baseStyle}">
                 ${emailHeader()}
                 <p style="color: #374151; font-size: 16px; line-height: 1.6;">Great news! ${nannyName} has accepted your connection request and shared their available times. Check their availability and pick a slot for your meet and greet.</p>
-                <p style="color: #6B7280; font-size: 14px; margin-top: 8px;">You have 3 days to schedule a time.</p>
+                ${daysLeft ? `<p style="color: #6B7280; font-size: 14px; margin-top: 8px;">${escapeText(daysLeft)}</p>` : ''}
                 <p style="margin-top: 24px;"><a href="${appUrl}/parent/connections" style="${btnStyle}">Pick a Time</a></p>
               </div>`,
               emailType: 'interview_confirmed',
