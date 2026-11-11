@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { BrowseMatchesClient } from "./BrowseMatchesClient";
 import { BRAND } from "@/lib/constants";
 import { qualificationRank } from "@/lib/nanny-options";
+import { publicNannyCard } from "@/lib/nanny-card";
 
 export const dynamic = "force-dynamic";
 
@@ -109,7 +110,7 @@ async function getNannies(sortBy: SortKey = "newest", page: number = 1): Promise
 
   const total = sorted.length;
   const from = (page - 1) * PAGE_SIZE;
-  const paged = sorted.slice(from, from + PAGE_SIZE);
+  const paged = sorted.slice(from, from + PAGE_SIZE).map(publicNannyCard);
 
   return { nannies: paged, total };
 }
@@ -161,7 +162,7 @@ export default async function ParentBrowsePage({
 
   // Fetch data based on view
   let browseData: { nannies: NannyCardData[]; total: number } | null = null;
-  let matchData: { matches: import("@/lib/matching/types").MatchResult[]; stats: { totalEligible: number; returned: number } } | null = null;
+  let matchData: { matches: import("@/lib/matching/public-match").PublicMatchResult[]; stats: { totalEligible: number; returned: number } } | null = null;
   let hasPosition = false;
 
   if (view === "matches" && isParent) {

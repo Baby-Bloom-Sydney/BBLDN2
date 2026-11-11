@@ -6,8 +6,10 @@ import { MapPin, ArrowRight, ShieldCheck, Car, Syringe } from "lucide-react";
 
 export interface NannyCardData {
   id: string;
-  user_id: string;
+  /** Server-side only: the cards sent to the browser leave it out (lib/nanny-card.ts). */
+  user_id?: string;
   first_name: string;
+  /** Her last name server-side; its initial on a card sent to the browser. */
   last_name: string;
   suburb: string;
   profile_picture_url: string | null;
@@ -24,7 +26,9 @@ export interface NannyCardData {
   languages: string[] | null;
   role_types_preferred: string[] | null;
   ai_headline?: string | null;
+  /** Server-side only (sorting); a card sent to the browser carries `age` instead. */
   date_of_birth?: string | null;
+  age?: number | null;
 }
 
 interface NannyCardProps {

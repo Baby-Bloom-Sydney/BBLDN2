@@ -26,6 +26,7 @@ import type { EndReason } from "@/lib/position/constants";
 import { funnelLog, funnelError } from "@/lib/position/logger";
 import { emailHeader } from "@/lib/email/brand";
 import { openDfyAccess } from "@/lib/payments/dfy-access";
+import { profileAge } from "@/lib/profile-age";
 
 // ── Email helpers ──
 
@@ -1972,7 +1973,8 @@ export async function getParentPlacement(): Promise<{
     nannyName: string;
     nannySuburb: string;
     nannyPhoto: string | null;
-    nannyDateOfBirth: string | null;
+    /** Her age (never her date of birth). */
+    nannyAge: number | null;
     weeklyHours: number | null;
     hourlyRate: number | null;
     hiredAt: string;
@@ -2021,7 +2023,7 @@ export async function getParentPlacement(): Promise<{
   let nannyName = "Your nanny";
   let nannySuburb = "";
   let nannyPhoto: string | null = null;
-  let nannyDateOfBirth: string | null = null;
+  let nannyAge: number | null = null;
   let nannyEmail: string | null = null;
   let nannyPhone: string | null = null;
 
@@ -2038,7 +2040,7 @@ export async function getParentPlacement(): Promise<{
       nannyName = `${profile.first_name} ${profile.last_name}`;
       nannySuburb = profile.suburb || "";
       nannyPhoto = profile.profile_picture_url;
-      nannyDateOfBirth = profile.date_of_birth;
+      nannyAge = profileAge(profile.date_of_birth ?? null);
       nannyEmail = profile.email || null;
       nannyPhone = profile.mobile_number || null;
     }
@@ -2077,7 +2079,7 @@ export async function getParentPlacement(): Promise<{
       nannyName,
       nannySuburb,
       nannyPhoto,
-      nannyDateOfBirth,
+      nannyAge,
       weeklyHours: placement.weekly_hours,
       hourlyRate: placement.hourly_rate,
       hiredAt: placement.hired_at,
@@ -2354,7 +2356,6 @@ export async function getNannyPlacements(): Promise<{
     parentLastName: string;
     parentSuburb: string;
     parentPhoto: string | null;
-    parentDateOfBirth: string | null;
     weeklyHours: number | null;
     hourlyRate: number | null;
     hiredAt: string;
@@ -2413,7 +2414,7 @@ export async function getNannyPlacements(): Promise<{
   const { data: profiles } = await adminClient
     .from("user_profiles")
     .select(
-      "user_id, first_name, last_name, suburb, profile_picture_url, date_of_birth, email, mobile_number",
+      "user_id, first_name, last_name, suburb, profile_picture_url, email, mobile_number",
     )
     .in("user_id", parentUserIds);
 
@@ -2458,15 +2459,15 @@ export async function getNannyPlacements(): Promise<{
       parentSuburb:
         (p.position_id ? positionSuburbMap.get(p.position_id) : null) || "",
       parentPhoto: profile?.profile_picture_url || null,
-      parentDateOfBirth: profile?.date_of_birth || null,
       weeklyHours: p.weekly_hours,
       hourlyRate: p.hourly_rate,
       hiredAt: p.hired_at,
       startDate: p.start_date,
       status: p.status,
       positionId: p.position_id,
-      parentEmail: profile?.email || null,
-      parentPhone: profile?.mobile_number || null,
+      // their contact details belong to the active placement only (the screen shows them there)
+      parentEmail: p.status === "active" ? profile?.email || null : null,
+      parentPhone: p.status === "active" ? profile?.mobile_number || null : null,
       positionFormData: p.position_id
         ? positionFormDataMap.get(p.position_id) || null
         : null,

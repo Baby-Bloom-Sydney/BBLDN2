@@ -22,7 +22,7 @@ import { notifyParentOfFeedPost } from "@/lib/email/feed-post-notification";
 import {
   recalculateProgress,
   writeHistorySnapshot,
-} from "@/lib/actions/bapp/progress";
+} from "@/lib/bapp/progress-write";
 
 interface MilestoneRow {
   id: string;

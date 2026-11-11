@@ -5,7 +5,7 @@
  * scheme-prefixed string or path fragment to hijack the redirect.
  *
  * Kept in sync with `lib/invite/extract-token.ts → TOKEN_PATH_REGEX`
- * and `lib/actions/bapp/child-invites.ts → TOKEN_FORMAT_REGEX` —
+ * and `lib/actions/bapp/child-invites.ts → TOKEN_FORMAT_REGEX` (`lib/invite/signup-stamp.ts` uses this one) —
  * change all three together if the token shape ever evolves.
  */
 

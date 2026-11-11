@@ -81,17 +81,6 @@ export interface PlacementCardProps {
   showBrowseNanniesLink?: boolean;
 }
 
-function computeAge(dateOfBirth: string | null): number | null {
-  if (!dateOfBirth) return null;
-  const birth = new Date(dateOfBirth);
-  if (Number.isNaN(birth.getTime())) return null;
-  const now = new Date();
-  let age = now.getFullYear() - birth.getFullYear();
-  const m = now.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
-  return age;
-}
-
 function StartDateLine({ startDate }: { startDate: string | null }) {
   if (!startDate) return null;
   if (startDate === "tbc") {
@@ -218,7 +207,7 @@ export function PlacementCard({
   onClick,
   showBrowseNanniesLink = false,
 }: PlacementCardProps) {
-  const age = computeAge(placement.nannyDateOfBirth);
+  const age = placement.nannyAge;
   const interactive = typeof onClick === "function";
 
   // Nested-interactive guard. The interactive variant wraps the body

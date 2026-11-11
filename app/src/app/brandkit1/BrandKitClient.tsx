@@ -35,6 +35,7 @@ import {
   MOCK_VERIFICATION_STEPS_COMPLETE,
 } from "../ui/mock-data";
 import type { MatchResult } from "@/lib/matching/types";
+import { publicMatch } from "@/lib/matching/public-match";
 import { SITE_NAME } from "@/lib/constants";
 
 // ── Design rationale helper ──
@@ -123,7 +124,7 @@ function Swatch({
 
 // ── Main ──
 
-const matchResult = MOCK_MATCH_RESULT as unknown as MatchResult;
+const matchResult = publicMatch(MOCK_MATCH_RESULT as unknown as MatchResult);
 
 interface BrandKitClientProps {
   profilePicUrl: string | null;
@@ -818,7 +819,7 @@ export function BrandKitClient({ profilePicUrl }: BrandKitClientProps) {
           >
             <div className="max-w-sm mx-auto">
               <MatchCard
-                match={matchWithPic as MatchResult}
+                match={matchWithPic}
                 actions={
                   <Button size="sm" className="w-full">
                     Connect
@@ -860,7 +861,7 @@ export function BrandKitClient({ profilePicUrl }: BrandKitClientProps) {
             }
           >
             <div className="max-w-sm mx-auto">
-              <NannyMatchCardBK match={matchWithPic as MatchResult} />
+              <NannyMatchCardBK match={matchWithPic} />
             </div>
           </ComponentShowcase>
         </section>

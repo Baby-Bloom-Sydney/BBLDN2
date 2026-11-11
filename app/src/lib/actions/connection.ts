@@ -21,13 +21,9 @@ import {
   formatLondonDate,
 } from "@/lib/timezone";
 import type { BracketKey } from "@/lib/timezone";
-import {
-  CONNECTION_STAGE,
-  POSITION_STAGE,
-  POSITION_STATUS,
-  HIDDEN_CONNECTION_STAGES,
-} from "@/lib/position/constants";
+import { CONNECTION_STAGE, POSITION_STAGE, POSITION_STATUS, HIDDEN_CONNECTION_STAGES, CONNECTION_WAIT_WINDOW_MS } from "@/lib/position/constants";
 import { funnelLog } from "@/lib/position/logger";
+import { heldExpiryShown, isHeld, isUnseenByParent } from "@/lib/connections/silent-hold";
 import {
   checkPostIntroOutcomes,
   checkPostTrialOutcomes,
@@ -63,6 +59,8 @@ export interface ConnectionRequest {
 
   // Funnel (new — nullable until fully migrated)
   connection_stage: number | null;
+  /** Where the row came from ("manual", "dfy", …). */
+  source?: string | null;
   intro_outcome_reported_at: string | null;
   fill_initiated_by: "nanny" | "parent" | null;
   trial_date: string | null;
@@ -72,7 +70,8 @@ export interface ConnectionRequest {
 export interface ConnectionRequestWithDetails extends ConnectionRequest {
   nanny?: {
     id: string;
-    user_id: string;
+    /** Her account id: on the nanny's own reads, never on the family's list. */
+    user_id?: string;
     first_name: string;
     last_name: string;
     suburb: string;
@@ -155,7 +154,8 @@ async function expireStaleRequests(
           : CONNECTION_STAGE.REQUEST_EXPIRED;
     }
 
-    await supabase
+    // the same row as read (status and stage): a row released or scheduled since gets no expiry and no messages
+    const expiring = supabase
       .from("connection_requests")
       .update({
         status: "expired",
@@ -164,6 +164,12 @@ async function expireStaleRequests(
       })
       .eq("id", req.id)
       .in("status", ["pending", "accepted"]);
+    const { data: expired, error: expireErr } = await (req.connection_stage === null
+      ? expiring.is("connection_stage", null)
+      : expiring.eq("connection_stage", req.connection_stage)
+    ).select("id");
+    if (expireErr) console.error("[Connection] Expire error:", { code: expireErr.code ?? null });
+    if (!expired || expired.length === 0) continue;
 
     funnelLog("expire", req.id, `${req.status} → expired`, {
       connection_stage: expireStage,
@@ -227,6 +233,7 @@ async function expireStaleRequests(
       parentId: req.parent_id,
       nannyId: req.nanny_id,
       eventType: "expired",
+      ...(skipParentNotification ? { eventData: { held: true } } : {}),
     });
   }
 }
@@ -523,7 +530,7 @@ export async function acceptConnectionRequest(
   // Fetch request (use adminClient to bypass RLS)
   const { data: request, error: fetchErr } = await adminClient
     .from("connection_requests")
-    .select("id, parent_id, nanny_id, status")
+    .select("id, parent_id, nanny_id, status, connection_stage")
     .eq("id", requestId)
     .eq("nanny_id", nannyInfo.nannyId)
     .single();
@@ -532,21 +539,24 @@ export async function acceptConnectionRequest(
     return { success: false, error: "Connection request not found." };
   }
 
-  if (request.status !== "pending") {
+  // a family's request (stage 0) is what she accepts
+  if (request.status !== "pending" || request.connection_stage !== CONNECTION_STAGE.REQUEST_SENT) {
     return { success: false, error: "This request is no longer pending." };
   }
 
   const now = new Date().toISOString();
-  // Parent has 72 hours to pick a time
-  const newExpiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
 
   // Update request — level 3 gets pending stage, level 4+ gets real stage
   const acceptStage =
     verificationLevel >= 4
       ? CONNECTION_STAGE.ACCEPTED
       : CONNECTION_STAGE.ACCEPTED_PENDING;
+  // Parent has 72 hours to pick a time; an accept waiting for approval has 7 days
+  const newExpiresAt = new Date(
+    Date.now() + (acceptStage === CONNECTION_STAGE.ACCEPTED ? 72 * 60 * 60 * 1000 : CONNECTION_WAIT_WINDOW_MS),
+  ).toISOString();
 
-  const { error: updateErr } = await adminClient
+  const { data: accepted, error: updateErr } = await adminClient
     .from("connection_requests")
     .update({
       status: "accepted",
@@ -557,11 +567,16 @@ export async function acceptConnectionRequest(
       updated_at: now,
     })
     .eq("id", requestId)
-    .eq("status", "pending");
+    .eq("status", "pending")
+    .eq("connection_stage", CONNECTION_STAGE.REQUEST_SENT)
+    .select("id");
 
   if (updateErr) {
     console.error("[Connection] Accept error:", updateErr);
     return { success: false, error: "Failed to accept connection." };
+  }
+  if (!accepted || accepted.length === 0) {
+    return { success: false, error: "This request is no longer pending." };
   }
 
   funnelLog(
@@ -577,6 +592,8 @@ export async function acceptConnectionRequest(
     parentId: request.parent_id,
     nannyId: request.nanny_id,
     eventType: "accepted",
+    // written while the row is held (below level 4): the family's log read leaves it out
+    ...(acceptStage === CONNECTION_STAGE.ACCEPTED_PENDING ? { eventData: { held: true } } : {}),
   });
 
   // Get nanny name for messages
@@ -696,7 +713,7 @@ export async function scheduleConnectionTime(
   // Fetch request with proposed_times
   const { data: request, error: fetchErr } = await adminClient
     .from("connection_requests")
-    .select("id, parent_id, nanny_id, status, proposed_times")
+    .select("id, parent_id, nanny_id, status, connection_stage, proposed_times")
     .eq("id", requestId)
     .eq("parent_id", parentId)
     .single();
@@ -705,7 +722,8 @@ export async function scheduleConnectionTime(
     return { success: false, error: "Connection request not found." };
   }
 
-  if (request.status !== "accepted") {
+  // a meet is booked from an accepted connection only (stage 10)
+  if (request.status !== "accepted" || request.connection_stage !== CONNECTION_STAGE.ACCEPTED) {
     return {
       success: false,
       error: "This connection is not ready to be scheduled.",
@@ -760,8 +778,8 @@ export async function scheduleConnectionTime(
 
   const nowIso = new Date().toISOString();
 
-  // Update request
-  const { error: updateErr } = await adminClient
+  // Update request — the same accepted connection (status and stage) the check above read
+  const { data: updated, error: updateErr } = await adminClient
     .from("connection_requests")
     .update({
       status: "confirmed",
@@ -772,11 +790,16 @@ export async function scheduleConnectionTime(
       updated_at: nowIso,
     })
     .eq("id", requestId)
-    .eq("status", "accepted");
+    .eq("status", "accepted")
+    .eq("connection_stage", CONNECTION_STAGE.ACCEPTED)
+    .select("id");
 
   if (updateErr) {
     console.error("[Connection] Schedule error:", updateErr);
     return { success: false, error: "Failed to schedule connection." };
+  }
+  if (!updated || updated.length === 0) {
+    return { success: false, error: "This connection is not ready to be scheduled." };
   }
 
   funnelLog("schedule", requestId, "10 → 20", { confirmedTime: selectedTime });
@@ -814,7 +837,7 @@ export async function scheduleConnectionTime(
       actionUrl: "/parent/connections",
       referenceId: requestId,
       referenceType: "connection_request",
-      metadata: { phone, confirmed_time: selectedTime },
+      metadata: { confirmed_time: selectedTime },
     });
 
     // INT-002 email to parent (with phone + time)
@@ -947,7 +970,7 @@ export async function declineConnectionRequest(
 
   const { data: request, error: fetchErr } = await adminClient
     .from("connection_requests")
-    .select("id, parent_id, nanny_id, status")
+    .select("id, parent_id, nanny_id, status, connection_stage")
     .eq("id", requestId)
     .eq("nanny_id", nannyInfo.nannyId)
     .single();
@@ -956,11 +979,12 @@ export async function declineConnectionRequest(
     return { success: false, error: "Connection request not found." };
   }
 
-  if (request.status !== "pending") {
+  // a family's request (stage 0) is what she declines
+  if (request.status !== "pending" || request.connection_stage !== CONNECTION_STAGE.REQUEST_SENT) {
     return { success: false, error: "This request is no longer pending." };
   }
 
-  const { error: updateErr } = await adminClient
+  const { data: declined, error: updateErr } = await adminClient
     .from("connection_requests")
     .update({
       status: "declined",
@@ -970,11 +994,16 @@ export async function declineConnectionRequest(
       updated_at: now,
     })
     .eq("id", requestId)
-    .eq("status", "pending");
+    .eq("status", "pending")
+    .eq("connection_stage", CONNECTION_STAGE.REQUEST_SENT)
+    .select("id");
 
   if (updateErr) {
     console.error("[Connection] Decline error:", updateErr);
     return { success: false, error: "Failed to decline connection." };
+  }
+  if (!declined || declined.length === 0) {
+    return { success: false, error: "This request is no longer pending." };
   }
 
   funnelLog("decline", requestId, "0 → 2", { nannyId: nannyInfo.nannyId });
@@ -985,7 +1014,8 @@ export async function declineConnectionRequest(
     parentId: request.parent_id,
     nannyId: request.nanny_id,
     eventType: "declined",
-    eventData: reason ? { reason } : {},
+    // the reason stays on the row, read by the server's own paths; the event records only the decline
+    eventData: {},
   });
 
   // Inbox message for parent (neutral — no reason shown)
@@ -1068,7 +1098,7 @@ export async function cancelConnectionRequest(
   // Fetch request
   const { data: request, error: fetchErr } = await adminClient
     .from("connection_requests")
-    .select("id, parent_id, nanny_id, status")
+    .select("id, parent_id, nanny_id, status, connection_stage, source")
     .eq("id", requestId)
     .single();
 
@@ -1123,7 +1153,7 @@ export async function cancelConnectionRequest(
     parentId: request.parent_id,
     nannyId: request.nanny_id,
     eventType: "cancelled",
-    eventData: { cancelled_by: isParent ? "parent" : "nanny" },
+    eventData: { cancelled_by: isParent ? "parent" : "nanny", ...(isUnseenByParent(request) ? { held: true } : {}) },
   });
 
   // Inbox message for the OTHER party
@@ -1145,7 +1175,8 @@ export async function cancelConnectionRequest(
         referenceType: "connection_request",
       });
     }
-  } else {
+  } else if (!isUnseenByParent(request)) {
+    // the family hears only about a row their own screens showed (the silent hold's own definition)
     const { data: parentData } = await adminClient
       .from("parents")
       .select("user_id")
@@ -1176,6 +1207,18 @@ export async function cancelConnectionRequest(
 
 // ── 6. Get Parent Connection Requests ──
 
+/** A family's request is open for 72 hours from when it was sent (createConnectionRequest). */
+const REQUEST_WINDOW_MS = 72 * 60 * 60 * 1000;
+/**
+ * The columns of a connection the family's screens read. Her decline reason and the shared-phone fields are not among
+ * them (her phone reaches the family through the intro's own reader, getParentUpcomingIntros).
+ */
+const FAMILY_LIST_SELECT =
+  "id, nanny_id, parent_id, position_id, message, proposed_times, status, responded_at, created_at, updated_at, expires_at, confirmed_time, confirmed_at, connection_stage, intro_outcome_reported_at, fill_initiated_by, trial_date, trial_reported_at, start_date, source";
+const FAMILY_LIST_COLUMNS = FAMILY_LIST_SELECT.split(", ");
+const familyColumns = (row: Record<string, unknown>) =>
+  Object.fromEntries(FAMILY_LIST_COLUMNS.map((column) => [column, row[column] ?? null]));
+
 export async function getParentConnectionRequests(): Promise<{
   data: ConnectionRequestWithDetails[];
   error: string | null;
@@ -1194,7 +1237,7 @@ export async function getParentConnectionRequests(): Promise<{
 
   const { data, error } = await adminClient
     .from("connection_requests")
-    .select("*")
+    .select(FAMILY_LIST_SELECT)
     .eq("parent_id", parentId)
     .not("connection_stage", "eq", CONNECTION_STAGE.NANNY_APPLIED_PENDING) // Hide pending applications
     .order("created_at", { ascending: false });
@@ -1222,7 +1265,13 @@ export async function getParentConnectionRequests(): Promise<{
     })
     .map((req) => {
       if (req.connection_stage === CONNECTION_STAGE.ACCEPTED_PENDING) {
-        return { ...req, connection_stage: CONNECTION_STAGE.REQUEST_SENT };
+        // read as the request she sent: still pending, no slots, no response yet, the request's own expiry — and,
+        // once that has passed, no time at all: the row itself has 7 days, so it still waits for her reply
+        const requestExpiry = new Date(new Date(req.created_at).getTime() + REQUEST_WINDOW_MS).toISOString();
+        return {
+          ...req, connection_stage: CONNECTION_STAGE.REQUEST_SENT, status: "pending", proposed_times: [], responded_at: null,
+          expires_at: heldExpiryShown(requestExpiry), updated_at: req.created_at,
+        };
       }
       return req;
     });
@@ -1253,10 +1302,9 @@ export async function getParentConnectionRequests(): Promise<{
     const nanny = nannyMap.get(req.nanny_id);
     const profile = nanny ? profileMap.get(nanny.user_id) : null;
     return {
-      ...req,
+      ...familyColumns(req),
       nanny: {
         id: req.nanny_id,
-        user_id: nanny?.user_id || "",
         first_name: profile?.first_name || "Unknown",
         last_name: profile?.last_name || "",
         suburb: profile?.suburb || "",
@@ -1333,6 +1381,8 @@ export async function getNannyConnectionRequests(): Promise<{
 
       return {
         ...req,
+        // her held row: once its time has passed it shows none rather than reading as run out
+        ...(isHeld(req) ? { expires_at: heldExpiryShown(req.expires_at) } : {}),
         parent: {
           id: req.parent_id,
           user_id: parent?.user_id || "",

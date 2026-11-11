@@ -1968,10 +1968,17 @@
   },
   {
     "rule": "identity",
-    "file": "app/src/lib/actions/verification.ts",
+    "file": "app/src/lib/verification-sync.ts",
+    "match": "wwcc",
+    "owner": "cleanup",
+    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 71 hit(s): lines 59, 71, 81, 84, 99, 105, 123, 395, 441, 457, 499, 523, +59 more] Re-owned to cleanup by 3w6fix (BB-LDN-3w6fix-141026, W6-D2): every line it silences is a kept identifier, column or key name, code comment, server log line or unrun inherited script/test literal (D-4) — no user-visible text. Moved with syncNannyVerificationState to app/src/lib/verification-sync.ts unchanged (BB-wave1-041126, 2026-11-09)."
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/lib/verification-sync.ts",
     "match": "OCG",
     "owner": "cleanup",
-    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 85] Re-owned to cleanup by 3w6fix (BB-LDN-3w6fix-141026, W6-D2): every line it silences is a kept identifier, column or key name, code comment, server log line or unrun inherited script/test literal (D-4) — no user-visible text."
+    "note": "Australian identity/regulatory artefact (WWCC · OCG · ABN · Medicare). The identity stage rewrites the whole verification ladder for DBS; renaming the token without the ladder would be a lie in the UI. 04-sequence.md §4 `identity`, fate row 12.06.  [W6, 1 hit(s): line 85] Re-owned to cleanup by 3w6fix (BB-LDN-3w6fix-141026, W6-D2): every line it silences is a kept identifier, column or key name, code comment, server log line or unrun inherited script/test literal (D-4) — no user-visible text. Moved with syncNannyVerificationState to app/src/lib/verification-sync.ts unchanged (BB-wave1-041126, 2026-11-09)."
   },
   {
     "rule": "jurisdiction",
@@ -3071,5 +3078,33 @@
     "match": "refundedTotalAud",
     "owner": "cleanup",
     "note": "Existing prop name of SubscriptionStatsGrid (contract); the test must pass it. Money stage. [4d] — 4-W5 (BB-LDN-W5money-151026) re-owned money → cleanup: column / prop / field name only, awaiting the *_aud_cents → *_pence rename (triage §6)."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/lib/settings/nanny-profile-keys.ts",
+    "match": "sydney_resident",
+    "owner": "cleanup",
+    "note": "`sydney_resident` (\"living in London?\") — column name kept per D-4; rename in cleanup. Moved with the profile action's field lists out of nanny.ts (BB-wave1-041126, 2026-11-09): only the key name is left."
+  },
+  {
+    "rule": "brand",
+    "file": "app/src/lib/settings/nanny-profile-keys.test.ts",
+    "match": "sydney_resident",
+    "owner": "cleanup",
+    "note": "`sydney_resident` (\"living in London?\") — column name kept per D-4; rename in cleanup. Moved with the profile action's field lists out of nanny.ts (BB-wave1-041126, 2026-11-09): only the key name is left."
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/lib/actions/verification.write-logs.test.ts",
+    "match": "wwcc",
+    "owner": "cleanup",
+    "note": "D-4 kept names (the verification row's wwcc_* columns); renaming is cleanup's. The test pins how a failed write is logged (BB-wave1-041126, 2026-11-09)."
+  },
+  {
+    "rule": "identity",
+    "file": "app/src/lib/actions/verification.write-logs.test.ts",
+    "match": "WWCC",
+    "owner": "cleanup",
+    "note": "D-4 kept name: imports submitWWCCSection (name kept); renaming is cleanup's (BB-wave1-041126, 2026-11-09)."
   }
 ]

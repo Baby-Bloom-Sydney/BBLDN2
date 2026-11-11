@@ -1596,3 +1596,49 @@ describe("read_connection_inbox.isPrefulfilled", () => {
     ).toBe(true);
   });
 });
+
+describe("connections module — accept and decline answer a family's request (stage 0) only", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it.each([
+    ["propose_accept_connection", CONNECTION_STAGE.NANNY_APPLIED_PENDING],
+    ["propose_decline_connection", CONNECTION_STAGE.NANNY_APPLIED_PENDING],
+    ["propose_decline_connection", CONNECTION_STAGE.ACCEPTED_PENDING],
+  ])("%s refuses a row at stage %i", async (tool, stage) => {
+    vi.mocked(getNannyConnectionRequests).mockResolvedValue({
+      data: [buildConnection({ id: "c1", connection_stage: stage })],
+      error: null,
+    });
+    const r = await connectionsModule.execute(tool, { connection_id: "c1", slots: VALID_SLOTS }, makeCtx("nanny"));
+    expect(r.success).toBe(false);
+  });
+
+  it.each([["propose_accept_connection"], ["propose_decline_connection"]])("%s still offers a family's request", async (tool) => {
+    vi.mocked(getNannyConnectionRequests).mockResolvedValue({
+      data: [buildConnection({ id: "c1", connection_stage: CONNECTION_STAGE.REQUEST_SENT })],
+      error: null,
+    });
+    const r = await connectionsModule.execute(tool, { connection_id: "c1", slots: VALID_SLOTS }, makeCtx("nanny"));
+    expect(r.success).toBe(true);
+  });
+});
+
+describe("connections module — cancel says the family is told only when their screens showed the row", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it.each([
+    [CONNECTION_STAGE.ACCEPTED, "manual", true],
+    [CONNECTION_STAGE.ACCEPTED_PENDING, "dfy", false],
+    [CONNECTION_STAGE.NANNY_APPLIED_PENDING, "manual", false],
+  ])("a nanny's row at stage %i (%s): the family is told = %s", async (stage, source, told) => {
+    vi.mocked(getNannyConnectionRequests).mockResolvedValue({
+      data: [buildConnection({ id: "c1", status: "accepted", connection_stage: stage, source })],
+      error: null,
+    });
+    vi.mocked(cancelConnectionRequest).mockResolvedValue({ success: true, error: null });
+    const proposed = await connectionsModule.execute("propose_cancel_connection", { connection_id: "c1" }, makeCtx("nanny"));
+    const applied = await connectionsModule.execute("apply_cancel_connection", { connection_id: "c1" }, makeCtx("nanny"));
+    const said = `${(proposed.data as { preview: string }).preview} ${(applied.data as { message: string }).message}`;
+    expect(/notified|will see this/.test(said)).toBe(told);
+  });
+});

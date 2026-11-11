@@ -1,13 +1,32 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import type { NannyCardData } from "@/components/NannyCard";
+import { publicNannyCard } from "@/lib/nanny-card";
+
+/** The parent's browse list is for signed-in parents (and admins). */
+const BROWSE_ROLES = ["parent", "admin", "super_admin"];
+/** The most cards one call returns (the browse tab loads up to this many at once to sort them). */
+const MAX_PAGE = 1000;
+
+async function mayBrowse(): Promise<boolean> {
+  const {
+    data: { user },
+  } = await createClient().auth.getUser();
+  if (!user) return false;
+  const { data: role } = await createAdminClient().from("user_roles").select("role").eq("user_id", user.id).maybeSingle();
+  return BROWSE_ROLES.includes((role as { role?: string } | null)?.role ?? "");
+}
 
 export async function fetchBrowseNannies(
   page: number = 1,
   limit: number = 10,
 ): Promise<{ nannies: NannyCardData[]; total: number; error: string | null }> {
+  if (!(await mayBrowse())) return { nannies: [], total: 0, error: "Not authorised" };
   const supabase = createAdminClient();
+  const size = Math.min(Math.max(1, Math.floor(limit) || 1), MAX_PAGE);
+  const pageNo = Math.max(1, Math.floor(page) || 1);
 
   // Get total count first
   const { count, error: countError } = await supabase
@@ -23,8 +42,8 @@ export async function fetchBrowseNannies(
   const total = count ?? 0;
   if (total === 0) return { nannies: [], total: 0, error: null };
 
-  const from = (page - 1) * limit;
-  const to = from + limit - 1;
+  const from = (pageNo - 1) * size;
+  const to = from + size - 1;
 
   const { data: nannies, error } = await supabase
     .from("nannies")
@@ -84,7 +103,8 @@ export async function fetchBrowseNannies(
         date_of_birth: profile.date_of_birth || null,
       } as NannyCardData;
     })
-    .filter((n): n is NannyCardData => n !== null);
+    .filter((n): n is NannyCardData => n !== null)
+    .map(publicNannyCard);
 
   return { nannies: mapped, total, error: null };
 }

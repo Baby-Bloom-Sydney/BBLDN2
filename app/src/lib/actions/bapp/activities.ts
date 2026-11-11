@@ -11,6 +11,7 @@ import {
 import type { ActivityPlan } from "@/types/bapp";
 import { requireChildFamilyAccess } from "@/lib/payments/access-gate";
 import { notifyParentOfFeedPost } from "@/lib/email/feed-post-notification";
+import { isChildMember, CHILD_NOT_FOUND } from "@/lib/bapp/child-member";
 
 /** Transition child to active_nanny on first action */
 async function maybeActivateChild(childId: string): Promise<void> {
@@ -56,6 +57,11 @@ export async function generateActivity(
     } = await supabase.auth.getUser();
     if (authError || !user) {
       return { success: false, error: "Not authenticated" };
+    }
+
+    // Only the child's parent or nanny.
+    if (!(await isChildMember(childId, user.id))) {
+      return { success: false, error: CHILD_NOT_FOUND };
     }
 
     // Paywall gate — block AI generation when the family's subscription has lapsed.
@@ -225,72 +231,5 @@ async function callOpenAI(
     // Status stays 'pending' — frontend will keep polling. Email is NOT
     // sent because the parent shouldn't be summoned to a tile that won't
     // render.
-  }
-}
-
-// ---------------------------------------------------------------------------
-// getActivity
-// ---------------------------------------------------------------------------
-
-export async function getActivity(logId: string): Promise<{
-  success: boolean;
-  error: string | null;
-  data: {
-    log: Record<string, unknown>;
-    milestones: { id: string; domain: string; description: string }[];
-  } | null;
-}> {
-  try {
-    const supabase = createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return { success: false, error: "Not authenticated", data: null };
-    }
-
-    const admin = createAdminClient();
-
-    // SECURITY: explicit column list excludes `internal_notes` (Katie's
-    // private context column — see katie-internal-notes.sql header).
-    // `getActivity` is reachable from client components via
-    // server-action import, so any future renderer that destructures
-    // the result must not see internal_notes.
-    const { data: log, error } = await admin
-      .from("bapp_logs")
-      .select(
-        "id, child_client_id, author_id, type, status, context, parent_log_id, data, created_at, updated_at, is_active",
-      )
-      .eq("id", logId)
-      .eq("type", "activity")
-      .eq("is_active", true)
-      .single();
-
-    if (error || !log) {
-      return { success: false, error: "Activity not found", data: null };
-    }
-
-    // Get milestone details
-    const logData = log.data as Record<string, unknown>;
-    const milestoneIds = (logData.milestone_ids as string[]) ?? [];
-
-    let milestones: { id: string; domain: string; description: string }[] = [];
-    if (milestoneIds.length > 0) {
-      const { data: ms } = await admin
-        .from("bapp_milestones")
-        .select("id, domain, description")
-        .in("id", milestoneIds);
-      milestones = ms ?? [];
-    }
-
-    return {
-      success: true,
-      error: null,
-      data: { log: log as Record<string, unknown>, milestones },
-    };
-  } catch (err) {
-    console.error("getActivity unexpected error:", err);
-    return { success: false, error: "Failed to fetch activity", data: null };
   }
 }

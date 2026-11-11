@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin/require-admin';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { syncNannyVerificationState } from '@/lib/actions/verification';
+import { syncNannyVerificationState } from '@/lib/verification-sync';
 import { VERIFICATION_STATUS, deriveOverallStatus, type IdentityStatus, type WwccStatus, type CrossCheckStatus } from '@/lib/verification';
 
 /**

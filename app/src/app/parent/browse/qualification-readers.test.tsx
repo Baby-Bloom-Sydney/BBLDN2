@@ -4,12 +4,12 @@
  */
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import type { MatchResult } from '@/lib/matching/types';
+import type { PublicMatchResult } from '@/lib/matching/public-match';
 import type { PublicNannyProfile } from '@/lib/actions/nanny';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }), usePathname: () => '/' }));
 vi.mock('@/app/brandkit1/NannyMatchCardBK', () => ({
-  NannyMatchCardBK: ({ match }: { match: MatchResult }) => <div data-testid="match">{match.nannyId}</div>,
+  NannyMatchCardBK: ({ match }: { match: PublicMatchResult }) => <div data-testid="match">{match.nannyId}</div>,
 }));
 vi.mock('@/components/ConnectModal', () => ({ ConnectModal: () => null }));
 vi.mock('@/app/brandkit1/NannyCardBK', () => ({
@@ -37,7 +37,7 @@ const L6 = 'Level 6 — degree in early years, EYTS or QTS';
 describe('BrowseMatchesClient — Qualifications sort uses the ladder rank', () => {
   it('orders L6 before L3 before an off-ladder value', () => {
     const m = (nannyId: string, highestQualification: string | null) =>
-      ({ nannyId, highestQualification, finalScore: 50, distanceKm: 1 }) as unknown as MatchResult;
+      ({ nannyId, highestQualification, finalScore: 50, distanceKm: 1 }) as unknown as PublicMatchResult;
     render(
       <BrowseMatchesClient
         matches={[m('off', 'A label not on the ladder'), m('l3', L3), m('l6', L6)]}
@@ -119,11 +119,22 @@ describe('BrowseNanniesTab — both Qualification sorts use the ladder rank', ()
 
   it('orders matches L6 → L3 → off-ladder on "Qualifications"', async () => {
     const m = (nannyId: string, highestQualification: string) =>
-      ({ nannyId, highestQualification, finalScore: 50, distanceKm: 1, nanny: {} }) as unknown as MatchResult;
+      ({ nannyId, highestQualification, finalScore: 50, distanceKm: 1, nanny: {} }) as unknown as PublicMatchResult;
     browse.matches = [m('off', 'A label not on the ladder'), m('l3', L3), m('l6', L6)];
     render(<BrowseNanniesTab initialView="matches" />);
     await screen.findAllByTestId('match');
     fireEvent.click(screen.getByTitle('Qualifications'));
     expect(screen.getAllByTestId('match').map((e) => e.textContent)).toEqual(['l6', 'l3', 'off']);
+  });
+});
+
+describe("ParentNannyProfileView — name and age from the public profile", () => {
+  it("shows her first name and the age it is given (no date of birth in the profile)", () => {
+    const nanny = {
+      nanny_id: "n1", first_name: "nina", last_initial: "W", age: 33, suburb: "London", certificates: [], languages: [],
+      role_types_preferred: [], level_of_support_offered: [], pay_frequency: [],
+    } as unknown as PublicNannyProfile;
+    render(<ParentNannyProfileView nanny={nanny} />);
+    expect(screen.getAllByText(/Nina\s*,\s*33/).length).toBeGreaterThan(0);
   });
 });

@@ -20,10 +20,11 @@
  */
 
 import { revalidatePath } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { EDIT_MESSAGES } from "@/lib/settings/edit-messages";
 import { saveOwnProfile } from "@/lib/settings/home-address";
+import { identityLocked } from "@/lib/settings/identity-lock";
+import { IDENTITY_KEYS } from "@/lib/settings/nanny-profile-keys";
 import { checkProfileInput, PROFILE_MESSAGES, type ProfileInput } from "@/lib/settings/nanny-profile-rules";
 import { writeOwnProfile } from "@/lib/settings/profile-write";
 import { normaliseUkMobile } from "@/lib/uk-contact";
@@ -45,21 +46,12 @@ export interface UpdateNannyAccountResult {
 
 type Session = ReturnType<typeof createClient>;
 
-const IDENTITY_VERIFIED_LEVEL = 2;
-const LOCKED_KEYS = ["first_name", "last_name", "date_of_birth"] as const;
+const LOCKED_KEYS = IDENTITY_KEYS;
 const PROFILE_KEYS = [...LOCKED_KEYS, "address"] as const;
 const SIGNED_OUT = "Please sign in again, then try once more.";
 const INVALID: UpdateNannyAccountResult = { success: false, error: EDIT_MESSAGES.checkMarked, code: "invalid", fields: {} };
 const STALE: UpdateNannyAccountResult = { success: false, error: EDIT_MESSAGES.stale, code: "stale" };
 const FAILED: UpdateNannyAccountResult = { success: false, error: "Failed to update account info" };
-
-/** Name and date of birth are locked after identity verification; an unreadable row counts as locked. */
-async function identityLocked(userId: string): Promise<boolean> {
-  const { data, error } = await createAdminClient()
-    .from("nannies").select("verification_level, identity_verified").eq("user_id", userId).maybeSingle();
-  if (error) return true;
-  return data?.identity_verified === true || (data?.verification_level ?? 0) >= IDENTITY_VERIFIED_LEVEL;
-}
 
 const isVersion = (value: unknown): value is string | null => value === null || (typeof value === "string" && value.length <= 64);
 

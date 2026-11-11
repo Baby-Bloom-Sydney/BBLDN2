@@ -15,6 +15,7 @@ import { emailHeader } from "@/lib/email/brand";
 import { BRAND } from "@/lib/constants";
 import { formatClockTime as formatTime } from "@/lib/timezone";
 import { babysittingEnabled } from "@/lib/features/flags";
+import { profileAge } from "@/lib/profile-age";
 
 /** 5c (P-23): what every babysitting writer returns while `BABYSITTING_ENABLED` is off. */
 const BABYSITTING_DISABLED = "babysitting_disabled";
@@ -53,8 +54,10 @@ export interface BabysittingRequestWithSlots {
   }>;
   acceptedNanny?: {
     firstName: string;
+    /** The initial of her last name (the screens show first name and initial). */
     lastName: string;
-    dateOfBirth: string | null;
+    /** Her age (never her date of birth: the receiver is the family). */
+    age: number | null;
     suburb: string | null;
     profilePicUrl: string | null;
     distanceKm: number | null;
@@ -66,8 +69,10 @@ export interface BabysittingRequestWithSlots {
 export interface RequestingNanny {
   nannyId: string;
   firstName: string;
+  /** The initial of her last name. */
   lastName: string;
-  dateOfBirth: string | null;
+  /** Her age (never her date of birth). */
+  age: number | null;
   suburb: string | null;
   profilePicUrl: string | null;
   distanceKm: number | null;
@@ -2323,7 +2328,7 @@ export async function getParentBabysittingRequests(): Promise<{
     {
       firstName: string;
       lastName: string;
-      dateOfBirth: string | null;
+      age: number | null;
       suburb: string | null;
       profilePicUrl: string | null;
       distanceKm: number | null;
@@ -2395,8 +2400,8 @@ export async function getParentBabysittingRequests(): Promise<{
           const phone = phoneMap.get(nanny.user_id) ?? null;
           nannyDetailsMap.set(nanny.id, {
             firstName: profile.first_name ?? "",
-            lastName: profile.last_name ?? "",
-            dateOfBirth: profile.date_of_birth ?? null,
+            lastName: (profile.last_name ?? "").charAt(0),
+            age: profileAge(profile.date_of_birth ?? null),
             suburb: profile.suburb,
             profilePicUrl: profile.profile_picture_url,
             distanceKm: null,
@@ -2469,8 +2474,8 @@ export async function getParentBabysittingRequests(): Promise<{
         const entry: RequestingNanny = {
           nannyId: notif.nanny_id,
           firstName: profile.first_name ?? "",
-          lastName: profile.last_name ?? "",
-          dateOfBirth: profile.date_of_birth ?? null,
+          lastName: (profile.last_name ?? "").charAt(0),
+          age: profileAge(profile.date_of_birth ?? null),
           suburb: profile.suburb,
           profilePicUrl: profile.profile_picture_url,
           distanceKm:

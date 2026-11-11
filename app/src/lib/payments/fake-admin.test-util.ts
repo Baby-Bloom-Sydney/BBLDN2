@@ -17,6 +17,9 @@
  * the op) is the `data` a write answers — so an `.insert().select().single()` or a claim's `.update(…).select()` can
  * return rows — and `delete` is a write kind. With no `writeResults` entry a write answers `data: null`, as before.
  * Each write op also records the options it was given (`upsert`'s `onConflict` / `ignoreDuplicates`).
+ *
+ * Add-only again (BB-wave1-041126, 2026-11-09): a write error may carry a `code` and `details`, as PostgREST's do;
+ * and `counts[table]`, when set, is the `count` a select answers (`select(…, { count: "exact" })`).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -42,11 +45,12 @@ export interface FakeAdmin {
   client: SupabaseClient;
   ops: Op[];
   reads: Record<string, unknown>;
-  writeErrors: Record<string, { message: string } | undefined>;
+  writeErrors: Record<string, { message: string; code?: string; details?: string } | undefined>;
   rpcCalls: RpcCall[];
   rpcResults: Record<string, RpcResult | undefined>;
   readErrors: Record<string, { message: string; code?: string } | undefined>;
   writeResults: Record<string, unknown>;
+  counts: Record<string, number | undefined>;
 }
 
 export function fakeAdmin(reads: Record<string, unknown> = {}): FakeAdmin {
@@ -56,7 +60,8 @@ export function fakeAdmin(reads: Record<string, unknown> = {}): FakeAdmin {
   const rpcResults: FakeAdmin["rpcResults"] = {};
   const readErrors: FakeAdmin["readErrors"] = {};
   const writeResults: FakeAdmin["writeResults"] = {};
-  const state: FakeAdmin = { client: undefined as unknown as SupabaseClient, ops, reads, writeErrors, rpcCalls, rpcResults, readErrors, writeResults };
+  const counts: FakeAdmin["counts"] = {};
+  const state: FakeAdmin = { client: undefined as unknown as SupabaseClient, ops, reads, writeErrors, rpcCalls, rpcResults, readErrors, writeResults, counts };
 
   function chain(table: string, kind: Op["kind"], payload?: unknown, options?: unknown) {
     const op: Op = { table, kind, payload, filters: [], ...(options === undefined ? {} : { options }) };
@@ -69,11 +74,12 @@ export function fakeAdmin(reads: Record<string, unknown> = {}): FakeAdmin {
       const written = state.writeResults[table];
       return typeof written === "function" ? (written as (o: Op) => unknown)(op) : written ?? null;
     };
+    const counted = () => (state.counts[table] === undefined ? {} : { count: state.counts[table] });
     const result = () =>
       kind === "select"
         ? state.readErrors[table]
           ? { data: null, error: state.readErrors[table] }
-          : { data: readValue(), error: null }
+          : { data: readValue(), error: null, ...counted() }
         : { data: state.writeErrors[table] ? null : writeValue(), error: state.writeErrors[table] ?? null };
     const builder: Record<string, unknown> = {};
     for (const f of ["eq", "is", "lte", "lt", "gte", "in", "neq", "order", "limit"]) {

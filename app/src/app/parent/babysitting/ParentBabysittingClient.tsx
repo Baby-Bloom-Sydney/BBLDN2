@@ -100,16 +100,6 @@ interface ChildForm {
   gender: string;
 }
 
-function calcAge(dob: string | null): number | null {
-  if (!dob) return null;
-  const birth = new Date(dob);
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-  return age;
-}
-
 function formatSlotDate(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
   return d.toLocaleDateString("en-GB", {
@@ -1217,8 +1207,8 @@ function BSRTile({
                 )}
                 <p className="text-sm font-medium text-slate-900">
                   {request.acceptedNanny.firstName}
-                  {calcAge(request.acceptedNanny.dateOfBirth) !== null
-                    ? `, ${calcAge(request.acceptedNanny.dateOfBirth)}`
+                  {request.acceptedNanny.age !== null
+                    ? `, ${request.acceptedNanny.age}`
                     : ""}
                 </p>
               </div>
@@ -1373,8 +1363,8 @@ function BSRDetailModal({
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-slate-900 truncate">
                         {nanny.firstName}
-                        {calcAge(nanny.dateOfBirth) !== null
-                          ? `, ${calcAge(nanny.dateOfBirth)}`
+                        {nanny.age !== null
+                          ? `, ${nanny.age}`
                           : ""}
                       </p>
                       <p className="text-xs text-slate-500">
@@ -1498,8 +1488,8 @@ function BSRDetailModal({
                 <div className="flex-1">
                   <p className="text-sm font-medium text-green-900">
                     {request.acceptedNanny.firstName}
-                    {calcAge(request.acceptedNanny.dateOfBirth) !== null
-                      ? `, ${calcAge(request.acceptedNanny.dateOfBirth)}`
+                    {request.acceptedNanny.age !== null
+                      ? `, ${request.acceptedNanny.age}`
                       : ""}
                   </p>
                   {request.acceptedNanny.distanceKm !== null && (
@@ -1728,8 +1718,8 @@ function NannyMiniPopup({
             <div>
               <p className="text-base font-semibold text-slate-900">
                 {nanny.firstName}
-                {calcAge(nanny.dateOfBirth) !== null
-                  ? `, ${calcAge(nanny.dateOfBirth)}`
+                {nanny.age !== null
+                  ? `, ${nanny.age}`
                   : ""}
               </p>
               {nanny.suburb && (

@@ -79,7 +79,7 @@ import {
   declineDfyConnection,
 } from "@/lib/actions/matching";
 import type { DfyConnection } from "@/lib/actions/matching";
-import { getScoreBadgeStyle, calcAge } from "@/components/match/match-helpers";
+import { getScoreBadgeStyle } from "@/components/match/match-helpers";
 import { ScheduleTimeGrid } from "@/components/position/ScheduleTimeGrid";
 import { formatClockTime as bsrFormatTime } from "@/lib/timezone";
 import { babysittingEnabled } from "@/lib/features/flags";
@@ -111,7 +111,7 @@ interface PlacementData {
   nannyName: string;
   nannySuburb: string;
   nannyPhoto: string | null;
-  nannyDateOfBirth: string | null;
+  nannyAge: number | null;
   weeklyHours: number | null;
   hourlyRate: number | null;
   hiredAt: string;
@@ -919,24 +919,9 @@ export function ParentHubClient({
                               <h3 className="font-bold text-xl text-slate-900 truncate">
                                 {placement.nannyName.split(" ")[0]}
                               </h3>
-                              {placement.nannyDateOfBirth && (
+                              {placement.nannyAge != null && (
                                 <span className="text-base text-slate-400 shrink-0">
-                                  {(() => {
-                                    const birth = new Date(
-                                      placement.nannyDateOfBirth,
-                                    );
-                                    const now = new Date();
-                                    let age =
-                                      now.getFullYear() - birth.getFullYear();
-                                    const m = now.getMonth() - birth.getMonth();
-                                    if (
-                                      m < 0 ||
-                                      (m === 0 &&
-                                        now.getDate() < birth.getDate())
-                                    )
-                                      age--;
-                                    return age;
-                                  })()}
+                                  {placement.nannyAge}
                                 </span>
                               )}
                             </div>
@@ -1441,9 +1426,7 @@ export function ParentHubClient({
                                   const score = Math.round(
                                     50 + (conn.matchScore / 100) * 50,
                                   );
-                                  const nannyAge = calcAge(
-                                    conn.nanny.dateOfBirth,
-                                  );
+                                  const nannyAge = conn.nanny.age;
                                   const isDeclining =
                                     decliningId === conn.connectionId;
                                   const isScheduling =
@@ -2067,8 +2050,8 @@ export function ParentHubClient({
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium text-slate-900 truncate">
                               {nanny.firstName}
-                              {calcAge(nanny.dateOfBirth) !== null
-                                ? `, ${calcAge(nanny.dateOfBirth)}`
+                              {nanny.age !== null
+                                ? `, ${nanny.age}`
                                 : ""}
                             </p>
                             <p className="text-xs text-slate-500">
@@ -2131,8 +2114,8 @@ export function ParentHubClient({
                         <div>
                           <p className="text-base font-semibold text-slate-900">
                             {bsrSelectedNanny.firstName}
-                            {calcAge(bsrSelectedNanny.dateOfBirth) !== null
-                              ? `, ${calcAge(bsrSelectedNanny.dateOfBirth)}`
+                            {bsrSelectedNanny.age !== null
+                              ? `, ${bsrSelectedNanny.age}`
                               : ""}
                           </p>
                           {bsrSelectedNanny.suburb && (
@@ -2271,8 +2254,8 @@ export function ParentHubClient({
                     <div className="flex-1">
                       <p className="text-sm font-medium text-green-900">
                         {selectedBsr.acceptedNanny.firstName}
-                        {calcAge(selectedBsr.acceptedNanny.dateOfBirth) !== null
-                          ? `, ${calcAge(selectedBsr.acceptedNanny.dateOfBirth)}`
+                        {selectedBsr.acceptedNanny.age !== null
+                          ? `, ${selectedBsr.acceptedNanny.age}`
                           : ""}
                       </p>
                       {selectedBsr.acceptedNanny.distanceKm !== null && (
@@ -2884,8 +2867,8 @@ function BsrTileInline({
                 )}
                 <p className="text-sm font-medium text-slate-900">
                   {request.acceptedNanny.firstName}
-                  {calcAge(request.acceptedNanny.dateOfBirth) !== null
-                    ? `, ${calcAge(request.acceptedNanny.dateOfBirth)}`
+                  {request.acceptedNanny.age !== null
+                    ? `, ${request.acceptedNanny.age}`
                     : ""}
                 </p>
               </div>

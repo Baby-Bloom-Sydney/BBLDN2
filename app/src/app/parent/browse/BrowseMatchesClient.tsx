@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { NannyMatchCardBK } from "@/app/brandkit1/NannyMatchCardBK";
 import { Sparkles, MapPin, Clock, GraduationCap } from "lucide-react";
-import type { MatchResult } from "@/lib/matching/types";
+import type { PublicMatchResult } from "@/lib/matching/public-match";
 import type { LucideIcon } from "lucide-react";
 import { qualificationRank } from "@/lib/nanny-options";
 
@@ -16,7 +16,7 @@ const SORT_OPTIONS: { key: SortKey; label: string; icon: LucideIcon }[] = [
   { key: "qualification", label: "Qualifications", icon: GraduationCap },
 ];
 
-function sortMatches(matches: MatchResult[], sortBy: SortKey): MatchResult[] {
+function sortMatches(matches: PublicMatchResult[], sortBy: SortKey): PublicMatchResult[] {
   const sorted = [...matches];
   switch (sortBy) {
     case "score":
@@ -51,7 +51,7 @@ function sortMatches(matches: MatchResult[], sortBy: SortKey): MatchResult[] {
 }
 
 interface BrowseMatchesClientProps {
-  matches: MatchResult[];
+  matches: PublicMatchResult[];
   stats: { totalEligible: number; returned: number };
   children?: React.ReactNode;
 }

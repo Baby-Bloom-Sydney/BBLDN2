@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { progressModule, applyUpdateProgress } from "./progress";
 import type { ChildSummary, ModuleContext } from "./types";
 
-vi.mock("@/lib/actions/bapp/progress", () => ({
+vi.mock("@/lib/bapp/progress-write", () => ({
   recalculateProgress: vi.fn().mockResolvedValue(undefined),
   writeHistorySnapshot: vi.fn().mockResolvedValue(undefined),
 }));
@@ -10,7 +10,7 @@ vi.mock("@/lib/actions/bapp/progress", () => ({
 import {
   recalculateProgress,
   writeHistorySnapshot,
-} from "@/lib/actions/bapp/progress";
+} from "@/lib/bapp/progress-write";
 
 const oliver: ChildSummary = {
   id: "c1",

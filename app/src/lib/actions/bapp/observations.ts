@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
-import { recalculateProgress, writeHistorySnapshot } from "./progress";
+import { recalculateProgress, writeHistorySnapshot } from "@/lib/bapp/progress-write";
 import { generateTileInsight, getChildContext } from "./insights";
 import { MASTERY_LABELS } from "@/lib/bapp-constants";
 import type { MasteryScore } from "@/lib/bapp-constants";
@@ -11,6 +11,7 @@ import { dispatchActionTriggeredInBackground } from "@/lib/chat/proactive/action
 import { requireChildFamilyAccess } from "@/lib/payments/access-gate";
 import { requireMediaConsentForImageWrite } from "@/lib/legal/require-media-consent";
 import { notifyParentOfFeedPost } from "@/lib/email/feed-post-notification";
+import { isChildMember, CHILD_NOT_FOUND } from "@/lib/bapp/child-member";
 
 // ---------------------------------------------------------------------------
 // Helper: transition child to active_nanny on first action
@@ -66,6 +67,11 @@ export async function logObservation(
     } = await supabase.auth.getUser();
     if (authError || !user) {
       return { success: false, error: "Not authenticated" };
+    }
+
+    // Only the child's parent or nanny.
+    if (!(await isChildMember(childId, user.id))) {
+      return { success: false, error: CHILD_NOT_FOUND };
     }
 
     // Paywall gate — block writes when the family's subscription has
@@ -217,6 +223,11 @@ export async function logBulkProgress(
     } = await supabase.auth.getUser();
     if (authError || !user) {
       return { success: false, error: "Not authenticated" };
+    }
+
+    // Only the child's parent or nanny.
+    if (!(await isChildMember(childId, user.id))) {
+      return { success: false, error: CHILD_NOT_FOUND };
     }
 
     // Paywall gate — block writes when the family's subscription has lapsed.

@@ -119,7 +119,6 @@ export interface NannyProfileAccordionData {
 export interface NannyApplication {
   id: string;
   positionId: string;
-  familyName: string;
   suburb: string | null;
   createdAt: string;
 }

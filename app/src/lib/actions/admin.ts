@@ -30,7 +30,7 @@ import {
   type CrossCheckStatus,
 } from '@/lib/verification';
 import { runCrossCheckPhase, runWWCCDocPhase } from '@/lib/ai/verification-pipeline';
-import { syncNannyVerificationState } from '@/lib/actions/verification';
+import { syncNannyVerificationState } from '@/lib/verification-sync';
 import { sendEmail } from '@/lib/email/resend';
 import { openai } from '@/lib/ai/client';
 import { V2_SYSTEM_PROMPT, buildV2Prompt, parseAIProfileSections, generateV2Checklist } from '@/lib/ai/nanny-profile-prompts';

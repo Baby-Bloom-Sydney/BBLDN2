@@ -4,8 +4,23 @@ import { createInboxMessage, logConnectionEvent } from '@/lib/actions/connection
 import { sendEmail } from '@/lib/email/resend';
 import { getUserEmailInfo } from '@/lib/email/helpers';
 import { CONNECTION_STAGE } from '@/lib/position/constants';
+import { isUnseenByParent } from '@/lib/connections/silent-hold';
 import { emailFooter } from "@/lib/email/brand";
 import { SITE_URL } from "@/lib/constants";
+
+/**
+ * The lazy expiry's rules (`expireStaleRequests` in lib/actions/connection.ts): the family hears only about a row their
+ * own screens showed, and a request they sent that she answered below level 4 expires as the request they sent.
+ */
+function expiryFor(req: { status: string; connection_stage: number; source: string | null }) {
+  const answeredBelowFour = req.connection_stage === CONNECTION_STAGE.ACCEPTED_PENDING && req.source !== 'dfy';
+  const asSent = req.status === 'pending' || answeredBelowFour;
+  return {
+    stage: asSent ? CONNECTION_STAGE.REQUEST_EXPIRED : CONNECTION_STAGE.SCHEDULE_EXPIRED,
+    tellFamily: !isUnseenByParent(req),
+    familyReadsAccepted: !asSent,
+  };
+}
 
 /**
  * Cron endpoint: expires pending connection requests past their expires_at.
@@ -35,7 +50,7 @@ export async function GET(request: NextRequest) {
   // Find all pending/accepted requests past expiry
   const { data: stale } = await supabase
     .from('connection_requests')
-    .select('id, parent_id, nanny_id, status')
+    .select('id, parent_id, nanny_id, status, connection_stage, source')
     .in('status', ['pending', 'accepted'])
     .lt('expires_at', now);
 
@@ -43,21 +58,27 @@ export async function GET(request: NextRequest) {
 
   for (const req of stale ?? []) {
     const wasAccepted = req.status === 'accepted';
+    const plan = expiryFor(req);
 
     // Update to expired — set both status and connection_stage
-    const { error } = await supabase
+    const expiring = supabase
       .from('connection_requests')
       .update({
         status: 'expired',
-        connection_stage: req.status === 'pending'
-          ? CONNECTION_STAGE.REQUEST_EXPIRED
-          : CONNECTION_STAGE.SCHEDULE_EXPIRED,
+        connection_stage: plan.stage,
         updated_at: now,
       })
       .eq('id', req.id)
       .in('status', ['pending', 'accepted']); // Optimistic lock
+    // the stage this plan was read at
+    const { data: updated, error } = await (req.connection_stage === null
+      ? expiring.is('connection_stage', null)
+      : expiring.eq('connection_stage', req.connection_stage)
+    ).select('id');
+    if (error) console.error('[ExpireCron] expire error:', { code: error.code ?? null });
 
-    if (error) continue; // Already expired by lazy expiry
+    // already expired, scheduled or released since the read: no expiry messages
+    if (error || !updated || updated.length === 0) continue;
 
     expired++;
 
@@ -67,6 +88,7 @@ export async function GET(request: NextRequest) {
       parentId: req.parent_id,
       nannyId: req.nanny_id,
       eventType: 'expired',
+      ...(plan.tellFamily ? {} : { eventData: { held: true } }),
     });
 
     // Get user IDs
@@ -82,13 +104,13 @@ export async function GET(request: NextRequest) {
       .eq('id', req.parent_id)
       .single();
 
-    // Parent inbox + email (INT-005)
-    if (parentData) {
+    // Parent inbox + email (INT-005) — only for a row the family's screens showed
+    if (parentData && plan.tellFamily) {
       await createInboxMessage({
         userId: parentData.user_id,
         type: 'connection_expired',
         title: 'Connection request expired',
-        body: wasAccepted
+        body: plan.familyReadsAccepted
           ? 'Your accepted connection has expired because a meet and greet was not scheduled in time.'
           : 'Your connection request has expired as the nanny did not respond in time.',
         actionUrl: '/parent/connections',

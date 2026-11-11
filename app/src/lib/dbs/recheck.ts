@@ -45,7 +45,7 @@
  * identity; calls the live DBS URL in tests (the adapter is injected); messages a parent.
  */
 import type { createAdminClient } from "@/lib/supabase/admin";
-import { syncNannyVerificationState } from "@/lib/actions/verification";
+import { syncNannyVerificationState } from "@/lib/verification-sync";
 import { checkDbsStatus, type DbsCheckInput, type DbsCheckResult } from "./update-service";
 import { applyDbsResult, type DbsApplyResult } from "./map-dbs-outcome";
 import { getDbsRecheckConfig, type DbsRecheckConfig } from "./config";

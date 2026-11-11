@@ -574,8 +574,8 @@ export const MOCK_PARENT_BSR_REQUESTS: BabysittingRequestWithSlots[] = [
       {
         nannyId: "mock-nanny-001",
         firstName: "Bailey",
-        lastName: "Wright",
-        dateOfBirth: "1998-05-15",
+        lastName: "W",
+        age: 28,
         suburb: "Clapham",
         profilePicUrl: null,
         distanceKm: 3.2,
@@ -618,8 +618,8 @@ export const MOCK_PARENT_BSR_REQUESTS: BabysittingRequestWithSlots[] = [
     ],
     acceptedNanny: {
       firstName: "Sophie",
-      lastName: "Chen",
-      dateOfBirth: "1995-08-22",
+      lastName: "C",
+      age: 31,
       suburb: "Islington",
       profilePicUrl: null,
       distanceKm: 5.1,

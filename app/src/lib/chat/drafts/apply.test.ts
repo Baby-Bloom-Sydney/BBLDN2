@@ -5,7 +5,7 @@ import type { ChildSummary } from "@/lib/chat/modules/types";
 // Stub out external side-effects so the dispatcher tests stay
 // hermetic — observation-cascade and OpenAI both have their own
 // module-level test coverage.
-vi.mock("@/lib/actions/bapp/progress", () => ({
+vi.mock("@/lib/bapp/progress-write", () => ({
   recalculateProgress: vi.fn().mockResolvedValue(undefined),
   writeHistorySnapshot: vi.fn().mockResolvedValue(undefined),
 }));

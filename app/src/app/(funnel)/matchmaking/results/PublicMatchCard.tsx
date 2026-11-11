@@ -7,13 +7,13 @@ import {
   Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { calcAge, getScoreBadgeStyle } from "@/components/match/match-helpers";
+import { getScoreBadgeStyle } from "@/components/match/match-helpers";
 import { BADGE_ICONS } from "@/components/profile/profile-helpers";
-import type { MatchResult } from "@/lib/matching/types";
+import type { PublicMatchResult } from "@/lib/matching/public-match";
 import { qualificationBadgeLabel } from "@/lib/matching/qualification-display";
 
 interface PublicMatchCardProps {
-  match: MatchResult;
+  match: PublicMatchResult;
 }
 
 function ScoreBar({ label, value }: { label: string; value: number }) {
@@ -34,7 +34,7 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
 export function PublicMatchCard({ match }: PublicMatchCardProps) {
   const { nanny, profile, breakdown } = match;
   const firstName = profile.first_name.charAt(0).toUpperCase() + profile.first_name.slice(1);
-  const age = calcAge(profile.date_of_birth);
+  const age = profile.age;
   const aiContent = nanny.ai_content as Record<string, unknown> | null;
   const headline = (aiContent?.headline as string) || null;
 

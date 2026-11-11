@@ -9,7 +9,7 @@
  * etc.) passing the URL as `image_url`.
  *
  * Reuses the existing `development-images` Storage bucket — same one
- * `src/lib/actions/bapp/upload-image.ts` writes child-keyed entries
+ * `app/api/upload/development-image/route.ts` writes child-keyed entries
  * to. Chat uploads share the bucket because:
  *   - same image lifecycle (public-read URLs embedded in tiles)
  *   - same operational surface (one bucket to monitor, back up, GC)
@@ -258,7 +258,7 @@ export async function POST(request: Request) {
   const path = `${PATH_PREFIX}/${userId}/${crypto.randomUUID()}.${ext}`;
 
   // Admin client for the upload — same pattern as the existing
-  // bapp upload-image action. Bucket is publicly readable; RLS on
+  // development-image upload route. Bucket is publicly readable; RLS on
   // writes is bypassed by the service role.
   const { error: uploadError } = await admin.storage
     .from(BUCKET)

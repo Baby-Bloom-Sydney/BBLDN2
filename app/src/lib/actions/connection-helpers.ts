@@ -1,5 +1,7 @@
-'use server';
-
+/**
+ * Connection helpers for the server actions and routes (phone lookups, position summary, inbox messages, the
+ * connection log). Server-only; not a server action.
+ */
 import { createAdminClient } from '@/lib/supabase/admin';
 
 /**
@@ -29,20 +31,6 @@ export async function getNannyPhone(nannyUserId: string): Promise<string | null>
     .eq('user_id', nannyUserId)
     .single();
 
-  return profile?.mobile_number ?? null;
-}
-
-/**
- * Get a parent's phone number from user_profiles.mobile_number.
- * Uses admin client since phone is sensitive data behind RLS.
- */
-export async function getParentPhone(parentUserId: string): Promise<string | null> {
-  const supabase = createAdminClient();
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('mobile_number')
-    .eq('user_id', parentUserId)
-    .single();
   return profile?.mobile_number ?? null;
 }
 

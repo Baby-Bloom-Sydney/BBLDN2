@@ -10,19 +10,18 @@ import {
   ChevronLeft,
   ShieldCheck,
 } from "lucide-react";
-import type { MatchResult } from "@/lib/matching/types";
+import type { PublicMatchResult } from "@/lib/matching/public-match";
 import { useState } from "react";
 import {
   ScoreBar,
   getScoreBadgeStyle,
-  calcAge,
   AvailabilityTable,
   getTranslateClass,
 } from "./match/match-helpers";
 import type { View } from "./match/match-helpers";
 
 interface MatchCardProps {
-  match: MatchResult;
+  match: PublicMatchResult;
   actions?: React.ReactNode;
 }
 
@@ -33,7 +32,7 @@ export function MatchCard({ match, actions }: MatchCardProps) {
   const initials = `${profile.first_name[0]}${profile.last_name[0]}`;
   const aiContent = nanny.ai_content as Record<string, unknown> | null;
   const headline = (aiContent?.headline as string) || null;
-  const nannyAge = calcAge(profile.date_of_birth);
+  const nannyAge = profile.age;
 
   const hasBonusOrUnmet =
     match.overQualifiedBonuses.length > 0 || match.unmetRequirements.length > 0;

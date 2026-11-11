@@ -15,7 +15,7 @@ import {
   type UserGuidance,
 } from '@/lib/verification';
 import { capitalizeName } from '@/lib/utils';
-import { syncNannyVerificationState } from '@/lib/actions/verification';
+import { syncNannyVerificationState } from '@/lib/verification-sync';
 import { verifyPassport } from './verify-passport';
 import { verifyDBS, type VerifyDbsResult } from './verify-dbs';
 import { checkDbsStatus, type DbsCheckResult } from '@/lib/dbs/update-service';

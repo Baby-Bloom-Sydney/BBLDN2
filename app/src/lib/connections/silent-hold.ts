@@ -1,5 +1,5 @@
 /**
- * Silent hold — the connection side of `syncNannyVerificationState` (lib/actions/verification.ts), the only caller.
+ * Silent hold — the connection side of `syncNannyVerificationState` (lib/verification-sync.ts), the only caller.
  * Plain server module (NOT 'use server': nothing here is callable from the browser).
  *
  * - `promotePendingConnections` — level < 4 → 4: held rows (stage 4 / 9) are released and parents told. Moved here
@@ -32,7 +32,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email/resend';
 import { getUserEmailInfo } from '@/lib/email/helpers';
 import { sendBarredAdminAlert } from '@/lib/email/dbs-emails';
-import { CONNECTION_STAGE, HIDDEN_CONNECTION_STAGES } from '@/lib/position/constants';
+import { CONNECTION_STAGE, CONNECTION_WAIT_WINDOW_MS, HIDDEN_CONNECTION_STAGES } from '@/lib/position/constants';
 import { createInboxMessage } from '@/lib/actions/connection-helpers';
 import { emailHeader } from '@/lib/email/brand';
 import { SITE_URL } from '@/lib/constants';
@@ -75,8 +75,21 @@ const HIDDEN: readonly number[] = HIDDEN_CONNECTION_STAGES;
 /** The columns a drop reads (the `LiveRow` shape). */
 export const CONNECTION_COLUMNS = 'id, parent_id, position_id, connection_stage, status, source, parent_phone_shared';
 
-/** True for the held rows a parent never saw: stage 4, and a DFY stage 9. */
-export function isUnseenByParent(r: LiveRow): boolean {
+/** The two held stages: her application (4) and her answer (9) below level 4, whatever the source. */
+const HELD_STAGES: readonly number[] = [CONNECTION_STAGE.NANNY_APPLIED_PENDING, CONNECTION_STAGE.ACCEPTED_PENDING];
+
+/** A row waiting for the admin's approve (its 7-day window, `CONNECTION_WAIT_WINDOW_MS`). A row with no stage isn't held. */
+export function isHeld(r: { connection_stage: number | null }): boolean {
+  return r.connection_stage !== null && HELD_STAGES.includes(r.connection_stage);
+}
+
+/** The time a screen shows for a held row: as given while it is still ahead, none once passed (the row's own 7 days may not be). */
+export function heldExpiryShown(expiresAt: string | null, now: number = Date.now()): string | null {
+  return expiresAt && Date.parse(expiresAt) > now ? expiresAt : null;
+}
+
+/** True for the held rows a parent never saw: stage 4, and a DFY stage 9 (reads the stage and the source only). */
+export function isUnseenByParent(r: Pick<LiveRow, 'connection_stage' | 'source'>): boolean {
   if (r.connection_stage === CONNECTION_STAGE.NANNY_APPLIED_PENDING) return true;
   return r.connection_stage === CONNECTION_STAGE.ACCEPTED_PENDING && r.source === 'dfy';
 }
@@ -184,6 +197,9 @@ export async function onNannyBarred(
 
 // ── Silent Hold: Promote pending connections on level 4 ──
 
+/** The family's window to book a meet once she has accepted — the same 72 hours an accept at level 4 gives. */
+const SCHEDULING_WINDOW_MS = 72 * 60 * 60 * 1000;
+
 export async function promotePendingConnections(
   admin: AdminClient,
   nannyId: string,
@@ -224,10 +240,21 @@ export async function promotePendingConnections(
   // 4. Promote stage 4 → 5 for active positions
   for (const app of pendingApps || []) {
     if (activePositionIds.has(app.position_id)) {
-      await admin
+      // released only while still held (stage 4, pending) when this write lands; the family's window to answer
+      // starts now, a fresh 7 days
+      const { data: released, error: releaseErr } = await admin
         .from('connection_requests')
-        .update({ connection_stage: CONNECTION_STAGE.NANNY_APPLIED, updated_at: now })
-        .eq('id', app.id);
+        .update({
+          connection_stage: CONNECTION_STAGE.NANNY_APPLIED,
+          expires_at: new Date(Date.now() + CONNECTION_WAIT_WINDOW_MS).toISOString(),
+          updated_at: now,
+        })
+        .eq('id', app.id)
+        .eq('connection_stage', CONNECTION_STAGE.NANNY_APPLIED_PENDING)
+        .eq('status', 'pending')
+        .select('id');
+      if (releaseErr) console.error('[Promotion] release error:', { code: releaseErr.code ?? null });
+      if (!released || released.length === 0) continue;
 
       // Send deferred parent inbox message
       const { data: parentData } = await admin
@@ -252,7 +279,8 @@ export async function promotePendingConnections(
       await admin
         .from('connection_requests')
         .delete()
-        .eq('id', app.id);
+        .eq('id', app.id)
+        .eq('connection_stage', CONNECTION_STAGE.NANNY_APPLIED_PENDING);
     }
   }
 
@@ -265,10 +293,21 @@ export async function promotePendingConnections(
 
   for (const acc of pendingAccepts || []) {
     if (activePositionIds.has(acc.position_id)) {
-      await admin
+      // released only while still held (stage 9, accepted) when this write lands; the family's booking window
+      // starts now
+      const { data: released, error: releaseErr } = await admin
         .from('connection_requests')
-        .update({ connection_stage: CONNECTION_STAGE.ACCEPTED, updated_at: now })
-        .eq('id', acc.id);
+        .update({
+          connection_stage: CONNECTION_STAGE.ACCEPTED,
+          expires_at: new Date(Date.now() + SCHEDULING_WINDOW_MS).toISOString(),
+          updated_at: now,
+        })
+        .eq('id', acc.id)
+        .eq('connection_stage', CONNECTION_STAGE.ACCEPTED_PENDING)
+        .eq('status', 'accepted')
+        .select('id');
+      if (releaseErr) console.error('[Promotion] release error:', { code: releaseErr.code ?? null });
+      if (!released || released.length === 0) continue;
 
       // Send deferred parent notifications
       const { data: parentData } = await admin
@@ -339,7 +378,8 @@ export async function promotePendingConnections(
       await admin
         .from('connection_requests')
         .delete()
-        .eq('id', acc.id);
+        .eq('id', acc.id)
+        .eq('connection_stage', CONNECTION_STAGE.ACCEPTED_PENDING);
     }
   }
 }

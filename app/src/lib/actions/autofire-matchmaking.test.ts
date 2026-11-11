@@ -9,7 +9,7 @@ const state = vi.hoisted(() => ({
   activateBehaviour: "resolve" as "resolve" | "throw",
 }));
 
-vi.mock("./matching", () => ({
+vi.mock("@/lib/matching/dfy-dispatch", () => ({
   activateDfyPosition: vi.fn(async (positionId: string, tier: DfyTier) => {
     state.activateCalls.push({ positionId, tier });
     if (state.activateBehaviour === "throw") {

@@ -5,6 +5,7 @@ import { NannyHubClient, type NannyProfileAccordionData } from "@/app/nanny/Nann
 import { ParentHubClient } from "@/app/parent/ParentHubClient";
 import { CONNECTION_STAGE, POSITION_STAGE } from "@/lib/position/constants";
 import { isShareUnlocked } from "@/lib/features/flags";
+import { profileAge } from "@/lib/profile-age";
 
 interface PositionSummary {
   scheduleType: string | null;
@@ -786,7 +787,7 @@ async function buildParentPlacement(admin: any, parentId: string) {
   let nannyName = "Your nanny";
   let nannySuburb = "";
   let nannyPhoto: string | null = null;
-  let nannyDateOfBirth: string | null = null;
+  let nannyAge: number | null = null;
   let nannyEmail: string | null = null;
   let nannyPhone: string | null = null;
 
@@ -801,7 +802,7 @@ async function buildParentPlacement(admin: any, parentId: string) {
       nannyName = `${profile.first_name} ${profile.last_name}`;
       nannySuburb = profile.suburb || "";
       nannyPhoto = profile.profile_picture_url;
-      nannyDateOfBirth = profile.date_of_birth;
+      nannyAge = profileAge(profile.date_of_birth ?? null);
       nannyEmail = profile.email || null;
       nannyPhone = profile.mobile_number || null;
     }
@@ -829,7 +830,7 @@ async function buildParentPlacement(admin: any, parentId: string) {
     nannyName,
     nannySuburb,
     nannyPhoto,
-    nannyDateOfBirth,
+    nannyAge,
     weeklyHours: placement.weekly_hours,
     hourlyRate: placement.hourly_rate,
     hiredAt: placement.hired_at,

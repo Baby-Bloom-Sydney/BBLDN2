@@ -572,7 +572,7 @@ export async function closePosition(
     ? POSITION_STATUS.CLOSED_NO_CANDIDATES
     : POSITION_STATUS.CLOSED;
 
-  const { error } = await supabase
+  const { data: closed, error } = await supabase
     .from("nanny_positions")
     .update({
       status: "cancelled",
@@ -581,10 +581,11 @@ export async function closePosition(
       closed_at: new Date().toISOString(),
     })
     .eq("id", positionId)
-    .eq("parent_id", parentId);
+    .eq("parent_id", parentId)
+    .select("id");
 
-  if (error) {
-    console.error("Position close error:", error);
+  if (error || !closed || closed.length === 0) {
+    if (error) console.error("Position close error:", error);
     return { success: false, error: "Failed to close position" };
   }
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { MatchCard } from "@/components/MatchCard";
-import type { MatchResult } from "@/lib/matching/types";
+import type { PublicMatchResult } from "@/lib/matching/public-match";
 import { Users, MapPin, Briefcase, Sparkles, CheckCircle, Clock, PartyPopper } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -30,12 +30,12 @@ interface DfyStatusData {
 }
 
 interface MatchResultsClientProps {
-  matches: MatchResult[];
+  matches: PublicMatchResult[];
   stats: { totalEligible: number; returned: number };
   dfyStatus?: DfyStatusData;
 }
 
-function sortMatches(matches: MatchResult[], sortBy: SortKey): MatchResult[] {
+function sortMatches(matches: PublicMatchResult[], sortBy: SortKey): PublicMatchResult[] {
   const sorted = [...matches];
   switch (sortBy) {
     case "score":

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hasParentMediaConsent } from "@/lib/legal/media-consent-gate";
+import { isChildMember, CHILD_NOT_FOUND } from "@/lib/bapp/child-member";
 
 const BUCKET = "development-images";
 
@@ -41,6 +42,11 @@ export async function POST(request: NextRequest) {
         { error: "Image must be under 10MB" },
         { status: 400 },
       );
+    }
+
+    // Only the child's parent or nanny.
+    if (!(await isChildMember(childId, user.id))) {
+      return NextResponse.json({ error: CHILD_NOT_FOUND }, { status: 404 });
     }
 
     const admin = createAdminClient();

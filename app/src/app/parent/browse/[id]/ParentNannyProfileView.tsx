@@ -43,7 +43,6 @@ import { StatBox } from "@/components/profile/StatBox";
 import { AvailabilityGrid } from "@/components/profile/AvailabilityGrid";
 import { ProfilePhotoViewer } from "@/components/profile/ProfilePhotoViewer";
 import {
-  computeAge,
   ageRangeToFriendly,
   childrenCountLabel,
   BADGE_ICONS,
@@ -108,7 +107,7 @@ export function ParentNannyProfileView({
 
   const firstName =
     nanny.first_name.charAt(0).toUpperCase() + nanny.first_name.slice(1);
-  const age = computeAge(nanny.date_of_birth);
+  const age = nanny.age;
   const isVerified = nanny.verification_level >= 3;
 
   // ── AI content extraction (V2 field paths) ──
@@ -429,11 +428,11 @@ export function ParentNannyProfileView({
           nanny={{
             id: nanny.nanny_id,
             first_name: nanny.first_name,
-            last_name: nanny.last_name,
+            last_name: nanny.last_initial,
             suburb: nanny.suburb,
             hourly_rate_min: nanny.hourly_rate_min,
             profile_picture_url: nanny.profile_picture_url,
-            date_of_birth: nanny.date_of_birth,
+            age: nanny.age,
           }}
           pendingRequestCount={pendingRequestCount}
         />

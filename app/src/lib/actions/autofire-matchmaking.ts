@@ -1,9 +1,7 @@
-"use server";
-
-import { activateDfyPosition } from "./matching";
+import { activateDfyPosition } from "@/lib/matching/dfy-dispatch";
 
 /**
- * Fire Advanced-tier matchmaking the instant a parent position exists.
+ * Fire Advanced-tier matchmaking the instant a parent position exists. Server-only (not a server action).
  *
  * Wraps `activateDfyPosition(positionId, 'priority')` so that the nanny blast
  * + downstream notifications never propagate failure back into the position-

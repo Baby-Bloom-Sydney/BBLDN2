@@ -110,8 +110,10 @@ export async function GET(
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
+  // the tile shows the card (name, age, area, hours, rate, experience); the contact details stay on the hub's popup
+  const { nannyEmail: _email, nannyPhone: _phone, ...card } = data;
   return NextResponse.json({
     id: data.id,
-    placement: data,
+    placement: card,
   });
 }

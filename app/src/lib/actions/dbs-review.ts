@@ -26,7 +26,7 @@ import {
   deriveOverallStatus,
   type IdentityStatus,
 } from '@/lib/verification';
-import { syncNannyVerificationState } from './verification';
+import { syncNannyVerificationState } from '@/lib/verification-sync';
 import { sendDbsManualReviewEmail } from '@/lib/email/dbs-emails';
 
 const REVIEWABLE: ReadonlySet<string> = new Set([WWCC_STATUS.FAILED, WWCC_STATUS.NEW_INFO, WWCC_STATUS.NO_MATCH]);

@@ -27,6 +27,9 @@ vi.mock("@/lib/supabase/admin", () => ({
   }),
 }));
 
+// The caller is the child's parent or nanny (that check has its own tests: lib/bapp/child-member.test.ts).
+vi.mock("@/lib/bapp/child-member", () => ({ isChildMember: async () => true, CHILD_NOT_FOUND: "Child not found" }));
+
 const USER_ID = "11111111-1111-4000-8000-111111111111";
 const CHILD_ID = "22222222-2222-4000-8000-222222222222";
 
