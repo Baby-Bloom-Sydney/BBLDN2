@@ -79,7 +79,7 @@ describe("profile text: nothing a browser would run", () => {
   });
 });
 
-describe("profile text: formatting renders as before", () => {
+describe("profile text: formatting renders as formatting", () => {
   it("keeps paragraphs, line breaks and bold in the family's view", () => {
     const { container } = render(<ParentNannyProfileView nanny={nanny(FORMATTED)} />);
     expect(container.innerHTML).toContain("<p>First</p><p>Second</p>");
@@ -92,7 +92,7 @@ describe("profile text: formatting renders as before", () => {
   });
 });
 
-describe("profile text typed with < and > reads as it did before", () => {
+describe("profile text typed with < and > reads as typed", () => {
   const TYPED = {
     headline: "Kids <5 · 2 > 1 · <3",
     parent_pitch: "Kids <5<br>2 > 1<br><3",
@@ -100,7 +100,7 @@ describe("profile text typed with < and > reads as it did before", () => {
     experience_summary: "<p>E</p>",
     skills_highlight: "<strong>Skill</strong><br>",
   };
-  /** What a browser showed for the stored text when it was rendered raw (the old render). */
+  /** What a browser shows for the stored text rendered as it is. */
   const rawText = (html: string) => {
     const d = document.createElement("div");
     d.innerHTML = html;

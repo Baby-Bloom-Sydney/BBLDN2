@@ -1,6 +1,6 @@
 /**
- * Profile text typed with < and > in the editor: what the editor saves, what the profile then shows, and what the
- * editor shows when it is opened again — each as before (the server stores the text as typed).
+ * Profile text typed with < and > in the editor: what the editor saves, the text the profile then shows (what a
+ * browser shows for the stored text), and what the editor shows when it is opened again.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -35,7 +35,7 @@ const rawText = (html: string) => {
 };
 
 describe("NannyMyProfile — text typed with < and >", () => {
-  it("is saved, shown and reopened as before", async () => {
+  it("is saved as typed, shown as typed, and read back by the editor", async () => {
     h.saveProfile.mockResolvedValue({ success: true, error: null });
     h.saveText.mockResolvedValue({ success: true, error: null });
 
@@ -49,12 +49,12 @@ describe("NannyMyProfile — text typed with < and >", () => {
     expect(sent).toBe("<p>Kids <5</p><p>2 > 1</p><p><3</p>");
     cleanup();
 
-    // the profile shows what the browser showed for it before
+    // the profile shows the text a browser shows for the stored text
     render(<NannyMyProfile profile={profileWith(sent)} />);
     expect(rawText(sent)).toBe("Kids <52 > 1<3");
     expect(document.body.textContent).toContain(rawText(sent));
 
-    // opened again, the editor shows what it showed before (its own handling of "<", unchanged)
+    // opened again, the editor reads the stored text back with its own handling of "<"
     fireEvent.click(screen.getByTitle("Edit Profile"));
     const reopened = (document.querySelectorAll("textarea")[1] as HTMLTextAreaElement | undefined)?.value;
     expect(reopened).toBe("Kids  1");

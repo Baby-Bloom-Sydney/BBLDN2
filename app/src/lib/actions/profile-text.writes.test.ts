@@ -53,7 +53,7 @@ import { generateOnboardingAIContent } from "./nanny-onboarding-ai";
 const BAD = "<img src=x onerror=alert(1)>";
 const MODEL_OUTPUT = [
   `<headline>Warm ${BAD}</headline>`,
-  `<about><p>About</p><script>steal()</script></about>`,
+  `<about><p>About</p><script>x()</script></about>`,
   `<personality><p onclick="x()">Kind</p></personality>`,
   `<values><p>Values</p></values>`,
   `<background><p>Background</p><svg onload=1></svg></background>`,
@@ -140,7 +140,7 @@ describe("profile text writers store only the formatting tags", () => {
   });
 });
 
-describe("profile text typed with < and > is stored exactly as typed (as before)", () => {
+describe("profile text typed with < and > is stored exactly as typed", () => {
   const TYPED_HEADLINE = "Kids <5 · 2 > 1 · <3";
   const TYPED_ABOUT = "<p>Kids <5</p><p>2 > 1</p><p><3</p>";
 

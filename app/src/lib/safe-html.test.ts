@@ -50,7 +50,7 @@ describe("safeHtml — profile text keeps its formatting tags and nothing else",
   });
 
   it("drops a script or style block with its contents", () => {
-    expect(safeHtml("<p>a</p><script>steal()</script><style>p{}</style><p>b</p>")).toBe("<p>a</p><p>b</p>");
+    expect(safeHtml("<p>a</p><script>x()</script><style>p{}</style><p>b</p>")).toBe("<p>a</p><p>b</p>");
   });
 
   it("escapes a stray angle bracket so it reads as text", () => {
@@ -72,7 +72,7 @@ describe("cleanHtml — on write: the same tags, every other character as typed"
   );
 
   it("removes the same markup safeHtml removes, without escaping the rest", () => {
-    expect(cleanHtml("<p onclick=\"x()\">Kids <5</p><img src=x onerror=alert(1)><script>steal()</script><!-- c -->2 > 1"))
+    expect(cleanHtml("<p onclick=\"x()\">Kids <5</p><img src=x onerror=alert(1)><script>x()</script><!-- c -->2 > 1"))
       .toBe("<p>Kids <5</p>2 > 1");
   });
 
@@ -113,5 +113,40 @@ describe("cleanHtmlDeep — every string in stored profile content", () => {
     const stored = { headline: "<img src=x onerror=alert(1)>" };
     cleanHtmlDeep(stored);
     expect(stored.headline).toBe("<img src=x onerror=alert(1)>");
+  });
+});
+
+describe("safeHtml / cleanHtml — the browser's own tag names, long input, non-text values", () => {
+  it.each([
+    ["<x_y onclick=\"x()\">hi</x_y>", "hi"],
+    ["<h1_x onfocus=\"x()\" autofocus>hi", "hi"],
+    ["<a<b onclick=\"x()\">hi", "hi"],
+    ["<p-x onclick=\"x()\">hi</p-x>", "hi"],
+  ])("drops %j like any other tag a browser would read", (input, text) => {
+    expect(cleanHtml(input)).toBe(text);
+    expect(safeHtml(input)).toBe(text);
+  });
+
+  it("reads a long run of unclosed tag starts in linear time", () => {
+    const input = "<a".repeat(200_000);
+    const started = performance.now();
+    const out = safeHtml(input);
+    const clean = cleanHtml(input);
+    expect(performance.now() - started).toBeLessThan(1_000);
+    expect(out).toBe("&lt;a".repeat(200_000));
+    expect(clean).toBe(input);
+  });
+
+  it("reads a long run of unclosed script starts in linear time", () => {
+    const input = "<script".repeat(100_000);
+    const started = performance.now();
+    safeHtml(input);
+    cleanHtml(input);
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+
+  it("returns an empty string for a value that isn't text", () => {
+    expect(safeHtml({ x: 1 } as unknown as string)).toBe("");
+    expect(safeHtml(12 as unknown as string)).toBe("");
   });
 });

@@ -32,10 +32,12 @@ const calls = sourceFiles(SRC).flatMap((file) => {
   const path = relative(SRC, file).split(sep).join("/");
   const lines = readFileSync(file, "utf8").split("\n");
   return lines.flatMap((line, i) => {
-    if (!/await\s+requireAdmin\(\)/.test(line) || /^\s*(\/\/|\*)/.test(line)) return [];
+    // every call, in any form (a definition or a comment isn't one)
+    if (!/requireAdmin\(\)/.test(line) || /^\s*(\/\/|\*)/.test(line) || /function\s+requireAdmin\(/.test(line)) return [];
     const binding = errorBinding(line);
     const next = lines.slice(i + 1, i + 1 + LOOKAHEAD).join("\n");
-    const checked = binding !== null && new RegExp(`if\\s*\\(\\s*!?${binding.replace(".", "\\.")}\\b`).test(next);
+    // the check refuses on the error (not its negation)
+    const checked = binding !== null && new RegExp(`if\\s*\\(\\s*${binding.replace(".", "\\.")}\\b`).test(next);
     return [{ at: `${path}:${i + 1}`, line: line.trim(), checked }];
   });
 });

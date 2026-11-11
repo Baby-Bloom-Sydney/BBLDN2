@@ -1,8 +1,8 @@
 // @vitest-environment node
 /**
  * The funnel's photo upload stores a picture only for an applicant's lead that has no account yet, or for a signed-in
- * nanny; anyone else is refused before any storage write. Everything else is as before: the same type and size rules,
- * the same object path (`leads/anonymous/<time>-<name>`), the same content type, the same public URL.
+ * nanny; anyone else is refused before any storage write. The type and size rules, the object path
+ * (`leads/anonymous/<time>-<name>`), the content type and the public URL are the ones below.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
@@ -69,7 +69,7 @@ describe("nanny-photo upload — who may upload", () => {
     expect(h.upload).not.toHaveBeenCalled();
   });
 
-  it("stores an applicant's photo exactly as before", async () => {
+  it("stores an applicant's photo under leads/anonymous with its own type", async () => {
     admin.reads.nanny_leads = { id: LEAD };
     const res = await POST(request({ file: photo("my photo.jpg"), leadId: LEAD }));
     expect(res.status).toBe(200);

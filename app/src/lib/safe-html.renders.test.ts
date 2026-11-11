@@ -8,13 +8,14 @@ import { describe, expect, it } from "vitest";
 
 const SRC = join(__dirname, "..");
 
-const FIXED_CONTENT: Record<string, string> = {
-  "app/layout.tsx": "JSON-LD and the error-reporting start-up script, both written by the app",
-  "app/ui/embed/layout.tsx": "a fixed style block",
-  "app/nanny/profiletest/ProfileTestClient.tsx": "fixed sample text",
-  "app/(public)/page.tsx": "JSON-LD",
-  "app/(public)/nannies/[id]/page.tsx": "JSON-LD with `<` escaped",
-  "app/(public)/pricing/page.tsx": "JSON-LD",
+/** File → what its raw-HTML renders may be: JSON-LD the app writes (with `<` escaped), or fixed text. */
+const FIXED_CONTENT: Record<string, RegExp> = {
+  "app/layout.tsx": /^JSON\.stringify\(\w+\)\.replace\(\/<\/g, ["']\\\\u003c["']\),?$/,
+  "app/ui/embed/layout.tsx": /^'\[class\*="z-\[9998\]"\]/,
+  "app/nanny/profiletest/ProfileTestClient.tsx": /^MOCK_[A-Z_]+ \}\}$/,
+  "app/(public)/page.tsx": /^JSON\.stringify\(\w+(\(\))?\)\.replace\(\/<\/g, ["']\\\\u003c["']\),?$/,
+  "app/(public)/nannies/[id]/page.tsx": /^JSON\.stringify\(\w+\)\.replace\(\/<\/g, ["']\\\\u003c["']\),?$/,
+  "app/(public)/pricing/page.tsx": /^JSON\.stringify\(\w+(\(\))?\)\.replace\(\/<\/g, ["']\\\\u003c["']\),?$/,
 };
 
 function sourceFiles(dir: string): string[] {
@@ -40,11 +41,15 @@ describe("raw-HTML renders", () => {
     expect(renders.filter((r) => r.path.endsWith("ParentNannyProfileView.tsx")).length).toBeGreaterThanOrEqual(7);
   });
 
-  it("render stored text only through safeHtml", () => {
+  it("render stored text only through safeHtml (or the listed fixed content)", () => {
     const open = renders
-      .filter((r) => !(r.path in FIXED_CONTENT))
       .filter((r) => !r.expr.startsWith("safeHtml("))
+      .filter((r) => !(FIXED_CONTENT[r.path]?.test(r.expr) ?? false))
       .map((r) => `${r.path}:${r.line} ${r.expr}`);
     expect(open).toEqual([]);
+  });
+
+  it("allows nothing else in a listed file (a profile render there goes through safeHtml too)", () => {
+    expect(FIXED_CONTENT["app/(public)/nannies/[id]/page.tsx"].test("nanny.ai_content.headline }}")).toBe(false);
   });
 });
