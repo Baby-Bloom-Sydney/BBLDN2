@@ -19,9 +19,9 @@ function sourceFiles(dir: string): string[] {
 
 /** The name the call's `error` lands in, or null when the result isn't bound with its error. */
 function errorBinding(line: string): string | null {
-  const gate = line.match(/const\s+(\w+)\s*=\s*await\s+requireAdmin\(\)/);
+  const gate = line.match(/const\s+(\w+)\s*=\s*await\s+requireAdmin\s*\(\s*\)/);
   if (gate) return `${gate[1]}.error`;
-  const destructured = line.match(/const\s*\{([^}]*)\}\s*=\s*await\s+requireAdmin\(\)/);
+  const destructured = line.match(/const\s*\{([^}]*)\}\s*=\s*await\s+requireAdmin\s*\(\s*\)/);
   if (!destructured) return null;
   const field = destructured[1].split(",").map((f) => f.trim()).find((f) => /^error\b/.test(f));
   if (!field) return null;
@@ -33,11 +33,14 @@ const calls = sourceFiles(SRC).flatMap((file) => {
   const lines = readFileSync(file, "utf8").split("\n");
   return lines.flatMap((line, i) => {
     // every call, in any form (a definition or a comment isn't one)
-    if (!/requireAdmin\(\)/.test(line) || /^\s*(\/\/|\*)/.test(line) || /function\s+requireAdmin\(/.test(line)) return [];
+    if (!/requireAdmin\s*\(/.test(line) || /^\s*(\/\/|\*)/.test(line) || /function\s+requireAdmin\s*\(/.test(line)) return [];
     const binding = errorBinding(line);
     const next = lines.slice(i + 1, i + 1 + LOOKAHEAD).join("\n");
-    // the check refuses on the error (not its negation)
-    const checked = binding !== null && new RegExp(`if\\s*\\(\\s*${binding.replace(".", "\\.")}\\b`).test(next);
+    // the check refuses when there is an error: `if (error)` or `if (error !== null || …)`, then a return, a not-found,
+    // a redirect or a throw
+    const name = binding?.replace(".", "\\.") ?? "";
+    const checked = binding !== null
+      && new RegExp(`if\\s*\\(\\s*${name}\\s*(!==\\s*null\\s*)?(\\)|\\|\\|)[\\s\\S]{0,240}?(return\\b|notFound\\(|redirect\\(|throw\\b)`).test(next);
     return [{ at: `${path}:${i + 1}`, line: line.trim(), checked }];
   });
 });

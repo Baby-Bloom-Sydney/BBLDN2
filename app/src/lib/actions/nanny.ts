@@ -705,7 +705,7 @@ export async function updateNannyAIContent(
     };
   }
 
-  // Deep-merge updates into existing ai_content (handles nested bio_summary); only the formatting tags are kept
+  // Deep-merge updates into existing ai_content (handles nested bio_summary); other tags, blocks and comments removed
   const existing = (nanny.ai_content as Record<string, unknown>) || {};
   const merged = { ...existing };
   for (const [key, value] of Object.entries(cleanHtmlDeep(updates))) {

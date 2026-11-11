@@ -88,7 +88,7 @@ describe("nanny-photo upload — who may upload", () => {
   });
 });
 
-describe("nanny-photo upload — the file rules are unchanged", () => {
+describe("nanny-photo upload — the file rules: an image, up to 10MB", () => {
   beforeEach(() => {
     admin.reads.nanny_leads = { id: LEAD };
   });

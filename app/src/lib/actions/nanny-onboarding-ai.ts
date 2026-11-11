@@ -102,7 +102,7 @@ export async function generateOnboardingAIContent(leadId: string): Promise<Gener
       nonSmoker: matching.non_smoker,
     });
 
-    // Build ai_content JSONB (only the formatting tags kept)
+    // Build ai_content JSONB (other tags, blocks and comments removed)
     const aiContent: Record<string, unknown> = cleanHtmlDeep({
       headline: sections.headline || '',
       parent_pitch: sections.bio || '',

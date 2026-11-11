@@ -36,14 +36,33 @@ const renders = sourceFiles(SRC).flatMap((file) => {
   }));
 });
 
+/** The whole expression is one `safeHtml(…)` call (nothing joined to it): "safeHtml(x) }}" yes, "safeHtml(a) + b }}" no. */
+function wholeSafeHtml(expr: string): boolean {
+  const body = expr.replace(/\s*\}\}\s*\/?>?\s*$/, "").trim();
+  if (!body.startsWith("safeHtml(")) return false;
+  let depth = 0;
+  for (let i = "safeHtml".length; i < body.length; i += 1) {
+    if (body[i] === "(") depth += 1;
+    if (body[i] === ")") depth -= 1;
+    if (depth === 0) return i === body.length - 1;
+  }
+  return false;
+}
+
 describe("raw-HTML renders", () => {
+  it("reads a whole safeHtml call, and nothing joined to it", () => {
+    expect(wholeSafeHtml("safeHtml(tagline.replace(/<\\/?p>/g, \"\")) }}")).toBe(true);
+    expect(wholeSafeHtml("safeHtml(aiAbout) }} />")).toBe(true);
+    expect(wholeSafeHtml("safeHtml(a) + b }}")).toBe(false);
+  });
+
   it("finds the profile renders (the scan works)", () => {
     expect(renders.filter((r) => r.path.endsWith("ParentNannyProfileView.tsx")).length).toBeGreaterThanOrEqual(7);
   });
 
   it("render stored text only through safeHtml (or the listed fixed content)", () => {
     const open = renders
-      .filter((r) => !r.expr.startsWith("safeHtml("))
+      .filter((r) => !wholeSafeHtml(r.expr))
       .filter((r) => !(FIXED_CONTENT[r.path]?.test(r.expr) ?? false))
       .map((r) => `${r.path}:${r.line} ${r.expr}`);
     expect(open).toEqual([]);

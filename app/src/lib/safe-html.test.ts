@@ -76,7 +76,7 @@ describe("cleanHtml — on write: the same tags, every other character as typed"
       .toBe("<p>Kids <5</p>2 > 1");
   });
 
-  it("leaves nothing a raw render would run", () => {
+  it("removes script and style blocks, comments and other tags", () => {
     const out = cleanHtml("<a href=\"javascript:alert(1)\">x</a><svg onload=1></svg><iframe src=y></iframe><style>p{}</style>");
     expect(out).toBe("x");
   });
@@ -148,5 +148,22 @@ describe("safeHtml / cleanHtml — the browser's own tag names, long input, non-
   it("returns an empty string for a value that isn't text", () => {
     expect(safeHtml({ x: 1 } as unknown as string)).toBe("");
     expect(safeHtml(12 as unknown as string)).toBe("");
+  });
+});
+
+describe("safeHtml / cleanHtml — long input ending in a block or a comment", () => {
+  it.each([["a comment", "<!---->"], ["a script block", "<script>"], ["a style block", "<style>x</style>"]])(
+    "stays linear when the text ends with %s",
+    (_name, end) => {
+      const input = "<a ".repeat(100_000) + end;
+      const started = performance.now();
+      safeHtml(input);
+      cleanHtml(input);
+      expect(performance.now() - started).toBeLessThan(1_000);
+    },
+  );
+
+  it("ends a tag name only where a browser does (a vertical tab is part of the name)", () => {
+    expect(safeHtml("<b\u000bx>bold?</b\u000bx>")).toBe("bold?");
   });
 });

@@ -4,10 +4,11 @@
  * script and style blocks and comments go.
  *
  * - `cleanHtml` (on write): only that — every other character stays as typed, including a `<` or `>` that starts no
- *   tag, so screens that show the text as plain text read what was typed.
+ *   tag, so screens that show the text as plain text read what was typed. Stored text is still treated as untrusted
+ *   (a session can write it directly): it is never rendered as HTML except through `safeHtml`.
  * - `safeHtml` (at every raw-HTML render): the same, and every other angle bracket escaped, so the only tags left are
  *   the ones it writes itself.
- * A tag name is read as a browser reads it (a letter, then anything up to a space, "/" or ">"). Every tag, block and
+ * A tag name is read as a browser reads it (a letter, then anything up to whitespace, "/" or ">"). Every tag, block and
  * comment ends at a ">", so the text after the last ">" is read as plain text: one pass, linear in the length.
  * Pure string functions, so they behave the same on the server and in the browser.
  */
@@ -16,7 +17,7 @@ const KEPT_TAGS = new Set(["p", "br", "strong", "b", "em", "i"]);
 
 const BLOCKS = /<(script|style)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/gi;
 const COMMENTS = /<!--[\s\S]*?(?:-->|$)/g;
-const TAG = /<(\/?)([a-zA-Z][^\s/>]*)[^>]*>/g;
+const TAG = /<(\/?)([a-zA-Z][^\t\n\f\r />]*)[^>]*>/g;
 
 function escapeText(text: string): string {
   return text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -31,7 +32,10 @@ function keptTag(closing: string, name: string): string {
 
 function rebuild(html: string, text: (s: string) => string): string {
   const end = html.lastIndexOf(">") + 1;
-  const source = html.slice(0, end).replace(BLOCKS, "").replace(COMMENTS, "");
+  const stripped = html.slice(0, end).replace(BLOCKS, "").replace(COMMENTS, "");
+  // a removed block or comment can take the last ">" with it: cut again, so every "<" scanned has a ">" after it
+  const cut = stripped.lastIndexOf(">") + 1;
+  const source = stripped.slice(0, cut);
   let out = "";
   let last = 0;
   for (const m of source.matchAll(TAG)) {
@@ -39,7 +43,7 @@ function rebuild(html: string, text: (s: string) => string): string {
     out += text(source.slice(last, at)) + keptTag(m[1], m[2]);
     last = at + m[0].length;
   }
-  return out + text(source.slice(last)) + text(html.slice(end));
+  return out + text(source.slice(last)) + text(stripped.slice(cut)) + text(html.slice(end));
 }
 
 /** At render: the kept tags, bare; everything else as text. A value that isn't text renders as nothing. */

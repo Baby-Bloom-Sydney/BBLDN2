@@ -92,7 +92,7 @@ beforeEach(() => {
 });
 
 describe("profile text writers store only the formatting tags", () => {
-  it("her own edit (updateNannyAIContent) — and the formatting she keeps is unchanged", async () => {
+  it("her own edit (updateNannyAIContent), keeping her formatting tags", async () => {
     const res = await updateNannyAIContent("nanny-1", {
       headline: `Calm ${BAD}`,
       bio_summary: { about: "<p>First</p><p>Second</p><script>x()</script>" },
