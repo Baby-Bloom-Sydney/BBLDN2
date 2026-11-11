@@ -535,6 +535,13 @@ async function applySendConnectionRequest(
           "You'll need to create a nanny position first. Open the Position section from your hub (or visit /parent/request) and tell us about your family's needs — it only takes a few minutes.",
       };
     }
+    if (result.error === CONNECTION_ERRORS.AT_LIMIT) {
+      return {
+        success: false,
+        error:
+          "You have 5 open requests. That's the most at one time. To connect with this nanny, please step back from one of your other requests first.",
+      };
+    }
     return {
       success: false,
       error: result.error ?? "Failed to send connection request.",

@@ -67,6 +67,9 @@ import {
 } from "@/lib/actions/position-funnel";
 import type { UpcomingIntro } from "@/lib/actions/position-funnel";
 import { ConnectionDetailPopup } from "@/components/position/ConnectionDetailPopup";
+import { BookingDaysLeftNote } from "@/components/connections/BookingDaysLeftNote";
+import { ExpiredConnectionCard } from "@/components/connections/ExpiredConnectionCard";
+import type { ExpiredConnection } from "@/lib/connections/expired-rows";
 import { cancelConnectionRequest } from "@/lib/actions/connection";
 import {
   cancelBabysittingRequest,
@@ -134,6 +137,10 @@ interface ParentHubClientProps {
   confirmedNannies?: ConfirmedNanny[];
   showFillButton?: boolean;
   upcomingIntros?: UpcomingIntro[];
+  /** Connections that ran out of time while she could see them (both lists; `source` tells which). */
+  expiredConnections?: ExpiredConnection[];
+  /** Her open requests, for the Connect form's limit. */
+  pendingRequestCount?: number;
   dfyTier?: "standard" | "priority" | null;
   dfyExpiresAt?: string | null;
   dfyActivated?: boolean;
@@ -298,6 +305,8 @@ export function ParentHubClient({
   confirmedNannies = [],
   showFillButton = false,
   upcomingIntros = [],
+  expiredConnections = [],
+  pendingRequestCount = 0,
   dfyTier = null,
   dfyExpiresAt = null,
   dfyActivated = false,
@@ -1323,6 +1332,12 @@ export function ParentHubClient({
                     const nonDfyIntros = upcomingIntros.filter(
                       (i) => i.source !== "dfy",
                     );
+                    const expiredFamily = expiredConnections.filter(
+                      (c) => c.source !== "dfy",
+                    );
+                    const expiredDfy = expiredConnections.filter(
+                      (c) => c.source === "dfy",
+                    );
                     return (
                       <div className="px-5 pb-5 pt-2">
                         <div className="flex items-center justify-between mb-3">
@@ -1558,6 +1573,12 @@ export function ParentHubClient({
                                       )}
 
                                       {!isScheduled && !isScheduling && (
+                                        <BookingDaysLeftNote
+                                          row={conn}
+                                          name={conn.nanny.firstName}
+                                        />
+                                      )}
+                                      {!isScheduled && !isScheduling && (
                                           <div className="flex gap-2">
                                             <Button
                                               size="sm"
@@ -1616,6 +1637,19 @@ export function ParentHubClient({
                           </div>
                         )}
 
+                        {/* Matched nannies whose time ran out: kept, with the reason */}
+                        {expiredDfy.length > 0 && (
+                          <div className="space-y-3 mb-2">
+                            {expiredDfy.map((c) => (
+                              <ExpiredConnectionCard
+                                key={c.connectionId}
+                                connection={c}
+                                pendingRequestCount={pendingRequestCount}
+                              />
+                            ))}
+                          </div>
+                        )}
+
                         {/* Connections */}
                         <div className="mt-5 pt-5 border-t border-slate-100">
                           <div className="flex items-center justify-between mb-3">
@@ -1635,7 +1669,8 @@ export function ParentHubClient({
                               </Link>
                             )}
                           </div>
-                          {nonDfyIntros.length === 0 ? (
+                          {nonDfyIntros.length === 0 &&
+                          expiredFamily.length === 0 ? (
                             <div className="text-center py-4">
                               <p className="text-sm text-slate-400">
                                 No connections yet
@@ -1698,6 +1733,11 @@ export function ParentHubClient({
                                               </span>
                                             )}
                                         </div>
+                                        <BookingDaysLeftNote
+                                          row={intro}
+                                          name={intro.otherPartyName.split(" ")[0]}
+                                          className="mt-0.5 text-xs text-slate-500"
+                                        />
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -1711,6 +1751,13 @@ export function ParentHubClient({
                                   </div>
                                 );
                               })}
+                              {expiredFamily.map((c) => (
+                                <ExpiredConnectionCard
+                                  key={c.connectionId}
+                                  connection={c}
+                                  pendingRequestCount={pendingRequestCount}
+                                />
+                              ))}
                             </div>
                           )}
                         </div>

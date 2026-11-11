@@ -50,6 +50,8 @@ export interface DfyConnection {
   connectionStage: number;
   proposedTimes: string[] | null;
   confirmedTime: string | null;
+  /** Her answer's window (the family's days left to book). */
+  expiresAt: string | null;
   matchScore: number;
   distanceKm: number | null;
   breakdown: {
@@ -738,7 +740,7 @@ export async function getDfyConnections(
   // Get DFY connections (source='dfy') for this position — exclude cancelled/declined
   const { data: connections, error } = await adminClient
     .from('connection_requests')
-    .select('id, nanny_id, connection_stage, proposed_times, confirmed_time, position_id')
+    .select('id, nanny_id, connection_stage, proposed_times, confirmed_time, expires_at, position_id')
     .eq('position_id', positionId)
     .eq('source', 'dfy')
     .not('connection_stage', 'in', `(${[...HIDDEN_CONNECTION_STAGES, CONNECTION_STAGE.ACTIVE].join(',')})`)
@@ -813,6 +815,7 @@ export async function getDfyConnections(
       connectionStage: c.connection_stage,
       proposedTimes: c.proposed_times,
       confirmedTime: c.confirmed_time,
+      expiresAt: c.expires_at ?? null,
       matchScore: notification?.match_score ?? 0,
       distanceKm: notification?.distance_km ?? null,
       breakdown: bd ?? null,

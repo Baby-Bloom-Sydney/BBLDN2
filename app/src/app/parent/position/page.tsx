@@ -3,6 +3,7 @@ import { AlertCircle } from "lucide-react";
 import { getPosition, PositionWithChildren } from "@/lib/actions/parent";
 import { getParentPlacement, getConfirmedConnections, getParentUpcomingIntros } from "@/lib/actions/position-funnel";
 import { getDfyStatus } from "@/lib/actions/matching";
+import { getParentExpiredConnections, getParentOpenRequestCount } from "@/lib/actions/expired-connections";
 import { getParentBabysittingRequests } from "@/lib/actions/babysitting";
 import { POSITION_STAGE } from "@/lib/position/constants";
 import { PositionPageClient } from "./PositionPageClient";
@@ -20,12 +21,14 @@ export default async function ParentPositionPage() {
   }
 
   // Fetch placement + confirmed connections for Path B + upcoming intros
-  const [placementResult, connectionsResult, introsResult, dfyStatusResult, bsrResult] = await Promise.all([
+  const [placementResult, connectionsResult, introsResult, dfyStatusResult, bsrResult, expiredResult, pendingRequestCount] = await Promise.all([
     getParentPlacement(),
     position?.id ? getConfirmedConnections(position.id) : Promise.resolve({ data: [], error: null }),
     getParentUpcomingIntros(),
     getDfyStatus(),
     getParentBabysittingRequests(),
+    getParentExpiredConnections(),
+    getParentOpenRequestCount(),
   ]);
 
   const placement = placementResult.data;
@@ -64,6 +67,8 @@ export default async function ParentPositionPage() {
         confirmedNannies={confirmedNannies}
         showFillButton={!!showFillButton}
         upcomingIntros={upcomingIntros}
+        expiredConnections={expiredResult.data}
+        pendingRequestCount={pendingRequestCount}
         dfyTier={dfyTier}
         dfyExpiresAt={dfyExpiresAt}
         dfyActivated={dfyActivated}

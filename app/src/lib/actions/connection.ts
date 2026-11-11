@@ -301,12 +301,9 @@ export async function createConnectionRequest(
     .eq("parent_id", parentId)
     .eq("status", "pending");
 
+  // the modal and the assistant show the limit message for this code
   if (count !== null && count >= 5) {
-    return {
-      success: false,
-      error:
-        "You have reached the maximum of 5 open connection requests. Wait for a response or cancel an existing request.",
-    };
+    return { success: false, error: CONNECTION_ERRORS.AT_LIMIT };
   }
 
   // No duplicate with same nanny (exclude terminal stages so parents can reconnect)

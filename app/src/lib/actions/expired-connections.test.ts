@@ -44,6 +44,12 @@ describe("the family's expired connections and open requests", () => {
     expect(filters).toEqual([["parent_id", "p1"], ["status", "pending"]]);
   });
 
+  it("never throws: a failed read gives nothing and the count 0", async () => {
+    h.counting = { from: () => { throw new Error("down"); } };
+    expect(await getParentExpiredConnections()).toEqual({ data: [], error: "Failed to read expired connections." });
+    expect(await getParentOpenRequestCount()).toBe(0);
+  });
+
   it("gives nothing to someone who isn't a family", async () => {
     h.parentId = null;
     expect(await getParentExpiredConnections()).toEqual({ data: [], error: "Not authenticated as parent" });

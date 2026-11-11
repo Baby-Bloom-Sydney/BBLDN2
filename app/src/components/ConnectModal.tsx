@@ -79,7 +79,7 @@ function AtLimitView({ firstName, onClose }: AtLimitViewProps) {
           Not now
         </Button>
         <Button asChild className="flex-1 bg-violet-600 hover:bg-violet-700">
-          <Link href={CONNECTIONS_HREF}>See my requests</Link>
+          <Link href={CONNECTIONS_HREF} onClick={onClose}>See my requests</Link>
         </Button>
       </div>
     </div>

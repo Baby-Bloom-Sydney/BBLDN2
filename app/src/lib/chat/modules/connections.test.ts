@@ -1558,6 +1558,16 @@ describe("connections module — propose_send_connection_request", () => {
       expect(r.tile.data.id).toBe("new-c1");
     }
   });
+
+  it("apply says the limit in words when the server refuses at 5 open requests", async () => {
+    vi.mocked(getParentConnectionRequests).mockResolvedValue({ data: [], error: null });
+    vi.mocked(createConnectionRequest).mockResolvedValue({ success: false, error: "AT_LIMIT" });
+    const r = await connectionsModule.execute("apply_send_connection_request", { nanny_id: "n-new" }, makeCtx("parent"));
+    expect(r.success).toBe(false);
+    expect(r.error).toBe(
+      "You have 5 open requests. That's the most at one time. To connect with this nanny, please step back from one of your other requests first.",
+    );
+  });
 });
 
 describe("read_connection_inbox.isPrefulfilled", () => {

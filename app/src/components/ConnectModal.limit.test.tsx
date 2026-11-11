@@ -85,6 +85,14 @@ describe("ConnectModal — limit view at 5 open requests", () => {
     expect(link).toHaveAttribute("href", "/parent?t=childcare&s=connections");
   });
 
+  it("closes the modal when 'See my requests' is followed (the list can be on the same page)", () => {
+    const { onClose } = renderModal(5);
+
+    fireEvent.click(screen.getByRole("link", { name: "See my requests" }));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("closes the modal from 'Not now'", () => {
     const { onClose } = renderModal(5);
 
