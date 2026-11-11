@@ -105,10 +105,10 @@ const accepted: Intro = {
   connectionStage: 10, fillInitiatedBy: null, trialDate: null, startDate: null, status: "accepted", proposedTimes: null, message: null,
   expiresAt: inDays(3), nannyPhoneShared: null, positionId: null, position: null, source: "parent", nannyId: "nanny-robin",
 };
-const dfyAccepted = {
+const dfyAccepted: unknown = {
   connectionId: "dfy-10", notificationId: "n1", nannyId: "nanny-dana", connectionStage: 10, proposedTimes: null, confirmedTime: null,
   expiresAt: inDays(2), matchScore: 80, distanceKm: 2, breakdown: null, overQualifiedBonuses: [], unmetRequirements: [],
-  nanny: { firstName: "Dana", lastName: "Fox", suburb: "Islington", profilePicUrl: null, hourlyRateMin: 20, experienceYears: 4, aiHeadline: null, age: 30, wwccVerified: true, schedule: null },
+  nanny: { firstName: "Dana", lastName: "Fox", suburb: "Islington", profilePicUrl: null, hourlyRateMin: 20, experienceYears: 4, aiHeadline: null, age: 30, schedule: null },
 };
 const expired = (id: string, first: string, source: string, because: "no_reply" | "not_booked"): Expired => ({
   connectionId: id, nannyId: `nanny-${first}`, nannyFirstName: first, nannyName: `${first} Hart`, nannySuburb: "Bow", nannyPhoto: null, source, expiredBecause: because,
