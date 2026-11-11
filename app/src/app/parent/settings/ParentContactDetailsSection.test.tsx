@@ -95,6 +95,7 @@ describe("Contact details — edit", () => {
     await save();
     expect(screen.getByRole("alert")).toHaveTextContent(STALE);
     expect(screen.getByRole("button", { name: "Edit contact details" })).toBeInTheDocument();
+    expect(refresh).toHaveBeenCalled();
   });
 
   it("the server's refusal by field shows under the field", async () => {

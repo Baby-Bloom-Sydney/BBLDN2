@@ -67,6 +67,8 @@ describe("updateParentAccountSettings — the version she loaded", () => {
       { last_name: "Hartley-Reed", expected_updated_at: 7 },
       { last_name: "Hartley-Reed", expected_updated_at: {} },
       { last_name: "Hartley-Reed", expected_updated_at: "x".repeat(65) },
+      { last_name: "Hartley-Reed", expected_updated_at: "x" },
+      { last_name: "Hartley-Reed", expected_updated_at: "not a time" },
       null,
       "x",
     ]) {

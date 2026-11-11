@@ -43,7 +43,9 @@ const STALE: UpdateParentAccountResult = { success: false, error: EDIT_MESSAGES.
 const FAILED: UpdateParentAccountResult = { success: false, error: "Failed to update account info" };
 const SAVED: UpdateParentAccountResult = { success: true, error: null };
 
-const isVersion = (value: unknown): value is string | null => value === null || (typeof value === "string" && value.length <= 64);
+/** The version she loaded: null, or a timestamp (at most 64 characters); anything else is refused before a read. */
+const isVersion = (value: unknown): value is string | null =>
+  value === null || (typeof value === "string" && value.length <= 64 && !Number.isNaN(Date.parse(value)));
 
 /** The keys she sent, and only those; null when an area part isn't text. */
 function narrow(data: Readonly<Record<string, unknown>>): ParentProfileInput | null {

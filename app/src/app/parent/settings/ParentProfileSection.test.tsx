@@ -204,6 +204,17 @@ describe("Profile — Save", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
+  it("stale: once the page has the latest, the rows show it", async () => {
+    updateParentAccountSettings.mockResolvedValueOnce({ success: false, error: STALE, code: "stale" });
+    const { rerender } = show();
+    edit();
+    type("Last name", "Hartley-Reed");
+    await save();
+    rerender(<ParentProfileSection title="Profile" profile={{ ...OLIVIA, last_name: "Reed" }} />);
+    expect(screen.getByText("Olivia Reed")).toBeInTheDocument();
+    expect(screen.queryByText("Olivia Hartley-Reed")).toBeNull();
+  });
+
   it("offline (the save throws): the give-up message, still editing", async () => {
     updateParentAccountSettings.mockRejectedValueOnce(new Error("Failed to fetch"));
     show();
