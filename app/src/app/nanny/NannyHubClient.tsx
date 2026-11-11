@@ -72,6 +72,7 @@ import {
   BADGE_ICONS,
 } from "@/components/profile/profile-helpers";
 import { CERTIFICATE_OPTIONS, byOptionOrder } from "@/lib/nanny-options";
+import { safeHtml } from "@/lib/safe-html";
 
 const KNOWN_CERTIFICATES: readonly string[] = CERTIFICATE_OPTIONS;
 
@@ -469,7 +470,7 @@ export function NannyHubClient({
           {headline && (
             <div
               className="mt-3 text-sm text-slate-600 leading-relaxed [&_p]:mb-0"
-              dangerouslySetInnerHTML={{ __html: headline }}
+              dangerouslySetInnerHTML={{ __html: safeHtml(headline) }}
             />
           )}
 
@@ -555,7 +556,7 @@ export function NannyHubClient({
                   {aiAbout && (
                     <div
                       className="text-sm text-slate-600 leading-relaxed [&_p]:mb-2 [&_p:last-child]:mb-0"
-                      dangerouslySetInnerHTML={{ __html: aiAbout }}
+                      dangerouslySetInnerHTML={{ __html: safeHtml(aiAbout) }}
                     />
                   )}
                   {p.motivation && (
@@ -583,7 +584,7 @@ export function NannyHubClient({
                   {aiPersonality && (
                     <div
                       className="text-sm text-slate-600 leading-relaxed mb-3 [&_p]:mb-2 [&_p:last-child]:mb-0"
-                      dangerouslySetInnerHTML={{ __html: aiPersonality }}
+                      dangerouslySetInnerHTML={{ __html: safeHtml(aiPersonality) }}
                     />
                   )}
                   {p.personality_traits && p.personality_traits.length > 0 && (
@@ -612,7 +613,7 @@ export function NannyHubClient({
                   {aiValues && (
                     <div
                       className="text-sm text-slate-600 leading-relaxed mb-3 [&_p]:mb-2 [&_p:last-child]:mb-0"
-                      dangerouslySetInnerHTML={{ __html: aiValues }}
+                      dangerouslySetInnerHTML={{ __html: safeHtml(aiValues) }}
                     />
                   )}
                   {p.professional_values &&
@@ -642,7 +643,7 @@ export function NannyHubClient({
                   {aiWhatIOffer && (
                     <div
                       className="text-sm text-slate-600 leading-relaxed mb-3 [&_p]:mb-2 [&_p:last-child]:mb-0"
-                      dangerouslySetInnerHTML={{ __html: aiWhatIOffer }}
+                      dangerouslySetInnerHTML={{ __html: safeHtml(aiWhatIOffer) }}
                     />
                   )}
                   <div className="flex flex-wrap gap-1.5">
@@ -683,7 +684,7 @@ export function NannyHubClient({
                 {aiExperience && (
                   <div
                     className="text-sm text-slate-600 leading-relaxed mb-4 [&_p]:mb-2 [&_p:last-child]:mb-0"
-                    dangerouslySetInnerHTML={{ __html: aiExperience }}
+                    dangerouslySetInnerHTML={{ __html: safeHtml(aiExperience) }}
                   />
                 )}
                 {!aiExperience &&
@@ -730,7 +731,7 @@ export function NannyHubClient({
                   {aiBackground && (
                     <div
                       className="text-sm text-slate-600 leading-relaxed mb-4 [&_p]:mb-2 [&_p:last-child]:mb-0"
-                      dangerouslySetInnerHTML={{ __html: aiBackground }}
+                      dangerouslySetInnerHTML={{ __html: safeHtml(aiBackground) }}
                     />
                   )}
                   {p.highest_qualification && (

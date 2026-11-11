@@ -49,6 +49,7 @@ import {
 } from "@/components/profile/profile-helpers";
 import type { FunnelSource } from "@/lib/funnel/source";
 import { CERTIFICATE_OPTIONS, byOptionOrder } from "@/lib/nanny-options";
+import { safeHtml } from "@/lib/safe-html";
 
 const KNOWN_CERTIFICATES: readonly string[] = CERTIFICATE_OPTIONS;
 
@@ -310,7 +311,7 @@ export function ParentNannyProfileView({
           {headline && (
             <div
               className="mt-3 text-sm text-slate-600 leading-relaxed [&_p]:mb-0"
-              dangerouslySetInnerHTML={{ __html: headline }}
+              dangerouslySetInnerHTML={{ __html: safeHtml(headline) }}
             />
           )}
 
@@ -476,7 +477,7 @@ export function ParentNannyProfileView({
               {aiAbout && (
                 <div
                   className="text-sm text-slate-600 leading-relaxed [&_p]:mb-2 [&_p:last-child]:mb-0"
-                  dangerouslySetInnerHTML={{ __html: aiAbout }}
+                  dangerouslySetInnerHTML={{ __html: safeHtml(aiAbout) }}
                 />
               )}
               {nanny.motivation && (
@@ -505,7 +506,7 @@ export function ParentNannyProfileView({
               {aiPersonality && (
                 <div
                   className="text-sm text-slate-600 leading-relaxed mb-3 [&_p]:mb-2 [&_p:last-child]:mb-0"
-                  dangerouslySetInnerHTML={{ __html: aiPersonality }}
+                  dangerouslySetInnerHTML={{ __html: safeHtml(aiPersonality) }}
                 />
               )}
               {nanny.personality_traits &&
@@ -535,7 +536,7 @@ export function ParentNannyProfileView({
               {aiValues && (
                 <div
                   className="text-sm text-slate-600 leading-relaxed mb-3 [&_p]:mb-2 [&_p:last-child]:mb-0"
-                  dangerouslySetInnerHTML={{ __html: aiValues }}
+                  dangerouslySetInnerHTML={{ __html: safeHtml(aiValues) }}
                 />
               )}
               {nanny.professional_values &&
@@ -565,7 +566,7 @@ export function ParentNannyProfileView({
               {aiWhatIOffer && (
                 <div
                   className="text-sm text-slate-600 leading-relaxed mb-3 [&_p]:mb-2 [&_p:last-child]:mb-0"
-                  dangerouslySetInnerHTML={{ __html: aiWhatIOffer }}
+                  dangerouslySetInnerHTML={{ __html: safeHtml(aiWhatIOffer) }}
                 />
               )}
               <div className="flex flex-wrap gap-1.5">
@@ -599,7 +600,7 @@ export function ParentNannyProfileView({
             {aiExperience && (
               <div
                 className="text-sm text-slate-600 leading-relaxed mb-4 [&_p]:mb-2 [&_p:last-child]:mb-0"
-                dangerouslySetInnerHTML={{ __html: aiExperience }}
+                dangerouslySetInnerHTML={{ __html: safeHtml(aiExperience) }}
               />
             )}
             {!aiExperience &&
@@ -647,7 +648,7 @@ export function ParentNannyProfileView({
               {aiBackground && (
                 <div
                   className="text-sm text-slate-600 leading-relaxed mb-4 [&_p]:mb-2 [&_p:last-child]:mb-0"
-                  dangerouslySetInnerHTML={{ __html: aiBackground }}
+                  dangerouslySetInnerHTML={{ __html: safeHtml(aiBackground) }}
                 />
               )}
               {nanny.highest_qualification && (

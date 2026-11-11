@@ -62,6 +62,7 @@ export function N3Photos({ state, dispatch, goNext, goBack, progress, questionNu
             Profile picture <span className="text-red-400">*</span>
           </label>
           <PhotoUpload
+            leadId={state.leadId}
             value={about_you.profile_picture_url}
             onChange={(url) => update({ profile_picture_url: url })}
             label="Profile photo"
@@ -78,16 +79,19 @@ export function N3Photos({ state, dispatch, goNext, goBack, progress, questionNu
           </label>
           <div className="grid grid-cols-3 gap-3 w-full max-w-xs">
             <PhotoUpload
+              leadId={state.leadId}
               value={about_you.photo_1_url}
               onChange={(url) => update({ photo_1_url: url })}
               label="Photo 1"
             />
             <PhotoUpload
+              leadId={state.leadId}
               value={about_you.photo_2_url}
               onChange={(url) => update({ photo_2_url: url })}
               label="Photo 2"
             />
             <PhotoUpload
+              leadId={state.leadId}
               value={about_you.photo_3_url}
               onChange={(url) => update({ photo_3_url: url })}
               label="Photo 3"

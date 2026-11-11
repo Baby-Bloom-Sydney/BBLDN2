@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/admin/require-admin";
+import { notFound } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatAuDate } from "@/lib/format/date";
 import { AdminSubscriptionsClient } from "./AdminSubscriptionsClient";
@@ -26,7 +27,8 @@ import { PRICES } from "@/config/prices";
  * This file is the data-loading + counters server component.
  */
 export default async function AdminSubscriptionsPage() {
-  await requireAdmin();
+  const gate = await requireAdmin();
+  if (gate.error) notFound();
   const admin = createAdminClient();
 
   const [

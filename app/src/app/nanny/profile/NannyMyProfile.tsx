@@ -74,6 +74,7 @@ import { checkAllFields } from "@/lib/profanity";
 import { QUALIFICATION_LADDER, CERTIFICATE_OPTIONS, ASSURANCE_OPTIONS, byOptionOrder } from "@/lib/nanny-options";
 import { qualificationBadgeLabel } from "@/lib/matching/qualification-display";
 import { showsEnhancedDbsBadge } from "@/lib/dbs/nanny-display";
+import { safeHtml } from "@/lib/safe-html";
 
 // ── Option constants ──
 
@@ -972,7 +973,7 @@ export function NannyMyProfile({ profile }: { profile: NannyProfile }) {
           ) : headline ? (
             <div
               className="mt-3 text-sm text-slate-600 leading-relaxed [&_p]:mb-0"
-              dangerouslySetInnerHTML={{ __html: headline }}
+              dangerouslySetInnerHTML={{ __html: safeHtml(headline) }}
             />
           ) : null}
 
@@ -1039,7 +1040,7 @@ export function NannyMyProfile({ profile }: { profile: NannyProfile }) {
               {editMode && aiAbout ? (
                 <EditableSection html={aiAbout} editValue={aiEdits["bio_summary.about"]} onEdit={(v) => setAiEdit("bio_summary.about", v)} />
               ) : aiAbout ? (
-                <div className="text-sm text-slate-600 leading-relaxed [&_p]:mb-2 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: aiAbout }} />
+                <div className="text-sm text-slate-600 leading-relaxed [&_p]:mb-2 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: safeHtml(aiAbout) }} />
               ) : null}
               {editMode ? (
                 <div className="mt-3 space-y-2">
@@ -1086,7 +1087,7 @@ export function NannyMyProfile({ profile }: { profile: NannyProfile }) {
               {editMode && aiPersonality ? (
                 <EditableSection html={aiPersonality} editValue={aiEdits["bio_summary.personality"]} onEdit={(v) => setAiEdit("bio_summary.personality", v)} />
               ) : aiPersonality ? (
-                <div className="text-sm text-slate-600 leading-relaxed mb-3 [&_p]:mb-2 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: aiPersonality }} />
+                <div className="text-sm text-slate-600 leading-relaxed mb-3 [&_p]:mb-2 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: safeHtml(aiPersonality) }} />
               ) : null}
               {editMode ? (
                 <div className="mt-3">
@@ -1113,7 +1114,7 @@ export function NannyMyProfile({ profile }: { profile: NannyProfile }) {
               {editMode && aiValues ? (
                 <EditableSection html={aiValues} editValue={aiEdits["bio_summary.values"]} onEdit={(v) => setAiEdit("bio_summary.values", v)} />
               ) : aiValues ? (
-                <div className="text-sm text-slate-600 leading-relaxed mb-3 [&_p]:mb-2 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: aiValues }} />
+                <div className="text-sm text-slate-600 leading-relaxed mb-3 [&_p]:mb-2 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: safeHtml(aiValues) }} />
               ) : null}
               {editMode ? (
                 <div className="mt-3">
@@ -1140,7 +1141,7 @@ export function NannyMyProfile({ profile }: { profile: NannyProfile }) {
               {editMode && aiWhatIOffer ? (
                 <EditableSection html={aiWhatIOffer} editValue={aiEdits["bio_summary.what_i_offer"]} onEdit={(v) => setAiEdit("bio_summary.what_i_offer", v)} />
               ) : aiWhatIOffer ? (
-                <div className="text-sm text-slate-600 leading-relaxed mb-3 [&_p]:mb-2 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: aiWhatIOffer }} />
+                <div className="text-sm text-slate-600 leading-relaxed mb-3 [&_p]:mb-2 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: safeHtml(aiWhatIOffer) }} />
               ) : null}
               {editMode ? (
                 <div className="mt-3 space-y-3">
@@ -1183,7 +1184,7 @@ export function NannyMyProfile({ profile }: { profile: NannyProfile }) {
             {editMode && aiExperience ? (
               <EditableSection html={aiExperience} editValue={aiEdits["experience_summary"]} onEdit={(v) => setAiEdit("experience_summary", v)} />
             ) : aiExperience ? (
-              <div className="text-sm text-slate-600 leading-relaxed mb-4 [&_p]:mb-2 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: aiExperience }} />
+              <div className="text-sm text-slate-600 leading-relaxed mb-4 [&_p]:mb-2 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: safeHtml(aiExperience) }} />
             ) : !editMode && profile.total_experience_years ? (
               <div className="space-y-1 text-sm text-slate-600 mb-4">
                 {profile.total_experience_years != null && <p>{profile.total_experience_years} years total childcare experience</p>}
@@ -1241,7 +1242,7 @@ export function NannyMyProfile({ profile }: { profile: NannyProfile }) {
             {editMode && aiBackground ? (
               <EditableSection html={aiBackground} editValue={aiEdits["bio_summary.background"]} onEdit={(v) => setAiEdit("bio_summary.background", v)} />
             ) : aiBackground ? (
-              <div className="text-sm text-slate-600 leading-relaxed mb-4 [&_p]:mb-2 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: aiBackground }} />
+              <div className="text-sm text-slate-600 leading-relaxed mb-4 [&_p]:mb-2 [&_p:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: safeHtml(aiBackground) }} />
             ) : null}
             {editMode ? (
               <div className="mt-3 space-y-4">

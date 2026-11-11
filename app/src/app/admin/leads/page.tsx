@@ -4,6 +4,7 @@
 
 import { Suspense } from "react";
 import { requireAdmin } from "@/lib/admin/require-admin";
+import { notFound } from "next/navigation";
 import { fetchLeads, fetchLeadsAggregateStats } from "@/lib/leads/fetch-leads";
 import { fetchLeadDetail } from "@/lib/leads/fetch-lead-detail";
 import { fetchActivityTimeline } from "@/lib/leads/timeline";
@@ -19,7 +20,8 @@ interface AdminLeadsPageProps {
 export default async function AdminLeadsPage({
   searchParams,
 }: AdminLeadsPageProps) {
-  await requireAdmin();
+  const gate = await requireAdmin();
+  if (gate.error) notFound();
 
   const state = parseLeadQueryState(searchParams ?? {});
   const openLeadId = (() => {

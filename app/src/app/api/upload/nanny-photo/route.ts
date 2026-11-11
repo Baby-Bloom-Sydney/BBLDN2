@@ -1,13 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
 
 const BUCKET = 'profile-pictures';
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** An applicant's lead with no account yet, or a signed-in nanny. */
+async function mayUpload(admin: ReturnType<typeof createAdminClient>, leadId: unknown): Promise<boolean> {
+  if (typeof leadId === 'string' && UUID.test(leadId)) {
+    const { data: lead } = await admin
+      .from('nanny_leads')
+      .select('id')
+      .eq('id', leadId)
+      .is('auth_user_id', null)
+      .maybeSingle();
+    if (lead) return true;
+  }
+  const { data: { user } } = await createClient().auth.getUser();
+  if (!user) return false;
+  const { data: nanny } = await admin.from('nannies').select('id').eq('user_id', user.id).maybeSingle();
+  return Boolean(nanny);
+}
 
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
-    const leadId = formData.get('leadId') as string | null;
+    const adminClient = createAdminClient();
+
+    if (!(await mayUpload(adminClient, formData.get('leadId')))) {
+      return NextResponse.json({ error: 'Not allowed to upload' }, { status: 401 });
+    }
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -22,10 +45,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Image must be under 10MB' }, { status: 400 });
     }
 
-    const adminClient = createAdminClient();
-
-    // Use leadId as folder (funnel runs before auth account exists)
-    const folder = leadId || 'anonymous';
+    // One folder for every funnel photo: the lead id never goes in a path in this public bucket
+    const folder = 'anonymous';
     const timestamp = Date.now();
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const filePath = `leads/${folder}/${timestamp}-${safeName}`;

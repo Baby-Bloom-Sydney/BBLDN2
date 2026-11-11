@@ -143,3 +143,33 @@ describe('convertLeadToAccount — ACC-001 welcome email (W6-D1)', () => {
     expect(welcome?.html).not.toContain('WW' + 'CC');
   });
 });
+
+describe('convertLeadToAccount — profile text', () => {
+  it('copies the lead\'s profile text with only the formatting tags kept', async () => {
+    h.lead = {
+      ...leadWith({ residency_status: 'settled', right_to_work: true }, {}),
+      ai_bio: 'Pitch<br><img src=x onerror=alert(1)>',
+      ai_content: { headline: 'Warm <script>x()</script>', bio_summary: { about: '<p>About</p><svg onload=1></svg>' } },
+    };
+    const res = await convertLeadToAccount('lead-1', 'pw-123456');
+    expect(res.success).toBe(true);
+    const [nanny] = insertsInto('nannies');
+    expect(nanny.ai_bio).toBe('Pitch<br>');
+    expect(nanny.ai_content).toEqual({ headline: 'Warm ', bio_summary: { about: '<p>About</p>' } });
+  });
+});
+
+describe('convertLeadToAccount — profile text typed with < and >', () => {
+  it('copies it exactly as typed', async () => {
+    h.lead = {
+      ...leadWith({ residency_status: 'settled', right_to_work: true }, {}),
+      ai_bio: 'Pitch <3',
+      ai_content: { headline: 'Kids <5 · 2 > 1', bio_summary: { about: '<p>Kids <5</p>' } },
+    };
+    const res = await convertLeadToAccount('lead-1', 'pw-123456');
+    expect(res.success).toBe(true);
+    const [nanny] = insertsInto('nannies');
+    expect(nanny.ai_bio).toBe('Pitch <3');
+    expect(nanny.ai_content).toEqual({ headline: 'Kids <5 · 2 > 1', bio_summary: { about: '<p>Kids <5</p>' } });
+  });
+});

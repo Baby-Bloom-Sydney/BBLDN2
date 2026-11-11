@@ -8,10 +8,9 @@ import { activateDfyPosition } from "@/lib/matching/dfy-dispatch";
  * creation write path. A failed blast must NOT roll back the position the
  * parent just paid the cost (form completion / payment / etc.) to create.
  *
- * Used by the three position-creation seams documented in
+ * Used by the position-creation seams documented in
  * `system/matchmaking/AUTOFIRE/planning2building-handoff.md` §1b:
  *   - `signUpAndConvertLead` (advanced funnel)
- *   - `createPosition` (logged-in dashboard create)
  *   - `saveTypeformPosition` (logged-in dashboard typeform create branch only)
  */
 export async function autofireMatchmaking(positionId: string): Promise<void> {

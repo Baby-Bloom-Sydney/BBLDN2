@@ -17,7 +17,8 @@ import { payoutsEnabled } from "@/lib/payments/flags";
 export default async function AdminNannyPayoutsPage() {
   // 4a-i (P-23): hidden unless PAYOUTS_ENABLED — 404 before any auth or data read.
   if (!payoutsEnabled()) notFound();
-  await requireAdmin();
+  const gate = await requireAdmin();
+  if (gate.error) notFound();
   const admin = createAdminClient();
 
   const now = new Date();

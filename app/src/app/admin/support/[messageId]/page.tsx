@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/admin/require-admin";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,7 +18,8 @@ export default async function AdminSupportMessagePage({
 }: {
   params: { messageId: string };
 }) {
-  await requireAdmin();
+  const gate = await requireAdmin();
+  if (gate.error) notFound();
   const admin = createAdminClient();
 
   const { data: msg } = await admin

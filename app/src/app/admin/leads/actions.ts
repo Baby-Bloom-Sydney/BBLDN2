@@ -108,7 +108,8 @@ export async function logContact(
 ): Promise<ActionResult<{ id: string }>> {
   try {
     const input = logContactSchema.parse(rawInput);
-    const { userId } = await requireAdmin();
+    const { userId, error: authError } = await requireAdmin();
+    if (authError) return { success: false, error: authError };
     const operator = await deriveOperatorHandle(userId);
     const supa = createAdminClient();
 
@@ -144,7 +145,8 @@ export async function logContact(
 export async function editLogEntry(rawInput: unknown): Promise<ActionResult> {
   try {
     const input = editLogEntrySchema.parse(rawInput);
-    const { userId } = await requireAdmin();
+    const { userId, error: authError } = await requireAdmin();
+    if (authError) return { success: false, error: authError };
     const operator = await deriveOperatorHandle(userId);
     const supa = createAdminClient();
 
@@ -197,7 +199,8 @@ export async function updateLeadStatus(
 ): Promise<ActionResult> {
   try {
     const input = updateLeadStatusSchema.parse(rawInput);
-    await requireAdmin();
+    const gate = await requireAdmin();
+    if (gate.error) return { success: false, error: gate.error };
     const supa = createAdminClient();
     const { error } = await supa
       .from("nanny_contact_state")
@@ -233,7 +236,8 @@ const setNextActionSchema = z.object({
 export async function setNextAction(rawInput: unknown): Promise<ActionResult> {
   try {
     const input = setNextActionSchema.parse(rawInput);
-    await requireAdmin();
+    const gate = await requireAdmin();
+    if (gate.error) return { success: false, error: gate.error };
     const result = await upsertContactState(input.nanny_user_id, {
       next_action_at: input.next_action_at,
     });
@@ -252,7 +256,8 @@ const pinNoteSchema = z.object({
 export async function pinNote(rawInput: unknown): Promise<ActionResult> {
   try {
     const input = pinNoteSchema.parse(rawInput);
-    await requireAdmin();
+    const gate = await requireAdmin();
+    if (gate.error) return { success: false, error: gate.error };
     const result = await upsertContactState(input.nanny_user_id, {
       pinned_note: input.pinned_note,
     });
@@ -273,7 +278,8 @@ export async function updateContactsOffset(
 ): Promise<ActionResult> {
   try {
     const input = updateContactsOffsetSchema.parse(rawInput);
-    await requireAdmin();
+    const gate = await requireAdmin();
+    if (gate.error) return { success: false, error: gate.error };
     const result = await upsertContactState(input.nanny_user_id, {
       total_contacts_manual_offset: input.offset,
     });
@@ -294,7 +300,8 @@ export async function overrideResponded(
 ): Promise<ActionResult> {
   try {
     const input = overrideRespondedSchema.parse(rawInput);
-    await requireAdmin();
+    const gate = await requireAdmin();
+    if (gate.error) return { success: false, error: gate.error };
     const result = await upsertContactState(input.nanny_user_id, {
       responded_ever_override: input.value,
     });
@@ -313,7 +320,8 @@ const assignOperatorSchema = z.object({
 export async function assignOperator(rawInput: unknown): Promise<ActionResult> {
   try {
     const input = assignOperatorSchema.parse(rawInput);
-    await requireAdmin();
+    const gate = await requireAdmin();
+    if (gate.error) return { success: false, error: gate.error };
     const result = await upsertContactState(input.nanny_user_id, {
       assigned_operator: input.operator,
     });
@@ -332,7 +340,8 @@ const upsertNotesSchema = z.object({
 export async function upsertNotes(rawInput: unknown): Promise<ActionResult> {
   try {
     const input = upsertNotesSchema.parse(rawInput);
-    const { userId } = await requireAdmin();
+    const { userId, error: authError } = await requireAdmin();
+    if (authError) return { success: false, error: authError };
     const operator = await deriveOperatorHandle(userId);
     const supa = createAdminClient();
 
@@ -363,7 +372,8 @@ export async function bulkSnooze(
 ): Promise<ActionResult<{ updated: number }>> {
   try {
     const input = bulkSnoozeSchema.parse(rawInput);
-    await requireAdmin();
+    const gate = await requireAdmin();
+    if (gate.error) return { success: false, error: gate.error };
     const supa = createAdminClient();
 
     // Upsert per-row so missing contact_state rows materialise.
@@ -394,7 +404,8 @@ export async function bulkMoveToDormant(
 ): Promise<ActionResult<{ updated: number }>> {
   try {
     const input = bulkMoveToDormantSchema.parse(rawInput);
-    await requireAdmin();
+    const gate = await requireAdmin();
+    if (gate.error) return { success: false, error: gate.error };
     const supa = createAdminClient();
 
     const rows = input.nanny_user_ids.map((id) => ({
@@ -441,7 +452,8 @@ export async function fetchRecentLogs(
 ): Promise<ActionResult<{ logs: RecentLogEntry[] }>> {
   try {
     const input = fetchRecentLogsSchema.parse(rawInput);
-    await requireAdmin();
+    const gate = await requireAdmin();
+    if (gate.error) return { success: false, error: gate.error };
     const supa = createAdminClient();
 
     const { data, error } = await supa
@@ -524,7 +536,8 @@ export async function updateNannyAvailability(
 ): Promise<ActionResult<void>> {
   try {
     const input = updateNannyAvailabilitySchema.parse(rawInput);
-    const { userId } = await requireAdmin();
+    const { userId, error: authError } = await requireAdmin();
+    if (authError) return { success: false, error: authError };
     const operator = await deriveOperatorHandle(userId);
     const supa = createAdminClient();
 

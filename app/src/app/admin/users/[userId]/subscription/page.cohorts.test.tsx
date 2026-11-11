@@ -24,7 +24,7 @@ vi.mock("@/lib/supabase/admin", () => ({
     },
   }),
 }));
-vi.mock("@/lib/admin/require-admin", () => ({ requireAdmin: async () => undefined }));
+vi.mock("@/lib/admin/require-admin", () => ({ requireAdmin: async () => ({ userId: "admin-1", error: null }) }));
 vi.mock("@/lib/admin/getAdminUserData", () => ({ getAdminUserData: async () => null }));
 vi.mock("@/lib/cohorts/read", () => ({
   readCurrentCohortSummary: async () => {
