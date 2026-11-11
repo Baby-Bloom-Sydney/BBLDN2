@@ -69,6 +69,8 @@ interface Props {
     date_of_birth: string;
     suburb: string;
     postcode: string;
+    /** The profile row's version she loaded (null = none yet): her Profile and Contact details Save sends it. */
+    updated_at: string | null;
   };
   managedChildren?: ChildClient[];
 }
