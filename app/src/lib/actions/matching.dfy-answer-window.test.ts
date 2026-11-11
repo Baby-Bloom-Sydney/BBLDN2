@@ -1,6 +1,6 @@
 /**
- * Her answer to a DFY match gives the family a window to book: 72 hours at level 4 (the row goes straight to the
- * family), 7 days below it (the row waits for her approval first). The same windows as her accept of a request.
+ * Her answer to a DFY match gives the family 7 days to book, at level 4 (the row goes straight to the family) and below
+ * it (the row waits for her approval first). The same window as her accept of a request.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryDb, type MemoryDb } from "../../../tests/fakes/memory-supabase";
@@ -43,7 +43,7 @@ afterEach(() => vi.useRealTimers());
 describe("respondToDfyMatch — the family's window", () => {
   it.each([
     [3, 9, 7 * DAY],
-    [4, 10, 3 * DAY],
+    [4, 10, 7 * DAY],
   ] as const)("at level %i the row is at stage %i with %i ms to book", async (level, stage, window) => {
     seed(level);
     const result = await respondToDfyMatch("d1", SLOTS);

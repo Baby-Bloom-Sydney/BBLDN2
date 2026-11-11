@@ -17,6 +17,7 @@ import {
   Heart,
   Clock,
   ClipboardList,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -47,6 +48,44 @@ function computeAge(dob: string | null | undefined): number | null {
   return years > 0 && years < 120 ? years : null;
 }
 
+/** Most open requests a family can hold at one time. */
+const OPEN_REQUEST_LIMIT = 5;
+const CONNECTIONS_HREF = "/parent?t=childcare&s=connections";
+
+interface AtLimitViewProps {
+  firstName: string;
+  onClose: () => void;
+}
+
+/** Shown in place of the form when the family already holds the most open requests. */
+function AtLimitView({ firstName, onClose }: AtLimitViewProps) {
+  return (
+    <div className="flex flex-col items-center py-6 space-y-4">
+      <div
+        aria-hidden="true"
+        className="rounded-full bg-violet-50 border border-violet-200 p-3"
+      >
+        <Users className="h-7 w-7 text-violet-600" />
+      </div>
+      <h3 className="text-base font-semibold text-slate-900">
+        You have {OPEN_REQUEST_LIMIT} open requests
+      </h3>
+      <p className="text-center text-sm text-slate-500 leading-relaxed">
+        That&apos;s the most at one time. To connect with {firstName}, please
+        step back from one of your other requests first.
+      </p>
+      <div className="flex gap-2.5 w-full pt-1">
+        <Button variant="outline" className="flex-1" onClick={onClose}>
+          Not now
+        </Button>
+        <Button asChild className="flex-1 bg-violet-600 hover:bg-violet-700">
+          <Link href={CONNECTIONS_HREF}>See my requests</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 const JOURNEY_STEPS = [
   { label: "Connect", icon: Send, description: "Send a connection request" },
   { label: "Meet", icon: Phone, description: "Schedule a meet and greet" },
@@ -66,10 +105,12 @@ export function ConnectModal({
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [positionRequired, setPositionRequired] = useState(false);
+  const [limitRefused, setLimitRefused] = useState(false);
 
   if (!isOpen) return null;
 
-  const atLimit = pendingRequestCount >= 5;
+  const atLimit = pendingRequestCount >= OPEN_REQUEST_LIMIT;
+  const showLimit = atLimit || limitRefused;
   const age = nanny.age !== undefined ? nanny.age : computeAge(nanny.date_of_birth);
   const firstName =
     nanny.first_name.charAt(0).toUpperCase() + nanny.first_name.slice(1);
@@ -77,10 +118,8 @@ export function ConnectModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (atLimit) {
-      setError("You have reached the maximum of 5 open requests.");
-      return;
-    }
+    // The form is not shown at the limit; never send from there.
+    if (showLimit) return;
 
     setSubmitting(true);
     setError(null);
@@ -107,6 +146,8 @@ export function ConnectModal({
       }, 3000);
     } else if (result.error === CONNECTION_ERRORS.POSITION_REQUIRED) {
       setPositionRequired(true);
+    } else if (result.error === CONNECTION_ERRORS.AT_LIMIT) {
+      setLimitRefused(true);
     } else {
       setError(result.error || "Failed to send request");
     }
@@ -121,10 +162,8 @@ export function ConnectModal({
             Connect with {firstName}
           </h2>
           <div className="flex items-center gap-3">
-            {!success && !positionRequired && (
-              <span
-                className={`text-xs ${atLimit ? "text-red-500 font-semibold" : "text-slate-400"}`}
-              >
+            {!success && !positionRequired && !showLimit && (
+              <span className="text-xs text-slate-400">
                 {pendingRequestCount}/5 ongoing
               </span>
             )}
@@ -181,11 +220,13 @@ export function ConnectModal({
               <div className="mt-4 flex items-center gap-2 rounded-lg bg-violet-50 border border-violet-100 px-3.5 py-2.5 w-full">
                 <Clock className="h-3.5 w-3.5 text-violet-500 shrink-0" />
                 <p className="text-xs text-violet-600">
-                  {firstName} has <span className="font-semibold">3 days</span>{" "}
+                  {firstName} has <span className="font-semibold">7 days</span>{" "}
                   to respond to your request.
                 </p>
               </div>
             </div>
+          ) : showLimit ? (
+            <AtLimitView firstName={firstName} onClose={onClose} />
           ) : (
             /* ── Main Form ── */
             <form onSubmit={handleSubmit} className="space-y-5">

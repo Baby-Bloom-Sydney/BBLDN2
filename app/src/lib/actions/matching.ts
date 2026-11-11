@@ -576,10 +576,8 @@ export async function respondToDfyMatch(
   const dfyStage = verificationLevel >= 4
     ? CONNECTION_STAGE.ACCEPTED
     : CONNECTION_STAGE.ACCEPTED_PENDING;
-  // the family has 72 hours to book; an answer waiting for approval has 7 days
-  const expiresAt = new Date(
-    Date.now() + (dfyStage === CONNECTION_STAGE.ACCEPTED ? 72 * 60 * 60 * 1000 : CONNECTION_WAIT_WINDOW_MS),
-  ).toISOString();
+  // the family has 7 days to book; an answer waiting for approval has 7 days too
+  const expiresAt = new Date(Date.now() + CONNECTION_WAIT_WINDOW_MS).toISOString();
 
   const { data: connection, error: insertErr } = await adminClient
     .from('connection_requests')

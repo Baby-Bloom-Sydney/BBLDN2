@@ -33,6 +33,7 @@ import {
 } from "@/lib/timezone";
 import { acceptConnectionRequest, declineConnectionRequest } from "@/lib/actions/connection";
 import { AvailabilityGrid } from "./AvailabilityGrid";
+import { respondTimeLeft } from "./respond-time-left";
 import { ScheduleTimeGrid } from "./ScheduleTimeGrid";
 import { ScoreBar, AvailabilityTable, getScoreBadgeStyle } from "@/components/match/match-helpers";
 import Link from "next/link";
@@ -1264,19 +1265,6 @@ export function ConnectionDetailPopup({
 
 // ── Expiry Timer ──
 function ExpiryTimer({ expiresAt }: { expiresAt: string }) {
-  const now = new Date();
-  const expiry = new Date(expiresAt);
-  const diffMs = expiry.getTime() - now.getTime();
-
-  if (diffMs <= 0) return <span className="text-red-600 font-medium">Expired</span>;
-
-  const hours = Math.floor(diffMs / (1000 * 60 * 60));
-  const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-  const isUrgent = hours < 6;
-
-  return (
-    <span className={isUrgent ? "text-red-600 font-medium" : "text-slate-500"}>
-      {hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`} to respond
-    </span>
-  );
+  const { text, urgent } = respondTimeLeft(expiresAt);
+  return <span className={urgent ? "text-red-600 font-medium" : "text-slate-500"}>{text}</span>;
 }

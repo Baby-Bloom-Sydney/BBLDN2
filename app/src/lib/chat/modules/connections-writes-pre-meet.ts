@@ -358,7 +358,7 @@ async function proposeAcceptConnection(
       day_count: parsed.days.size,
       slots_by_day: dayLines,
       email_side_effect: true,
-      preview: `You're about to accept the connection request from ${displayName} with ${parsed.slots.length} availability slot${parsed.slots.length === 1 ? "" : "s"} across ${parsed.days.size} days. Read these times back so they can double-check:\n${dayLines.map((l) => `- ${l}`).join("\n")}\nOnce accepted, ${displayName} gets a notification and has 3 days to pick one of these times.`,
+      preview: `You're about to accept the connection request from ${displayName} with ${parsed.slots.length} availability slot${parsed.slots.length === 1 ? "" : "s"} across ${parsed.days.size} days. Read these times back so they can double-check:\n${dayLines.map((l) => `- ${l}`).join("\n")}\nOnce accepted, ${displayName} gets a notification and can pick one of these times.`,
       next_call:
         "Read the preview + slot list back to the user and wait for 'yes / cancel'. On confirmation, call apply_accept_connection with the SAME connection_id and slots array.",
     },
@@ -412,7 +412,7 @@ async function applyAcceptConnection(
       connection_id: connection.id,
       counterparty_name: displayName,
       slot_count: parsed.slots.length,
-      message: `Accepted. ${displayName} will be notified with your availability and has 3 days to pick a meet-and-greet time.`,
+      message: `Accepted. ${displayName} will be notified with your availability and can pick a meet-and-greet time.`,
     },
     tile: {
       kind: "connection_request",

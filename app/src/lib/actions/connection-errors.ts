@@ -11,6 +11,8 @@
  */
 export const CONNECTION_ERRORS = {
   POSITION_REQUIRED: "POSITION_REQUIRED",
+  /** The family already has 5 open requests (the limit in createConnectionRequest); the modal shows its limit view. */
+  AT_LIMIT: "AT_LIMIT",
 } as const;
 
 export type ConnectionErrorCode =

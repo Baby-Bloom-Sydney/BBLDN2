@@ -1532,7 +1532,7 @@ describe("connections module — propose_send_connection_request", () => {
     expect(createConnectionRequest).not.toHaveBeenCalled();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data = r.data as any;
-    expect(data.preview.toLowerCase()).toContain("3 days");
+    expect(data.preview.toLowerCase()).toContain("7 days");
     expect(data.has_message).toBe(true);
   });
 

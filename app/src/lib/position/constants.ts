@@ -68,8 +68,8 @@ export const CONNECTION_STAGE = {
 export type ConnectionStage = typeof CONNECTION_STAGE[keyof typeof CONNECTION_STAGE];
 
 /**
- * 7 days: the family's window on a nanny's application, and on her answer while it waits for the admin's approval
- * (below level 4). An answer at level 4 gives the family 72 hours to book a meet.
+ * 7 days: every connection window. Her reply to a family's request, the family's booking after she answers (at any
+ * level), the family's window on her application, and on her answer while it waits for the admin's approval.
  */
 export const CONNECTION_WAIT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 

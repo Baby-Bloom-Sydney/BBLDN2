@@ -5,6 +5,9 @@ import { sendEmail } from '@/lib/email/resend';
 import { getUserEmailInfo } from '@/lib/email/helpers';
 import { CONNECTION_STAGE } from '@/lib/position/constants';
 import { isUnseenByParent } from '@/lib/connections/silent-hold';
+import { familySawAtExpiry } from '@/lib/connections/expired-rows';
+import { callOfferForExpiredFamily } from '@/lib/calls/expiry-offer';
+import { connectionExpiredCallOfferHtml } from '@/lib/email/templates/connection-expired-call-offer';
 import { emailFooter } from "@/lib/email/brand";
 import { SITE_URL } from "@/lib/constants";
 
@@ -20,6 +23,16 @@ function expiryFor(req: { status: string; connection_stage: number; source: stri
     tellFamily: !isUnseenByParent(req),
     familyReadsAccepted: !asSent,
   };
+}
+
+/** The expired event's data: `{ held: true }` for a row the family never saw; what they saw, when it's one we name. */
+function expiredEventData(
+  req: { connection_stage: number | null; source: string | null },
+  tellFamily: boolean,
+): { eventData?: Record<string, unknown> } {
+  if (!tellFamily) return { eventData: { held: true } };
+  const familySaw = familySawAtExpiry(req);
+  return familySaw === null ? {} : { eventData: { family_saw: familySaw } };
 }
 
 /**
@@ -88,7 +101,7 @@ export async function GET(request: NextRequest) {
       parentId: req.parent_id,
       nannyId: req.nanny_id,
       eventType: 'expired',
-      ...(plan.tellFamily ? {} : { eventData: { held: true } }),
+      ...expiredEventData(req, plan.tellFamily),
     });
 
     // Get user IDs
@@ -120,6 +133,8 @@ export async function GET(request: NextRequest) {
 
       const parentInfo = await getUserEmailInfo(parentData.user_id);
       if (parentInfo) {
+        // the Complimentary matchmaker call, only when its page would take her
+        const callOffer = (await callOfferForExpiredFamily(parentData.user_id, req.parent_id)) ? connectionExpiredCallOfferHtml() : '';
         sendEmail({
           to: parentInfo.email,
           subject: 'Connection request expired',
@@ -132,7 +147,7 @@ export async function GET(request: NextRequest) {
     </div>
     <h1 style="font-size:22px;font-weight:700;margin:0 0 16px;">Your connection request has expired</h1>
     <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">Hi ${parentInfo.firstName}, unfortunately your connection request wasn't responded to in time and has expired.</p>
-    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">Don't worry — there are plenty of great nannies on Baby Bloom. You can browse available nannies and send a new connection request whenever you're ready.</p>
+    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">Don't worry — there are plenty of great nannies on Baby Bloom. You can browse available nannies and send a new connection request whenever you're ready.</p>${callOffer}
     <div style="text-align:center;margin-top:24px;">
       <a href="${appUrl}/parent/browse" style="display:inline-block;background:#8b5cf6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Browse Nannies</a>
     </div>
