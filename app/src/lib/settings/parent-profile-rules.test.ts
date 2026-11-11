@@ -1,7 +1,7 @@
 /**
  * The parent's Profile and Contact rules: today's rules only, checked on what she sends. The Settings pages check
  * with these before Save calls the server, and `updateParentAccountSettings` checks again with the same function.
- * Nothing new becomes required: no name length or plain-text rule (a parent's name prints on no invoice), and a date
+ * Nothing new becomes required: no name length or plain-text rule, and a date
  * of birth she never sends is never checked.
  */
 import { readFileSync } from "node:fs";

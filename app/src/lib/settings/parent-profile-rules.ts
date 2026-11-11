@@ -5,8 +5,7 @@
  *
  * - Each field is checked only when it is sent: a date of birth that was empty on file and left untouched is never
  *   sent, so it is never refused. Nothing new becomes required.
- * - Her name can't be blank. The nanny's length and plain-text rules are not applied: they exist because the nanny's
- *   name prints on her invoices, and a parent's doesn't.
+ * - Her name can't be blank. The nanny's length and plain-text rules are not added: these are today's rules.
  * - Her date of birth can't be cleared and must be a real date; her mobile is required and a UK mobile
  *   (`checkDateOfBirth`, `checkMobile`, shared with the nanny's rules).
  * - Her address (town and postcode) changes only by a pick from the search, so it has no rule here.
