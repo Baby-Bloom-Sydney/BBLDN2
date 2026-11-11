@@ -6,6 +6,7 @@
  * nanny's application carry no mark and never show.
  */
 import { CONNECTION_STAGE } from "@/lib/position/constants";
+import { isUnseenByParent } from "./silent-hold";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -54,10 +55,11 @@ function logged(what: string, error: { code?: string } | null): void {
   if (error) console.error(`[expired-rows] ${what} failed`, { code: error.code ?? null });
 }
 
-/** The newest row per nanny, kept only when it is an expired one. */
+/** The newest row per nanny the family can see (not a held row), kept only when it is an expired one. */
 function newestExpiredPerNanny(rows: readonly Row[]): Row[] {
   const newest = new Map<string, Row>();
   for (const r of rows) {
+    if (r.connection_stage !== null && isUnseenByParent({ connection_stage: r.connection_stage, source: r.source })) continue;
     const seen = newest.get(r.nanny_id);
     if (!seen || r.created_at > seen.created_at) newest.set(r.nanny_id, r);
   }

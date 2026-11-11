@@ -108,6 +108,20 @@ describe("readFamilyExpiredConnections — the expired rows the family's lists k
     expect(rows.map((r) => r.connectionId)).toEqual(["ok"]);
   });
 
+  it("isn't hidden by a newer row the family can't see (her held application, a held matched answer)", async () => {
+    const d = db(
+      [
+        row("gone", "nA", 1, "expired", "parent", "2026-11-01T10:00:00Z"),
+        row("held-app", "nA", 4, "pending", null, "2026-11-05T10:00:00Z"),
+        row("gone2", "nB", 11, "expired", "dfy", "2026-11-01T10:00:00Z"),
+        row("held-dfy", "nB", 9, "accepted", "dfy", "2026-11-05T10:00:00Z"),
+      ],
+      [expiredLog("gone", { family_saw: "request" }), expiredLog("gone2", { family_saw: "booking" })],
+    );
+    const rows = await readFamilyExpiredConnections(d.client() as never, "p1");
+    expect(rows.map((r) => r.connectionId).sort()).toEqual(["gone", "gone2"]);
+  });
+
   it("reads nothing more when the family has no expired row", async () => {
     const d = db([row("live", "nA", 0, "pending", "parent", "2026-11-01T10:00:00Z")], []);
     expect(await readFamilyExpiredConnections(d.client() as never, "p1")).toEqual([]);
