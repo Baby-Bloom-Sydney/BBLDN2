@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { createConnectionRequest } from "@/lib/actions/connection";
@@ -106,6 +106,11 @@ export function ConnectModal({
   const [error, setError] = useState<string | null>(null);
   const [positionRequired, setPositionRequired] = useState(false);
   const [limitRefused, setLimitRefused] = useState(false);
+
+  // closed by any route (Not now, the X, a link): the next open reads her count afresh
+  useEffect(() => {
+    if (!isOpen) setLimitRefused(false);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

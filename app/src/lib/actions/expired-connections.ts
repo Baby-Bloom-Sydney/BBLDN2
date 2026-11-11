@@ -1,9 +1,7 @@
-"use server";
-
 /**
  * The family's expired connections (shown on their lists with the reason and "Connect with NAME again") and their open
  * request count (the limit `ConnectModal` checks: `status = 'pending'`, as `createConnectionRequest` counts it). Read as
- * the signed-in family only.
+ * the signed-in family only. Called by the family's server pages only, so not a server action (no public endpoint).
  */
 import { createAdminClient } from "@/lib/supabase/admin";
 import { readFamilyExpiredConnections, type ExpiredConnection } from "@/lib/connections/expired-rows";
@@ -28,11 +26,12 @@ export async function getParentOpenRequestCount(): Promise<number> {
   try {
     const parentId = await getParentId();
     if (!parentId) return 0;
-    const { count } = await createAdminClient()
+    const { count, error } = await createAdminClient()
       .from("connection_requests")
       .select("id", { count: "exact", head: true })
       .eq("parent_id", parentId)
       .eq("status", "pending");
+    if (error) console.error("[expired-connections] count failed", { code: error.code ?? null });
     return count ?? 0;
   } catch (thrown) {
     console.error("[expired-connections] count failed", { name: nameOf(thrown) });

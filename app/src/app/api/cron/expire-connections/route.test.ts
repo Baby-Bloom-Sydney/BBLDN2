@@ -197,6 +197,16 @@ describe("/api/cron/expire-connections — the call offer in the family's email"
     expect(emailTo("parent-a@example.test")?.html).toBe(familyEmailWithoutOffer());
   });
 
+  it("checks the offer once for a family with two rows running out in one run", async () => {
+    h.db = createMemoryDb({
+      nannies: [{ id: "n1", user_id: "nanny-u" }],
+      parents: [{ id: "p-a", user_id: "parent-a" }],
+      connection_requests: [row("c-1", "pending", 0, "manual", "p-a"), row("c-2", "accepted", 10, "manual", "p-a")],
+    });
+    await run();
+    expect(h.offer).toHaveBeenCalledTimes(1);
+  });
+
   it("the nanny's email (INT-006) never carries it", async () => {
     h.offer.mockResolvedValue(true);
     await run();

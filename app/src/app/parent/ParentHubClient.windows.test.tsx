@@ -154,7 +154,11 @@ describe("the family's hub — expired connections stay", () => {
 
   it("keeps an expired matched nanny under Matched Nannies", async () => {
     renderHub({ upcomingIntros: [], expiredConnections: [expired("r2", "Cleo", "dfy", "not_booked")] });
-    expect(await screen.findByText("Your connection has expired: the meet and greet wasn't booked in time.")).toBeInTheDocument();
+    const reason = await screen.findByText("Your connection has expired: the meet and greet wasn't booked in time.");
     expect(screen.getByRole("button", { name: "Connect with Cleo again" })).toBeInTheDocument();
+    // under Matched Nannies, above the Connections list
+    const connections = screen.getAllByText(/^Connections/).find((el) => el.tagName === "P");
+    expect(connections).toBeDefined();
+    expect(reason.compareDocumentPosition(connections as Element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

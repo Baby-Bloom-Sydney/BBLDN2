@@ -371,7 +371,7 @@ export async function promotePendingConnections(
               html: `<div style="${baseStyle}">
                 ${emailHeader()}
                 <p style="color: #374151; font-size: 16px; line-height: 1.6;">Great news! ${nannyName} has accepted your connection request and shared their available times. Check their availability and pick a slot for your meet and greet.</p>
-                ${daysLeft ? `<p style="color: #6B7280; font-size: 14px; margin-top: 8px;">${escapeText(daysLeft)}.</p>` : ''}
+                ${daysLeft ? `<p style="color: #6B7280; font-size: 14px; margin-top: 8px;">${escapeText(daysLeft)}</p>` : ''}
                 <p style="margin-top: 24px;"><a href="${appUrl}/parent/connections" style="${btnStyle}">Pick a Time</a></p>
               </div>`,
               emailType: 'interview_confirmed',

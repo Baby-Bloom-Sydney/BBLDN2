@@ -177,6 +177,17 @@ describe("ConnectModal — below the limit", () => {
     expect(document.querySelector("form")).not.toBeNull();
   });
 
+  it("reads her count afresh after the modal is closed by its X", async () => {
+    mocks.createConnectionRequest.mockResolvedValue({ success: false, error: "AT_LIMIT" });
+    const onClose = vi.fn();
+    const { rerender } = render(<ConnectModal isOpen onClose={onClose} nanny={NANNY} pendingRequestCount={4} />);
+    submitForm();
+    await screen.findByRole("heading", { name: LIMIT_TITLE });
+    rerender(<ConnectModal isOpen={false} onClose={onClose} nanny={NANNY} pendingRequestCount={3} />);
+    rerender(<ConnectModal isOpen onClose={onClose} nanny={NANNY} pendingRequestCount={3} />);
+    expect(screen.queryByRole("heading", { name: LIMIT_TITLE })).toBeNull();
+  });
+
   it("tells the parent she has 7 days to respond after a request is sent", async () => {
     mocks.createConnectionRequest.mockResolvedValue({
       success: true,

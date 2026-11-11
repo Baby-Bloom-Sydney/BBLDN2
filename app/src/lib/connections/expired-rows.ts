@@ -91,14 +91,16 @@ async function namesFor(admin: AdminClient, nannyIds: string[]) {
     (n) => n.status === null || !GONE_STATUSES.has(n.status),
   );
   const userOf = new Map(listed.map((n) => [n.id, n.user_id]));
-  const { data: profiles } = await admin
+  const { data: profiles, error: profilesError } = await admin
     .from("user_profiles")
     .select("user_id, first_name, last_name, suburb, profile_picture_url")
     .in("user_id", Array.from(userOf.values()));
+  logged("the profiles read", profilesError);
   type Profile = { user_id: string; first_name: string | null; last_name: string | null; suburb: string | null; profile_picture_url: string | null };
   const byUser = new Map(((profiles ?? []) as Profile[]).map((p) => [p.user_id, p]));
   return {
-    isListed: (nannyId: string) => userOf.has(nannyId),
+    // listed, and named: a nanny with no profile to read isn't shown
+    isListed: (nannyId: string) => byUser.has(userOf.get(nannyId) ?? ""),
     profileOf: (nannyId: string) => byUser.get(userOf.get(nannyId) ?? "") ?? null,
   };
 }
