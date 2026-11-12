@@ -27,6 +27,7 @@ import {
   MAIN_TAB_ID,
 } from "./KatieTabs";
 import { DashboardNav } from "@/components/layout/DashboardNav";
+import { nannyInvoicesEnabled } from "@/lib/features/flags";
 import { useKatieRealtime } from "./use-katie-realtime";
 import {
   useIsDesktop,
@@ -70,7 +71,11 @@ const TABS_HIDDEN_PATHS = [
 ];
 
 function isTabsHiddenPath(pathname: string): boolean {
-  return TABS_HIDDEN_PATHS.some((p) => pathname.startsWith(p));
+  return (
+    TABS_HIDDEN_PATHS.some((p) => pathname.startsWith(p)) ||
+    // Brief 06 (plan R11): the nanny's invoice pages, read at call time; while off the list is today's.
+    (nannyInvoicesEnabled() && pathname.startsWith("/nanny/invoices"))
+  );
 }
 
 // Breakpoint tailored to LAYOUT.md spec. Swapping carousel kicks in below.
