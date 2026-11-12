@@ -39,6 +39,9 @@ const nextConfig = {
   },
   experimental: {
     serverComponentsExternalPackages: ["sharp"],
+    // Brief 06: the invoice PDF reads the app's font from disk when an invoice is sent (`lib/invoices/pdf/font.ts`), so
+    // the page that sends lists it and the deployed function carries it.
+    outputFileTracingIncludes: { "/nanny/invoices/new": ["./src/app/fonts/GeistVF.woff"] },
   },
   images: {
     remotePatterns: [
