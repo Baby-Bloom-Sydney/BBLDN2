@@ -171,8 +171,12 @@ describe("the first-invoice setup", () => {
     await toReview();
     await userEvent.type(screen.getByLabelText("Sort code"), "11-22-33");
     await userEvent.type(screen.getByLabelText("Account number"), "87654321");
-    calls.previewInvoice.mockRejectedValueOnce(new Error("offline"));
+    let fail: (reason: Error) => void = () => undefined;
+    calls.previewInvoice.mockReturnValueOnce(new Promise((_resolve, reject) => { fail = reject; }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    // while the review again is on its way, what she typed is still there
+    expect(screen.getByLabelText("Sort code")).toHaveValue("11-22-33");
+    fail(new Error("offline"));
     expect(await screen.findByText("Something went wrong. Please try again.")).toBeInTheDocument();
     expect(calls.saveBusinessSettings).toHaveBeenCalledTimes(1);
     expect(screen.getByLabelText("Sort code")).toHaveValue("");

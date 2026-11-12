@@ -50,8 +50,12 @@ describe("the invoice PDF route — switch on", () => {
   });
 
   it("a signed link that can't be redirected to → 500, not cached, nothing of the link (security review L1)", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
     calls.invoicePdfLink.mockResolvedValueOnce({ ok: true, value: "not a url" });
     const res = await get();
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(logged.mock.calls)).not.toContain("not a url");
+    logged.mockRestore();
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ error: "Unavailable" });
     expect(res.headers.get("cache-control")).toBe("private, no-store");

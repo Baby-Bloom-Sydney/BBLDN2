@@ -119,8 +119,11 @@ export function useInvoiceReview({ onFormRefusal, go }: ReviewHandlers) {
   const saveSetup = (draft: FormDraft, input: BusinessPageInput) => once("setup", async () => {
     const result = await saveBusinessSettings(input);
     if (result.ok) {
-      setSetupRound((round) => round + 1);
-      return askReview(draft, null, "review");
+      try {
+        return await askReview(draft, null, "review");
+      } finally {
+        setSetupRound((round) => round + 1); // once the review again is done, or has failed
+      }
     }
     if (result.error === "stale") return askReview(draft, result.message, "review");
     setState((s) => ({ ...s, notice: result.message, setupIssues: result.fields ?? {} }));
