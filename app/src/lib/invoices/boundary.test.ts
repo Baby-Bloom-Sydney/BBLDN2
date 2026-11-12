@@ -14,9 +14,13 @@
  *   folders. The Settings actions are `"use server"` files whose only exports are their gated async actions.
  * - 06b-3 rework (ledger B06 §9.1 R5): one action for the Business page, `saveBusinessSettings`, replaces the two
  *   dialog actions.
+ * - 06b-4 (plan 14.6 b4.2–b4.3): the invoice actions (preview, send, cancel, resend) join the list, each a `"use
+ *   server"` file exporting only its gated async action; the review, the PDF store and the invoice emails' sender are
+ *   server modules.
  *
  * BB-wave1-041126/06a-build, 2026-11-04; 06b2-build, 2026-11-06 (store-business; pdf/model, which logs through db);
- * 06b3-build, 2026-11-07 (the Settings seam, the actions, the details-changed sender); 06b3-rework, 2026-11-09.
+ * 06b3-build, 2026-11-07 (the Settings seam, the actions, the details-changed sender); 06b3-rework, 2026-11-09;
+ * 06b4, 2026-11-12 (the invoice actions; review, store-delivery, the invoice emails' sender).
  */
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
@@ -25,13 +29,15 @@ import { describe, expect, it } from "vitest";
 const SRC = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const SERVER_MODULES = [
   "store", "store-business", "families", "nanny-proof", "db", "gate", "readers", "index", "pdf/render", "pdf/font", "pdf/model",
-  "emails/send-payment-details-changed",
+  "emails/send-payment-details-changed", "review", "store-delivery", "emails/send-invoice-emails",
 ];
 const SERVER_MODULE =
-  "(?:/(?:store|store-business|families|nanny-proof|db|gate|readers|index|pdf/render|pdf/font|pdf/model|emails/send-payment-details-changed))?";
-/** The Settings actions (06b-3): `"use server"` on purpose, each exporting only its gated async action. */
+  "(?:/(?:store|store-business|families|nanny-proof|db|gate|readers|index|pdf/render|pdf/font|pdf/model|emails/send-payment-details-changed|review|store-delivery|emails/send-invoice-emails))?";
+/** The actions (06b-3 Settings; 06b-4 invoices): `"use server"` on purpose, each exporting only its gated async action. */
 const ACTIONS: Readonly<Record<string, readonly [string, string]>> = {
+  "actions/preview-invoice": ["previewInvoice", "PreviewInvoiceResult"],
   "actions/save-business-settings": ["saveBusinessSettings", "BusinessSettingsResult"],
+  "actions/send-invoice": ["sendInvoice", "SendInvoiceResult"],
 };
 /** The one import of the feature's page folders from outside them (plan 14.6 b3.4–b3.5). */
 const SEAM = { file: "app/nanny/settings/page.tsx", from: "@/app/nanny/invoices/business/BusinessSettingsLeaf" } as const;
@@ -110,11 +116,11 @@ describe("src/lib/invoices boundaries", () => {
     expect(offenders.map(rel)).toEqual([]);
   });
 
-  it("the Settings action is a \"use server\" file exporting only its one async action (06b-3; one since the rework)", () => {
+  it("each action is a \"use server\" file exporting only its one async action (06b-3; the invoice actions, 06b-4)", () => {
     const actionFiles = readdirSync(path.join(SRC, "lib/invoices/actions"))
       .filter((f) => !/\.test\.tsx?$/.test(f))
       .filter((f) => /^["']use server["'];/m.test(readFileSync(path.join(SRC, "lib/invoices/actions", f), "utf8")));
-    expect(actionFiles.map((f) => `actions/${f.replace(/\.ts$/, "")}`)).toEqual(Object.keys(ACTIONS));
+    expect(actionFiles.map((f) => `actions/${f.replace(/\.ts$/, "")}`).sort()).toEqual(Object.keys(ACTIONS).sort());
     for (const [name, [fn, result]] of Object.entries(ACTIONS)) {
       const text = readFileSync(path.join(SRC, "lib/invoices", `${name}.ts`), "utf8");
       expect(text).toMatch(/^["']use server["'];/);
