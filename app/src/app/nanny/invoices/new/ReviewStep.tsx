@@ -40,6 +40,8 @@ export interface ReviewStepProps {
   readonly notice: string | null;
   readonly pending: ReviewPending;
   readonly setupIssues: Readonly<Record<string, string>>;
+  /** Moves on each time the setup saves: the setup starts again empty if it still shows. */
+  readonly setupRound: number;
   readonly onBack: () => void;
   readonly onSend: () => void;
   readonly onSaveSetup: (input: BusinessPageInput) => void;
@@ -104,7 +106,7 @@ function BankDetails({ bank }: { readonly bank: NonNullable<InvoicePreview["bank
   );
 }
 
-export function ReviewStep({ preview, draft, notice, pending, setupIssues, onBack, onSend, onSaveSetup }: ReviewStepProps) {
+export function ReviewStep({ preview, draft, notice, pending, setupIssues, setupRound, onBack, onSend, onSaveSetup }: ReviewStepProps) {
   const setup = preview.needsPaymentDetails || preview.needsAddress;
   const { familyName, emailHint } = preview.recipient;
   const heading = useRef<HTMLHeadingElement>(null);
@@ -119,7 +121,7 @@ export function ReviewStep({ preview, draft, notice, pending, setupIssues, onBac
       <EditNotice notice={notice === null ? null : { tone: "alert", text: notice }} />
       <IssuerSummary issuer={preview.issuer} recipient={preview.recipient} />
       {preview.bank && <BankDetails bank={preview.bank} />}
-      {setup && <FirstInvoiceSetup preview={preview} issues={setupIssues} saving={pending === "setup"} onSave={onSaveSetup} />}
+      {setup && <FirstInvoiceSetup key={setupRound} preview={preview} issues={setupIssues} saving={pending === "setup"} onSave={onSaveSetup} />}
       <Lines draft={draft} />
       <TotalsBox totals={preview.totals} vat={preview.vat} />
       <div className="flex flex-wrap gap-2">

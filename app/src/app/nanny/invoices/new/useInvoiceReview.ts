@@ -7,7 +7,9 @@
  *
  * - **Review:** `previewInvoice(draft)`. On the form, any refusal goes back to the form (by field, or its message).
  * - **The setup** (bank details, rarely an address): `saveBusinessSettings`, then review again (a new id and key).
- *   `stale` reviews again with its message; a refusal by field stays on the setup.
+ *   `stale` reviews again with its message; a refusal by field stays on the setup. Once saved, `setupRound` moves on,
+ *   so the setup starts empty if it is still showing (the review again failed): her typed sort code and account
+ *   number don't stay on the page (security review L2).
  * - **Send:** sent → her list. `changed`, `no_details`, `no_address`, `already_failed` → review again, with the message
  *   ("Your business settings changed — check the invoice again"). `in_progress`, `already_done`, `not_recorded` → her
  *   list, which shows the message. A refusal by field → the form. Anything else → its message on the review.
@@ -84,6 +86,7 @@ function leaving(go: ReviewHandlers["go"], href: string): Outcome {
 
 export function useInvoiceReview({ onFormRefusal, go }: ReviewHandlers) {
   const [state, setState] = useState<ReviewState>(START);
+  const [setupRound, setSetupRound] = useState(0);
   const { pending, once } = useOnce();
   const failedOnReview = () => setState((s) => ({ ...s, notice: INVOICE_ACTION_MESSAGES.error }));
   /** A throw on the form says so on the form (code review M1): the review's notice isn't shown there. */
@@ -115,7 +118,10 @@ export function useInvoiceReview({ onFormRefusal, go }: ReviewHandlers) {
 
   const saveSetup = (draft: FormDraft, input: BusinessPageInput) => once("setup", async () => {
     const result = await saveBusinessSettings(input);
-    if (result.ok) return askReview(draft, null, "review");
+    if (result.ok) {
+      setSetupRound((round) => round + 1);
+      return askReview(draft, null, "review");
+    }
     if (result.error === "stale") return askReview(draft, result.message, "review");
     setState((s) => ({ ...s, notice: result.message, setupIssues: result.fields ?? {} }));
   }, failedOnReview);
@@ -123,6 +129,7 @@ export function useInvoiceReview({ onFormRefusal, go }: ReviewHandlers) {
   return {
     state,
     pending,
+    setupRound,
     review: (draft: FormDraft) => once("review", () => askReview(draft, null, "form"), failedOnForm),
     send: () => (state.draft && state.preview ? send(state.draft, state.preview) : undefined),
     saveSetup: (input: BusinessPageInput) => (state.draft ? saveSetup(state.draft, input) : undefined),

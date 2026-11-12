@@ -166,6 +166,19 @@ describe("the first-invoice setup", () => {
     expect(document.activeElement).toBe(screen.getByRole("heading", { name: /^This invoice goes to/ }));
   });
 
+  it("saved, then the review again fails: the typed sort code and account number don't stay on the page", async () => {
+    calls.previewInvoice.mockResolvedValueOnce({ ok: true, preview: preview({ bank: null, needsPaymentDetails: true }) });
+    await toReview();
+    await userEvent.type(screen.getByLabelText("Sort code"), "11-22-33");
+    await userEvent.type(screen.getByLabelText("Account number"), "87654321");
+    calls.previewInvoice.mockRejectedValueOnce(new Error("offline"));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("Something went wrong. Please try again.")).toBeInTheDocument();
+    expect(calls.saveBusinessSettings).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText("Sort code")).toHaveValue("");
+    expect(screen.getByLabelText("Account number")).toHaveValue("");
+  });
+
   it("checked first, with the Business page's own messages: nothing saved", async () => {
     calls.previewInvoice.mockResolvedValueOnce({ ok: true, preview: preview({ bank: null, needsPaymentDetails: true }) });
     await toReview();

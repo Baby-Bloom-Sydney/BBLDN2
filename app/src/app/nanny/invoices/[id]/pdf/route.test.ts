@@ -49,6 +49,15 @@ describe("the invoice PDF route — switch on", () => {
     expect(calls.invoicePdfLink).toHaveBeenCalledWith(PROOF, ID);
   });
 
+  it("a signed link that can't be redirected to → 500, not cached, nothing of the link (security review L1)", async () => {
+    calls.invoicePdfLink.mockResolvedValueOnce({ ok: true, value: "not a url" });
+    const res = await get();
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "Unavailable" });
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(res.headers.get("location")).toBeNull();
+  });
+
   it("no nanny session → 404, nothing read", async () => {
     calls.proveNanny.mockResolvedValueOnce(null);
     const res = await get();

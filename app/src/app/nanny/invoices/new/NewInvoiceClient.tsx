@@ -83,7 +83,7 @@ function InvoiceBuilder({ target, vat, today, onReviewing }: BuilderProps) {
 
   if (state.step === "review" && state.preview && state.draft) {
     return (
-      <ReviewStep preview={state.preview} draft={state.draft} notice={state.notice} pending={r.pending} setupIssues={state.setupIssues}
+      <ReviewStep preview={state.preview} draft={state.draft} notice={state.notice} pending={r.pending} setupIssues={state.setupIssues} setupRound={r.setupRound}
         onBack={r.back} onSend={r.send} onSaveSetup={r.saveSetup} />
     );
   }

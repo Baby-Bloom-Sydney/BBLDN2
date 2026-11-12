@@ -7,7 +7,8 @@
  *   only (R20).
  * - Her own invoice that went out (sent or cancelled): a 302 to a signed link made now, after the owner check, that
  *   lives 60 seconds (`invoicePdfLink`), never cached. Not hers, not out, not an id: 404 (nothing says it exists). A
- *   read or storage failure: 500, with nothing of the invoice.
+ *   read or storage failure, or a link that can't be redirected to: 500, with nothing of the invoice (security review
+ *   L1: every answer stays `private, no-store`).
  *
  * BB-wave1-041126/06b4, 2026-11-12.
  */
@@ -22,6 +23,19 @@ export const dynamic = "force-dynamic";
 /** Nothing here is ever cached: a 404 or 500 as much as the redirect (security review L3). */
 const NO_STORE = { "Cache-Control": "private, no-store" } as const;
 const notFound = () => NextResponse.json({ error: "Not found" }, { status: 404, headers: NO_STORE });
+const unavailable = () => NextResponse.json({ error: "Unavailable" }, { status: 500, headers: NO_STORE });
+
+/** The 302 to the signed link; a link that isn't a URL is a 500 like any other failure, logged by its kind only. */
+function toSignedLink(link: string): NextResponse {
+  try {
+    const response = NextResponse.redirect(link, 302);
+    response.headers.set("Cache-Control", NO_STORE["Cache-Control"]);
+    return response;
+  } catch (thrown) {
+    console.error("[invoices] invoicePdf.redirect failed", { code: thrown instanceof Error ? thrown.name : "unknown" });
+    return unavailable();
+  }
+}
 
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
   if (!nannyInvoicesEnabled()) return notFound();
@@ -29,9 +43,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   if (!proof) return notFound();
   const link = await invoicePdfLink(proof, params.id);
   if (!link.ok) {
-    return link.error === "not_found" || link.error === "invalid" ? notFound() : NextResponse.json({ error: "Unavailable" }, { status: 500, headers: NO_STORE });
+    return link.error === "not_found" || link.error === "invalid" ? notFound() : unavailable();
   }
-  const response = NextResponse.redirect(link.value, 302);
-  response.headers.set("Cache-Control", NO_STORE["Cache-Control"]);
-  return response;
+  return toSignedLink(link.value);
 }
