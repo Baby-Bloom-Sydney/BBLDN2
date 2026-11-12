@@ -12,7 +12,6 @@ import {
 import { funnelLog } from "@/lib/position/logger";
 import { createInboxMessage } from "./connection-helpers";
 import { autofireMatchmaking } from "./autofire-matchmaking";
-import { isUkMobile, normaliseUkMobile } from "@/lib/uk-contact";
 import { redirectAfterPosition } from "@/lib/calls/after-position";
 import { z } from "zod";
 
@@ -449,74 +448,7 @@ export async function closePosition(
 }
 
 // ── Account Settings ──
-
-export interface UpdateParentAccountData {
-  first_name?: string;
-  last_name?: string;
-  date_of_birth?: string | null;
-  mobile_number?: string | null;
-  suburb?: string;
-  postcode?: string;
-}
-
-export async function updateParentAccountSettings(
-  data: UpdateParentAccountData,
-): Promise<{ success: boolean; error: string | null }> {
-  const supabase = createClient();
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return { success: false, error: "Not authenticated" };
-  }
-
-  // Server-side AU mobile validation. Mobile is REQUIRED + must
-  // pass the regex when present in the payload — no empty / null
-  // values accepted (per user policy 2026-05-07). This mirrors
-  // the client-side validation in the settings dialog and prevents
-  // any direct-action bypass.
-  // Shares `lib/uk-contact` with every other surface so the rule
-  // cannot drift (12.05); stores E.164 per P-5.
-  if (data.mobile_number !== undefined) {
-    const trimmed = (data.mobile_number ?? "").trim();
-    if (trimmed.length === 0) {
-      return { success: false, error: "Mobile number is required." };
-    }
-    if (!isUkMobile(trimmed)) {
-      return {
-        success: false,
-        error: "Enter a valid UK mobile number.",
-      };
-    }
-    data = { ...data, mobile_number: normaliseUkMobile(trimmed) };
-  }
-
-  const profileFields: Record<string, unknown> = {};
-  if (data.first_name !== undefined) profileFields.first_name = data.first_name;
-  if (data.last_name !== undefined) profileFields.last_name = data.last_name;
-  if (data.date_of_birth !== undefined)
-    profileFields.date_of_birth = data.date_of_birth;
-  if (data.mobile_number !== undefined)
-    profileFields.mobile_number = data.mobile_number;
-  if (data.suburb !== undefined) profileFields.suburb = data.suburb;
-  if (data.postcode !== undefined) profileFields.postcode = data.postcode;
-
-  if (Object.keys(profileFields).length > 0) {
-    const { error: profileError } = await supabase
-      .from("user_profiles")
-      .update(profileFields)
-      .eq("user_id", user.id);
-
-    if (profileError) {
-      return { success: false, error: "Failed to update account info" };
-    }
-  }
-
-  revalidatePath("/parent/settings");
-  return { success: true, error: null };
-}
+// (Her Profile and Contact details Save, `updateParentAccountSettings`, is in `parent-account-settings.ts`.)
 
 export async function deactivateParentAccount(): Promise<{
   success: boolean;

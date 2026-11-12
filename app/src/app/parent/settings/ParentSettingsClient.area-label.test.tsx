@@ -46,6 +46,7 @@ const PROFILE = {
   date_of_birth: "1994-03-02",
   suburb: "Clapham",
   postcode: "SW4",
+  updated_at: null,
 };
 
 describe("2i — settings place label (P-15)", () => {

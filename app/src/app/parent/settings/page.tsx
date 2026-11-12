@@ -18,7 +18,7 @@ export default async function ParentSettingsPage() {
     admin
       .from("user_profiles")
       .select(
-        "first_name, last_name, email, mobile_number, date_of_birth, suburb, postcode",
+        "first_name, last_name, email, mobile_number, date_of_birth, suburb, postcode, updated_at",
       )
       .eq("user_id", user.id)
       .single(),
@@ -39,6 +39,8 @@ export default async function ParentSettingsPage() {
         date_of_birth: profileRes.data?.date_of_birth || "",
         suburb: profileRes.data?.suburb || "",
         postcode: profileRes.data?.postcode || "",
+        // the row's version: her Save sends it back, so a change made elsewhere since is never overwritten
+        updated_at: profileRes.data?.updated_at ?? null,
       }}
       managedChildren={(childrenRes.data ?? []) as ChildClient[]}
     />

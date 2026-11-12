@@ -5,9 +5,9 @@
  *
  * Top-level tree (2026-05-07):
  *
- *   Profile           — leaf (legal name, DOB, address)
+ *   Profile           — leaf (legal name, DOB, address; edit mode)
  *   Account           — branch
- *     ▸ Contact details
+ *     ▸ Contact details (edit mode)
  *     ▸ Security
  *     (small "Close account" link at the bottom)
  *   Linked children   — leaf
@@ -17,11 +17,13 @@
  *   - "Communication preferences" is intentionally NOT shipped in
  *     v1 — the placeholder caused confusion. Add it back here when
  *     the email/SMS pref surface is built.
- *   - Address edits route through the GNAF picker
- *     (AddressPickerDialog) — no manual entry, ensures matching-
- *     consistent suburb/postcode and rejects out-of-area selections.
- *   - Mobile number is REQUIRED and validated against the AU mobile
- *     regex from `lib/uk-contact.ts`.
+ *   - Profile and Contact details have edit mode: one Edit for the
+ *     page, fields in place, one Save with the version she loaded
+ *     (`ParentProfileSection`, `ParentContactDetailsSection`, built
+ *     from the shared edit-mode parts; each draws its own title row,
+ *     so their nodes are `ownHeader`). The address changes only by a
+ *     pick from the inline search (town and postcode only), and the
+ *     mobile is required and a UK mobile (`parent-profile-rules`).
  */
 
 import { useState, useTransition } from "react";
@@ -38,27 +40,17 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  updateParentAccountSettings,
-  deactivateParentAccount,
-} from "@/lib/actions/parent";
+import { deactivateParentAccount } from "@/lib/actions/parent";
 import { requestPasswordChange } from "@/lib/actions/account-security";
 import { ChildManagementCard } from "@/components/bapp/ChildManagementCard";
 import type { ChildClient } from "@/types/bapp";
 import { SettingsShell } from "@/components/settings/SettingsShell";
 import { IdentityCard } from "@/components/settings/IdentityCard";
 import { SettingsSubsection } from "@/components/settings/SettingsSubsection";
-import { SettingsRow } from "@/components/settings/SettingsRow";
-import { EditFieldDialog } from "@/components/settings/EditFieldDialog";
-import { AddressPickerDialog } from "@/components/settings/AddressPickerDialog";
 import { ContactSection } from "@/components/settings/ContactSection";
-import {
-  formatUkMobile,
-  isUkMobile,
-  normaliseUkMobile,
-} from "@/lib/uk-contact";
 import type { SettingsNode } from "@/components/settings/tree";
+import { ParentProfileSection } from "./ParentProfileSection";
+import { ParentContactDetailsSection } from "./ParentContactDetailsSection";
 
 interface Props {
   profile: {
@@ -69,30 +61,21 @@ interface Props {
     date_of_birth: string;
     suburb: string;
     postcode: string;
+    /** The profile row's version she loaded (null = none yet): her Profile and Contact details Save sends it. */
+    updated_at: string | null;
   };
   managedChildren?: ChildClient[];
 }
 
-function formatDate(iso: string): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
-
 function buildTree(childCount: number): SettingsNode[] {
   return [
-    { id: "profile", label: "Profile", icon: User },
+    { id: "profile", label: "Profile", icon: User, ownHeader: true },
     {
       id: "account",
       label: "Account",
       icon: Settings,
       children: [
-        { id: "contact", label: "Contact details" },
+        { id: "contact", label: "Contact details", ownHeader: true },
         { id: "security", label: "Security" },
       ],
     },
@@ -144,9 +127,9 @@ export function ParentSettingsClient({ profile, managedChildren = [] }: Props) {
       renderLeaf={(node) => {
         switch (node.id) {
           case "profile":
-            return <ProfileSection profile={profile} />;
+            return <ParentProfileSection title={node.label} profile={profile} />;
           case "contact":
-            return <ContactDetailsSection profile={profile} />;
+            return <ParentContactDetailsSection title={node.label} contact={profile} />;
           case "security":
             return <SecuritySection />;
           case "linked-children":
@@ -162,248 +145,6 @@ export function ParentSettingsClient({ profile, managedChildren = [] }: Props) {
         }
       }}
     />
-  );
-}
-
-// ── Profile (legal name, DOB, address) ────────────────────────
-
-function ProfileSection({ profile }: { profile: Props["profile"] }) {
-  const router = useRouter();
-  const [editingName, setEditingName] = useState(false);
-  const [editingDob, setEditingDob] = useState(false);
-  const [editingAddress, setEditingAddress] = useState(false);
-  const [first, setFirst] = useState(profile.first_name);
-  const [last, setLast] = useState(profile.last_name);
-  const [dob, setDob] = useState(profile.date_of_birth);
-
-  return (
-    <div className="space-y-6">
-      <SettingsSubsection header="Personal information">
-        <SettingsRow
-          label="Full legal name"
-          value={
-            `${profile.first_name} ${profile.last_name}`.trim() || undefined
-          }
-          onClick={() => {
-            setFirst(profile.first_name);
-            setLast(profile.last_name);
-            setEditingName(true);
-          }}
-        />
-        <SettingsRow
-          label="Date of birth"
-          value={
-            profile.date_of_birth
-              ? formatDate(profile.date_of_birth)
-              : undefined
-          }
-          isLast
-          onClick={() => {
-            setDob(profile.date_of_birth);
-            setEditingDob(true);
-          }}
-        />
-      </SettingsSubsection>
-
-      <SettingsSubsection header="Address">
-        <SettingsRow
-          label="Area"
-          value={profile.suburb}
-          onClick={() => setEditingAddress(true)}
-        />
-        <SettingsRow
-          label="Postcode"
-          value={profile.postcode}
-          isLast
-          onClick={() => setEditingAddress(true)}
-        />
-      </SettingsSubsection>
-
-      <EditFieldDialog
-        open={editingName}
-        onOpenChange={setEditingName}
-        title="Edit your full name"
-        canSubmit={first.trim().length > 0 && last.trim().length > 0}
-        onSubmit={async () => {
-          const r = await updateParentAccountSettings({
-            first_name: first.trim(),
-            last_name: last.trim(),
-          });
-          if (r.success) {
-            router.refresh();
-            return { success: true };
-          }
-          return { success: false, error: r.error };
-        }}
-      >
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="edit-first">First name</Label>
-            <Input
-              id="edit-first"
-              value={first}
-              onChange={(e) => setFirst(e.target.value)}
-              autoFocus
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="edit-last">Last name</Label>
-            <Input
-              id="edit-last"
-              value={last}
-              onChange={(e) => setLast(e.target.value)}
-            />
-          </div>
-        </div>
-      </EditFieldDialog>
-
-      <EditFieldDialog
-        open={editingDob}
-        onOpenChange={setEditingDob}
-        title="Edit your date of birth"
-        canSubmit={dob.length > 0}
-        onSubmit={async () => {
-          const r = await updateParentAccountSettings({
-            date_of_birth: dob || null,
-          });
-          if (r.success) {
-            router.refresh();
-            return { success: true };
-          }
-          return { success: false, error: r.error };
-        }}
-      >
-        <div className="space-y-1.5">
-          <Label htmlFor="edit-dob">Date of birth</Label>
-          <Input
-            id="edit-dob"
-            type="date"
-            value={dob}
-            onChange={(e) => setDob(e.target.value)}
-            autoFocus
-          />
-        </div>
-      </EditFieldDialog>
-
-      <AddressPickerDialog
-        open={editingAddress}
-        onOpenChange={setEditingAddress}
-        currentSuburb={profile.suburb}
-        currentPostcode={profile.postcode}
-        onSubmit={async (address) => {
-          const r = await updateParentAccountSettings({
-            suburb: address.town,
-            postcode: address.postcode,
-          });
-          if (r.success) {
-            router.refresh();
-            return { success: true };
-          }
-          return { success: false, error: r.error };
-        }}
-      />
-    </div>
-  );
-}
-
-// ── Contact details ────────────────────────────────────────────
-
-function ContactDetailsSection({ profile }: { profile: Props["profile"] }) {
-  const router = useRouter();
-  const [editingMobile, setEditingMobile] = useState(false);
-  const [mobile, setMobile] = useState(profile.mobile_number);
-
-  // Mobile is required + AU-validated: an empty / invalid value
-  // can never be saved. The dialog disables Save until a valid
-  // value is in the input, and the server action enforces the
-  // same rule at the API boundary as defence-in-depth.
-  const trimmed = mobile.trim();
-  const mobileValid = trimmed.length > 0 && isUkMobile(trimmed);
-
-  // ── Email change — DISABLED in v1 (2026-05-07) ──────────────────
-  // Email is read-only for now. Server-side flow remains wired for
-  // when we re-enable: see updateAccountEmail in lib/actions/nanny
-  // and the auth callback at /api/auth/callback/route.ts.
-
-  return (
-    <div className="space-y-6">
-      <SettingsSubsection header="Email">
-        <SettingsRow
-          label="Email address"
-          value={profile.email}
-          badge={
-            profile.email ? { label: "Verified", tone: "success" } : undefined
-          }
-          isLast
-          // Email change disabled in v1.
-        />
-      </SettingsSubsection>
-
-      <SettingsSubsection header="Phone">
-        <SettingsRow
-          label="Mobile number"
-          value={
-            profile.mobile_number
-              ? formatUkMobile(profile.mobile_number)
-              : undefined
-          }
-          isLast
-          onClick={() => {
-            setMobile(profile.mobile_number);
-            setEditingMobile(true);
-          }}
-        />
-      </SettingsSubsection>
-
-      <EditFieldDialog
-        open={editingMobile}
-        onOpenChange={setEditingMobile}
-        title="Edit mobile number"
-        canSubmit={mobileValid}
-        onSubmit={async () => {
-          if (!mobileValid) {
-            return {
-              success: false,
-              error: "Enter a valid UK mobile number.",
-            };
-          }
-          const r = await updateParentAccountSettings({
-            mobile_number: normaliseUkMobile(mobile),
-          });
-          if (r.success) {
-            router.refresh();
-            return { success: true };
-          }
-          return { success: false, error: r.error };
-        }}
-      >
-        <div className="space-y-1.5">
-          <Label htmlFor="edit-mobile">Mobile number</Label>
-          <Input
-            id="edit-mobile"
-            type="tel"
-            value={mobile}
-            onChange={(e) => setMobile(e.target.value)}
-            placeholder="07XXX XXX XXX"
-            autoFocus
-            inputMode="tel"
-          />
-          {trimmed.length > 0 && !mobileValid && (
-            <p className="text-xs text-rose-600">
-              That doesn&apos;t look like a UK mobile number. Format:
-              07XXX XXX XXX.
-            </p>
-          )}
-          {mobileValid && (
-            <p className="text-xs text-emerald-600">{formatUkMobile(mobile)}</p>
-          )}
-          <p className="text-[11px] text-slate-400">
-            We require a valid UK mobile so we can reach you about
-            account-critical updates.
-          </p>
-        </div>
-      </EditFieldDialog>
-    </div>
   );
 }
 
