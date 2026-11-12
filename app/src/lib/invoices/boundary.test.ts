@@ -21,7 +21,7 @@
  * BB-wave1-041126/06a-build, 2026-11-04; 06b2-build, 2026-11-06 (store-business; pdf/model, which logs through db);
  * 06b3-build, 2026-11-07 (the Settings seam, the actions, the details-changed sender); 06b3-rework, 2026-11-09;
  * 06b4, 2026-11-12 (the invoice actions; review, store-delivery, the invoice emails' sender; store-pdf-link, her list's
- * "View PDF").
+ * "View PDF"; the family popup's Create invoice, a second seam).
  */
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
@@ -42,8 +42,12 @@ const ACTIONS: Readonly<Record<string, readonly [string, string]>> = {
   "actions/save-business-settings": ["saveBusinessSettings", "BusinessSettingsResult"],
   "actions/send-invoice": ["sendInvoice", "SendInvoiceResult"],
 };
-/** The one import of the feature's page folders from outside them (plan 14.6 b3.4–b3.5). */
-const SEAM = { file: "app/nanny/settings/page.tsx", from: "@/app/nanny/invoices/business/BusinessSettingsLeaf" } as const;
+/** The imports of the feature's page folders from outside them: the Settings slot (plan 14.6 b3.4–b3.5) and the family
+ * popup's "Create invoice" (b4.6), which renders nothing while the switch is off. */
+const SEAMS = [
+  { file: "app/nanny/positions/NannyPositionsClient.tsx", from: "@/app/nanny/invoices/CreateInvoiceLink" },
+  { file: "app/nanny/settings/page.tsx", from: "@/app/nanny/invoices/business/BusinessSettingsLeaf" },
+] as const;
 const SPECIFIER = /(?:from\s+|import\s*\(\s*|import\s+)["']([^"']+)["']/g;
 
 /** The imports in `text` (a file at `fileRel` under src/) that land in the feature's page folders, alias or relative. */
@@ -133,12 +137,12 @@ describe("src/lib/invoices boundaries", () => {
     }
   });
 
-  it("outside the feature, only the Settings page imports its page folders — the leaf, nothing else (06b-3 b3.5)", () => {
+  it("outside the feature, only the two seams import its page folders — the Settings leaf and Create invoice (06b-3 b3.5; 06b-4 b4.6)", () => {
     // shipped code only: the page's own test imports the leaf to check the slot it passes
     const found = files(SRC)
       .filter((f) => outsideFeature(f) && !/\.test\.tsx?$/.test(f))
       .flatMap((f) => pageImports(rel(f), readFileSync(f, "utf8")).map((from) => ({ file: rel(f), from })));
-    expect(found).toEqual([SEAM]);
+    expect([...found].sort((x, y) => x.file.localeCompare(y.file))).toEqual(SEAMS);
   });
 
   it("no \"use client\" file imports the server leaf (it reads her details with the service role)", () => {

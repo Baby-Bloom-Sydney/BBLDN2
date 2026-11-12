@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Settings, LogOut } from "lucide-react";
+import { Settings, LogOut, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/dashboard/UserAvatar";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,6 +17,7 @@ import {
 import { trackEvent } from "@/lib/analytics/trackEvent";
 import { NannyEarningsBadge } from "./NannyEarningsBadge";
 import { payoutsEnabled } from "@/lib/payments/flags";
+import { nannyInvoicesEnabled } from "@/lib/features/flags";
 
 interface DashboardNavProps {
   role: "nanny" | "parent";
@@ -118,6 +119,15 @@ export function DashboardNav({ role }: DashboardNavProps) {
                 Settings
               </Link>
             </DropdownMenuItem>
+            {/* Brief 06 (§3 nanny 1): her invoices, by Settings; hidden unless NANNY_INVOICES_ENABLED. */}
+            {role === "nanny" && nannyInvoicesEnabled() && (
+              <DropdownMenuItem asChild className="cursor-pointer">
+                <Link href="/nanny/invoices">
+                  <FileText className="mr-2 h-4 w-4" />
+                  Invoices
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="cursor-pointer"
