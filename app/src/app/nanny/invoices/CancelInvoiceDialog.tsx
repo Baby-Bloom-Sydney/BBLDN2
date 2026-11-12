@@ -38,8 +38,8 @@ export interface CancelInvoiceDialogProps {
   readonly onCancelled: () => void;
 }
 
-export function CancelInvoiceDialog({ target, onClose, onCancelled }: CancelInvoiceDialogProps) {
-  const id = useId();
+/** The dialog's state: the reason, the message, one request at a time (a ref: React 18 batches state). */
+function useCancel({ target, onClose, onCancelled }: CancelInvoiceDialogProps) {
   const [reason, setReason] = useState<CancelReason | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -72,7 +72,13 @@ export function CancelInvoiceDialog({ target, onClose, onCancelled }: CancelInvo
       onCancelled();
     }
   };
+  return { reason, setReason, message, pending, close, confirm };
+}
 
+export function CancelInvoiceDialog(props: CancelInvoiceDialogProps) {
+  const { target } = props;
+  const id = useId();
+  const { reason, setReason, message, pending, close, confirm } = useCancel(props);
   return (
     <Dialog open={target !== null} onOpenChange={(open) => (open ? undefined : close())}>
       <DialogContent className="max-w-md">
