@@ -1,96 +1,100 @@
 /**
  * The families a nanny can invoice (plan 06 step 7; §12 R3 per BAI 2026-11-04: "allow nannies to select from their
- * connected parents/families"). Server-only, not `"use server"`.
+ * connected parents/families"; 06b-4 rework, BAI 2026-11-12: one family picker, no Regular week / Trial Shift choice).
+ * Server-only, not `"use server"`.
  *
- * - **Regular week:** each of her placements, any status (active, paused, ended — a late last week is allowed),
- *   except the ones she dismissed (`[NANNY_DISMISSED]`, the `getNannyPlacements` rule in `position-funnel.ts`).
- * - **Trial Shift:** each of her connections with a trial date, at any stage (cancelled 50/51 after a worked trial
- *   included). A connection with no trial date and no placement is not listed.
- * - Each family shows the parent's name and the position's area (`suburb`, for every status).
- * - **Pre-fill** (06b-2, plan 14.3; the rules are `prefill.ts`): shift rows for the chosen week from her usual days
- *   (the position's schedule, else its days) with the placement's weekly hours split over them, or a Trial Shift's
- *   one row; her rate from the placement, the position, then her profile (`nannies.hourly_rate_min`). Nothing here
- *   is capped or changed: the form shows it and she edits it.
+ * - **One entry per family (one parent)**, from both sets: her placements with that parent of any status (active,
+ *   paused, ended — a late invoice is allowed) except the ones she dismissed (`[NANNY_DISMISSED]`, the
+ *   `getNannyPlacements` rule in `position-funnel.ts`), and her connections with that parent that have a trial date,
+ *   at any stage. A family with neither is not listed; nor is one with no profile (it can't be invoiced).
+ * - **The link** (amendment 21's rule, spec h, ledger reading 1): her placement with that parent — active, then paused,
+ *   then the rest; the latest start first; then by id — else her connection with that parent with the latest trial
+ *   date (then by id). The kind is the link's type, never chosen: a placement is `regular_week`, a connection
+ *   `trial_shift`. The draft sends the link's id (`targetId`).
+ * - **The earliest date** she can invoice (reading 2): the earlier of her first trial date with that parent and the
+ *   linked placement's start; with neither, the placement's creation date in London (and, were that missing too,
+ *   London's today, the strictest answer). London's today is the latest; there is no look-back limit.
+ * - **The rate** every new shift row starts with (`prefill.ts`): the linked placement's, the position's, then her
+ *   profile's (`nannies.hourly_rate_min`). A failed or malformed read of her profile rate only leaves that part blank.
+ * - Each family shows the parent's name and the area of the link's position (else any of its positions).
+ * - **Resolving** any of her ids for a family (her placement — not dismissed — or her trial connection) gives that
+ *   family's entry, as the database works it out from the same rows; the review adds the family's email hint.
  * - Every read is the proof's nanny's; rows a query should never have returned are dropped again here. Reads are
  *   paged and chunked (`db.ts`). The database re-checks ownership when an invoice is created (amendment 21).
  *
- * Nothing is added to `position-funnel.ts` (brief §8). BB-wave1-041126/06a-build, 2026-11-04; 06b2-build, 2026-11-06.
+ * Nothing is added to `position-funnel.ts` (brief §8). BB-wave1-041126/06a-build, 2026-11-04; 06b2-build,
+ * 2026-11-06; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 
 import { z } from "zod";
-import { londonMondayOf, londonToday } from "@/lib/timezone";
+import { londonDateOf, londonToday } from "@/lib/timezone";
 import { allPages, allPagesByIds, parseRows, readOne, serviceClient, type AdminClient } from "./db";
 import { nannyGate } from "./gate";
-import { poundsToPence } from "./money";
 import type { NannyProof } from "./nanny-proof";
-import { pickRate, trialPrefill, usualDays, weekPrefill, type Prefill } from "./prefill";
-import { FAILED, INVALID, INVOICE_KINDS, invoiceOk, refused, type InvoiceKind, type InvoiceResult } from "./types";
-import { isFutureLondonDate, isLondonDate, isLondonMonday } from "./week";
+import { pickRate, type RateSource } from "./prefill";
+import { FAILED, INVALID, invoiceOk, refused, type InvoiceKind, type InvoiceResult } from "./types";
+import { isLondonDate } from "./week";
 
-export interface FamilyPlacement {
-  readonly placementId: string;
-  readonly status: "active" | "paused" | "ended";
-  readonly startDate: string | null;
-  readonly weeklyHours: number | null;
-  readonly ratePence: number | null;
-}
-
-export interface FamilyTrial {
-  readonly connectionId: string;
-  readonly trialDate: string;
-  readonly ratePence: number | null;
-}
-
+/** One family she can invoice, as the picker lists it. */
 export interface InvoiceableFamily {
   readonly parentUserId: string;
   readonly familyName: string;
   readonly area: string | null;
-  readonly placements: readonly FamilyPlacement[];
-  readonly trials: readonly FamilyTrial[];
+  /** The family's link id, which the draft sends: her placement's id, else her connection's. */
+  readonly targetId: string;
+  /** The link's type, derived and never chosen. */
+  readonly kind: InvoiceKind;
+  /** The first date she can invoice this family for ("YYYY-MM-DD"); London's today is the last. */
+  readonly earliest: string;
+  /** The rate every new shift row starts with, in pence; null = blank. */
+  readonly ratePence: number | null;
+  readonly rateSource: RateSource | null;
 }
 
 /**
- * One target, resolved for the review screen (brief §0.4: "This invoice goes to Olivia Hartley (olivia@…)"). The
+ * One family, resolved for the review screen (brief §0.4: "This invoice goes to Olivia Hartley (olivia@…)"). The
  * email is a hint only — the address an invoice goes to is the database's snapshot on the created row (security L3).
  */
-export interface InvoiceTarget {
-  readonly kind: InvoiceKind;
-  readonly targetId: string;
-  readonly parentUserId: string;
-  readonly familyName: string;
+export interface InvoiceTarget extends InvoiceableFamily {
   readonly familyEmailHint: string;
-  readonly area: string | null;
-  readonly prefill: Prefill;
 }
 
 const DISMISSED = "[NANNY_DISMISSED]";
 const STATUS_ORDER = ["active", "paused", "ended"] as const;
-const PLACEMENT_COLUMNS = "id, nanny_id, parent_id, position_id, status, start_date, weekly_hours, hourly_rate, end_notes";
+const PLACEMENT_COLUMNS = "id, nanny_id, parent_id, position_id, status, start_date, hourly_rate, end_notes, created_at";
 const CONNECTION_COLUMNS = "id, nanny_id, parent_id, position_id, trial_date";
 
 const id = z.string().min(1);
 const numeric = z.union([z.number(), z.string()]).nullable();
+const date = z.string().refine(isLondonDate);
 const placementRow = z.object({
-  id, nanny_id: id, parent_id: id, position_id: id.nullable(), status: z.enum(STATUS_ORDER),
-  start_date: z.string().nullable(), weekly_hours: numeric, hourly_rate: numeric, end_notes: z.string().nullable(),
+  id, nanny_id: id, parent_id: id, position_id: id.nullable(), status: z.enum(STATUS_ORDER), start_date: date.nullable(),
+  hourly_rate: numeric, end_notes: z.string().nullable(), created_at: z.string().nullable(),
 });
 const connectionRow = z.object({ id, nanny_id: id, parent_id: id, position_id: id.nullable(), trial_date: z.string().nullable() });
 const parentRow = z.object({ id, user_id: id });
 const profileRow = z.object({ user_id: id, first_name: z.string(), last_name: z.string() });
 const contactRow = profileRow.extend({ email: z.string().min(1) });
 const positionRow = z.object({ id, suburb: z.string().nullable(), hourly_rate: numeric });
-const targetPositionRow = positionRow.extend({ days_required: z.array(z.string()).nullable() });
-const scheduleRow = z.object({ position_id: id, schedule: z.unknown() });
 const nannyRateRow = z.object({ id, hourly_rate_min: numeric });
 type PlacementRow = z.output<typeof placementRow>;
-type TargetPositionRow = z.output<typeof targetPositionRow>;
 type ConnectionRow = z.output<typeof connectionRow>;
+type TrialRow = ConnectionRow & { readonly trial_date: string };
 type PositionRow = z.output<typeof positionRow>;
 
-interface People {
-  readonly userOfParent: ReadonlyMap<string, string>;
-  readonly nameOfUser: ReadonlyMap<string, string>;
+/** Her rows with one parent: placements in link order, trials latest first. */
+interface Family {
+  readonly parentId: string;
+  readonly placements: readonly PlacementRow[];
+  readonly trials: readonly TrialRow[];
+}
+
+/** What the entry needs beyond her rows: the family's user and name, the positions, her profile rate. */
+interface Facts {
+  readonly userId: string;
+  readonly familyName: string;
   readonly positions: ReadonlyMap<string, PositionRow>;
+  readonly profileRate: number | string | null;
 }
 
 /** "olivia@…": the address's local part, never its domain (brief §0.4). */
@@ -100,15 +104,61 @@ export function emailHint(email: string): string {
 }
 
 const fullName = (p: { readonly first_name: string; readonly last_name: string }): string => `${p.first_name} ${p.last_name}`.trim();
-const hoursOf = (value: number | string | null): number | null => {
-  const n = value === null ? Number.NaN : Number(value);
-  return Number.isFinite(n) && n > 0 ? n : null;
-};
 const isDismissed = (row: PlacementRow): boolean => row.end_notes?.includes(DISMISSED) ?? false;
 const unique = (values: readonly (string | null)[]): string[] => [...new Set(values.filter((v): v is string => v !== null))];
+const compare = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+const hasTrial = (row: ConnectionRow): row is TrialRow => row.trial_date !== null && isLondonDate(row.trial_date);
 
-/** Her non-dismissed placements and her trials with a date. */
-async function readMine(admin: AdminClient, nannyId: string): Promise<InvoiceResult<{ placements: readonly PlacementRow[]; trials: readonly ConnectionRow[] }>> {
+/** Today's family-list order: active, then paused, then the rest; the latest start first (none last); then by id. */
+const byLinkOrder = (a: PlacementRow, b: PlacementRow): number =>
+  STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status) || compare(b.start_date ?? "", a.start_date ?? "") || compare(a.id, b.id);
+const byLatestTrial = (a: TrialRow, b: TrialRow): number => compare(b.trial_date, a.trial_date) || compare(a.id, b.id);
+
+/** Pure: her rows grouped by parent, each family's rows in link order. */
+function familiesOf(placements: readonly PlacementRow[], trials: readonly TrialRow[]): Family[] {
+  return unique([...placements, ...trials].map((r) => r.parent_id)).map((parentId) => ({
+    parentId,
+    placements: placements.filter((r) => r.parent_id === parentId).sort(byLinkOrder),
+    trials: trials.filter((r) => r.parent_id === parentId).sort(byLatestTrial),
+  }));
+}
+
+/** Pure: the link's kind and id, its placement (a connection link has none) and its position. */
+function linkOf(family: Family): { readonly kind: InvoiceKind; readonly targetId: string; readonly placement: PlacementRow | null; readonly positionId: string | null } {
+  const [placement] = family.placements;
+  if (placement) return { kind: "regular_week", targetId: placement.id, placement, positionId: placement.position_id };
+  const [trial] = family.trials;
+  return { kind: "trial_shift", targetId: trial?.id ?? "", placement: null, positionId: trial?.position_id ?? null };
+}
+
+/** Pure (reading 2): the earlier of her first trial date and the linked placement's start; else its creation in London. */
+function earliestOf(family: Family, placement: PlacementRow | null, now: Date): string {
+  const dates = [...family.trials.map((t) => t.trial_date), placement?.start_date ?? null].filter((d): d is string => d !== null).sort(compare);
+  const [first] = dates;
+  if (first !== undefined) return first;
+  const created = placement?.created_at ? new Date(placement.created_at) : null;
+  return created && !Number.isNaN(created.getTime()) ? londonDateOf(created) : londonToday(now);
+}
+
+/** Pure: one family's entry from its rows and facts. */
+function entryOf(family: Family, facts: Facts, now: Date): InvoiceableFamily {
+  const link = linkOf(family);
+  const position = (pid: string | null): PositionRow | undefined => (pid === null ? undefined : facts.positions.get(pid));
+  const positionIds = [link.positionId, ...family.placements.map((r) => r.position_id), ...family.trials.map((r) => r.position_id)];
+  const rate = pickRate({ placement: link.placement?.hourly_rate ?? null, position: position(link.positionId)?.hourly_rate ?? null, profile: facts.profileRate });
+  return {
+    parentUserId: facts.userId,
+    familyName: facts.familyName,
+    area: positionIds.map((pid) => position(pid)?.suburb ?? null).find((s) => s) ?? null,
+    targetId: link.targetId,
+    kind: link.kind,
+    earliest: earliestOf(family, link.placement, now),
+    ...rate,
+  };
+}
+
+/** Her non-dismissed placements and her trials with a date, grouped by family. */
+async function readMine(admin: AdminClient, nannyId: string): Promise<InvoiceResult<readonly Family[]>> {
   const [placements, connections] = await Promise.all([
     allPages("families.placements", (from, to) =>
       admin.from("nanny_placements").select(PLACEMENT_COLUMNS).eq("nanny_id", nannyId).order("id", { ascending: true }).range(from, to)),
@@ -120,193 +170,93 @@ async function readMine(admin: AdminClient, nannyId: string): Promise<InvoiceRes
   const c = parseRows("families.trials", connections, connectionRow);
   if (!p.ok) return p;
   if (!c.ok) return c;
-  return invoiceOk({
-    placements: p.value.filter((r) => r.nanny_id === nannyId && !isDismissed(r)),
-    trials: c.value.filter((r) => r.nanny_id === nannyId && r.trial_date !== null && isLondonDate(r.trial_date)),
-  });
+  const mine = <R extends { readonly nanny_id: string }>(r: R) => r.nanny_id === nannyId;
+  return invoiceOk(familiesOf(p.value.filter((r) => mine(r) && !isDismissed(r)), c.value.filter(mine).filter(hasTrial)));
 }
 
-/** The families' user ids and names, and the positions' areas and rates. */
-async function readPeople(admin: AdminClient, parentIds: readonly string[], positionIds: readonly string[]): Promise<InvoiceResult<People>> {
+/** The positions' areas and rates. */
+async function readPositions(admin: AdminClient, positionIds: readonly string[]): Promise<InvoiceResult<ReadonlyMap<string, PositionRow>>> {
+  const rows = parseRows("families.positions", await allPagesByIds("families.positions", positionIds, (chunk) => (from, to) =>
+    admin.from("nanny_positions").select("id, suburb, hourly_rate").in("id", [...chunk]).order("id", { ascending: true }).range(from, to)), positionRow);
+  return rows.ok ? invoiceOk(new Map(rows.value.map((p) => [p.id, p]))) : rows;
+}
+
+/** Her profile rate: it only fills in the form, so a failed or malformed read leaves it blank (logged by code). */
+async function readProfileRate(admin: AdminClient, nannyId: string): Promise<number | string | null> {
+  const r = await readOne("families.rate", () => admin.from("nannies").select("id, hourly_rate_min").eq("id", nannyId).maybeSingle(), nannyRateRow);
+  return r.ok ? r.value?.hourly_rate_min ?? null : null;
+}
+
+const positionIdsOf = (families: readonly Family[]): string[] =>
+  unique(families.flatMap((fam) => [...fam.placements, ...fam.trials].map((r) => r.position_id)));
+
+/** The families' user ids and names. */
+async function readNames(admin: AdminClient, parentIds: readonly string[]): Promise<InvoiceResult<ReadonlyMap<string, { userId: string; name: string }>>> {
   const parents = parseRows("families.parents", await allPagesByIds("families.parents", parentIds, (chunk) => (from, to) =>
     admin.from("parents").select("id, user_id").in("id", [...chunk]).order("id", { ascending: true }).range(from, to)), parentRow);
   if (!parents.ok) return parents;
-  const userIds = unique(parents.value.map((p) => p.user_id));
-  const [profiles, positions] = await Promise.all([
-    allPagesByIds("families.profiles", userIds, (chunk) => (from, to) =>
-      admin.from("user_profiles").select("user_id, first_name, last_name").in("user_id", [...chunk]).order("user_id", { ascending: true }).range(from, to)),
-    allPagesByIds("families.positions", positionIds, (chunk) => (from, to) =>
-      admin.from("nanny_positions").select("id, suburb, hourly_rate").in("id", [...chunk]).order("id", { ascending: true }).range(from, to)),
-  ]);
-  const names = parseRows("families.profiles", profiles, profileRow);
-  const places = parseRows("families.positions", positions, positionRow);
-  if (!names.ok) return names;
-  if (!places.ok) return places;
-  return invoiceOk({
-    userOfParent: new Map(parents.value.map((p) => [p.id, p.user_id])),
-    nameOfUser: new Map(names.value.map((p) => [p.user_id, fullName(p)])),
-    positions: new Map(places.value.map((p) => [p.id, p])),
-  });
+  const profiles = parseRows("families.profiles", await allPagesByIds("families.profiles", unique(parents.value.map((p) => p.user_id)), (chunk) => (from, to) =>
+    admin.from("user_profiles").select("user_id, first_name, last_name").in("user_id", [...chunk]).order("user_id", { ascending: true }).range(from, to)), profileRow);
+  if (!profiles.ok) return profiles;
+  const nameOf = new Map(profiles.value.map((p) => [p.user_id, fullName(p)]));
+  return invoiceOk(new Map(parents.value.flatMap((p) => {
+    const name = nameOf.get(p.user_id);
+    return name ? [[p.id, { userId: p.user_id, name }] as const] : [];
+  })));
 }
 
-const byStatusThenStart = (a: FamilyPlacement, b: FamilyPlacement): number =>
-  STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status) || (b.startDate ?? "").localeCompare(a.startDate ?? "");
-
-/** Pure: one entry per family she can invoice, by name; a family with no profile can't be invoiced and is left out. */
-function groupFamilies(placements: readonly PlacementRow[], trials: readonly ConnectionRow[], people: People): InvoiceableFamily[] {
-  const position = (pid: string | null): PositionRow | undefined => (pid === null ? undefined : people.positions.get(pid));
-  const userIds = unique([...placements, ...trials].map((r) => people.userOfParent.get(r.parent_id) ?? null));
-  return userIds.flatMap((userId): InvoiceableFamily[] => {
-    const familyName = people.nameOfUser.get(userId);
-    if (!familyName) return [];
-    const isTheirs = (r: { readonly parent_id: string }) => people.userOfParent.get(r.parent_id) === userId;
-    const own = placements.filter(isTheirs);
-    const tried = trials.filter(isTheirs);
-    const area = [...own, ...tried].map((r) => position(r.position_id)?.suburb ?? null).find((s) => s) ?? null;
-    return [{
-      parentUserId: userId,
-      familyName,
-      area,
-      placements: own.map((r): FamilyPlacement => ({
-        placementId: r.id, status: r.status, startDate: r.start_date, weeklyHours: hoursOf(r.weekly_hours), ratePence: poundsToPence(r.hourly_rate),
-      })).sort(byStatusThenStart),
-      trials: tried.map((r): FamilyTrial => ({
-        connectionId: r.id, trialDate: r.trial_date ?? "", ratePence: poundsToPence(position(r.position_id)?.hourly_rate ?? null),
-      })).sort((a, b) => b.trialDate.localeCompare(a.trialDate)),
-    }];
-  }).sort((a, b) => a.familyName.localeCompare(b.familyName, "en-GB"));
-}
-
-/** Every family she can invoice (plan step 7). */
-export async function listInvoiceableFamilies(proof: NannyProof): Promise<InvoiceResult<readonly InvoiceableFamily[]>> {
+/** Every family she can invoice today, by name (spec a). */
+export async function listInvoiceableFamilies(proof: NannyProof, now: Date = new Date()): Promise<InvoiceResult<readonly InvoiceableFamily[]>> {
   const refusal = nannyGate(proof);
   if (refusal) return refusal;
   const admin = serviceClient();
   if (!admin) return FAILED;
   const mine = await readMine(admin, proof.nannyId);
   if (!mine.ok) return mine;
-  const { placements, trials } = mine.value;
-  if (placements.length === 0 && trials.length === 0) return invoiceOk([]);
-  const rows = [...placements, ...trials];
-  const people = await readPeople(admin, unique(rows.map((r) => r.parent_id)), unique(rows.map((r) => r.position_id)));
-  return people.ok ? invoiceOk(groupFamilies(placements, trials, people.value)) : people;
+  if (mine.value.length === 0) return invoiceOk([]);
+  const names = await readNames(admin, mine.value.map((fam) => fam.parentId));
+  if (!names.ok) return names;
+  const [positions, profileRate] = await Promise.all([readPositions(admin, positionIdsOf(mine.value)), readProfileRate(admin, proof.nannyId)]);
+  if (!positions.ok) return positions;
+  return invoiceOk(mine.value.flatMap((fam): InvoiceableFamily[] => {
+    const who = names.value.get(fam.parentId);
+    return who ? [entryOf(fam, { userId: who.userId, familyName: who.name, positions: positions.value, profileRate }, now)] : [];
+  }).sort((a, b) => a.familyName.localeCompare(b.familyName, "en-GB")));
 }
 
-interface Link {
-  readonly parentId: string;
-  readonly positionId: string | null;
-  readonly placement: PlacementRow | null;
-  readonly trialDate: string | null;
-}
-
-/** Her placement (not dismissed) or her trial connection (with a date): its family and position. */
-async function readLink(admin: AdminClient, kind: InvoiceKind, targetId: string, nannyId: string): Promise<InvoiceResult<Link>> {
-  if (kind === "regular_week") {
-    const r = await readOne("families.placement", () =>
-      admin.from("nanny_placements").select(PLACEMENT_COLUMNS).eq("id", targetId).eq("nanny_id", nannyId).maybeSingle(), placementRow);
-    if (!r.ok) return r;
-    if (r.value === null || r.value.nanny_id !== nannyId || isDismissed(r.value)) return refused("not_hers");
-    return invoiceOk({ parentId: r.value.parent_id, positionId: r.value.position_id, placement: r.value, trialDate: null });
-  }
-  const c = await readOne("families.trial", () =>
-    admin.from("connection_requests").select(CONNECTION_COLUMNS).eq("id", targetId).eq("nanny_id", nannyId).maybeSingle(), connectionRow);
-  if (!c.ok) return c;
-  if (c.value === null || c.value.nanny_id !== nannyId) return refused("not_hers");
-  if (c.value.trial_date === null || !isLondonDate(c.value.trial_date)) return refused("no_trial");
-  return invoiceOk({ parentId: c.value.parent_id, positionId: c.value.position_id, placement: null, trialDate: c.value.trial_date });
-}
-
-interface PrefillRows {
-  readonly position: TargetPositionRow | null;
-  readonly schedule: unknown;
-  readonly profileRate: number | string | null;
-}
-
-/**
- * The position (area, rate, days), its schedule and her profile rate: the pre-fill's two extra reads (14.6 b2.5).
- * The schedule and her profile rate only fill in the form, so a failed or malformed read of either leaves that part
- * blank (`readOne` has logged it by code) rather than stopping her invoice (review TS M3). The position names the
- * family's area, so its failure still fails the read, as in 06a.
- */
-async function readPrefillRows(admin: AdminClient, positionId: string | null, nannyId: string): Promise<InvoiceResult<PrefillRows>> {
-  const none = <T>() => Promise.resolve(invoiceOk<T | null>(null));
-  const [position, schedule, nanny] = await Promise.all([
-    positionId === null ? none<TargetPositionRow>() : readOne("families.position", () =>
-      admin.from("nanny_positions").select("id, suburb, hourly_rate, days_required").eq("id", positionId).maybeSingle(), targetPositionRow),
-    positionId === null ? none<z.output<typeof scheduleRow>>() : readOne("families.schedule", () =>
-      admin.from("position_schedule").select("position_id, schedule").eq("position_id", positionId).maybeSingle(), scheduleRow),
-    readOne("families.rate", () => admin.from("nannies").select("id, hourly_rate_min").eq("id", nannyId).maybeSingle(), nannyRateRow),
-  ]);
-  if (!position.ok) return position;
-  return invoiceOk({
-    position: position.value,
-    schedule: schedule.ok ? schedule.value?.schedule ?? null : null,
-    profileRate: nanny.ok ? nanny.value?.hourly_rate_min ?? null : null,
-  });
-}
-
-/** The form's starting rows and rate (14.3). */
-function buildPrefill(kind: InvoiceKind, link: Link, rows: PrefillRows, weekStart: string, now: Date): Prefill {
-  const rate = pickRate(kind, { placement: link.placement?.hourly_rate ?? null, position: rows.position?.hourly_rate ?? null, profile: rows.profileRate });
-  const shifts = kind === "trial_shift" && link.trialDate !== null
-    ? trialPrefill(link.trialDate, rate.ratePence)
-    : weekPrefill({
-        weekStart,
-        days: usualDays(rows.schedule, rows.position?.days_required ?? null),
-        weeklyHours: hoursOf(link.placement?.weekly_hours ?? null),
-        ratePence: rate.ratePence,
-        now,
-      });
-  return { shifts, ...rate };
-}
-
-/** The week a Regular week's rows fill: the one given (a London Monday, not future) or, by default, this week. */
-function weekFor(weekStart: string | null, now: Date): InvoiceResult<string> {
-  const week = weekStart ?? londonMondayOf(londonToday(now));
-  if (!isLondonMonday(week)) return INVALID;
-  return isFutureLondonDate(week, now) ? refused("future") : invoiceOk(week);
-}
-
-/**
- * Check one target is hers and resolve its family (plan step 7's `assertFamilyIsHers`) for the review screen, with the
- * form's pre-fill for `weekStart` (a Regular week; default this London week) or the trial date. The database applies
- * the ownership rules again, under her lock, when it creates the invoice (a dismissed placement, a trial's date), so a
- * caller that skipped this can't get past them.
- */
-export async function resolveInvoiceTarget(
-  proof: NannyProof,
-  kind: InvoiceKind,
-  targetId: string,
-  weekStart: string | null = null,
-  now: Date = new Date(),
-): Promise<InvoiceResult<InvoiceTarget>> {
-  const refusal = nannyGate(proof);
-  if (refusal) return refusal;
-  if (!INVOICE_KINDS.includes(kind) || !z.guid().safeParse(targetId).success) return INVALID;
-  const week = weekFor(weekStart, now);
-  if (kind === "regular_week" && !week.ok) return week;
-  const admin = serviceClient();
-  if (!admin) return FAILED;
-  const link = await readLink(admin, kind, targetId, proof.nannyId);
-  if (!link.ok) return link;
-  const parent = await readOne("families.parent", () => admin.from("parents").select("id, user_id").eq("id", link.value.parentId).maybeSingle(), parentRow);
+/** The family's user, its contact (name and email) — none is `not_hers` / `no_contact`. */
+async function readContact(admin: AdminClient, parentId: string): Promise<InvoiceResult<{ readonly userId: string; readonly name: string; readonly email: string }>> {
+  const parent = await readOne("families.parent", () => admin.from("parents").select("id, user_id").eq("id", parentId).maybeSingle(), parentRow);
   if (!parent.ok) return parent;
   if (parent.value === null) return refused("not_hers");
   const userId = parent.value.user_id;
-  const [contact, rows] = await Promise.all([
-    readOne("families.contact", () => admin.from("user_profiles").select("user_id, first_name, last_name, email").eq("user_id", userId).maybeSingle(), contactRow),
-    readPrefillRows(admin, link.value.positionId, proof.nannyId),
-  ]);
+  const contact = await readOne("families.contact", () =>
+    admin.from("user_profiles").select("user_id, first_name, last_name, email").eq("user_id", userId).maybeSingle(), contactRow);
   if (!contact.ok) return contact;
-  if (!rows.ok) return rows;
   if (contact.value === null || fullName(contact.value) === "") return refused("no_contact");
-  return invoiceOk({
-    kind,
-    targetId,
-    parentUserId: userId,
-    familyName: fullName(contact.value),
-    familyEmailHint: emailHint(contact.value.email),
-    area: rows.value.position?.suburb ?? null,
-    prefill: buildPrefill(kind, link.value, rows.value, week.ok ? week.value : londonMondayOf(londonToday(now)), now),
-  });
+  return invoiceOk({ userId, name: fullName(contact.value), email: contact.value.email });
+}
+
+/**
+ * Check an id is one of hers for a family (her placement, not dismissed, or her trial connection) and resolve that
+ * family — its link, kind, earliest date and rate, as the list gives them — for the review screen. The database works
+ * out the same from the same rows, under her lock, when it creates the invoice, so a caller that skipped this can't
+ * get past it.
+ */
+export async function resolveInvoiceTarget(proof: NannyProof, targetId: string, now: Date = new Date()): Promise<InvoiceResult<InvoiceTarget>> {
+  const refusal = nannyGate(proof);
+  if (refusal) return refusal;
+  if (!z.guid().safeParse(targetId).success) return INVALID;
+  const admin = serviceClient();
+  if (!admin) return FAILED;
+  const mine = await readMine(admin, proof.nannyId);
+  if (!mine.ok) return mine;
+  const family = mine.value.find((fam) => [...fam.placements, ...fam.trials].some((r) => r.id === targetId));
+  if (!family) return refused("not_hers");
+  const contact = await readContact(admin, family.parentId);
+  if (!contact.ok) return contact;
+  const [positions, profileRate] = await Promise.all([readPositions(admin, positionIdsOf([family])), readProfileRate(admin, proof.nannyId)]);
+  if (!positions.ok) return positions;
+  const { userId, name, email } = contact.value;
+  return invoiceOk({ ...entryOf(family, { userId, familyName: name, positions: positions.value, profileRate }, now), familyEmailHint: emailHint(email) });
 }

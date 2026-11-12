@@ -1,13 +1,18 @@
 /**
- * Which families she can invoice (plan 06 step 7, §12 R3 per BAI 2026-11-04): her non-dismissed placements of any
- * status (Regular week), plus her connections with a trial date at any stage (Trial Shift). Other nannies' rows,
- * dismissed placements and connections without a trial date never appear. Every read is hers (the proof's nanny).
+ * Which families she can invoice (plan 06 step 7, §12 R3 per BAI 2026-11-04; 06b-4 rework, BAI 2026-11-12): one entry
+ * per family (one parent), from both sets — her non-dismissed placements of any status and her connections with a
+ * trial date. Other nannies' rows, dismissed placements and connections without a trial date never count. Every read
+ * is hers (the proof's nanny).
  *
- * 06b-2 (plan 14.3, b2.5): the review's pre-fill is shift rows and her rate — the rate from the placement, the
- * position, then her profile; the rows from her usual days (the position's schedule, else its days) with the weekly
- * hours split over them; a Trial Shift's one blank row. Two more reads: `position_schedule`, `nannies.hourly_rate_min`.
+ * The link rule (amendment 21, the database's own): her placement with that parent — active, then paused, then the
+ * rest; the latest start first; then by id — else her connection with that parent that has the latest trial date.
+ * The kind is the link's type. The earliest date is the earlier of her first trial date with that parent and the
+ * linked placement's start; with neither, the placement's creation date in London. The rate: the linked placement's,
+ * then the position's, then her profile's.
  *
- * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
+ * Resolving any of her ids for a family (the review, a page parameter, a correction) gives that family's link.
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -25,7 +30,7 @@ const OTHER_NANNY = u(102);
 
 const placement = (n: number, parent: number, status: string, extra: Record<string, unknown> = {}) => ({
   id: u(400 + n), nanny_id: NANNY, parent_id: u(200 + parent), position_id: u(300 + parent), status,
-  start_date: "2027-01-11", weekly_hours: 30, hourly_rate: 18, end_notes: null, ...extra,
+  start_date: "2027-01-11", hourly_rate: 18, end_notes: null, created_at: "2026-12-20T10:00:00+00:00", ...extra,
 });
 const connection = (n: number, parent: number, trial: string | null, extra: Record<string, unknown> = {}) => ({
   id: u(500 + n), nanny_id: NANNY, parent_id: u(200 + parent), position_id: u(300 + parent), trial_date: trial, ...extra,
@@ -39,17 +44,12 @@ const PROFILES = [
   { user_id: u(15), first_name: "Tom", last_name: "Fletcher", email: "admin+b06-15@babybloomnannies.co.uk" },
 ];
 const POSITIONS = [
-  { id: u(311), suburb: "Islington", hourly_rate: 18, days_required: ["Monday", "Tuesday"] },
-  { id: u(312), suburb: "Hackney", hourly_rate: "17.50", days_required: null },
-  { id: u(313), suburb: "Camden", hourly_rate: null, days_required: ["Wed", "Fri"] },
-  { id: u(315), suburb: null, hourly_rate: 16, days_required: null },
-];
-/** Her usual days: Hartley's position has a schedule (Mon–Fri mornings), which wins over its days_required. */
-const SCHEDULES = [
-  { position_id: u(311), schedule: { monday: ["morning"], tuesday: ["morning"], wednesday: ["morning"], thursday: ["morning"], friday: ["morning"] } },
+  { id: u(311), suburb: "Islington", hourly_rate: 18 },
+  { id: u(312), suburb: "Hackney", hourly_rate: "17.50" },
+  { id: u(313), suburb: "Camden", hourly_rate: null },
+  { id: u(315), suburb: null, hourly_rate: 16 },
 ];
 const NANNY_ROWS = [{ id: NANNY, hourly_rate_min: "16.00" }];
-const NOW = new Date("2027-02-15T10:00:00Z");
 
 /** Answer a read by its `eq` / `in` filters, as PostgREST would. */
 function matching(rows: readonly Record<string, unknown>[]) {
@@ -61,7 +61,7 @@ function matching(rows: readonly Record<string, unknown>[]) {
         if (f === "not") return row[col] !== null;
         return true;
       }));
-    return op.filters.some(([f]) => f === "range") ? hits : hits[0] ?? null;
+    return op.filters.some(([f]) => f === "range" || f === "in") ? hits : hits[0] ?? null;
   };
 }
 
@@ -74,9 +74,30 @@ function load(placements: readonly Record<string, unknown>[], connections: reado
   f.reads.parents = matching(PARENTS);
   f.reads.user_profiles = matching(PROFILES);
   f.reads.nanny_positions = matching(POSITIONS);
-  f.reads.position_schedule = matching(SCHEDULES);
   f.reads.nannies = matching(NANNY_ROWS);
 }
+
+/** Hartley: an ended and an active hire and an early trial; Bennett: paused, with an earlier trial; Shah: dismissed
+ * only; Fletcher: two trials; Ahmed: one trial. */
+const SPREAD = {
+  placements: [
+    placement(11, 11, "ended", { start_date: "2026-06-01" }),
+    placement(12, 11, "active"),
+    placement(13, 13, "paused", { hourly_rate: "20.00" }),
+    placement(14, 14, "active", { end_notes: "[NANNY_DISMISSED] not for me" }),
+  ],
+  connections: [
+    connection(11, 11, "2026-05-20"),
+    connection(12, 12, "2027-02-03"),
+    connection(13, 13, "2027-01-04"),
+    connection(15, 15, "2026-12-01", { connection_stage: 50 }),
+    connection(16, 15, "2026-11-20"),
+  ],
+};
+const HARTLEY = {
+  parentUserId: u(11), familyName: "Olivia Hartley", area: "Islington", targetId: u(412), kind: "regular_week",
+  earliest: "2026-05-20", ratePence: 1800, rateSource: "placement",
+};
 
 beforeEach(async () => {
   vi.stubEnv("NANNY_INVOICES_ENABLED", "true");
@@ -94,35 +115,75 @@ afterEach(() => {
 });
 
 describe("listInvoiceableFamilies", () => {
-  it("lists her placements of every status and her trials at any stage, grouped by family (R3)", async () => {
-    load(
-      [
-        placement(11, 11, "ended", { start_date: "2026-06-01" }),
-        placement(12, 11, "active"),
-        placement(13, 13, "paused", { weekly_hours: "25", hourly_rate: "20.00" }),
-        placement(14, 14, "active", { end_notes: "[NANNY_DISMISSED] not for me" }),
-      ],
-      [connection(12, 12, "2027-02-03"), connection(13, 13, "2027-01-04"), connection(15, 15, "2026-12-01", { connection_stage: 50 })],
-    );
+  it("one entry per family, from both sets, each with its link, kind, earliest date and rate (spec a, h; readings 1, 2)", async () => {
+    load(SPREAD.placements, SPREAD.connections);
     const r = await listInvoiceableFamilies(proof);
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
-    expect(r.value.map((fam) => fam.familyName)).toEqual(["Grace Bennett", "Olivia Hartley", "Tom Fletcher", "Yusuf Ahmed"]);
-    const hartley = r.value[1];
-    expect(hartley).toEqual({
-      parentUserId: u(11),
-      familyName: "Olivia Hartley",
-      area: "Islington",
-      placements: [
-        { placementId: u(412), status: "active", startDate: "2027-01-11", weeklyHours: 30, ratePence: 1800 },
-        { placementId: u(411), status: "ended", startDate: "2026-06-01", weeklyHours: 30, ratePence: 1800 },
+    expect(r).toEqual({
+      ok: true,
+      value: [
+        { parentUserId: u(13), familyName: "Grace Bennett", area: "Camden", targetId: u(413), kind: "regular_week", earliest: "2027-01-04", ratePence: 2000, rateSource: "placement" },
+        HARTLEY,
+        { parentUserId: u(15), familyName: "Tom Fletcher", area: null, targetId: u(515), kind: "trial_shift", earliest: "2026-11-20", ratePence: 1600, rateSource: "position" },
+        { parentUserId: u(12), familyName: "Yusuf Ahmed", area: "Hackney", targetId: u(512), kind: "trial_shift", earliest: "2027-02-03", ratePence: 1750, rateSource: "position" },
       ],
-      trials: [],
     });
-    expect(r.value[0]).toMatchObject({ area: "Camden", placements: [{ status: "paused", weeklyHours: 25, ratePence: 2000 }], trials: [{ connectionId: u(513), trialDate: "2027-01-04", ratePence: null }] });
-    expect(r.value[2]).toMatchObject({ area: null, placements: [], trials: [{ connectionId: u(515), trialDate: "2026-12-01", ratePence: 1600 }] });
-    expect(r.value[3]).toMatchObject({ area: "Hackney", trials: [{ connectionId: u(512), ratePence: 1750 }] });
-    expect(JSON.stringify(r.value)).not.toMatch(/@|Shah/);
+    expect(JSON.stringify(r)).not.toMatch(/@|Shah/);
+  });
+
+  it("a dismissed hire never links: the family is listed through its trial, if it has one (R3)", async () => {
+    load([placement(14, 14, "active", { end_notes: "x [NANNY_DISMISSED]" })], [connection(14, 14, "2027-01-15")]);
+    const r = await listInvoiceableFamilies(proof);
+    expect(r.ok && r.value).toEqual([
+      { parentUserId: u(14), familyName: "Priya Shah", area: null, targetId: u(514), kind: "trial_shift", earliest: "2027-01-15", ratePence: 1600, rateSource: "profile" },
+    ]);
+  });
+
+  it("links the hire in today's order: active, then paused, then the rest; the latest start first; then by id", async () => {
+    const order = async (placements: readonly Record<string, unknown>[]) => {
+      load(placements, []);
+      const r = await listInvoiceableFamilies(proof);
+      return r.ok ? r.value[0]?.targetId : null;
+    };
+    expect(await order([placement(1, 11, "ended"), placement(2, 11, "paused"), placement(3, 11, "ended")])).toBe(u(402));
+    expect(await order([placement(1, 11, "paused"), placement(2, 11, "active", { start_date: null })])).toBe(u(402));
+    expect(await order([placement(1, 11, "active", { start_date: null }), placement(2, 11, "active", { start_date: "2026-01-05" })])).toBe(u(402));
+    expect(await order([placement(1, 11, "active", { start_date: "2026-01-05" }), placement(2, 11, "active", { start_date: "2026-09-07" })])).toBe(u(402));
+    expect(await order([placement(2, 11, "ended"), placement(1, 11, "ended")])).toBe(u(401));
+  });
+
+  it("links the trial with the latest date when there is no hire; ties by id", async () => {
+    load([], [connection(2, 12, "2027-01-20"), connection(1, 12, "2027-01-20"), connection(3, 12, "2026-12-01")]);
+    const r = await listInvoiceableFamilies(proof);
+    expect(r.ok && r.value.map((fam) => [fam.targetId, fam.earliest])).toEqual([[u(501), "2026-12-01"]]);
+  });
+
+  it.each([
+    ["a trial before the start", { start_date: "2027-01-11" }, ["2026-12-14"], "2026-12-14"],
+    ["a start before every trial", { start_date: "2026-09-07" }, ["2026-12-14", "2026-10-01"], "2026-09-07"],
+    ["the start when there is no trial", { start_date: "2026-09-07" }, [], "2026-09-07"],
+    ["the first trial when there is no start", { start_date: null }, ["2026-12-14", "2026-11-30"], "2026-11-30"],
+    ["the hire's creation, in London, when there is neither", { start_date: null, created_at: "2026-06-30T23:30:00+00:00" }, [], "2026-07-01"],
+  ] as const)("the earliest date: %s (reading 2)", async (_label, extra, trials, earliest) => {
+    load([placement(12, 11, "active", extra)], trials.map((d, i) => connection(20 + i, 11, d)));
+    const r = await listInvoiceableFamilies(proof);
+    expect(r.ok && r.value.map((fam) => [fam.targetId, fam.earliest])).toEqual([[u(412), earliest]]);
+  });
+
+  it("the rate: the linked hire's, then the position's, then her profile's", async () => {
+    load([placement(12, 11, "active", { hourly_rate: null })], []);
+    let r = await listInvoiceableFamilies(proof);
+    expect(r.ok && r.value[0]).toMatchObject({ ratePence: 1800, rateSource: "position" });
+    load([placement(13, 13, "active", { hourly_rate: null })], []);
+    r = await listInvoiceableFamilies(proof);
+    expect(r.ok && r.value[0]).toMatchObject({ ratePence: 1600, rateSource: "profile" });
+  });
+
+  it("a failed or malformed profile-rate read leaves the rate to the hire and the position, logged by code", async () => {
+    load([placement(13, 13, "active", { hourly_rate: null })], []);
+    f.readErrors.nannies = { message: "x", code: "57014" };
+    const r = await listInvoiceableFamilies(proof);
+    expect(r.ok && r.value[0]).toMatchObject({ ratePence: null, rateSource: null });
+    expect(console.error).toHaveBeenCalledWith("[invoices] families.rate failed", { code: "57014" });
   });
 
   it("reads only her rows, trials only with a date, paged and in chunks", async () => {
@@ -133,6 +194,7 @@ describe("listInvoiceableFamilies", () => {
     expect(onTable("connection_requests")).toEqual(expect.arrayContaining([["eq", "nanny_id", NANNY], ["not", "trial_date", "is"], ["range", 0, 499]]));
     expect(onTable("parents")).toEqual(expect.arrayContaining([["in", "id", [u(211), u(212)]]]));
     expect(onTable("user_profiles")).toEqual(expect.arrayContaining([["in", "user_id", [u(11), u(12)]]]));
+    expect(onTable("nannies")).toEqual([["eq", "id", NANNY]]);
   });
 
   it("drops what a query should never have returned: another nanny's row, a connection with no trial date", async () => {
@@ -168,145 +230,80 @@ describe("listInvoiceableFamilies", () => {
     expect(f.ops).toEqual([]);
     expect(createAdminClient).not.toHaveBeenCalled();
   });
-});
 
-describe("failures and ordering", () => {
-  it("a missing service key, a malformed row and a throwing read are errors", async () => {
+  it("a missing service key is an error", async () => {
     load([placement(12, 11, "active")], []);
     createAdminClient.mockImplementationOnce(() => { throw new Error("Missing Supabase admin credentials"); });
     expect(await listInvoiceableFamilies(proof)).toEqual({ ok: false, error: "error" });
     expect(console.error).toHaveBeenLastCalledWith("[invoices] createAdminClient failed", { code: "Error" });
-    f.reads.nanny_placements = () => ({ id: u(412) });
-    expect(await resolveInvoiceTarget(proof, "regular_week", u(412))).toEqual({ ok: false, error: "error" });
-    f.reads.nanny_placements = () => { throw new TypeError("network"); };
-    expect(await resolveInvoiceTarget(proof, "regular_week", u(412))).toEqual({ ok: false, error: "error" });
-  });
-
-  it("lists a family's trials newest first", async () => {
-    load([], [connection(12, 12, "2027-01-20"), connection(14, 12, "2027-02-03")]);
-    const r = await listInvoiceableFamilies(proof);
-    expect(r.ok && r.value[0].trials.map((t) => t.trialDate)).toEqual(["2027-02-03", "2027-01-20"]);
   });
 });
 
 describe("resolveInvoiceTarget (checked on the server before every write; the database checks again)", () => {
   beforeEach(() => {
-    load(
-      [placement(12, 11, "active"), placement(14, 14, "active", { end_notes: "x [NANNY_DISMISSED]" }), placement(16, 13, "active", { nanny_id: OTHER_NANNY })],
-      [connection(12, 12, "2027-02-03"), connection(15, 15, null)],
-    );
+    load([...SPREAD.placements, placement(16, 13, "active", { nanny_id: OTHER_NANNY })], [...SPREAD.connections, connection(17, 16, null)]);
   });
 
-  it("her Regular week: the family, a hint of its email for the review screen (brief §0.4 'olivia@…'), the pre-fill", async () => {
-    expect(await resolveInvoiceTarget(proof, "regular_week", u(412), "2027-02-08", NOW)).toEqual({
-      ok: true,
-      value: {
-        kind: "regular_week", targetId: u(412), parentUserId: u(11), familyName: "Olivia Hartley",
-        familyEmailHint: "admin+b06-11@…", area: "Islington",
-        prefill: {
-          shifts: ["2027-02-08", "2027-02-09", "2027-02-10", "2027-02-11", "2027-02-12"].map((date) => ({ date, hours: 6, ratePence: 1800, description: null })),
-          ratePence: 1800,
-          rateSource: "placement",
-        },
-      },
-    });
+  it("her family by its link id: the list's entry, with a hint of its email for the review (brief §0.4 'olivia@…')", async () => {
+    expect(await resolveInvoiceTarget(proof, u(412))).toEqual({ ok: true, value: { ...HARTLEY, familyEmailHint: "admin+b06-11@…" } });
     const filtersOn = (t: string) => f.ops.filter((o) => o.table === t).flatMap((o) => o.filters);
-    expect(filtersOn("nanny_placements")).toEqual([["eq", "id", u(412)], ["eq", "nanny_id", NANNY]]);
-    expect(filtersOn("position_schedule")).toEqual([["eq", "position_id", u(311)]]);
+    expect(filtersOn("nanny_placements")).toEqual(expect.arrayContaining([["eq", "nanny_id", NANNY]]));
+    expect(filtersOn("user_profiles")).toEqual([["eq", "user_id", u(11)]]);
     expect(filtersOn("nannies")).toEqual([["eq", "id", NANNY]]);
   });
 
-  it("the rate falls back to the position's, then her profile's (14.3); the days to the position's days_required", async () => {
-    load([placement(12, 11, "active", { hourly_rate: null, weekly_hours: 25 })], []);
-    f.reads.position_schedule = null;
-    const r = await resolveInvoiceTarget(proof, "regular_week", u(412), "2027-02-08", NOW);
-    expect(r.ok && r.value.prefill).toEqual({
-      shifts: [{ date: "2027-02-08", hours: 12.5, ratePence: 1800, description: null }, { date: "2027-02-09", hours: 12.5, ratePence: 1800, description: null }],
-      ratePence: 1800,
-      rateSource: "position",
-    });
-    load([placement(16, 13, "active", { hourly_rate: null, weekly_hours: null })], []);
-    const camden = await resolveInvoiceTarget(proof, "regular_week", u(416), "2027-02-08", NOW);
-    expect(camden.ok && camden.value.prefill).toEqual({
-      shifts: [{ date: "2027-02-10", hours: null, ratePence: 1600, description: null }, { date: "2027-02-12", hours: null, ratePence: 1600, description: null }],
-      ratePence: 1600,
-      rateSource: "profile",
-    });
+  it.each([
+    ["an ended hire of the same family", 411],
+    ["a trial of a family she has hired", 511],
+  ])("any of her ids for a family gives its link: %s", async (_label, n) => {
+    expect(await resolveInvoiceTarget(proof, u(n))).toMatchObject({ ok: true, value: { targetId: u(412), kind: "regular_week", earliest: "2026-05-20" } });
   });
 
-  it("this week: days after London's today are dropped; no week given means this week", async () => {
-    const wednesday = new Date("2027-02-17T12:00:00Z");
-    const r = await resolveInvoiceTarget(proof, "regular_week", u(412), null, wednesday);
-    expect(r.ok && r.value.prefill.shifts.map((s) => s.date)).toEqual(["2027-02-15", "2027-02-16", "2027-02-17"]);
-  });
-
-  it("a week that isn't a Monday is invalid, a future week is future — before any read", async () => {
-    f.ops.length = 0;
-    expect(await resolveInvoiceTarget(proof, "regular_week", u(412), "2027-02-10", NOW)).toEqual({ ok: false, error: "invalid" });
-    expect(await resolveInvoiceTarget(proof, "regular_week", u(412), "2027-02-22", NOW)).toEqual({ ok: false, error: "future" });
-    expect(f.ops).toEqual([]);
-  });
-
-  it("her Trial Shift: one blank row on the trial date at the position's rate", async () => {
-    expect(await resolveInvoiceTarget(proof, "trial_shift", u(512), null, NOW)).toMatchObject({
+  it("a family with trials only: the latest trial, the first trial's date as the earliest", async () => {
+    expect(await resolveInvoiceTarget(proof, u(516))).toMatchObject({
       ok: true,
-      value: {
-        kind: "trial_shift", parentUserId: u(12), familyName: "Yusuf Ahmed",
-        prefill: { shifts: [{ date: "2027-02-03", hours: null, ratePence: 1750, description: null }], ratePence: 1750, rateSource: "position" },
-      },
+      value: { targetId: u(515), kind: "trial_shift", earliest: "2026-11-20", familyName: "Tom Fletcher", ratePence: 1600, rateSource: "position" },
     });
-  });
-
-  it("a failed or malformed schedule or profile-rate read leaves that part of the pre-fill blank, logged by code (review TS M3)", async () => {
-    f.reads.nannies = () => ({ id: NANNY, hourly_rate_min: { pounds: 16 } });
-    f.readErrors.position_schedule = { message: "x", code: "57014" };
-    const r = await resolveInvoiceTarget(proof, "regular_week", u(412), "2027-02-08", NOW);
-    expect(r.ok && r.value.prefill).toEqual({
-      shifts: [{ date: "2027-02-08", hours: 15, ratePence: 1800, description: null }, { date: "2027-02-09", hours: 15, ratePence: 1800, description: null }],
-      ratePence: 1800,
-      rateSource: "placement",
-    });
-    expect(console.error).toHaveBeenCalledWith("[invoices] families.schedule failed", { code: "57014" });
-    expect(console.error).toHaveBeenCalledWith("[invoices] families.rate failed", { code: "unexpected_row" });
-    load([placement(12, 11, "active", { hourly_rate: null })], []);
-    f.reads.nanny_positions = () => ({ id: u(311), suburb: "Islington", hourly_rate: null, days_required: null });
-    f.readErrors.nannies = { message: "x", code: "XX000" };
-    const blank = await resolveInvoiceTarget(proof, "regular_week", u(412), "2027-02-08", NOW);
-    expect(blank.ok && blank.value.prefill.rateSource).toBeNull();
-  });
-
-  it("a failed position read still fails (it names the family's area), as in 06a", async () => {
-    f.readErrors.nanny_positions = { message: "x", code: "XX000" };
-    expect(await resolveInvoiceTarget(proof, "regular_week", u(412), "2027-02-08", NOW)).toEqual({ ok: false, error: "error" });
   });
 
   it.each([
-    ["another nanny's placement", "regular_week", 416, "not_hers"],
-    ["a dismissed placement", "regular_week", 414, "not_hers"],
-    ["no such placement", "regular_week", 499, "not_hers"],
-    ["a connection id as a placement", "regular_week", 512, "not_hers"],
-    ["a connection with no trial date (R3)", "trial_shift", 515, "no_trial"],
-    ["no such connection", "trial_shift", 599, "not_hers"],
-  ] as const)("refuses %s", async (_label, kind, n, error) => {
-    expect(await resolveInvoiceTarget(proof, kind, u(n))).toEqual({ ok: false, error });
+    ["another nanny's placement", 416],
+    ["a dismissed placement", 414],
+    ["no such placement", 499],
+    ["a connection with no trial date", 517],
+    ["no such connection", 599],
+  ] as const)("refuses %s as not_hers", async (_label, n) => {
+    expect(await resolveInvoiceTarget(proof, u(n))).toEqual({ ok: false, error: "not_hers" });
   });
 
   it("a family without a profile → no_contact; bad input → invalid before any read", async () => {
-    load([placement(12, 11, "active")], []);
     f.reads.user_profiles = null;
-    expect(await resolveInvoiceTarget(proof, "regular_week", u(412), "2027-02-08", NOW)).toEqual({ ok: false, error: "no_contact" });
+    expect(await resolveInvoiceTarget(proof, u(412))).toEqual({ ok: false, error: "no_contact" });
     f.ops.length = 0;
-    expect(await resolveInvoiceTarget(proof, "regular_week", "hartley")).toEqual({ ok: false, error: "invalid" });
-    expect(await resolveInvoiceTarget(proof, "meet_and_greet" as "trial_shift", u(512))).toEqual({ ok: false, error: "invalid" });
+    expect(await resolveInvoiceTarget(proof, "hartley")).toEqual({ ok: false, error: "invalid" });
     expect(f.ops).toEqual([]);
   });
 
-  it("a failed read is an error; the switch off reads nothing", async () => {
+  it("a failed position read fails (it names the family's area); a failed rate read leaves the rate blank", async () => {
+    f.readErrors.nanny_positions = { message: "x", code: "XX000" };
+    expect(await resolveInvoiceTarget(proof, u(412))).toEqual({ ok: false, error: "error" });
+    f.readErrors.nanny_positions = undefined;
+    f.reads.nannies = () => ({ id: NANNY, hourly_rate_min: { pounds: 16 } });
+    expect(await resolveInvoiceTarget(proof, u(513))).toMatchObject({ ok: true, value: { targetId: u(413), ratePence: 2000 } });
+    expect(console.error).toHaveBeenCalledWith("[invoices] families.rate failed", { code: "unexpected_row" });
+  });
+
+  it("a failed, malformed or throwing read is an error; the switch off reads nothing", async () => {
     f.readErrors.nanny_placements = { message: "x", code: "XX000" };
-    expect(await resolveInvoiceTarget(proof, "regular_week", u(412))).toEqual({ ok: false, error: "error" });
+    expect(await resolveInvoiceTarget(proof, u(412))).toEqual({ ok: false, error: "error" });
+    f.readErrors.nanny_placements = undefined;
+    f.reads.nanny_placements = () => [{ id: u(412) }];
+    expect(await resolveInvoiceTarget(proof, u(412))).toEqual({ ok: false, error: "error" });
+    f.reads.nanny_placements = () => { throw new TypeError("network"); };
+    expect(await resolveInvoiceTarget(proof, u(412))).toEqual({ ok: false, error: "error" });
     vi.stubEnv("NANNY_INVOICES_ENABLED", "");
     f.ops.length = 0;
-    expect(await resolveInvoiceTarget(proof, "regular_week", u(412))).toEqual({ ok: false, error: "invoices_disabled" });
+    expect(await resolveInvoiceTarget(proof, u(412))).toEqual({ ok: false, error: "invoices_disabled" });
     expect(f.ops).toEqual([]);
   });
 });
