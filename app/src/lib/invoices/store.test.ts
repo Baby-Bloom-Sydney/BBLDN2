@@ -11,7 +11,12 @@
  * 06b-3 rework (ledger B06 §9.1 R1, R3; §9.2): a save carries the version she loaded (`stale` when the row changed
  * since) and its reply the version now stored; one more full read, for her own Settings page only.
  *
- * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b3-rework, 2026-11-09.
+ * 06b-4 rework (BAI 2026-11-12; amendment 21 as revised): the create call takes the family's link id and the lines —
+ * no kind, no period, which the database works out — and its reply carries `period_end`; an invoice of expenses only
+ * has 0 hours. A placement's week (brief 07) sums the shift lines dated in that Monday–Sunday, on or after its start.
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b3-rework, 2026-11-09;
+ * BB-wave1-041126/06b4-server, 2026-11-12.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -70,13 +75,13 @@ const P_LINES = [
   { kind: "expense", expense_type: "activities", amount_pence: 1250 },
 ];
 const EXPECTED = 59_650;
-const DRAFT = { invoiceId: INVOICE, kind: "regular_week", targetId: PLACEMENT, periodStart: "2027-02-08", lines: LINES, replacesInvoiceId: null };
+const DRAFT = { invoiceId: INVOICE, targetId: PLACEMENT, lines: LINES, replacesInvoiceId: null };
 const lineRow = (n: number, date: string, hours: number, rate: number, description: string | null = null) => ({
   line_no: n, kind: "shift", shift_date: date, hours, rate_pence: rate, expense_type: null, description, amount_pence: hours * rate,
 });
 const CREATED = {
   status: "created", invoice_id: INVOICE, invoice_seq: 1, invoice_number: "BB-SophieTaylor-270215-0001", invoice_status: "sending", kind: "regular_week",
-  placement_id: PLACEMENT, connection_request_id: null, period_start: "2027-02-08", hours: 32, shifts_pence: 58_400, expenses_pence: 1250,
+  placement_id: PLACEMENT, connection_request_id: null, period_start: "2027-02-08", period_end: "2027-02-12", hours: 32, shifts_pence: 58_400, expenses_pence: 1250,
   vat_mode: "none", vat_rate_bp: null, vat_pence: 0, total_pence: 59_650, parent_user_id: PARENT_USER, family_name: "Olivia Hartley",
   family_email: "admin+b06-11@babybloomnannies.co.uk", nanny_name: "Sophie Taylor", nanny_email: "admin+b06-1@babybloomnannies.co.uk",
   account_last4: "4321", pdf_path: `${NANNY_ID}/${INVOICE}.pdf`, replaces_invoice_id: null, replaces_number: null,
@@ -317,7 +322,7 @@ describe("createInvoice (p_lines and the reviewed total: 14.4)", () => {
     expect(f.rpcCalls).toEqual([{
       fn: "nanny_invoice_create",
       args: {
-        p_id: INVOICE, p_nanny: NANNY_ID, p_kind: "regular_week", p_target: PLACEMENT, p_period_start: "2027-02-08",
+        p_id: INVOICE, p_nanny: NANNY_ID, p_target: PLACEMENT,
         p_lines: P_LINES, p_expected_total_pence: EXPECTED, p_replaces: null, p_account_last4: "4321", p_daily_cap: 10, p_stale_minutes: 10,
       },
     }]);
@@ -325,7 +330,7 @@ describe("createInvoice (p_lines and the reviewed total: 14.4)", () => {
     if (!r.ok) return;
     expect(r.value).toMatchObject({
       invoiceId: INVOICE, seq: 1, number: "BB-SophieTaylor-270215-0001", status: "sending", kind: "regular_week", placementId: PLACEMENT,
-      periodStart: "2027-02-08", hours: 32, shiftsPence: 58_400, expensesPence: 1250, vat: { mode: "none", rateBp: null, pence: 0 },
+      periodStart: "2027-02-08", periodEnd: "2027-02-12", hours: 32, shiftsPence: 58_400, expensesPence: 1250, vat: { mode: "none", rateBp: null, pence: 0 },
       totalPence: 59_650, familyName: "Olivia Hartley", nannyName: "Sophie Taylor", accountLast4: "4321", createdAt: "2027-02-15T10:00:00.123Z",
       issuer: {
         businessType: "sole_trader", tradingName: "Sophie Taylor", address: "1 Upper Street\nLondon\nN1 0AA", companyName: null,
@@ -338,6 +343,26 @@ describe("createInvoice (p_lines and the reviewed total: 14.4)", () => {
     expect(r.value.lines[5]).toEqual({ lineNo: 6, kind: "shift", date: "2027-02-10", hours: 2, ratePence: 2200, description: "evening, agreed rate", amountPence: 4400 });
   });
 
+  it("creates an invoice of expenses only: 0 hours, no childcare, its period the send date (spec g)", async () => {
+    const travel = { line_no: 1, kind: "expense", shift_date: null, hours: null, rate_pence: null, expense_type: "travel", description: null, amount_pence: 640 };
+    f.rpcResults.nanny_invoice_create = {
+      data: { ...CREATED, period_start: "2027-02-15", period_end: "2027-02-15", hours: 0, shifts_pence: 0, expenses_pence: 640, total_pence: 640, lines: [travel] },
+      error: null,
+    };
+    const lines = [{ kind: "expense", expenseType: "travel", amountPence: 640, description: null }];
+    const r = await createInvoice(nanny, { ...DRAFT, lines }, "4321", 640, NOW);
+    expect(f.rpcCalls[0]?.args).toMatchObject({ p_lines: [{ kind: "expense", expense_type: "travel", amount_pence: 640 }], p_expected_total_pence: 640 });
+    expect(r.ok && [r.value.periodStart, r.value.periodEnd, r.value.hours, r.value.shiftsPence, r.value.totalPence]).toEqual(["2027-02-15", "2027-02-15", 0, 0, 640]);
+  });
+
+  it("a long invoice: 100 shifts and 40 expenses over months go as they are (no period cap)", async () => {
+    const day = (i: number) => new Date(Date.UTC(2026, 10, 7 + i)).toISOString().slice(0, 10);
+    const lines = [...Array.from({ length: 100 }, (_, i) => shift(day(i), 1, 1800)), ...Array.from({ length: 40 }, () => ({ kind: "expense", expenseType: "food", amountPence: 100, description: null }))];
+    f.rpcResults.nanny_invoice_create = { data: { status: "changed" }, error: null };
+    expect(await createInvoice(nanny, { ...DRAFT, lines }, "4321", 184_000, NOW)).toEqual({ ok: false, error: "changed" });
+    expect((f.rpcCalls[0]?.args as { p_lines: unknown[] }).p_lines).toHaveLength(140);
+  });
+
   it("prints the replaced invoice's number for a correction; numeric text in the reply is read as numbers", async () => {
     f.rpcResults.nanny_invoice_create = {
       data: { ...CREATED, invoice_seq: 3, invoice_number: "BB-SophieTaylor-270215-0003", replaces_invoice_id: "b0600000-0000-4000-8000-000000009000",
@@ -348,7 +373,7 @@ describe("createInvoice (p_lines and the reviewed total: 14.4)", () => {
     expect(r.ok && [r.value.number, r.value.replacesNumber, r.value.hours]).toEqual(["BB-SophieTaylor-270215-0003", "BB-SophieTaylor-270212-0001", 32]);
   });
 
-  it.each(["future", "not_hers", "no_trial", "wrong_date", "no_details", "no_address", "bad_lines", "changed", "bad_replaces",
+  it.each(["future", "not_hers", "no_details", "no_address", "bad_lines", "changed", "bad_replaces",
     "already_replaced", "no_contact", "nanny_inactive", "cap", "busy", "invalid", "in_progress", "already_done", "already_failed"] as const)(
     "passes the database's %s refusal through",
     async (status) => {
@@ -357,16 +382,12 @@ describe("createInvoice (p_lines and the reviewed total: 14.4)", () => {
     },
   );
 
-  it("refuses before the database: a future period → future; a bad line → bad_lines; a bad header, last-4 or total → invalid", async () => {
-    expect(await createInvoice(nanny, { ...DRAFT, periodStart: "2027-02-22", lines: [shift("2027-02-22", 6, 1800)] }, "4321", EXPECTED, NOW))
-      .toEqual({ ok: false, error: "future" });
+  it("refuses before the database: a future date → future; a bad line → bad_lines; a bad header, last-4 or total → invalid", async () => {
+    expect(await createInvoice(nanny, { ...DRAFT, lines: [shift("2027-02-22", 6, 1800)] }, "4321", EXPECTED, NOW)).toEqual({ ok: false, error: "future" });
     expect(await createInvoice(nanny, { ...DRAFT, lines: [shift("2027-02-08", 0.1, 1800)] }, "4321", EXPECTED, NOW)).toEqual({ ok: false, error: "bad_lines" });
-    expect(await createInvoice(nanny, { ...DRAFT, lines: [shift("2027-02-15", 6, 1800)] }, "4321", EXPECTED, NOW)).toEqual({ ok: false, error: "bad_lines" });
+    expect(await createInvoice(nanny, { ...DRAFT, lines: [shift("2027-02-31", 6, 1800)] }, "4321", EXPECTED, NOW)).toEqual({ ok: false, error: "bad_lines" });
     expect(await createInvoice(nanny, { ...DRAFT, lines: [] }, "4321", EXPECTED, NOW)).toEqual({ ok: false, error: "bad_lines" });
-    expect(await createInvoice(nanny, { ...DRAFT, kind: "meet_and_greet" }, "4321", EXPECTED, NOW)).toEqual({ ok: false, error: "invalid" });
-    for (const periodStart of ["", "garbage"]) { // review TS H1: a malformed week answers invalid, it never throws
-      expect(await createInvoice(nanny, { ...DRAFT, periodStart }, "4321", EXPECTED, NOW)).toEqual({ ok: false, error: "invalid" });
-    }
+    expect(await createInvoice(nanny, { ...DRAFT, targetId: "hartley" }, "4321", EXPECTED, NOW)).toEqual({ ok: false, error: "invalid" });
     expect(await createInvoice(nanny, DRAFT, "87654321", EXPECTED, NOW)).toEqual({ ok: false, error: "invalid" });
     for (const total of [0, -1, 596.5, Number.NaN, 2 ** 31]) {
       expect(await createInvoice(nanny, DRAFT, "4321", total, NOW)).toEqual({ ok: false, error: "invalid" });
@@ -396,6 +417,11 @@ describe("createInvoice (p_lines and the reviewed total: 14.4)", () => {
       { ...CREATED, invoice_status: "sent" },
       { ...CREATED, lines: [] },
       { ...CREATED, lines: [{ ...CREATED.lines[0], kind: "bonus" }] },
+      { ...CREATED, period_end: null },
+      { ...CREATED, period_end: "2027-02-07" }, // before its start
+      { ...CREATED, hours: -1 },
+      { ...CREATED, total_pence: 0 },
+      { ...CREATED, lines: [{ ...CREATED.lines[0], line_no: 141 }] },
       { ...CREATED, vat_mode: "reverse" },
       { ...CREATED, business_type: "charity" },
       { ...CREATED, issuer_address: null },
@@ -476,8 +502,8 @@ describe("readMyInvoices (her own list: 14.6 b2.4)", () => {
   const mine = (n: number, extra: Record<string, unknown> = {}) => ({
     id: `b0600000-0000-4000-8000-00000000900${n}`, nanny_id: NANNY_ID, invoice_seq: n, invoice_number: `BB-SophieTaylor-270215-000${n}`,
     kind: "regular_week", placement_id: PLACEMENT, connection_request_id: null, parent_user_id: PARENT_USER, family_name: "Olivia Hartley",
-    period_start: "2027-02-08", hours: 32, shifts_pence: 58_400, expenses_pence: 1250, vat_mode: "none", vat_pence: 0, total_pence: 59_650,
-    status: "sent", replaces_invoice_id: null, family_email_status: "sent", nanny_email_status: "sent", cancel_family_email_status: null,
+    period_start: "2027-02-08", period_end: "2027-02-12", hours: 32, shifts_pence: 58_400, expenses_pence: 1250, vat_mode: "none", vat_pence: 0,
+    total_pence: 59_650, status: "sent", replaces_invoice_id: null, family_email_status: "sent", nanny_email_status: "sent", cancel_family_email_status: null,
     cancel_nanny_email_status: null, sent_at: "2027-02-15T10:00:00+00:00", cancelled_at: null, cancel_reason: null,
     created_at: `2027-02-15T0${n}:00:00+00:00`, ...extra,
   });
@@ -485,7 +511,9 @@ describe("readMyInvoices (her own list: 14.6 b2.4)", () => {
   it("reads hers only, newest first, paged; a row of another nanny's is dropped; no email, bank or PDF field", async () => {
     f.reads.nanny_invoices = [mine(2), mine(1, { status: "cancelled", cancelled_at: "2027-02-15T11:00:00+00:00", cancel_reason: "wrong_hours" }), mine(3, { nanny_id: OTHER_NANNY })];
     const r = await readMyInvoices(nanny);
-    expect(r.ok && r.value.map((i) => [i.number, i.status])).toEqual([["BB-SophieTaylor-270215-0002", "sent"], ["BB-SophieTaylor-270215-0001", "cancelled"]]);
+    expect(r.ok && r.value.map((i) => [i.number, i.status, i.periodStart, i.periodEnd])).toEqual([
+      ["BB-SophieTaylor-270215-0002", "sent", "2027-02-08", "2027-02-12"], ["BB-SophieTaylor-270215-0001", "cancelled", "2027-02-08", "2027-02-12"],
+    ]);
     expect(filtersOf("nanny_invoices")).toEqual([
       ["eq", "nanny_id", NANNY_ID],
       ["order", "created_at", { ascending: false }],
@@ -496,8 +524,16 @@ describe("readMyInvoices (her own list: 14.6 b2.4)", () => {
     expect(JSON.stringify(r)).not.toMatch(/@|4321|\.pdf/);
   });
 
+  it("an invoice of expenses only reads with 0 hours", async () => {
+    f.reads.nanny_invoices = [mine(1, { period_start: "2027-02-15", period_end: "2027-02-15", hours: "0.00", shifts_pence: 0, expenses_pence: 640, total_pence: 640 })];
+    const r = await readMyInvoices(nanny);
+    expect(r.ok && r.value.map((i) => [i.hours, i.shiftsPence, i.periodEnd])).toEqual([[0, 0, "2027-02-15"]]);
+  });
+
   it("a malformed row or a failed read fails the list", async () => {
     f.reads.nanny_invoices = [mine(1, { status: "lost" })];
+    expect(await readMyInvoices(nanny)).toEqual({ ok: false, error: "error" });
+    f.reads.nanny_invoices = [mine(1, { period_end: null })];
     expect(await readMyInvoices(nanny)).toEqual({ ok: false, error: "error" });
     f.readErrors.nanny_invoices = { message: "x", code: "XX000" };
     expect(await readMyInvoices(nanny)).toEqual({ ok: false, error: "error" });
@@ -528,37 +564,76 @@ describe("readMyInvoiceLines (the correction pre-fill: 14.3, b2.4)", () => {
 });
 
 describe("the readers' rows (an admin proof first; R1: what went out, with its PDF)", () => {
-  const weekRow = { id: INVOICE, invoice_seq: 3, invoice_number: "BB-SophieTaylor-270215-0003", nanny_id: NANNY_ID, nanny_name: "Sophie Taylor", hours: 28, status: "sent", pdf_path: "p", sent_at: "2027-02-15T10:00:01+00:00" };
+  const weekLine = (shift_date: string, hours: number | string) => ({ kind: "shift", shift_date, hours });
+  const weekRow = {
+    id: INVOICE, invoice_seq: 3, invoice_number: "BB-SophieTaylor-270215-0003", nanny_id: NANNY_ID, nanny_name: "Sophie Taylor",
+    placement_id: PLACEMENT, status: "sent", pdf_path: "p", sent_at: "2027-02-15T10:00:01+00:00",
+    nanny_invoice_lines: [weekLine("2027-02-08", 6), weekLine("2027-02-10", "8.25"), weekLine("2027-02-14", 2)],
+  };
 
-  it("a placement's week: sent regular weeks only, paged, mapped without the PDF path", async () => {
+  it("a placement's week: its live invoices' shift lines dated in that Monday–Sunday, summed per invoice (spec j)", async () => {
+    f.reads.nanny_placements = { id: PLACEMENT, start_date: "2027-01-11" };
     f.reads.nanny_invoices = [weekRow, { ...weekRow, id: "x", status: "cancelled" }, { ...weekRow, id: "y", pdf_path: null }];
     const r = await readPlacementWeekRows(admin, PLACEMENT, "2027-02-08");
-    expect(r).toEqual({ ok: true, value: [{ invoiceId: INVOICE, seq: 3, number: "BB-SophieTaylor-270215-0003", nannyId: NANNY_ID, nannyName: "Sophie Taylor", hours: 28, sentAt: "2027-02-15T10:00:01.000Z" }] });
+    expect(r).toEqual({ ok: true, value: [{ invoiceId: INVOICE, seq: 3, number: "BB-SophieTaylor-270215-0003", nannyId: NANNY_ID, nannyName: "Sophie Taylor", hours: 16.25, sentAt: "2027-02-15T10:00:01.000Z" }] });
+    expect(filtersOf("nanny_placements")).toEqual([["eq", "id", PLACEMENT]]);
     expect(filtersOf("nanny_invoices")).toEqual([
       ["eq", "placement_id", PLACEMENT],
-      ["eq", "period_start", "2027-02-08"],
-      ["eq", "kind", "regular_week"],
       ["eq", "status", "sent"],
       ["not", "pdf_path", "is"],
+      ["lte", "period_start", "2027-02-14"],
+      ["gte", "period_end", "2027-02-08"],
+      ["eq", "nanny_invoice_lines.kind", "shift"],
+      ["gte", "nanny_invoice_lines.shift_date", "2027-02-08"],
+      ["lte", "nanny_invoice_lines.shift_date", "2027-02-14"],
       ["order", "invoice_seq", { ascending: true }],
       ["order", "id", { ascending: true }],
       ["range", 0, 499],
     ]);
+    expect(columnsOn("nanny_invoices")).toMatch(/nanny_invoice_lines\(kind, shift_date, hours\)/);
+    expect(columnsOn("nanny_invoices")).not.toMatch(/email|account|pdf_url|issuer/);
+  });
+
+  it("re-checks what the query returned: lines outside the week, expenses and other placements never count", async () => {
+    f.reads.nanny_placements = { id: PLACEMENT, start_date: null };
+    const spread = { ...weekRow, nanny_invoice_lines: [weekLine("2027-02-07", 5), weekLine("2027-02-09", 4), weekLine("2027-02-15", 3), { kind: "expense", shift_date: null, hours: null }] };
+    f.reads.nanny_invoices = [spread, { ...weekRow, id: "z", placement_id: "b0600000-0000-4000-8000-000000000499" }];
+    const r = await readPlacementWeekRows(admin, PLACEMENT, "2027-02-08");
+    expect(r.ok && r.value.map((w) => [w.invoiceId, w.hours])).toEqual([[INVOICE, 4]]);
+  });
+
+  it("counts only from the placement's start: a week it starts in counts from that day; an invoice with no such line is left out", async () => {
+    f.reads.nanny_placements = { id: PLACEMENT, start_date: "2027-02-10" };
+    f.reads.nanny_invoices = [weekRow, { ...weekRow, id: "early", nanny_invoice_lines: [weekLine("2027-02-09", 3)] }];
+    const r = await readPlacementWeekRows(admin, PLACEMENT, "2027-02-08");
+    expect(r.ok && r.value.map((w) => [w.invoiceId, w.hours])).toEqual([[INVOICE, 10.25]]);
+    expect(filtersOf("nanny_invoices")).toEqual(expect.arrayContaining([["gte", "period_end", "2027-02-10"], ["gte", "nanny_invoice_lines.shift_date", "2027-02-10"]]));
+  });
+
+  it("a week before the placement starts, or a placement that isn't there, reads no invoice", async () => {
+    f.reads.nanny_placements = { id: PLACEMENT, start_date: "2027-02-15" };
+    expect(await readPlacementWeekRows(admin, PLACEMENT, "2027-02-08")).toEqual({ ok: true, value: [] });
+    f.reads.nanny_placements = null;
+    expect(await readPlacementWeekRows(admin, PLACEMENT, "2027-02-08")).toEqual({ ok: true, value: [] });
+    expect(opsOn("nanny_invoices")).toEqual([]);
   });
 
   it("refuses a week that isn't a Monday, and fails on a bad row or read", async () => {
     expect(await readPlacementWeekRows(admin, PLACEMENT, "2027-02-10")).toEqual({ ok: false, error: "invalid" });
     expect(f.ops).toEqual([]);
-    f.reads.nanny_invoices = [{ ...weekRow, hours: "lots" }];
+    f.reads.nanny_placements = { id: PLACEMENT, start_date: "2027-01-11" };
+    f.reads.nanny_invoices = [{ ...weekRow, nanny_invoice_lines: [weekLine("2027-02-08", "lots")] }];
     expect(await readPlacementWeekRows(admin, PLACEMENT, "2027-02-08")).toEqual({ ok: false, error: "error" });
     f.readErrors.nanny_invoices = { message: "x", code: "XX000" };
+    expect(await readPlacementWeekRows(admin, PLACEMENT, "2027-02-08")).toEqual({ ok: false, error: "error" });
+    f.readErrors.nanny_placements = { message: "x", code: "XX000" };
     expect(await readPlacementWeekRows(admin, PLACEMENT, "2027-02-08")).toEqual({ ok: false, error: "error" });
   });
 
   it("a family's invoices: sent and cancelled with a PDF, oldest first, no email or bank field; the lines' rates embedded (14.7)", async () => {
     const row = {
       id: INVOICE, invoice_seq: 1, invoice_number: "BB-SophieTaylor-270215-0001", nanny_id: NANNY_ID, nanny_name: "Sophie Taylor", kind: "regular_week", period_start: "2027-02-08",
-      hours: "30.00", shifts_pence: 54000, expenses_pence: 0, vat_pence: 0, total_pence: 54000, status: "cancelled", pdf_path: "p",
+      period_end: "2027-02-12", hours: "30.00", shifts_pence: 54000, expenses_pence: 0, vat_pence: 0, total_pence: 54000, status: "cancelled", pdf_path: "p",
       sent_at: "2027-02-15T10:00:00+00:00", cancelled_at: "2027-02-15T11:00:00+00:00", cancel_reason: "wrong_hours", replaces_invoice_id: null,
       nanny_invoice_lines: [{ kind: "shift", rate_pence: 1800 }, { kind: "shift", rate_pence: 1800 }],
     };
@@ -568,7 +643,7 @@ describe("the readers' rows (an admin proof first; R1: what went out, with its P
       ok: true,
       value: [{
         invoiceId: INVOICE, seq: 1, number: "BB-SophieTaylor-270215-0001", nannyId: NANNY_ID, nannyName: "Sophie Taylor", kind: "regular_week", periodStart: "2027-02-08",
-        hours: 30, ratePence: 1800, shiftsPence: 54000, expensesPence: 0, vatPence: 0, totalPence: 54000, status: "cancelled", sentAt: "2027-02-15T10:00:00.000Z",
+        periodEnd: "2027-02-12", hours: 30, ratePence: 1800, shiftsPence: 54000, expensesPence: 0, vatPence: 0, totalPence: 54000, status: "cancelled", sentAt: "2027-02-15T10:00:00.000Z",
         cancelledAt: "2027-02-15T11:00:00.000Z", cancelReason: "wrong_hours", replacesInvoiceId: null,
       }],
     });

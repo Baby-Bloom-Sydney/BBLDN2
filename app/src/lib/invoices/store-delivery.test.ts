@@ -10,7 +10,9 @@
  * Security review (2026-11-12): a resend of an invoice email first claims it (M1); a cancellation's resend only from
  * `failed`; her account's status (L1) and whether the family still has an account (L2).
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * 06b-4 rework: an invoice's emails name its period, from `period_start` to `period_end` (no kind, no week).
+ *
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -127,7 +129,7 @@ describe("readSentInvoice", () => {
     expect(r).toEqual({
       ok: true,
       value: {
-        invoiceId: INVOICE, number: "BB-SophieTaylor-270215-0001", kind: "regular_week", periodStart: "2027-02-08", status: "sent",
+        invoiceId: INVOICE, number: "BB-SophieTaylor-270215-0001", periodStart: "2027-02-08", periodEnd: "2027-02-12", status: "sent",
         pdfPath: PATH, parentUserId: PARENT_USER, familyName: "Olivia Hartley", familyEmail: FAMILY_EMAIL, nannyName: "Sophie Taylor",
         nannyEmail: NANNY_EMAIL, figures: { hours: 30, expensesPence: 0, totalPence: 54_000, vatMode: "none" }, replacesNumber: null,
         cancelReason: null, delivery: { family: "sent", nanny: "sent", cancelFamily: null, cancelNanny: null },
@@ -135,6 +137,12 @@ describe("readSentInvoice", () => {
     });
     const read = f.ops.find((o) => o.table === "nanny_invoices");
     expect(read?.filters).toEqual(expect.arrayContaining([["eq", "id", INVOICE], ["eq", "nanny_id", NANNY_ID]]));
+  });
+
+  it("an invoice of expenses only: 0 hours, its period one day", async () => {
+    f.reads.nanny_invoices = sentRow({ period_start: "2027-02-15", period_end: "2027-02-15", hours: "0.00", shifts_pence: 0, expenses_pence: 640, total_pence: 640 });
+    const r = await readSentInvoice(proof, INVOICE);
+    expect(r.ok && [r.value.periodStart, r.value.periodEnd, r.value.figures]).toEqual(["2027-02-15", "2027-02-15", { hours: 0, expensesPence: 640, totalPence: 640, vatMode: "none" }]);
   });
 
   it("a correction names the invoice it replaced (her own)", async () => {

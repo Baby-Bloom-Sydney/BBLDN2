@@ -8,7 +8,11 @@
  * paths or links. Her own details, the store, the PDF and the family list are not exported here: they belong to the
  * nanny's side of this feature only (BAI 2026-11-04, plan R20).
  *
- * BB-wave1-041126/06a-build, 2026-11-04.
+ * 06b-4 rework (spec j): `getPlacementWeekHours` keeps its signature; a week's hours are the shift lines of the
+ * placement's live invoices dated in that London Monday–Sunday, on or after its start. `FamilyInvoice` carries its
+ * period's end.
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 
 export {
@@ -23,5 +27,5 @@ export {
   type WeekHoursInvoice,
 } from "./readers";
 export { InvoiceReadError, type CancelReason, type InvoiceKind, type IssuedStatus } from "./types";
-/** 07's first week: `londonWeekStart(placement.start_date)`, the same Monday the nanny's form uses (R21). */
+/** 07's weeks: `londonWeekStart(date)`, the one clock's Monday, as `getPlacementWeekHours` expects (R21). */
 export { londonWeekStart } from "./week";

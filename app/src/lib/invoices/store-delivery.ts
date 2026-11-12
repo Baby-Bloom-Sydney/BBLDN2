@@ -27,7 +27,9 @@
  * - The switch first (`invoices_disabled`, before a client is made), then her proof. Failures are logged by code
  *   only (`db.ts`): a storage or database error can name the path or the row.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * 06b-4 rework: her sent invoice carries its period (start and end) for the emails' period label; no kind, no week.
+ *
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 
 import { z } from "zod";
@@ -35,19 +37,17 @@ import { logFailure, readOne, serviceClient, type AdminClient } from "./db";
 import { nannyGate } from "./gate";
 import type { NannyProof } from "./nanny-proof";
 import { isInvoiceNumber } from "./numbering";
-import { hoursValue, londonDate, pence } from "./store-map-lines";
+import { headerHours, londonDate, pence, periodEndsInOrder } from "./store-map-lines";
 import {
   CANCEL_REASONS,
   FAILED,
   INVALID,
-  INVOICE_KINDS,
   INVOICE_STATUSES,
   invoiceOk,
   refused,
   VAT_MODES,
   type CancelReason,
   type EmailDelivery,
-  type InvoiceKind,
   type InvoiceResult,
   type InvoiceStatus,
   type VatMode,
@@ -124,8 +124,8 @@ export async function downloadInvoicePdf(
 export interface SentInvoice {
   readonly invoiceId: string;
   readonly number: string;
-  readonly kind: InvoiceKind;
   readonly periodStart: string;
+  readonly periodEnd: string;
   readonly status: InvoiceStatus;
   readonly pdfPath: string;
   readonly parentUserId: string;
@@ -145,7 +145,7 @@ export interface SentInvoice {
 }
 
 const SENT_COLUMNS =
-  "id, nanny_id, invoice_number, kind, period_start, status, pdf_path, parent_user_id, family_name, family_email, nanny_name, " +
+  "id, nanny_id, invoice_number, period_start, period_end, status, pdf_path, parent_user_id, family_name, family_email, nanny_name, " +
   "nanny_email, hours, expenses_pence, total_pence, vat_mode, replaces_invoice_id, cancel_reason, family_email_status, " +
   "nanny_email_status, cancel_family_email_status, cancel_nanny_email_status";
 const id = z.string().min(1);
@@ -153,16 +153,16 @@ const text = z.string().min(1);
 const delivery = z.enum(["sent", "failed"]).nullable();
 const invoiceNumber = z.string().refine(isInvoiceNumber);
 const sentRow = z.object({
-  id, nanny_id: id, invoice_number: invoiceNumber, kind: z.enum(INVOICE_KINDS), period_start: londonDate, status: z.enum(INVOICE_STATUSES),
-  pdf_path: text, parent_user_id: id, family_name: text, family_email: text, nanny_name: text, nanny_email: text, hours: hoursValue,
+  id, nanny_id: id, invoice_number: invoiceNumber, period_start: londonDate, period_end: londonDate, status: z.enum(INVOICE_STATUSES),
+  pdf_path: text, parent_user_id: id, family_name: text, family_email: text, nanny_name: text, nanny_email: text, hours: headerHours,
   expenses_pence: pence.nonnegative(), total_pence: pence.positive(), vat_mode: z.enum(VAT_MODES), replaces_invoice_id: id.nullable(),
   cancel_reason: z.enum(CANCEL_REASONS).nullable(), family_email_status: delivery, nanny_email_status: delivery,
   cancel_family_email_status: delivery, cancel_nanny_email_status: delivery,
-});
+}).refine(periodEndsInOrder);
 type SentRow = z.output<typeof sentRow>;
 
 const toSent = (r: SentRow, replacesNumber: string | null): SentInvoice => ({
-  invoiceId: r.id, number: r.invoice_number, kind: r.kind, periodStart: r.period_start, status: r.status, pdfPath: r.pdf_path,
+  invoiceId: r.id, number: r.invoice_number, periodStart: r.period_start, periodEnd: r.period_end, status: r.status, pdfPath: r.pdf_path,
   parentUserId: r.parent_user_id, familyName: r.family_name, familyEmail: r.family_email, nannyName: r.nanny_name,
   nannyEmail: r.nanny_email, figures: { hours: r.hours, expensesPence: r.expenses_pence, totalPence: r.total_pence, vatMode: r.vat_mode },
   replacesNumber, cancelReason: r.cancel_reason,

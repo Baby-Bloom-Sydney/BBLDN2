@@ -4,7 +4,10 @@
  * resolved target and a created invoice. Fixture numbers only (11-22-33 / 87654321). Amounts are passed positionally
  * (the money-literal rule scans this file: only `.test.` files are exempt), as `pdf/fixtures.test-util.ts` does.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * 06b-4 rework: no week and no kind in the draft; the family's target carries its link, kind, earliest date and rate; an
+ * invoice row carries its period's end.
+ *
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 
 export const NANNY_ID = "b0600000-0000-4000-8000-000000000101";
@@ -36,21 +39,26 @@ export const BANK_ROW = {
   account_last4: "4321", updated_at: "2027-02-01T09:00:00.222222+00:00",
 };
 
+/** The Hartleys, resolved: hired (the placement links), first worked with on their trial date, 25 Jan 2027. */
 export const TARGET = {
-  kind: "regular_week" as const,
-  targetId: PLACEMENT,
   parentUserId: PARENT_USER,
   familyName: "Olivia Hartley",
-  familyEmailHint: "admin+b06-11@…",
   area: "Islington",
-  prefill: { shifts: [], ratePence: RATE, rateSource: "placement" as const },
+  targetId: PLACEMENT,
+  kind: "regular_week" as const,
+  earliest: "2027-01-25",
+  ratePence: RATE,
+  rateSource: "placement" as const,
+  familyEmailHint: "admin+b06-11@…",
 };
 
+/** A family linked through its trial (no hire): the trial's date is the earliest. */
 export const TRIAL_TARGET = {
   ...TARGET,
-  kind: "trial_shift" as const,
   targetId: CONNECTION,
-  prefill: { shifts: [{ date: "2027-02-03", hours: null, ratePence: RATE, description: null }], ratePence: RATE, rateSource: "position" as const },
+  kind: "trial_shift" as const,
+  earliest: "2027-02-03",
+  rateSource: "position" as const,
 };
 
 export const shift = (date: string, hours: number, ratePence: number, description: string | null = null) =>
@@ -64,21 +72,21 @@ export const LINES = [
   shift("2027-02-12", 6, RATE), shift("2027-02-10", 2, EVENING_RATE, "evening, agreed rate"), expense("activities", ACTIVITIES),
 ];
 
-export const DRAFT_IN = { kind: "regular_week", targetId: PLACEMENT, periodStart: "2027-02-08", lines: LINES, replacesInvoiceId: null };
+export const DRAFT_IN = { targetId: PLACEMENT, lines: LINES, replacesInvoiceId: null };
 
 /** A header's money columns, positionally. */
 export const money = (shifts: number, expenses: number, vat: number, total: number) =>
   ({ shifts_pence: shifts, expenses_pence: expenses, vat_pence: vat, total_pence: total });
 
 let seq = 0;
-/** One of her invoices as the list reads it; sent to the Hartleys for w/c 8 Feb (30 h at the agreed rate) unless overridden. */
+/** One of her invoices as the list reads it; sent to the Hartleys for 8–12 Feb (30 h at the agreed rate) unless overridden. */
 export function invoiceRow(over: Readonly<Record<string, unknown>> = {}): Record<string, unknown> {
   seq += 1;
   return {
     id: `b0600000-0000-4000-8000-0000000080${String(seq % 100).padStart(2, "0")}`,
     nanny_id: NANNY_ID, invoice_seq: seq, invoice_number: `BB-SophieTaylor-270210-${String(seq).padStart(4, "0")}`,
     kind: "regular_week", placement_id: PLACEMENT, connection_request_id: null, parent_user_id: PARENT_USER,
-    family_name: "Olivia Hartley", period_start: "2027-02-08", hours: 30, ...money(30 * RATE, 0, 0, 30 * RATE),
+    family_name: "Olivia Hartley", period_start: "2027-02-08", period_end: "2027-02-12", hours: 30, ...money(30 * RATE, 0, 0, 30 * RATE),
     vat_mode: "none", status: "sent", replaces_invoice_id: null,
     family_email_status: "sent", nanny_email_status: "sent", cancel_family_email_status: null, cancel_nanny_email_status: null,
     sent_at: "2027-02-14T10:00:00+00:00", cancelled_at: null, cancel_reason: null, created_at: "2027-02-14T10:00:00+00:00",
@@ -96,7 +104,7 @@ const expenseRow = (n: number, type: string, amount: number) => ({
 /** `nanny_invoice_create`'s reply for the worked example: 32 h, childcare 584.00, expenses 12.50, no VAT. */
 export const CREATED = {
   status: "created", invoice_id: INVOICE, invoice_seq: 1, invoice_number: NUMBER, invoice_status: "sending", kind: "regular_week",
-  placement_id: PLACEMENT, connection_request_id: null, period_start: "2027-02-08", hours: 32,
+  placement_id: PLACEMENT, connection_request_id: null, period_start: "2027-02-08", period_end: "2027-02-12", hours: 32,
   ...money(30 * RATE + 2 * EVENING_RATE, ACTIVITIES, 0, 30 * RATE + 2 * EVENING_RATE + ACTIVITIES),
   vat_mode: "none", vat_rate_bp: null, parent_user_id: PARENT_USER, family_name: "Olivia Hartley",
   family_email: FAMILY_EMAIL, nanny_name: "Sophie Taylor", nanny_email: NANNY_EMAIL, account_last4: "4321",
