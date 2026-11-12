@@ -35,7 +35,9 @@ const SERVER_MODULE =
   "(?:/(?:store|store-business|families|nanny-proof|db|gate|readers|index|pdf/render|pdf/font|pdf/model|emails/send-payment-details-changed|review|store-delivery|emails/send-invoice-emails))?";
 /** The actions (06b-3 Settings; 06b-4 invoices): `"use server"` on purpose, each exporting only its gated async action. */
 const ACTIONS: Readonly<Record<string, readonly [string, string]>> = {
+  "actions/cancel-invoice": ["cancelInvoice", "CancelInvoiceResult"],
   "actions/preview-invoice": ["previewInvoice", "PreviewInvoiceResult"],
+  "actions/resend-invoice-email": ["resendInvoiceEmail", "ResendInvoiceEmailResult"],
   "actions/save-business-settings": ["saveBusinessSettings", "BusinessSettingsResult"],
   "actions/send-invoice": ["sendInvoice", "SendInvoiceResult"],
 };

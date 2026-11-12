@@ -27,7 +27,8 @@ import {
 export const INVOICE_CANCELLED_FAMILY_EMAIL_TYPE = "invoice_cancelled_family";
 export const INVOICE_CANCELLED_NANNY_EMAIL_TYPE = "invoice_cancelled_nanny";
 
-type CancelledFacts = InvoiceEmailFacts & { readonly reason: CancelReason };
+/** What a cancellation email states: the invoice's facts and the reason she gave. */
+export type CancelledFacts = InvoiceEmailFacts & { readonly reason: CancelReason };
 
 export type InvoiceCancelledParams =
   | (CancelledFacts & { readonly to: "family" })

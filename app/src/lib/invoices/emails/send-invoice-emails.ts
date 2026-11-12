@@ -12,6 +12,8 @@
  *   then sends the same PDF and number again, which is harmless. The wait keeps the whole send (render, upload, two
  *   emails) inside the page's 30 s.
  * - The bodies carry no bank detail: the templates take none (`sendEmail` keeps every body in `email_logs`).
+ * - **Cancellations** (brief §0.8; R15, R16): the family's first (reply-to her), then hers saying whether the
+ *   family's arrived; no attachment. Each email also goes alone, for a resend (old step 13).
  *
  * BB-wave1-041126/06b4, 2026-11-12.
  */
@@ -20,6 +22,12 @@ import { SUPPORT_INBOX } from "@/lib/constants";
 import { sendEmail, type SendEmailParams } from "@/lib/email/resend";
 import { logFailure } from "../db";
 import type { EmailDelivery } from "../types";
+import {
+  INVOICE_CANCELLED_FAMILY_EMAIL_TYPE,
+  INVOICE_CANCELLED_NANNY_EMAIL_TYPE,
+  invoiceCancelledEmail,
+  type CancelledFacts,
+} from "./invoice-cancelled";
 import { INVOICE_COPY_TO_NANNY_EMAIL_TYPE, invoiceCopyToNannyEmail } from "./invoice-copy-to-nanny";
 import { INVOICE_TO_FAMILY_EMAIL_TYPE, invoiceToFamilyEmail } from "./invoice-to-family";
 import type { InvoiceEmailFacts } from "./invoice-wording";
@@ -101,5 +109,43 @@ export async function sendInvoiceEmails(
 ): Promise<{ readonly family: EmailDelivery; readonly nanny: EmailDelivery }> {
   const family = await familyInvoiceEmail(facts, to, pdf);
   const nanny = await nannyInvoiceCopy(facts, to, pdf, family);
+  return { family, nanny };
+}
+
+/** The family's cancellation email (reply-to her). */
+export function familyCancellation(facts: CancelledFacts, to: InvoiceAddresses): Promise<EmailDelivery> {
+  const email = invoiceCancelledEmail({ ...facts, to: "family" });
+  return deliver("the cancellation email to the family", {
+    to: to.familyEmail,
+    subject: email.subject,
+    html: email.html,
+    text: email.text,
+    replyTo: to.nannyEmail,
+    emailType: INVOICE_CANCELLED_FAMILY_EMAIL_TYPE,
+    recipientUserId: to.parentUserId,
+  });
+}
+
+/** Her cancellation email, saying what happened to the family's. */
+export function nannyCancellation(facts: CancelledFacts, to: InvoiceAddresses, familyDelivery: EmailDelivery): Promise<EmailDelivery> {
+  const email = invoiceCancelledEmail({ ...facts, to: "nanny", familyDelivery });
+  return deliver("the cancellation email to the nanny", {
+    to: to.nannyEmail,
+    subject: email.subject,
+    html: email.html,
+    text: email.text,
+    replyTo: SUPPORT_INBOX,
+    emailType: INVOICE_CANCELLED_NANNY_EMAIL_TYPE,
+    recipientUserId: to.nannyUserId,
+  });
+}
+
+/** Both cancellation emails: the family's, then hers (R16's order). */
+export async function sendCancellationEmails(
+  facts: CancelledFacts,
+  to: InvoiceAddresses,
+): Promise<{ readonly family: EmailDelivery; readonly nanny: EmailDelivery }> {
+  const family = await familyCancellation(facts, to);
+  const nanny = await nannyCancellation(facts, to, family);
   return { family, nanny };
 }

@@ -2,7 +2,8 @@
  * The nanny invoice generator's shared types and result shapes (brief 06; plan `BUILD/plans/06-plan.md`, §14).
  * Client-safe: no I/O here.
  *
- * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06 (lines, VAT, business types).
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06 (lines, VAT, business types);
+ * BB-wave1-041126/06b4, 2026-11-12 (the cancel and resend refusals).
  */
 
 import { BUSINESS_TYPES, EXPENSE_TYPES } from "@/config/invoices";
@@ -60,6 +61,8 @@ export type InvoiceError =
   | "no_contact" // a name or email missing from a profile
   | "not_found" // no such invoice of hers
   | "not_sending" // finishing an invoice that isn't sending
+  | "not_cancellable" // cancelling an invoice that isn't sent (06b-4)
+  | "not_resendable" // resending an email that isn't undelivered on an invoice in that state (06b-4)
   | "error"; // the database or renderer failed (logged by code)
 
 export type InvoiceResult<T> =

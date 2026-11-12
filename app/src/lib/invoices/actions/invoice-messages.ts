@@ -14,16 +14,15 @@ import { INVOICE_RULES } from "@/config/invoices";
 import { EDIT_MESSAGES } from "@/lib/settings/edit-messages";
 import type { Issuer } from "../store-map-lines";
 import type { InvoiceTotals } from "../totals";
-import type { EmailDelivery, InvoiceError, VatMode } from "../types";
-import { FUTURE_ISSUE, LINE_MESSAGES } from "../validation-lines";
+import type { CancelReason, EmailDelivery, InvoiceError, InvoiceKind, VatMode } from "../types";
+import { FUTURE_ISSUE, LINE_MESSAGES, type invoiceLineSchema } from "../validation-lines";
 import { ACTION_MESSAGES } from "./messages";
 
 /**
- * A refusal code: the store's, plus `signed_out` (no nanny session), `not_cancellable` (cancel: not a sent invoice),
- * `not_resendable` (resend: nothing undelivered of that kind) and `not_recorded` (send: the emails went, but the
- * row couldn't be finished — she must check her list before sending again).
+ * A refusal code: the store's, plus `signed_out` (no nanny session) and `not_recorded` (send: the emails went, but
+ * the row couldn't be finished — she must check her list before sending again).
  */
-export type InvoiceActionError = InvoiceError | "signed_out" | "not_cancellable" | "not_resendable" | "not_recorded";
+export type InvoiceActionError = InvoiceError | "signed_out" | "not_recorded";
 
 export interface InvoiceActionRefusal {
   readonly ok: false;
@@ -142,3 +141,57 @@ export interface InvoiceDeliveries {
 export type SendInvoiceResult =
   | { readonly ok: true; readonly invoiceId: string; readonly number: string; readonly delivery: InvoiceDeliveries }
   | InvoiceActionRefusal;
+
+export type CancelInvoiceResult =
+  | { readonly ok: true; readonly invoiceId: string; readonly number: string; readonly delivery: InvoiceDeliveries }
+  | InvoiceActionRefusal;
+
+/** Which email a resend is: the invoice email (on a sent invoice) or the cancellation (on a cancelled one). */
+export type ResendWhat = "invoice" | "cancellation";
+export type ResendRecipient = "family" | "nanny";
+
+export type ResendInvoiceEmailResult =
+  | {
+      readonly ok: true;
+      readonly invoiceId: string;
+      readonly what: ResendWhat;
+      readonly recipient: ResendRecipient;
+      /** What this resend did: `failed` again is an answer, not a refusal (the list keeps offering Resend). */
+      readonly delivery: EmailDelivery;
+    }
+  | InvoiceActionRefusal;
+
+/** One line of the form, as the actions take it (the shared schema's input). */
+export type InvoiceLineInput = z.input<typeof invoiceLineSchema>;
+
+/** `previewInvoice`'s input. */
+export interface PreviewInvoiceInput {
+  readonly kind: InvoiceKind;
+  /** A Regular week's placement id, or a Trial Shift's connection id. */
+  readonly targetId: string;
+  /** A Regular week's Monday, or the Trial Shift's date ("YYYY-MM-DD"). */
+  readonly periodStart: string;
+  readonly lines: readonly InvoiceLineInput[];
+  /** The cancelled invoice this one corrects (`?replaces=`), else null. */
+  readonly replacesInvoiceId: string | null;
+}
+
+/** `sendInvoice`'s input: the draft she reviewed, with the review's id, total and key. */
+export interface SendInvoiceInput extends PreviewInvoiceInput {
+  readonly invoiceId: string;
+  readonly expectedTotalPence: number;
+  readonly reviewKey: string;
+}
+
+/** `cancelInvoice`'s input. */
+export interface CancelInvoiceInput {
+  readonly invoiceId: string;
+  readonly reason: CancelReason;
+}
+
+/** `resendInvoiceEmail`'s input. */
+export interface ResendInvoiceEmailInput {
+  readonly invoiceId: string;
+  readonly what: ResendWhat;
+  readonly recipient: ResendRecipient;
+}

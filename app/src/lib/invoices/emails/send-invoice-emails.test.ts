@@ -3,6 +3,8 @@
  * the PDF attached and reply-to her email; then her copy, with the same PDF, saying whether the family's arrived. To
  * the invoice's snapshot addresses only. Never throws; a failure, a throw or a provider that doesn't answer in time
  * is `failed`, logged by code only.
+ * Cancellations (brief §0.8; R15, R16): the family's first (reply-to her), then hers, saying whether the family's
+ * arrived; no attachment. A resend sends one of them again (old step 13).
  *
  * BB-wave1-041126/06b4, 2026-11-12.
  */
@@ -14,7 +16,16 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 
 import { SUPPORT_INBOX } from "@/lib/constants";
 import { FAMILY_EMAIL, NANNY_EMAIL, NANNY_USER, NUMBER, PARENT_USER, SECRETS } from "../invoice-rows.test-util";
-import { INVOICE_EMAIL_WAIT_MS, sendInvoiceEmails, type InvoiceAddresses } from "./send-invoice-emails";
+import {
+  familyCancellation,
+  familyInvoiceEmail,
+  INVOICE_EMAIL_WAIT_MS,
+  nannyCancellation,
+  nannyInvoiceCopy,
+  sendCancellationEmails,
+  sendInvoiceEmails,
+  type InvoiceAddresses,
+} from "./send-invoice-emails";
 
 const FACTS = {
   number: NUMBER,
@@ -97,5 +108,39 @@ describe("sendInvoiceEmails", () => {
       const body = `${email.subject}\n${email.html}\n${email.text}`;
       for (const secret of ["112233", "11-22-33", "87654321", "4321"]) expect(body).not.toContain(secret);
     }
+  });
+});
+
+describe("sendCancellationEmails", () => {
+  const CANCELLED = { ...FACTS, reason: "wrong_hours" } as const;
+
+  it("the family's first (reply-to her, no attachment), then hers saying it reached them", async () => {
+    expect(await sendCancellationEmails(CANCELLED, TO)).toEqual({ family: "sent", nanny: "sent" });
+    const [family, nanny] = sendEmail.mock.calls.map((c) => c[0]);
+    expect(family).toMatchObject({
+      to: FAMILY_EMAIL, replyTo: NANNY_EMAIL, emailType: "invoice_cancelled_family", recipientUserId: PARENT_USER,
+      subject: `Invoice ${NUMBER} has been cancelled — please disregard it`,
+    });
+    expect(family.attachments).toBeUndefined();
+    expect(nanny).toMatchObject({ to: NANNY_EMAIL, replyTo: SUPPORT_INBOX, emailType: "invoice_cancelled_nanny", recipientUserId: NANNY_USER });
+    expect(nanny.attachments).toBeUndefined();
+    expect(family.text).toContain("Please disregard it. Reason: wrong hours.");
+    expect(nanny.text).toContain("We've told Olivia Hartley to disregard it.");
+  });
+
+  it("the family's failed: hers says so", async () => {
+    sendEmail.mockResolvedValueOnce({ success: false, error: "bounce" });
+    expect(await sendCancellationEmails(CANCELLED, TO)).toEqual({ family: "failed", nanny: "sent" });
+    expect(sendEmail.mock.calls[1]?.[0].text).toContain("We couldn't deliver the cancellation to Olivia Hartley");
+  });
+
+  it("one at a time, for a resend", async () => {
+    expect(await familyCancellation(CANCELLED, TO)).toBe("sent");
+    expect(await nannyCancellation(CANCELLED, TO, "failed")).toBe("sent");
+    expect(await familyInvoiceEmail(FACTS, TO, PDF)).toBe("sent");
+    expect(await nannyInvoiceCopy(FACTS, TO, PDF, "sent")).toBe("sent");
+    expect(sendEmail.mock.calls.map((c) => c[0].emailType)).toEqual([
+      "invoice_cancelled_family", "invoice_cancelled_nanny", "invoice_to_family", "invoice_copy_to_nanny",
+    ]);
   });
 });
