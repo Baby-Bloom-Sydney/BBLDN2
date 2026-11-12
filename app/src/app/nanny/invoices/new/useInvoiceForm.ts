@@ -7,13 +7,14 @@
  * - **Starts** from the target: her usual week laid on the week shown first (or the Trial Shift's date), a correction's
  *   lines and expenses (`invoice-form.ts`).
  * - **Another week** lays her usual week on it again (her shifts start over; expenses stay).
- * - **A refusal** (the shared schema's, or the server's) by path lands under her fields — focus to the first — and the
- *   message that names no field shows above the button ("Please check the details marked below." otherwise).
+ * - **A refusal** (the shared schema's, or the server's) by path lands under her fields and the message that names no
+ *   field shows above the button ("Please check the details marked below." otherwise). The first refused field is
+ *   focused once the form is on screen (`focusTo`; a refusal from Send arrives while the review is showing).
  *
  * BB-wave1-041126/06b4, 2026-11-12.
  */
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useFieldArray, useForm, type FieldPath } from "react-hook-form";
 import type { InvoiceActionRefusal } from "@/lib/invoices/actions/invoice-messages";
 import {
@@ -61,17 +62,23 @@ export function useInvoiceForm(target: InvoiceTargetView, today: string) {
     setMessage(null);
   };
 
+  /** The field to focus once the form is on screen (a refusal can arrive while the review is showing). */
+  const [focusTo, setFocusTo] = useState<{ readonly path: FieldPath<InvoiceFormValues> } | null>(null);
+  const focused = useCallback(() => setFocusTo(null), []);
+
   const showRefusal = (refusal: Pick<InvoiceActionRefusal, "message" | "fields">) => {
     const issues = formIssues(refusal.fields ?? {}, form.getValues("shifts").length);
     form.clearErrors();
-    Object.entries(issues.fields).forEach(([key, text], i) => {
+    const paths = Object.entries(issues.fields).flatMap(([key, text]) => {
       const path = fieldPath(key);
-      if (path) form.setError(path, { type: "refused", message: text }, { shouldFocus: i === 0 });
+      if (path) form.setError(path, { type: "refused", message: text });
+      return path ? [path] : [];
     });
+    setFocusTo(paths[0] ? { path: paths[0] } : null);
     setMessage(issues.form ?? refusal.message);
   };
 
   const header: DraftHeader = { kind: target.kind, targetId: target.targetId, periodStart, replacesInvoiceId: target.replaces?.invoiceId ?? null };
   const newShift = (date: string): ShiftRowValue => ({ date, hours: "", rate: poundsOfPence(target.ratePence), description: "" });
-  return { form, shifts, expenses, periodStart, setWeek, header, message, setMessage, showRefusal, newShift };
+  return { form, shifts, expenses, periodStart, setWeek, header, message, setMessage, showRefusal, newShift, focusTo, focused };
 }

@@ -14,7 +14,7 @@
  * BB-wave1-041126/06b4, 2026-11-12.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const calls = vi.hoisted(() => ({ previewInvoice: vi.fn(), sendInvoice: vi.fn(), saveBusinessSettings: vi.fn(), push: vi.fn(), refresh: vi.fn() }));
@@ -133,11 +133,17 @@ describe("the review", () => {
     expect(screen.getByText("Replaces BB-SophieTaylor-270211-0001")).toBeInTheDocument();
   });
 
-  it("Back: the form again, as she left it", async () => {
+  it("Back: the form again, as she left it, focus on Review", async () => {
     await toReview();
     await userEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getAllByRole("group", { name: /^Shift \d+$/ })).toHaveLength(2);
     expect(within(screen.getByRole("group", { name: "Shift 2" })).getByLabelText("Description")).toHaveValue("evening");
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Review" }));
+  });
+
+  it("entering the review moves focus to its heading", async () => {
+    await toReview();
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "This invoice goes to Olivia Hartley (olivia@…) and a copy to you" }));
   });
 });
 
@@ -157,6 +163,7 @@ describe("the first-invoice setup", () => {
     expect(calls.previewInvoice).toHaveBeenCalledTimes(2);
     expect(await screen.findByRole("button", { name: "Send" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Sort code")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: /^This invoice goes to/ }));
   });
 
   it("checked first, with the Business page's own messages: nothing saved", async () => {
@@ -225,6 +232,20 @@ describe("Send", () => {
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
     expect(calls.sendInvoice).toHaveBeenCalledWith({ ...DRAFT, invoiceId: INVOICE, expectedTotalPence: 16_450, reviewKey: KEY });
     expect(calls.push).toHaveBeenCalledWith("/nanny/invoices");
+    // on its way to the list: Send doesn't come back (a second click would only meet "already sent")
+    const sending = screen.getByRole("button", { name: /Sending/ });
+    expect(sending).toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(sending);
+    expect(calls.sendInvoice).toHaveBeenCalledTimes(1);
+  });
+
+  it("a refusal by field goes back to the form with focus on that field", async () => {
+    calls.sendInvoice.mockResolvedValueOnce({ ok: false, error: "invalid", message: "Please check the details marked below.", fields: { "lines.1.hours": "Enter the hours worked" } });
+    await toReview();
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    const hours = within(await screen.findByRole("group", { name: "Shift 2" })).getByLabelText("Hours");
+    await waitFor(() => expect(document.activeElement).toBe(hours));
+    expect(hours).toHaveAttribute("aria-invalid", "true");
   });
 
   it.each(["changed", "no_details", "no_address", "already_failed"])("%s → reviewed again, with the message", async (error) => {

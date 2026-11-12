@@ -126,8 +126,11 @@ export function poundsOfPence(pence: number | null): string {
   return `${Math.trunc(pence / PENCE_PER_POUND)}.${String(pence % PENCE_PER_POUND).padStart(2, "0")}`;
 }
 
-/** Hours as typed ("7.75"); NaN when blank or not a number. */
-const hoursOf = (text: string): number => (text.trim() === "" ? Number.NaN : Number(text.trim()));
+/** Plain decimal hours ("8", "7.75", ".25"): never an exponent, hex, binary or sign that `Number` would read. */
+const PLAIN_HOURS = /^(?:\d{1,3}(?:\.\d{1,6})?|\.\d{1,6})$/;
+
+/** Hours as typed; NaN when blank or not plain decimal hours (the schema then says "Enter the hours worked"). */
+const hoursOf = (text: string): number => (PLAIN_HOURS.test(text.trim()) ? Number(text.trim()) : Number.NaN);
 
 const shiftLine = (s: ShiftRowValue): DraftLine => ({ kind: "shift", date: s.date, hours: hoursOf(s.hours), ratePence: penceOfPounds(s.rate), description: s.description });
 const expenseLine = (e: ExpenseRowValue): DraftLine => ({ kind: "expense", expenseType: e.expenseType, amountPence: penceOfPounds(e.amount), description: e.description });

@@ -10,11 +10,14 @@
  *   asks the server (`useInvoiceReview`) — which works out every figure itself.
  * - **The review** (`ReviewStep`): who she is read-only, masked bank details or the first-invoice setup, the lines, the
  *   server's totals; Back and Send.
- * - The form is keyed by its target, so another family or kind starts afresh.
+ * - The form is keyed by its target, so another family or kind starts afresh; the picker sits outside it, so it is never
+ *   remounted and keeps her focus. Focus follows the steps: the review's heading on entry, Review on Back, the first
+ *   refused field when the form comes back with problems (code review M2).
  *
  * BB-wave1-041126/06b4, 2026-11-12.
  */
 
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -27,7 +30,7 @@ import { ExpenseRows } from "./ExpenseRows";
 import { ReviewStep } from "./ReviewStep";
 import { ShiftRows } from "./ShiftRows";
 import type { FamilyOption, InvoiceTargetView } from "./invoice-form";
-import { TargetPicker } from "./TargetPicker";
+import { TargetPicker, WeekSelect } from "./TargetPicker";
 import { TotalsBox } from "./TotalsBox";
 import { useInvoiceForm } from "./useInvoiceForm";
 import { useInvoiceReview } from "./useInvoiceReview";
@@ -46,11 +49,37 @@ const card = "rounded-2xl border border-slate-200 bg-white px-4 py-5 text-sm tex
 /** London's today as an instant the shared schema reads ("future" = after this date). */
 const nowOf = (today: string): Date => new Date(`${today}T12:00:00Z`);
 
-function InvoiceBuilder({ families, target, vat, today }: Omit<NewInvoiceClientProps, "loadFailed" | "target"> & { readonly target: InvoiceTargetView }) {
+interface BuilderProps extends Omit<NewInvoiceClientProps, "loadFailed" | "target" | "families"> {
+  readonly target: InvoiceTargetView;
+  /** Tells the page whether the review is showing (the picker hides while it is). */
+  readonly onReviewing: (reviewing: boolean) => void;
+}
+
+/** Focus when the form comes back (code review M2): the first refused field, else — back from the review — Review. */
+function useFormFocus(f: ReturnType<typeof useInvoiceForm>, step: "form" | "review", review: RefObject<HTMLButtonElement>) {
+  const last = useRef(step);
+  const { form, focusTo, focused } = f;
+  useEffect(() => {
+    const back = last.current === "review" && step === "form";
+    last.current = step;
+    if (step !== "form") return;
+    if (focusTo) {
+      form.setFocus(focusTo.path);
+      focused();
+    } else if (back) {
+      review.current?.focus();
+    }
+  }, [step, focusTo, form, focused, review]);
+}
+
+function InvoiceBuilder({ target, vat, today, onReviewing }: BuilderProps) {
   const router = useRouter();
   const f = useInvoiceForm(target, today);
   const r = useInvoiceReview({ onFormRefusal: f.showRefusal, go: (href) => router.push(href) });
   const { state } = r;
+  const reviewButton = useRef<HTMLButtonElement>(null);
+  useFormFocus(f, state.step, reviewButton);
+  useEffect(() => onReviewing(state.step === "review"), [state.step, onReviewing]);
 
   if (state.step === "review" && state.preview && state.draft) {
     return (
@@ -65,21 +94,22 @@ function InvoiceBuilder({ families, target, vat, today }: Omit<NewInvoiceClientP
     f.setMessage(null);
     return r.review(draft);
   });
-  const trialDate = target.kind === "trial_shift" ? target.periodStart : null;
   return (
     <form onSubmit={onReview} noValidate className="space-y-5">
-      <TargetPicker families={families} target={target} periodStart={f.periodStart} onWeek={f.setWeek} />
-      <section aria-label="Childcare" className="space-y-3">
-        <h2 className="px-1 text-sm font-semibold text-slate-900">Childcare</h2>
-        <ShiftRows form={f.form} rows={f.shifts} days={weekDays(f.periodStart)} fixedDate={trialDate} today={today} newRow={f.newShift} />
+      {target.kind === "regular_week" && <WeekSelect weeks={target.weeks} value={f.periodStart} onWeek={f.setWeek} />}
+      <section aria-labelledby="new-invoice-childcare" className="space-y-3">
+        <h2 id="new-invoice-childcare" className="px-1 text-sm font-semibold text-slate-900">Childcare</h2>
+        <ShiftRows form={f.form} rows={f.shifts} days={weekDays(f.periodStart)} fixedDate={target.kind === "trial_shift" ? target.periodStart : null}
+          today={today} newRow={f.newShift} />
       </section>
-      <section aria-label="Expenses" className="space-y-3">
-        <h2 className="px-1 text-sm font-semibold text-slate-900">Expenses</h2>
+      <section aria-labelledby="new-invoice-expenses" className="space-y-3">
+        <h2 id="new-invoice-expenses" className="px-1 text-sm font-semibold text-slate-900">Expenses</h2>
         <ExpenseRows form={f.form} rows={f.expenses} />
       </section>
       <TotalsBox totals={liveTotals(f.form.watch(), vat)} vat={vat} />
       <EditNotice notice={f.message === null ? null : { tone: "alert", text: f.message }} />
-      <Button type="submit" aria-disabled={r.pending !== null || undefined} className="w-full bg-violet-600 text-white hover:bg-violet-700 sm:w-auto">
+      <Button ref={reviewButton} type="submit" aria-disabled={r.pending !== null || undefined}
+        className="w-full bg-violet-600 text-white hover:bg-violet-700 aria-disabled:opacity-70 sm:w-auto">
         {r.pending === "review" && <Loader2 className="animate-spin" aria-hidden="true" />}
         Review
       </Button>
@@ -87,12 +117,28 @@ function InvoiceBuilder({ families, target, vat, today }: Omit<NewInvoiceClientP
   );
 }
 
+/**
+ * The picker sits outside the form, which is keyed by its target and starts afresh for each one: so picking a family,
+ * kind or trial date never remounts the picker, and her focus stays on it (code review M2). It hides while the review
+ * shows.
+ */
 function Body(props: NewInvoiceClientProps) {
+  const [reviewing, setReviewing] = useState(false);
+  const onReviewing = useCallback((value: boolean) => setReviewing(value), []);
   if (props.loadFailed) return <p className={card}>{INVOICE_ACTION_MESSAGES.error}</p>;
   if (props.families.length === 0) return <p className={card}>You have no families to invoice yet.</p>;
-  if (props.target === null) return <TargetPicker families={props.families} target={null} periodStart="" onWeek={() => undefined} />;
-  const key = `${props.target.kind}:${props.target.targetId}:${props.target.replaces?.invoiceId ?? ""}`;
-  return <InvoiceBuilder key={key} {...props} target={props.target} />;
+  const { target } = props;
+  return (
+    <div className="space-y-5">
+      <div hidden={reviewing && target !== null}>
+        <TargetPicker families={props.families} target={target} />
+      </div>
+      {target && (
+        <InvoiceBuilder key={`${target.kind}:${target.targetId}:${target.replaces?.invoiceId ?? ""}`} target={target} vat={props.vat}
+          today={props.today} onReviewing={onReviewing} />
+      )}
+    </div>
+  );
 }
 
 export function NewInvoiceClient(props: NewInvoiceClientProps) {

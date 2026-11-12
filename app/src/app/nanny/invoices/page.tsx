@@ -11,6 +11,7 @@
  * - **The props are the RSC payload** (what the browser receives): the rows' strings and invoice ids
  *   (`invoice-list-view.ts`), the masks, the business type's label and her trading name — no other id, no version.
  * - A failed read: the page with one plain message (never a half list). `?notice=` shows a send answer that lands here.
+ * - `maxDuration = 30`: cancel and resend send emails from this page.
  *
  * BB-wave1-041126/06b4, 2026-11-12.
  */
@@ -23,6 +24,9 @@ import { readMaskedDetails, readMyInvoices } from "@/lib/invoices/store";
 import { readIssuer } from "@/lib/invoices/store-business";
 import { noticeFor, toInvoiceRows } from "./invoice-list-view";
 import { InvoicesClient } from "./InvoicesClient";
+
+/** A cancel (and a resend) sends emails from this page. */
+export const maxDuration = 30;
 
 interface PageProps {
   readonly searchParams?: Readonly<Record<string, string | string[] | undefined>>;

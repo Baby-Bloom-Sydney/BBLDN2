@@ -7,14 +7,16 @@
  * - **Family:** her own families (name and area). Choosing one opens the form for its placement — or, with none, its
  *   Trial Shift — through the page's own parameter, so the server checks it's hers and pre-fills it.
  * - **Kind:** "Regular week" or "Trial Shift", as two buttons (`aria-pressed`); one the family hasn't got is disabled.
- * - **Week** (Regular week): the Mondays she can pick ("8–14 Feb 2027"), newest first; changing it is the form's.
+ * - **Week** (Regular week, `WeekSelect`): the Mondays she can pick ("8–14 Feb 2027"), newest first; the form renders
+ *   it, since her shifts follow it. The picker itself sits outside the form, which starts afresh for each target, so
+ *   it stays mounted and keeps her focus when she picks (code review M2).
  * - **A Trial Shift's date** is its own: fixed, or chosen when the family has had more than one.
  * - **A correction** keeps its family and kind (R4: the same family) and says "Replaces …".
  *
  * BB-wave1-041126/06b4, 2026-11-12.
  */
 
-import { useId } from "react";
+import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -30,8 +32,6 @@ const NEW_INVOICE = "/nanny/invoices/new";
 export interface TargetPickerProps {
   readonly families: readonly FamilyOption[];
   readonly target: InvoiceTargetView | null;
-  readonly periodStart: string;
-  readonly onWeek: (monday: string) => void;
 }
 
 const familyLabel = (f: FamilyOption): string => (f.area ? `${f.familyName} — ${f.area}` : f.familyName);
@@ -44,16 +44,20 @@ function useGo() {
 function FamilySelect({ families, value }: { readonly families: readonly FamilyOption[]; readonly value: string }) {
   const id = useId();
   const go = useGo();
+  // what she chose, shown while the page loads it (no snap-back to the old family); the page's answer wins after
+  const [chosen, setChosen] = useState<{ readonly key: string; readonly from: string } | null>(null);
+  const shown = chosen !== null && chosen.from === value ? chosen.key : value;
   const choose = (key: string) => {
     const family = families.find((f) => f.key === key);
     const trial = family?.trials[0];
+    setChosen({ key, from: value });
     if (family?.placementId) go("placement", family.placementId);
     else if (trial) go("connection", trial.connectionId);
   };
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id}>Family</Label>
-      <select id={id} className={SELECT} value={value} onChange={(e) => choose(e.target.value)}>
+      <select id={id} className={SELECT} value={shown} onChange={(e) => choose(e.target.value)}>
         <option value="" disabled>{LINE_MESSAGES.family}</option>
         {families.map((f) => <option key={f.key} value={f.key}>{familyLabel(f)}</option>)}
       </select>
@@ -78,7 +82,8 @@ function KindButtons({ family, target }: { readonly family: FamilyOption; readon
   );
 }
 
-function WeekSelect({ weeks, value, onWeek }: { readonly weeks: readonly string[]; readonly value: string; readonly onWeek: (m: string) => void }) {
+/** The week a Regular week is for: part of the form (her shifts follow it), so it lives with the form. */
+export function WeekSelect({ weeks, value, onWeek }: { readonly weeks: readonly string[]; readonly value: string; readonly onWeek: (m: string) => void }) {
   const id = useId();
   return (
     <div className="space-y-1.5">
@@ -105,7 +110,7 @@ function TrialDate({ family, target }: { readonly family: FamilyOption | undefin
   );
 }
 
-export function TargetPicker({ families, target, periodStart, onWeek }: TargetPickerProps) {
+export function TargetPicker({ families, target }: TargetPickerProps) {
   const family = target ? families.find((f) => f.key === target.familyKey) : undefined;
   return (
     <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -118,7 +123,6 @@ export function TargetPicker({ families, target, periodStart, onWeek }: TargetPi
         <FamilySelect families={families} value={target?.familyKey ?? ""} />
       )}
       {target && family && !target.replaces && <KindButtons family={family} target={target} />}
-      {target?.kind === "regular_week" && <WeekSelect weeks={target.weeks} value={periodStart} onWeek={onWeek} />}
       {target?.kind === "trial_shift" && <TrialDate family={family} target={target} />}
     </div>
   );

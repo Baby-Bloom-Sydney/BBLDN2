@@ -67,6 +67,15 @@ describe("draftOf", () => {
     });
   });
 
+  it("hours: plain decimals only — not exponents, hex or binary (code review L)", () => {
+    const hoursOf = (text: string) => draftOf({ kind: "regular_week", targetId: "t", periodStart: "2027-02-08", replacesInvoiceId: null },
+      values({ shifts: [shiftRow("2027-02-08", text)] })).lines[0];
+    for (const text of ["1e1", "0x10", "0b11", "7.5e0", "+7", "-7", "7.", ".", "Infinity", "7 5"]) expect(hoursOf(text)).toMatchObject({ hours: Number.NaN });
+    expect(hoursOf(" 7.75 ")).toMatchObject({ hours: 7.75 });
+    expect(hoursOf(".25")).toMatchObject({ hours: 0.25 });
+    expect(hoursOf("8")).toMatchObject({ hours: 8 });
+  });
+
   it("blank or unreadable hours and amounts are NaN (the schema's plain messages refuse them)", () => {
     const draft = draftOf({ kind: "regular_week", targetId: "t", periodStart: "2027-02-08", replacesInvoiceId: null },
       values({ shifts: [shiftRow("2027-02-08", "", "x")], expenses: [{ expenseType: "", amount: "", description: "" }] }));

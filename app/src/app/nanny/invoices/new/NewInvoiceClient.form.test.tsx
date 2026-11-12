@@ -12,7 +12,7 @@
  * BB-wave1-041126/06b4, 2026-11-12.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const calls = vi.hoisted(() => ({ previewInvoice: vi.fn(), sendInvoice: vi.fn(), saveBusinessSettings: vi.fn(), push: vi.fn(), refresh: vi.fn() }));
@@ -88,6 +88,29 @@ describe("the page around the form", () => {
   });
 });
 
+describe("focus (code review M2)", () => {
+  it("picking a family or kind keeps the picker mounted, so focus stays where she was", async () => {
+    const view = render(<NewInvoiceClient {...BASE} />);
+    const select = screen.getByLabelText("Family");
+    select.focus();
+    await userEvent.selectOptions(select, "1");
+    view.rerender(<NewInvoiceClient {...BASE} target={{ ...TRIAL_TARGET, targetId: CONNECTION_2, familyKey: "1", familyName: "Priya Patel" }} />);
+    expect(screen.getByLabelText("Family")).toBe(select);
+    expect(document.activeElement).toBe(select);
+  });
+
+  it("Remove: focus to the next row's first field, else to Add shift / Add expense", async () => {
+    render(<NewInvoiceClient {...BASE} />);
+    await userEvent.click(within(shiftCards()[0]!).getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(document.activeElement).toBe(within(shiftCards()[0]!).getByLabelText("Date")));
+    await userEvent.click(within(shiftCards()[0]!).getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Add shift" })));
+    await userEvent.click(screen.getByRole("button", { name: "Add expense" }));
+    await userEvent.click(within(screen.getByRole("group", { name: "Expense 1" })).getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Add expense" })));
+  });
+});
+
 describe("shifts", () => {
   it("pre-filled from her usual week, this week first: days after today dropped", () => {
     render(<NewInvoiceClient {...BASE} />);
@@ -128,11 +151,13 @@ describe("shifts", () => {
     expect(shiftCards()).toHaveLength(3);
   });
 
-  it("a Trial Shift's date is fixed (no select)", () => {
+  it("a Trial Shift's date is fixed (no select); its label names the date shown", () => {
     render(<NewInvoiceClient {...BASE} target={TRIAL_TARGET} />);
     const card = shiftCards()[0]!;
     expect(within(card).queryByRole("combobox", { name: "Date" })).toBeNull();
     expect(within(card).getByText("Wed 3 Feb")).toBeInTheDocument();
+    const label = within(card).getByText("Date");
+    expect(document.getElementById(label.getAttribute("for") ?? "")).toHaveTextContent("Wed 3 Feb");
     expect(screen.queryByLabelText("Week")).toBeNull();
     expect(screen.getByText("Trial Shift, Wed 3 Feb 2027")).toBeInTheDocument();
   });
@@ -178,6 +203,24 @@ describe("Review", () => {
     expect(within(shiftCards()[0]!).getByText("Enter the hours in quarter-hour steps, like 7.75")).toBeInTheDocument();
     expect(within(shiftCards()[0]!).getByLabelText("Hours")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByRole("alert")).toHaveTextContent("Please check the details marked below.");
+  });
+
+  it("a Review that throws (offline, a new deploy) says so on the form (code review M1)", async () => {
+    calls.previewInvoice.mockRejectedValueOnce(new Error("Failed to find Server Action"));
+    render(<NewInvoiceClient {...BASE} />);
+    await userEvent.click(screen.getByRole("button", { name: "Review" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong. Please try again.");
+    expect(screen.getByRole("button", { name: "Review" })).toBeInTheDocument();
+  });
+
+  it("a Trial Shift through Review: the draft carries its fixed date", async () => {
+    render(<NewInvoiceClient {...BASE} target={TRIAL_TARGET} />);
+    await userEvent.type(within(shiftCards()[0]!).getByLabelText("Hours"), "4");
+    await userEvent.click(screen.getByRole("button", { name: "Review" }));
+    expect(calls.previewInvoice).toHaveBeenCalledWith({
+      kind: "trial_shift", targetId: CONNECTION, periodStart: "2027-02-03", replacesInvoiceId: null,
+      lines: [{ kind: "shift", date: "2027-02-03", hours: 4, ratePence: RATE, description: "" }],
+    });
   });
 
   it("no shift at all → Add at least one shift", async () => {

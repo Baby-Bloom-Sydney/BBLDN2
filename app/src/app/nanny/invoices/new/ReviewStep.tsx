@@ -9,10 +9,12 @@
  *   ••-••-56, account ending 4321"); only when they (or an address) are missing, the first-invoice setup for them.
  * - Every line (its day, hours × rate and amount, the description under it), then the server's totals.
  * - "Back" to the form as she left it; "Send" — never while the setup is still needed.
+ * - Each review starts with focus on its heading (on entry, and when the setup or a change gives a new review).
  *
  * BB-wave1-041126/06b4, 2026-11-12.
  */
 
+import { useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import { EditNotice } from "@/components/settings/EditNotice";
 import { SettingsSubsection } from "@/components/settings/SettingsSubsection";
@@ -105,9 +107,14 @@ function BankDetails({ bank }: { readonly bank: NonNullable<InvoicePreview["bank
 export function ReviewStep({ preview, draft, notice, pending, setupIssues, onBack, onSend, onSaveSetup }: ReviewStepProps) {
   const setup = preview.needsPaymentDetails || preview.needsAddress;
   const { familyName, emailHint } = preview.recipient;
+  const heading = useRef<HTMLHeadingElement>(null);
+  // each review (on entry, and after the setup or a change: a new answer) starts at its heading (code review M2)
+  useEffect(() => heading.current?.focus(), [preview]);
   return (
     <div className="space-y-5">
-      <p className="text-base font-medium text-slate-900">This invoice goes to {familyName} ({emailHint}) and a copy to you</p>
+      <h2 ref={heading} tabIndex={-1} className="rounded-sm text-base font-medium text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500">
+        This invoice goes to {familyName} ({emailHint}) and a copy to you
+      </h2>
       <Warnings preview={preview} kind={draft.kind} />
       <EditNotice notice={notice === null ? null : { tone: "alert", text: notice }} />
       <IssuerSummary issuer={preview.issuer} recipient={preview.recipient} />

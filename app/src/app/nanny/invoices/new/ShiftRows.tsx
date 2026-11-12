@@ -8,15 +8,15 @@
  *   outside the week can't be picked; a Trial Shift's date is fixed (shown, not chosen).
  * - **Hours** (quarter hours), **Rate** (pounds an hour, her rate to start with), an optional **Description**, and the
  *   line's **Amount** as she types.
- * - "Add another shift this day" adds a shift on the same date just after it; "Remove" removes it; "Add shift" adds one
- *   on the next day that has happened.
+ * - "Add another shift this day" adds a shift on the same date just after it; "Remove" removes it (focus to the row in
+ *   its place, else "Add shift"); "Add shift" adds one on the next day that has happened.
  * - Each card stacks its fields at 320 px and sits on one line from `md`. A field's problem shows under it
  *   (`aria-invalid`, `aria-describedby`) and goes as she types.
  *
  * BB-wave1-041126/06b4, 2026-11-12.
  */
 
-import { useId, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Plus } from "lucide-react";
 import type { UseFieldArrayReturn, UseFormReturn } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -70,7 +70,8 @@ export interface ShiftRowsProps {
 }
 
 function DateControl({ id, index, form, days, fixedDate, today, error }: Pick<ShiftRowsProps, "form" | "days" | "fixedDate" | "today"> & { readonly id: string; readonly index: number; readonly error?: string }) {
-  if (fixedDate !== null) return <p className="flex h-9 items-center text-sm font-medium text-slate-900">{dayLabel(fixedDate)}</p>;
+  // fixed: shown, not chosen; it carries the id its "Date" label names (code review L)
+  if (fixedDate !== null) return <p id={id} className="flex h-9 items-center text-sm font-medium text-slate-900">{dayLabel(fixedDate)}</p>;
   const name = `shifts.${index}.date` as const;
   return (
     <select id={id} className={cn(SELECT, INVALID)} {...invalidProps(id, error)} {...form.register(name, { onChange: () => form.clearErrors(name) })}>
@@ -79,7 +80,7 @@ function DateControl({ id, index, form, days, fixedDate, today, error }: Pick<Sh
   );
 }
 
-function ShiftCard({ index, value, ...props }: ShiftRowsProps & { readonly index: number; readonly value: ShiftRowValue }) {
+function ShiftCard({ index, value, onRemove, ...props }: ShiftRowsProps & { readonly index: number; readonly value: ShiftRowValue; readonly onRemove: () => void }) {
   const { form, rows, newRow } = props;
   const id = `${useId()}-shift`;
   const errors = form.formState.errors.shifts?.[index];
@@ -88,7 +89,7 @@ function ShiftCard({ index, value, ...props }: ShiftRowsProps & { readonly index
     return { ...form.register(path, { onChange: () => form.clearErrors(path) }), ...PRIVATE, ...invalidProps(`${id}-${name}`, errors?.[name]?.message), id: `${id}-${name}` };
   };
   return (
-    <fieldset className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
+    <fieldset className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
       <legend className="sr-only">Shift {index + 1}</legend>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.7fr)_minmax(0,0.9fr)_minmax(0,2fr)]">
         <RowField id={`${id}-date`} label="Date" error={errors?.date?.message} className="col-span-2 md:col-span-1">
@@ -110,7 +111,7 @@ function ShiftCard({ index, value, ...props }: ShiftRowsProps & { readonly index
           <Button type="button" variant="ghost" size="sm" className="text-violet-700 hover:bg-violet-50 hover:text-violet-800" onClick={() => rows.insert(index + 1, newRow(value.date))}>
             Add another shift this day
           </Button>
-          <Button type="button" variant="ghost" size="sm" className="text-slate-600" onClick={() => rows.remove(index)}>Remove</Button>
+          <Button type="button" variant="ghost" size="sm" className="text-slate-600" onClick={onRemove}>Remove</Button>
         </div>
       </div>
     </fieldset>
@@ -126,14 +127,39 @@ function nextDate(values: readonly ShiftRowValue[], days: readonly string[], fix
   return next !== undefined && next <= today ? next : last;
 }
 
+/**
+ * After a Remove, focus goes to the row that took its place (its first field), else to the add button — never lost to
+ * the page (code review M2). Run after the removal has rendered.
+ */
+export function useFocusAfterRemove(focusRow: (index: number) => boolean) {
+  const add = useRef<HTMLButtonElement>(null);
+  const [removed, setRemoved] = useState<{ readonly index: number } | null>(null);
+  useEffect(() => {
+    if (removed === null) return;
+    if (!focusRow(removed.index)) add.current?.focus();
+    setRemoved(null);
+  }, [removed, focusRow]);
+  return { add, removedAt: (index: number) => setRemoved({ index }) };
+}
+
 export function ShiftRows(props: ShiftRowsProps) {
-  const values = props.form.watch("shifts");
+  const { form, rows, fixedDate } = props;
+  const values = form.watch("shifts");
+  const focusRow = useCallback((index: number) => {
+    if (index >= form.getValues("shifts").length) return false;
+    form.setFocus(`shifts.${index}.${fixedDate === null ? "date" : "hours"}`);
+    return true;
+  }, [form, fixedDate]);
+  const { add, removedAt } = useFocusAfterRemove(focusRow);
   return (
     <div className="space-y-3">
-      {props.rows.fields.map((field, index) => (
-        <ShiftCard key={field.id} {...props} index={index} value={values[index] ?? field} />
+      {rows.fields.map((field, index) => (
+        <ShiftCard key={field.id} {...props} index={index} value={values[index] ?? field} onRemove={() => {
+          rows.remove(index);
+          removedAt(index);
+        }} />
       ))}
-      <Button type="button" variant="outline" size="sm" className="text-violet-700 hover:bg-violet-50 hover:text-violet-800"
+      <Button ref={add} type="button" variant="outline" size="sm" className="text-violet-700 hover:bg-violet-50 hover:text-violet-800"
         onClick={() => props.rows.append(props.newRow(nextDate(values, props.days, props.fixedDate, props.today)))}>
         <Plus aria-hidden="true" />
         Add shift

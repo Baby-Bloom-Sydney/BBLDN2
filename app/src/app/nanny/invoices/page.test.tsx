@@ -33,7 +33,7 @@ vi.mock("@/lib/invoices/actions/resend-invoice-email", () => ({ resendInvoiceEma
 
 import { myInvoiceRow, issuerReply } from "@/lib/invoices/store-map-lines";
 import { invoiceRow, ISSUER, NANNY_ID, NANNY_USER, PARENT_USER, PLACEMENT } from "@/lib/invoices/invoice-rows.test-util";
-import NannyInvoicesPage from "./page";
+import NannyInvoicesPage, { maxDuration } from "./page";
 import { InvoicesClient } from "./InvoicesClient";
 
 const PROOF = { kind: "nanny_proof", nannyId: NANNY_ID, userId: NANNY_USER };
@@ -63,6 +63,10 @@ describe("/nanny/invoices — switch off", () => {
 });
 
 describe("/nanny/invoices — switch on", () => {
+  it("lives up to 30 seconds (a cancel sends two emails from here)", () => {
+    expect(maxDuration).toBe(30);
+  });
+
   it("no nanny session (a parent, an admin, nobody) → notFound(), nothing read", async () => {
     calls.proveNanny.mockResolvedValueOnce(null);
     await expect(render()).rejects.toThrow("NOT_FOUND");

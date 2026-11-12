@@ -12,7 +12,8 @@
  *   ("Your business settings changed — check the invoice again"). `in_progress`, `already_done`, `not_recorded` → her
  *   list, which shows the message. A refusal by field → the form. Anything else → its message on the review.
  * - One request at a time (a ref: React 18 batches state); an action that throws (offline, a new deploy) says
- *   "Something went wrong. Please try again."
+ *   "Something went wrong. Please try again." — on the form when it was the form's Review. Once Send has sent her to
+ *   her list, nothing is released: Send can't go again on the way (it would only meet "already sent").
  *
  * BB-wave1-041126/06b4, 2026-11-12.
  */
@@ -50,28 +51,43 @@ export interface ReviewHandlers {
   readonly go: (href: string) => void;
 }
 
-/** One request at a time (a ref: React 18 batches state); a throw → `onThrow`. */
-function useOnce(onThrow: () => void) {
+/** Work that left the page for her list: the request stays "in flight", so nothing can be sent again on the way. */
+const LEFT = "left";
+type Outcome = typeof LEFT | void;
+
+/** One request at a time (a ref: React 18 batches state); a throw → its `onThrow`; after leaving, never released. */
+function useOnce() {
   const [pending, setPending] = useState<ReviewPending>(null);
   const busy = useRef(false);
-  const once = async (kind: Exclude<ReviewPending, null>, work: () => Promise<void>) => {
+  const once = async (kind: Exclude<ReviewPending, null>, work: () => Promise<Outcome>, onThrow: () => void) => {
     if (busy.current) return;
     busy.current = true;
     setPending(kind);
+    let outcome: Outcome = undefined;
     try {
-      await work();
+      outcome = await work();
     } catch {
       onThrow();
     }
+    if (outcome === LEFT) return;
     busy.current = false;
     setPending(null);
   };
   return { pending, once };
 }
 
+/** Off to her list: the work left the page. */
+function leaving(go: ReviewHandlers["go"], href: string): Outcome {
+  go(href);
+  return LEFT;
+}
+
 export function useInvoiceReview({ onFormRefusal, go }: ReviewHandlers) {
   const [state, setState] = useState<ReviewState>(START);
-  const { pending, once } = useOnce(() => setState((s) => ({ ...s, notice: INVOICE_ACTION_MESSAGES.error })));
+  const { pending, once } = useOnce();
+  const failedOnReview = () => setState((s) => ({ ...s, notice: INVOICE_ACTION_MESSAGES.error }));
+  /** A throw on the form says so on the form (code review M1): the review's notice isn't shown there. */
+  const failedOnForm = () => onFormRefusal({ ok: false, error: "error", message: INVOICE_ACTION_MESSAGES.error });
 
   /** Review a draft; `from` says where a refusal shows (the form's, or the review's notice). */
   const askReview = async (draft: FormDraft, notice: string | null, from: ReviewState["step"]) => {
@@ -84,30 +100,30 @@ export function useInvoiceReview({ onFormRefusal, go }: ReviewHandlers) {
     setState((s) => ({ ...s, notice: result.message }));
   };
 
-  const send = (draft: FormDraft, preview: InvoicePreview) => once("send", async () => {
+  const send = (draft: FormDraft, preview: InvoicePreview) => once("send", async (): Promise<Outcome> => {
     const sealed = { invoiceId: preview.invoiceId, expectedTotalPence: preview.expectedTotalPence, reviewKey: preview.reviewKey };
     const result = await sendInvoice({ ...draft, ...sealed });
-    if (result.ok) return go(INVOICES);
-    if (TO_LIST.includes(result.error)) return go(`${INVOICES}?notice=${result.error}`);
+    if (result.ok) return leaving(go, INVOICES);
+    if (TO_LIST.includes(result.error)) return leaving(go, `${INVOICES}?notice=${result.error}`);
     if (REVIEW_AGAIN.includes(result.error)) return askReview(draft, result.message, "review");
     if (result.fields) {
       onFormRefusal(result);
       return setState((s) => ({ ...s, step: "form", notice: null }));
     }
     setState((s) => ({ ...s, notice: result.message }));
-  });
+  }, failedOnReview);
 
   const saveSetup = (draft: FormDraft, input: BusinessPageInput) => once("setup", async () => {
     const result = await saveBusinessSettings(input);
     if (result.ok) return askReview(draft, null, "review");
     if (result.error === "stale") return askReview(draft, result.message, "review");
     setState((s) => ({ ...s, notice: result.message, setupIssues: result.fields ?? {} }));
-  });
+  }, failedOnReview);
 
   return {
     state,
     pending,
-    review: (draft: FormDraft) => once("review", () => askReview(draft, null, "form")),
+    review: (draft: FormDraft) => once("review", () => askReview(draft, null, "form"), failedOnForm),
     send: () => (state.draft && state.preview ? send(state.draft, state.preview) : undefined),
     saveSetup: (input: BusinessPageInput) => (state.draft ? saveSetup(state.draft, input) : undefined),
     back: () => setState((s) => ({ ...s, step: "form", notice: null })),

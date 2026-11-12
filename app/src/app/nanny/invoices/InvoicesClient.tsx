@@ -80,7 +80,9 @@ export function InvoicesClient({ rows, business, bank, loadFailed, notice }: Inv
   const [cancelling, setCancelling] = useState<CancelTarget | null>(null);
   const { resending, message, resend } = useResend(() => router.refresh());
   const names = useMemo(() => familyNames(rows), [rows]);
-  const shown = family === ALL ? rows : rows.filter((r) => r.familyName === family);
+  // a family chosen before a refresh that has no invoice now: all families again
+  const chosen = names.includes(family) ? family : ALL;
+  const shown = chosen === ALL ? rows : rows.filter((r) => r.familyName === chosen);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -94,14 +96,15 @@ export function InvoicesClient({ rows, business, bank, loadFailed, notice }: Inv
         </Button>
       </div>
       <EditNotice notice={notice === null ? null : { tone: "status", text: notice }} />
-      <BusinessSummaryCard business={business} bank={bank} />
+      {/* a read that failed says so below, never "Not added" (code review M2) */}
+      {!loadFailed && <BusinessSummaryCard business={business} bank={bank} />}
       {loadFailed ? (
         <p className="rounded-2xl border border-slate-200 bg-white px-4 py-5 text-sm text-slate-600 shadow-sm">{INVOICE_ACTION_MESSAGES.error}</p>
       ) : rows.length === 0 ? (
         <p className="rounded-2xl border border-slate-200 bg-white px-4 py-5 text-sm text-slate-600 shadow-sm">No invoices yet.</p>
       ) : (
         <div className="space-y-3">
-          <FamilyFilter names={names} value={family} onChange={setFamily} />
+          <FamilyFilter names={names} value={chosen} onChange={setFamily} />
           <EditNotice notice={message === null ? null : { tone: "alert", text: message }} />
           <InvoiceList rows={shown} onResend={resend} resending={resending}
             onCancel={(row) => setCancelling({ invoiceId: row.invoiceId, number: row.number, familyName: row.familyName })} />

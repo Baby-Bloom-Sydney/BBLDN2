@@ -79,6 +79,8 @@ describe("InvoicesClient — the page", () => {
   it("a load failure: one plain message, no list; New invoice still there", () => {
     render(<InvoicesClient {...BASE} rows={[]} bank={null} business={null} loadFailed />);
     expect(screen.getByText("Something went wrong. Please try again.")).toBeInTheDocument();
+    expect(screen.queryByText("Bank details")).toBeNull(); // never "Not added" for a read that failed
+    expect(screen.queryByText("Not added")).toBeNull();
     expect(screen.queryByRole("list")).toBeNull();
     expect(screen.getByRole("link", { name: "New invoice" })).toBeInTheDocument();
   });
@@ -137,6 +139,14 @@ describe("InvoicesClient — rows", () => {
     expect(screen.getByText("BB-SophieTaylor-270214-0001")).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByLabelText("Family"), "All families");
     expect(screen.getByText("BB-SophieTaylor-270215-0002")).toBeInTheDocument();
+  });
+
+  it("a chosen family that's gone after a refresh: all families again", async () => {
+    const view = render(<InvoicesClient {...BASE} />);
+    await userEvent.selectOptions(screen.getByLabelText("Family"), "Priya Patel");
+    view.rerender(<InvoicesClient {...BASE} rows={[...BASE.rows.slice(0, 1), ...rows({ family_name: "Amira Khan" })]} />);
+    expect(screen.getByText("BB-SophieTaylor-270215-0002")).toBeInTheDocument();
+    expect(screen.getByLabelText("Family")).toHaveValue("");
   });
 
   it("one family: no filter", () => {
