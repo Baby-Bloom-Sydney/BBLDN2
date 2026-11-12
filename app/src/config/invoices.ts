@@ -6,18 +6,21 @@
  *
  * Frozen at every level: `as const` for the types, `Object.freeze` so nothing changes a limit at runtime.
  *
- * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
+ * 06b-4 rework (BAI 2026-11-12): an invoice is no longer a week, so the line counts bound the PDF's pages, not a
+ * period, and the hours backstop is every shift line at its most.
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 
 export const INVOICE_RULES = Object.freeze({
   hourStep: 0.25, // 14.3: shifts end on quarter hours (8:45–17:30 is 8.75 h); replaces Q6's 0.5
   maxShiftHours: 24, // 14.3: one shift, and all of a date's shifts together, fit in a day ("75" typed for "7.5")
-  maxHours: 168, // brief §11 Q6: 7 × 24, the backstop per invoice
+  maxHours: 2_400, // BAI 2026-11-12: 100 shift lines × 24 h, the backstop per invoice (no week, so no 7 × 24)
   dailySendCap: 10, // brief §11 Q11: invoices one nanny can send in a London day (anti-spam)
   ratePence: Object.freeze({ min: 1, max: 25_000 } as const), // 14.3: catches pence typed as pounds ("1800" → £1,800 an hour)
   expensePence: Object.freeze({ min: 1, max: 100_000 } as const), // 14.3: catches pence typed as pounds on a receipt
-  maxShiftLines: 28, // 14.3: four shifts a day for seven days; two PDF pages with one-line descriptions
-  maxExpenseLines: 20, // 14.3: a week's receipts; long descriptions may add a page, never split a row
+  maxShiftLines: 100, // BAI 2026-11-12: a page-size bound, not a period rule (a period has no cap); rows never split
+  maxExpenseLines: 40, // BAI 2026-11-12: a page-size bound for receipts; long descriptions may add a page, never split a row
   vatRateBp: Object.freeze({ default: 2_000, min: 1, max: 2_000 } as const), // §0a B: 20% unless she changes it; none is above 20%
   pdfLinkSeconds: 60, // plan §9 surface 6: a signed PDF link lives this long
   numberPrefix: "BB", // BAI 2026-11-04: BB-<NannyName>-<YYMMDD>-<Number>, e.g. BB-SophieTaylor-270215-0001

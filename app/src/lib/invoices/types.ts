@@ -3,11 +3,13 @@
  * Client-safe: no I/O here.
  *
  * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06 (lines, VAT, business types);
- * BB-wave1-041126/06b4, 2026-11-12 (the cancel and resend refusals).
+ * BB-wave1-041126/06b4, 2026-11-12 (the cancel and resend refusals); BB-wave1-041126/06b4-server, 2026-11-12 (no week,
+ * no kind: the kind is the link's type, never chosen; `too_early` replaces the Trial Shift refusals).
  */
 
 import { BUSINESS_TYPES, EXPENSE_TYPES } from "@/config/invoices";
 
+/** The link's type, derived and never chosen (06b-4 rework): her placement → regular_week, her connection → trial_shift. */
 export const INVOICE_KINDS = ["regular_week", "trial_shift"] as const;
 export type InvoiceKind = (typeof INVOICE_KINDS)[number];
 
@@ -40,10 +42,9 @@ export type VatMode = (typeof VAT_MODES)[number];
 export type InvoiceError =
   | "invoices_disabled" // the switch is off: refused before any read
   | "invalid" // bad input, or not a proven nanny
-  | "future" // a week or date after London's today
-  | "not_hers" // not her placement or trial connection (or a dismissed placement)
-  | "no_trial" // a connection with no trial date (plan R3)
-  | "wrong_date" // a Trial Shift on a day that isn't the connection's trial date
+  | "future" // a shift dated after London's today
+  | "too_early" // a shift dated before the family's earliest allowed date (its trial date or the hire's start)
+  | "not_hers" // not a family of hers: no placement (not dismissed) or trial connection of hers with that parent
   | "nanny_inactive" // her nanny account is suspended or deactivated
   | "cap" // the daily send cap is reached (counted in the database, under her lock)
   | "busy" // her lock is held by another write of hers: try again

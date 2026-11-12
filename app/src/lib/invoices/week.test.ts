@@ -2,10 +2,14 @@
  * Invoice weeks and dates (plan 06 step 3; R22: built on the one London clock in `src/lib/timezone.ts`, no copy).
  * Every block runs with the host in three zones, as `timezone.london.test.ts` does: CI runs UTC, a laptop may not.
  *
- * BB-wave1-041126/06a-build, 2026-11-04.
+ * 06b-4 rework (BAI 2026-11-12, "we can deduce this from their earliest and latest date"): an invoice's period is its
+ * earliest to latest shift date, labelled by `periodLabel`; the week and Trial Shift labels are gone.
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { londonDateOf, londonMondayOf } from "@/lib/timezone";
+import * as week from "./week";
 import {
   isFutureLondonDate,
   isLondonDate,
@@ -14,10 +18,8 @@ import {
   londonDayRange,
   londonWeekStart,
   dayLabel,
-  shiftDateLabel,
+  periodLabel,
   weekEndOf,
-  weekOfLabel,
-  weekRangeLabel,
 } from "./week";
 
 const HOST_ZONES = ["UTC", "Etc/GMT-11", "America/New_York"] as const;
@@ -90,12 +92,19 @@ describe.each(HOST_ZONES)("invoice weeks with the host in %s", (zone) => {
     });
   });
 
-  it("labels the week, the week's Monday and a Trial Shift date (plan §3a)", () => {
-    expect(weekRangeLabel("2027-02-08")).toBe("8–14 Feb 2027");
-    expect(weekRangeLabel("2027-03-29")).toBe("29 Mar – 4 Apr 2027");
-    expect(weekRangeLabel("2026-12-28")).toBe("28 Dec 2026 – 3 Jan 2027");
-    expect(weekOfLabel("2027-02-08")).toBe("8 Feb 2027");
-    expect(shiftDateLabel("2027-02-03")).toBe("Wed 3 Feb 2027");
+  it("labels a period: one month, across months, across years, and one day (ledger reading 7)", () => {
+    expect(periodLabel("2026-11-02", "2026-11-29")).toBe("2–29 Nov 2026");
+    expect(periodLabel("2026-10-29", "2026-11-02")).toBe("29 Oct – 2 Nov 2026");
+    expect(periodLabel("2026-12-29", "2027-01-02")).toBe("29 Dec 2026 – 2 Jan 2027");
+    expect(periodLabel("2026-10-05", "2026-10-05")).toBe("5 Oct 2026");
+    // a week, as the old week label printed it
+    expect(periodLabel("2027-02-08", "2027-02-14")).toBe("8–14 Feb 2027");
+    // no cap on the length (BAI 2026-11-12: "there is no reason to limit this")
+    expect(periodLabel("2026-01-01", "2026-12-31")).toBe("1 Jan – 31 Dec 2026");
+  });
+
+  it("the week and Trial Shift labels are gone (no week, no kind)", () => {
+    for (const gone of ["weekRangeLabel", "weekOfLabel", "shiftDateLabel"]) expect(Object.hasOwn(week, gone), gone).toBe(false);
   });
 
   it("labels the issue date in London (an instant just after midnight BST is the next day)", () => {
@@ -104,9 +113,10 @@ describe.each(HOST_ZONES)("invoice weeks with the host in %s", (zone) => {
     expect(issueDateLabel("2027-06-14T23:30:00Z")).toBe("15 Jun 2027");
   });
 
-  it("refuses to label what isn't a date (never prints Invalid Date)", () => {
-    expect(() => weekRangeLabel("2027-02-31")).toThrow(RangeError);
-    expect(() => shiftDateLabel("tomorrow")).toThrow(RangeError);
+  it("refuses to label what isn't a date, or a period that ends before it starts (never prints Invalid Date)", () => {
+    expect(() => periodLabel("2027-02-31", "2027-03-01")).toThrow(RangeError);
+    expect(() => periodLabel("2027-02-01", "tomorrow")).toThrow(RangeError);
+    expect(() => periodLabel("2027-02-08", "2027-02-07")).toThrow(RangeError);
     expect(() => issueDateLabel("not a time")).toThrow(RangeError);
   });
 });

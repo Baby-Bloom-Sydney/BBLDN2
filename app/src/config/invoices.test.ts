@@ -4,7 +4,10 @@
  * its backstop at the same value: amendment 21's harness header lists them), the labels, and that nothing changes
  * at run time. The rate is no longer tied to the profile's hourly bounds: any rate is hers (§0a A, replacing Q5).
  *
- * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
+ * 06b-4 rework (BAI 2026-11-12): no week, so the line counts are a page-size bound (100 shifts, 40 expenses) and the
+ * hours backstop is 100 shifts of 24 hours.
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 import { describe, expect, it } from "vitest";
 import { BASIS_POINTS, BASIS_POINTS_PER_PERCENT, BUSINESS_TYPES, EXPENSE_TYPES, INVOICE_RULES, NO_PENCE } from "./invoices";
@@ -24,11 +27,11 @@ describe("INVOICE_RULES", () => {
   it("pins the typo-guard ceilings of plan 14.3 (the database repeats each)", () => {
     expect(INVOICE_RULES.hourStep).toBe(0.25);
     expect(INVOICE_RULES.maxShiftHours).toBe(24);
-    expect(INVOICE_RULES.maxHours).toBe(168);
+    expect(INVOICE_RULES.maxHours).toBe(2_400);
     expect(INVOICE_RULES.ratePence).toEqual({ min: 1, max: 25_000 });
     expect(INVOICE_RULES.expensePence).toEqual({ min: 1, max: 100_000 });
-    expect(INVOICE_RULES.maxShiftLines).toBe(28);
-    expect(INVOICE_RULES.maxExpenseLines).toBe(20);
+    expect(INVOICE_RULES.maxShiftLines).toBe(100);
+    expect(INVOICE_RULES.maxExpenseLines).toBe(40);
     expect(INVOICE_RULES.vatRateBp).toEqual({ default: 2_000, min: 1, max: 2_000 });
   });
 
@@ -44,19 +47,19 @@ describe("INVOICE_RULES", () => {
     });
   });
 
-  it("whole quarter hours fit a shift and a week, so a line is always a whole number of quarter pence (14.5)", () => {
+  it("whole quarter hours fit a shift, so a line is always a whole number of quarter pence (14.5)", () => {
     expect(1 / INVOICE_RULES.hourStep).toBe(4);
     expect(Number.isInteger(INVOICE_RULES.maxShiftHours / INVOICE_RULES.hourStep)).toBe(true);
-    expect(INVOICE_RULES.maxHours).toBe(7 * INVOICE_RULES.maxShiftHours);
+    // the hours backstop is every shift line at its most (BAI 2026-11-12: 24 × 100)
+    expect(INVOICE_RULES.maxHours).toBe(INVOICE_RULES.maxShiftLines * INVOICE_RULES.maxShiftHours);
     // the largest invoice stays far inside a Postgres integer, and the VAT sum exact in a JS number (14.5 "Range")
     const largest = INVOICE_RULES.maxHours * INVOICE_RULES.ratePence.max * 2 + INVOICE_RULES.maxExpenseLines * INVOICE_RULES.expensePence.max;
     expect(largest).toBeLessThan(2 ** 31 - 1);
     expect(INVOICE_RULES.maxHours * INVOICE_RULES.ratePence.max * INVOICE_RULES.vatRateBp.max * 2).toBeLessThan(Number.MAX_SAFE_INTEGER);
   });
 
-  it("caps the lines at 28 shifts (four a day for a week) and 20 expenses", () => {
-    expect(INVOICE_RULES.maxShiftLines).toBe(4 * 7);
-    expect(INVOICE_RULES.maxShiftLines + INVOICE_RULES.maxExpenseLines).toBe(48);
+  it("caps the lines at 100 shifts and 40 expenses, 140 in all (a page-size bound, not a period rule)", () => {
+    expect(INVOICE_RULES.maxShiftLines + INVOICE_RULES.maxExpenseLines).toBe(140);
   });
 
   it("is frozen at every level", () => {
