@@ -6,7 +6,7 @@
  * - "This invoice goes to Olivia Hartley (olivia@…) and a copy to you"; the duplicate warning ("You have already
  *   invoiced … for this week (…)"); "Replaces …" for a correction; anything the last answer said.
  * - Who she is, read-only, with "Change in Settings" (`IssuerSummary`). Her bank details **masked** ("sort code
- *   ••-••-56, account ending 4321") — or, only when they (or an address) are missing, the first-invoice setup.
+ *   ••-••-56, account ending 4321"); only when they (or an address) are missing, the first-invoice setup for them.
  * - Every line (its day, hours × rate and amount, the description under it), then the server's totals.
  * - "Back" to the form as she left it; "Send" — never while the setup is still needed.
  *
@@ -111,11 +111,8 @@ export function ReviewStep({ preview, draft, notice, pending, setupIssues, onBac
       <Warnings preview={preview} kind={draft.kind} />
       <EditNotice notice={notice === null ? null : { tone: "alert", text: notice }} />
       <IssuerSummary issuer={preview.issuer} recipient={preview.recipient} />
-      {setup ? (
-        <FirstInvoiceSetup preview={preview} issues={setupIssues} saving={pending === "setup"} onSave={onSaveSetup} />
-      ) : (
-        preview.bank && <BankDetails bank={preview.bank} />
-      )}
+      {preview.bank && <BankDetails bank={preview.bank} />}
+      {setup && <FirstInvoiceSetup preview={preview} issues={setupIssues} saving={pending === "setup"} onSave={onSaveSetup} />}
       <Lines draft={draft} />
       <TotalsBox totals={preview.totals} vat={preview.vat} />
       <div className="flex flex-wrap gap-2">

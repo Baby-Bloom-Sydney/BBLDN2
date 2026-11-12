@@ -109,6 +109,12 @@ describe("InvoicesClient — rows", () => {
     expect(row.getByRole("button", { name: "Resend email" })).toBeInTheDocument();
   });
 
+  it("ids go into links encoded (whatever a row's id holds)", () => {
+    const odd = { ...rows({})[0]!, invoiceId: "a/b?c" };
+    render(<InvoicesClient {...BASE} rows={[odd]} />);
+    expect(screen.getByRole("link", { name: "View PDF" })).toHaveAttribute("href", "/nanny/invoices/a%2Fb%3Fc/pdf");
+  });
+
   it("a delivered row says Emailed ✓", () => {
     render(<InvoicesClient {...BASE} rows={rows({})} />);
     expect(screen.getByText("Emailed ✓")).toBeInTheDocument();

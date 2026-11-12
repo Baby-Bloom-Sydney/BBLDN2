@@ -19,7 +19,9 @@ import { invoicePdfLink } from "@/lib/invoices/store-pdf-link";
 
 export const dynamic = "force-dynamic";
 
-const notFound = () => NextResponse.json({ error: "Not found" }, { status: 404 });
+/** Nothing here is ever cached: a 404 or 500 as much as the redirect (security review L3). */
+const NO_STORE = { "Cache-Control": "private, no-store" } as const;
+const notFound = () => NextResponse.json({ error: "Not found" }, { status: 404, headers: NO_STORE });
 
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
   if (!nannyInvoicesEnabled()) return notFound();
@@ -27,9 +29,9 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   if (!proof) return notFound();
   const link = await invoicePdfLink(proof, params.id);
   if (!link.ok) {
-    return link.error === "not_found" || link.error === "invalid" ? notFound() : NextResponse.json({ error: "Unavailable" }, { status: 500 });
+    return link.error === "not_found" || link.error === "invalid" ? notFound() : NextResponse.json({ error: "Unavailable" }, { status: 500, headers: NO_STORE });
   }
   const response = NextResponse.redirect(link.value, 302);
-  response.headers.set("Cache-Control", "private, no-store");
+  response.headers.set("Cache-Control", NO_STORE["Cache-Control"]);
   return response;
 }

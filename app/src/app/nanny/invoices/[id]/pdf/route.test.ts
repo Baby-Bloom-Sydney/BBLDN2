@@ -34,6 +34,7 @@ describe("the invoice PDF route — switch off", () => {
     const res = await get();
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "Not found" });
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
     expect(calls.proveNanny).not.toHaveBeenCalled();
     expect(calls.invoicePdfLink).not.toHaveBeenCalled();
   });
@@ -66,6 +67,7 @@ describe("the invoice PDF route — switch on", () => {
     calls.invoicePdfLink.mockResolvedValueOnce({ ok: false, error: "error" });
     const res = await get();
     expect(res.status).toBe(500);
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
     expect(JSON.stringify(await res.json())).not.toContain(ID);
   });
 });

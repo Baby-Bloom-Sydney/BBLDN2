@@ -15,6 +15,7 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient }));
 import { fakeAdmin, type FakeAdmin } from "@/lib/payments/fake-admin.test-util";
 import { INVOICE, NANNY_ID, NANNY_USER, SECRETS } from "./invoice-rows.test-util";
 import { proveNanny, type NannyProof } from "./nanny-proof";
+import { INVOICE_BUCKET } from "./store-delivery";
 import { invoicePdfLink } from "./store-pdf-link";
 
 const PATH = `${NANNY_ID}/${INVOICE}.pdf`;
@@ -67,7 +68,8 @@ describe("invoicePdfLink", () => {
   it.each(["sent", "cancelled"])("her %s invoice: a 60-second signed link to its stored PDF, after the owner read", async (status) => {
     f.reads.nanny_invoices = linkRow({ status });
     expect(await invoicePdfLink(proof, INVOICE)).toEqual({ ok: true, value: LINK });
-    expect(signed).toEqual([["nanny-invoices", PATH, 60]]);
+    expect(signed).toEqual([[INVOICE_BUCKET, PATH, 60]]);
+    expect(INVOICE_BUCKET).toBe("nanny-invoices");
     const read = f.ops.find((o) => o.table === "nanny_invoices");
     expect(read?.kind).toBe("select");
     expect(read?.filters).toEqual(expect.arrayContaining([["eq", "id", INVOICE], ["eq", "nanny_id", NANNY_ID]]));

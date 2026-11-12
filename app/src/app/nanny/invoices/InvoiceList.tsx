@@ -77,7 +77,7 @@ function Actions({ row, onCancel }: { readonly row: InvoiceRowView; readonly onC
     <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
       {row.hasPdf && (
         <Button asChild variant="outline" size="sm">
-          <a href={`/nanny/invoices/${row.invoiceId}/pdf`} target="_blank" rel="noopener noreferrer">
+          <a href={`/nanny/invoices/${encodeURIComponent(row.invoiceId)}/pdf`} target="_blank" rel="noopener noreferrer">
             <FileText aria-hidden="true" />
             View PDF
           </a>
@@ -85,7 +85,7 @@ function Actions({ row, onCancel }: { readonly row: InvoiceRowView; readonly onC
       )}
       {row.canCorrect && (
         <Button asChild variant="outline" size="sm" className="text-violet-700 hover:text-violet-800">
-          <Link href={`/nanny/invoices/new?replaces=${row.invoiceId}`}>Send a corrected invoice</Link>
+          <Link href={`/nanny/invoices/new?replaces=${encodeURIComponent(row.invoiceId)}`}>Send a corrected invoice</Link>
         </Button>
       )}
       {row.canCancel && (

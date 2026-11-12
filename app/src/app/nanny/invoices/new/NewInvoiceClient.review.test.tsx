@@ -186,6 +186,18 @@ describe("the first-invoice setup", () => {
     });
   });
 
+  it("only the address missing: her bank details stay masked on the review, and only the address is asked", async () => {
+    calls.previewInvoice.mockResolvedValueOnce({ ok: true, preview: preview({ needsAddress: true, addressVersion: null }) });
+    await toReview();
+    expect(screen.getByText("sort code ••-••-33, account ending 4321")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Sort code")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "pick an address" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(calls.saveBusinessSettings).toHaveBeenCalledWith({
+      address: { line1: "7 New Road", line2: "", town: "London", postcode: "N1 1AA", expectedUpdatedAt: null },
+    });
+  });
+
   it("a second invoice doesn't ask again (bank details on file → no setup)", async () => {
     await toReview();
     expect(screen.queryByLabelText("Sort code")).toBeNull();

@@ -18,12 +18,11 @@ import { z } from "zod";
 import { INVOICE_RULES } from "@/config/invoices";
 import { logFailure, readOne, serviceClient, type AdminClient } from "./db";
 import { nannyGate } from "./gate";
+import { INVOICE_BUCKET } from "./store-delivery";
 import type { NannyProof } from "./nanny-proof";
 import { countsAsIssued } from "./status";
 import { FAILED, INVALID, INVOICE_STATUSES, invoiceOk, refused, type InvoiceResult } from "./types";
 
-/** Amendment 21's private bucket (as `store-delivery.ts` names it). */
-const BUCKET = "nanny-invoices";
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LINK_COLUMNS = "id, nanny_id, status, pdf_path";
 const id = z.string().min(1);
@@ -43,7 +42,7 @@ function isHersToShow(proof: NannyProof, invoiceId: string, row: LinkRow | null)
 
 async function signedLink(admin: AdminClient, path: string): Promise<InvoiceResult<string>> {
   try {
-    const { data, error } = await admin.storage.from(BUCKET).createSignedUrl(path, INVOICE_RULES.pdfLinkSeconds);
+    const { data, error } = await admin.storage.from(INVOICE_BUCKET).createSignedUrl(path, INVOICE_RULES.pdfLinkSeconds);
     if (error || typeof data?.signedUrl !== "string" || data.signedUrl === "") {
       logFailure("invoicePdfLink.sign", error ?? { code: "no_link" });
       return FAILED;
