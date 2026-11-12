@@ -30,8 +30,8 @@ import {
 
 const FACTS = {
   number: NUMBER,
-  kind: "regular_week",
   periodStart: "2027-02-08",
+  periodEnd: "2027-02-12",
   nannyName: "Sophie Taylor",
   familyName: "Olivia Hartley",
   figures: { hours: 32, expensesPence: 1250, totalPence: 59_650, vatMode: "none" },
@@ -60,11 +60,11 @@ describe("sendInvoiceEmails", () => {
     const [family, nanny] = sendEmail.mock.calls.map((c) => c[0]);
     expect(family).toMatchObject({
       to: FAMILY_EMAIL, replyTo: NANNY_EMAIL, emailType: "invoice_to_family", recipientUserId: PARENT_USER,
-      subject: `Invoice ${NUMBER} from Sophie Taylor — week of 8 Feb 2027`, attachments: [PDF],
+      subject: `Invoice ${NUMBER} from Sophie Taylor — 8–12 Feb 2027`, attachments: [PDF],
     });
     expect(nanny).toMatchObject({
       to: NANNY_EMAIL, replyTo: SUPPORT_INBOX, emailType: "invoice_copy_to_nanny", recipientUserId: NANNY_USER,
-      subject: `Copy: invoice ${NUMBER} to Olivia Hartley — week of 8 Feb 2027`, attachments: [PDF],
+      subject: `Copy: invoice ${NUMBER} to Olivia Hartley — 8–12 Feb 2027`, attachments: [PDF],
     });
     expect(nanny.text).toContain("Olivia Hartley has been sent the attached invoice.");
     expect(family.text).toContain("£596.50 in total.");

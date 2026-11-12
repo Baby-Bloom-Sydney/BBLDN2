@@ -4,7 +4,9 @@
  * never appear, nor any mask), **no link into the app** (attachment only), names escaped, CR/LF stripped from the
  * subject, the brand header and the client footer.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * 06b-4 rework: the period label replaces "week of …" and "Trial Shift, …"; an invoice of expenses only says no hours.
+ *
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 import { describe, expect, it } from "vitest";
 import { emailFooter, emailHeader } from "@/lib/email/brand";
@@ -13,8 +15,8 @@ import { INVOICE_TO_FAMILY_EMAIL_TYPE, invoiceToFamilyEmail, type InvoiceToFamil
 const NUMBER = "BB-SophieTaylor-270215-0001";
 const BASE: InvoiceToFamilyParams = {
   number: NUMBER,
-  kind: "regular_week",
   periodStart: "2027-02-08",
+  periodEnd: "2027-02-12",
   nannyName: "Sophie Taylor",
   familyName: "Olivia Hartley",
   figures: { hours: 32, expensesPence: 1250, totalPence: 59_650, vatMode: "none" },
@@ -27,20 +29,29 @@ describe("invoiceToFamilyEmail", () => {
     expect(INVOICE_TO_FAMILY_EMAIL_TYPE).toBe("invoice_to_family");
   });
 
-  it("subject: the number, her name and the week", () => {
-    expect(invoiceToFamilyEmail(BASE).subject).toBe(`Invoice ${NUMBER} from Sophie Taylor — week of 8 Feb 2027`);
+  it("subject: the number, her name and the period", () => {
+    expect(invoiceToFamilyEmail(BASE).subject).toBe(`Invoice ${NUMBER} from Sophie Taylor — 8–12 Feb 2027`);
   });
 
-  it("a Trial Shift's subject names its date", () => {
-    const e = invoiceToFamilyEmail({ ...BASE, kind: "trial_shift", periodStart: "2027-02-03" });
-    expect(e.subject).toBe(`Invoice ${NUMBER} from Sophie Taylor — Trial Shift, Wed 3 Feb 2027`);
-    expect(e.text).toContain("Sophie Taylor has sent you an invoice for the Trial Shift on Wed 3 Feb 2027:");
+  it("one day reads as its date; a longer period by its two ends (no Trial Shift wording)", () => {
+    const day = invoiceToFamilyEmail({ ...BASE, periodStart: "2027-02-03", periodEnd: "2027-02-03" });
+    expect(day.subject).toBe(`Invoice ${NUMBER} from Sophie Taylor — 3 Feb 2027`);
+    expect(day.text).toContain("Sophie Taylor has sent you an invoice for 3 Feb 2027:");
+    const month = invoiceToFamilyEmail({ ...BASE, periodStart: "2027-01-25", periodEnd: "2027-02-12" });
+    expect(month.subject).toBe(`Invoice ${NUMBER} from Sophie Taylor — 25 Jan – 12 Feb 2027`);
+    expect(all(month)).not.toMatch(/Trial Shift|week of/);
+  });
+
+  it("an invoice of expenses only says no hours (reading 6)", () => {
+    const e = invoiceToFamilyEmail({ ...BASE, periodStart: "2027-02-15", periodEnd: "2027-02-15", figures: { hours: 0, expensesPence: 1250, totalPence: 1250, vatMode: "none" } });
+    expect(e.text).toContain("Sophie Taylor has sent you an invoice for 15 Feb 2027: £12.50 of expenses, £12.50 in total.");
+    expect(e.text).not.toMatch(/hour|childcare/);
   });
 
   it("the body is plan 14.8's wording, in the html and the text", () => {
     const e = invoiceToFamilyEmail(BASE);
     const sentences = [
-      "Sophie Taylor has sent you an invoice for the week of 8 Feb 2027: 32 hours of childcare and £12.50 of expenses, £596.50 in total.",
+      "Sophie Taylor has sent you an invoice for 8–12 Feb 2027: 32 hours of childcare and £12.50 of expenses, £596.50 in total.",
       "Please pay Sophie directly, using the bank details on the attached invoice.",
       "Reply to this email to reach Sophie.",
     ];
@@ -55,7 +66,7 @@ describe("invoiceToFamilyEmail", () => {
     const vat = invoiceToFamilyEmail({ ...BASE, figures: { hours: 32, expensesPence: 1250, totalPence: 71_330, vatMode: "added" } });
     expect(vat.text).toContain("32 hours of childcare and £12.50 of expenses, £713.30 in total, including VAT.");
     const plain = invoiceToFamilyEmail({ ...BASE, figures: { hours: 32, expensesPence: 0, totalPence: 58_400, vatMode: "none" } });
-    expect(plain.text).toContain("for the week of 8 Feb 2027: 32 hours of childcare, £584.00 in total.");
+    expect(plain.text).toContain("for 8–12 Feb 2027: 32 hours of childcare, £584.00 in total.");
     expect(plain.text).not.toMatch(/expenses|VAT/);
   });
 
@@ -70,7 +81,7 @@ describe("invoiceToFamilyEmail", () => {
     for (const secret of ["112233", "11-22-33", "87654321", "4321", "••", "sort code", "account number"]) {
       expect(text).not.toContain(secret);
     }
-    expect(Object.keys(BASE).sort()).toEqual(["familyName", "figures", "kind", "nannyName", "number", "periodStart", "replacesNumber"]);
+    expect(Object.keys(BASE).sort()).toEqual(["familyName", "figures", "nannyName", "number", "periodEnd", "periodStart", "replacesNumber"]);
   });
 
   it("no link into the app: the only links are the footer's legal pages (R20)", () => {

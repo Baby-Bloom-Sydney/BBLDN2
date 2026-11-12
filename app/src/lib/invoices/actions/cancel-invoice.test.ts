@@ -110,7 +110,7 @@ describe("a cancel", () => {
     const [family, nanny] = h.sendEmail.mock.calls.map((c) => c[0]);
     expect(family).toMatchObject({ to: FAMILY_EMAIL, replyTo: NANNY_EMAIL, recipientUserId: PARENT_USER });
     expect(nanny).toMatchObject({ to: NANNY_EMAIL, recipientUserId: NANNY_USER });
-    expect(family.text).toContain(`Sophie Taylor has cancelled invoice ${NUMBER} for the week of 8 Feb 2027`);
+    expect(family.text).toContain(`Sophie Taylor has cancelled invoice ${NUMBER} for 8–12 Feb 2027`);
     expect(JSON.stringify(h.sendEmail.mock.calls)).not.toContain("evil.test");
     expect(f.ops.find((o) => o.table === "nanny_invoices")?.filters).toEqual(expect.arrayContaining([["eq", "nanny_id", NANNY_ID]]));
     expect(f.ops.find((o) => o.table === "nannies")?.filters).toEqual([["eq", "id", NANNY_ID]]);

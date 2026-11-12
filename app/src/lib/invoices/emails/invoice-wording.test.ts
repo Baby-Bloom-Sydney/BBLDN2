@@ -2,30 +2,28 @@
  * The wording the three invoice emails share (plan 06 §3a, §14.8; R16): the period, the totals sentence, first
  * names, one-line subjects, escaping and the shell. Pure.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * 06b-4 rework (ledger reading 6, 7): "week of …" and "Trial Shift, …" become the period label; an invoice of
+ * expenses only says no hours.
+ *
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 import { describe, expect, it } from "vitest";
 import { emailFooter, emailHeader } from "@/lib/email/brand";
 import { CANCEL_REASONS } from "../types";
-import {
-  CANCEL_REASON_LABELS,
-  escapeHtml,
-  firstNameOf,
-  oneLine,
-  periodForSentence,
-  periodForSubject,
-  renderEmail,
-  totalsClause,
-} from "./invoice-wording";
+import * as wording from "./invoice-wording";
+import { CANCEL_REASON_LABELS, escapeHtml, firstNameOf, invoicePeriod, oneLine, renderEmail, totalsClause } from "./invoice-wording";
 
 const NONE = { hours: 32, expensesPence: 1250, totalPence: 59_650, vatMode: "none" } as const;
 
-describe("periods", () => {
-  it("a Regular week reads by its Monday; a Trial Shift by its date", () => {
-    expect(periodForSubject("regular_week", "2027-02-08")).toBe("week of 8 Feb 2027");
-    expect(periodForSentence("regular_week", "2027-02-08")).toBe("the week of 8 Feb 2027");
-    expect(periodForSubject("trial_shift", "2027-02-03")).toBe("Trial Shift, Wed 3 Feb 2027");
-    expect(periodForSentence("trial_shift", "2027-02-03")).toBe("the Trial Shift on Wed 3 Feb 2027");
+describe("the period (ledger reading 7)", () => {
+  it("is the period label, whatever the invoice links to", () => {
+    expect(invoicePeriod({ periodStart: "2026-11-02", periodEnd: "2026-11-29" })).toBe("2–29 Nov 2026");
+    expect(invoicePeriod({ periodStart: "2026-12-29", periodEnd: "2027-01-02" })).toBe("29 Dec 2026 – 2 Jan 2027");
+    expect(invoicePeriod({ periodStart: "2027-02-03", periodEnd: "2027-02-03" })).toBe("3 Feb 2027");
+  });
+
+  it("the week and Trial Shift wordings are gone", () => {
+    for (const gone of ["periodForSubject", "periodForSentence"]) expect(Object.hasOwn(wording, gone), gone).toBe(false);
   });
 });
 
@@ -44,6 +42,11 @@ describe("totalsClause (plan 14.8)", () => {
     );
     expect(totalsClause({ ...NONE, vatMode: "included" })).toBe("32 hours of childcare and £12.50 of expenses, £596.50 in total, including VAT");
     expect(totalsClause(NONE)).not.toMatch(/VAT/);
+  });
+
+  it("expenses only: no hours and no VAT (expenses are at cost) — \"£12.50 of expenses, £12.50 in total\" (reading 6)", () => {
+    expect(totalsClause({ hours: 0, expensesPence: 1250, totalPence: 1250, vatMode: "none" })).toBe("£12.50 of expenses, £12.50 in total");
+    expect(totalsClause({ hours: 0, expensesPence: 1250, totalPence: 1250, vatMode: "added" })).toBe("£12.50 of expenses, £12.50 in total");
   });
 
   it("one hour is \"hour\"; quarter hours print as typed", () => {

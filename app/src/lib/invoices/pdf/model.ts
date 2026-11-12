@@ -9,7 +9,10 @@
  * - The figures are checked against `totals.ts` (one set of maths for the form, the server, the PDF and the database,
  *   risk X2): a created row whose lines, hours, VAT or total don't add up is never printed.
  *
- * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
+ * - 06b-4 rework: the period comes from the created row; every shift is dated within it (the database defines it
+ *   from them), else the row is never printed. An invoice of expenses only (0 hours, no childcare) adds up too.
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 
 import { logFailure } from "../db";
@@ -19,8 +22,14 @@ import { invoiceTotals, lineAmountPence } from "../totals";
 import { FAILED, invoiceOk, refused, type InvoiceResult } from "../types";
 import type { InvoicePdfData, InvoicePdfExpense, InvoicePdfShift } from "./InvoicePdf";
 
+/** True when the period runs forwards and holds every shift's date. */
+const datesFit = (created: CreatedInvoice, lines: readonly StoredLine[]): boolean =>
+  created.periodStart <= created.periodEnd
+  && lines.every((l) => l.kind !== "shift" || (l.date >= created.periodStart && l.date <= created.periodEnd));
+
 /** True when every line's amount and every header figure is what the calculator gives. */
 function addsUp(created: CreatedInvoice, lines: readonly StoredLine[]): boolean {
+  if (!datesFit(created, lines)) return false;
   try {
     const shiftsOk = lines.every((l) => l.kind !== "shift" || lineAmountPence(l.hours, l.ratePence) === l.amountPence);
     const t = invoiceTotals(
@@ -53,8 +62,8 @@ export function invoicePdfData(created: CreatedInvoice, details: StoredPaymentDe
   return invoiceOk({
     number: created.number,
     issuedAt: created.createdAt,
-    kind: created.kind,
     periodStart: created.periodStart,
+    periodEnd: created.periodEnd,
     issuer: { name: created.nannyName, ...created.issuer },
     billTo: { name: created.familyName, email: created.familyEmail },
     shifts,

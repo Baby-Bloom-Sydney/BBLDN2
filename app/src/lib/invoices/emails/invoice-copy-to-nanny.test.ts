@@ -3,7 +3,9 @@
  * <family>" or "we couldn't deliver it to <family>; try Resend". No bank details; names escaped; one-line subject;
  * the nanny footer.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * 06b-4 rework: the period label replaces "week of …" and "Trial Shift, …".
+ *
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 import { describe, expect, it } from "vitest";
 import { emailFooter, emailHeader } from "@/lib/email/brand";
@@ -12,8 +14,8 @@ import { INVOICE_COPY_TO_NANNY_EMAIL_TYPE, invoiceCopyToNannyEmail, type Invoice
 const NUMBER = "BB-SophieTaylor-270215-0001";
 const BASE: InvoiceCopyToNannyParams = {
   number: NUMBER,
-  kind: "regular_week",
   periodStart: "2027-02-08",
+  periodEnd: "2027-02-12",
   nannyName: "Sophie Taylor",
   familyName: "Olivia Hartley",
   figures: { hours: 32, expensesPence: 1250, totalPence: 59_650, vatMode: "none" },
@@ -24,14 +26,14 @@ const BASE: InvoiceCopyToNannyParams = {
 describe("invoiceCopyToNannyEmail", () => {
   it("its email type and subject", () => {
     expect(INVOICE_COPY_TO_NANNY_EMAIL_TYPE).toBe("invoice_copy_to_nanny");
-    expect(invoiceCopyToNannyEmail(BASE).subject).toBe(`Copy: invoice ${NUMBER} to Olivia Hartley — week of 8 Feb 2027`);
+    expect(invoiceCopyToNannyEmail(BASE).subject).toBe(`Copy: invoice ${NUMBER} to Olivia Hartley — 8–12 Feb 2027`);
   });
 
   it("delivered: the same figures, and the family has been sent it", () => {
     const e = invoiceCopyToNannyEmail(BASE);
     const sentences = [
       "Hi Sophie,",
-      "Here is a copy of your invoice to Olivia Hartley for the week of 8 Feb 2027: 32 hours of childcare and £12.50 of expenses, £596.50 in total.",
+      "Here is a copy of your invoice to Olivia Hartley for 8–12 Feb 2027: 32 hours of childcare and £12.50 of expenses, £596.50 in total.",
       "Olivia Hartley has been sent the attached invoice.",
     ];
     expect(e.text).toBe(`${sentences.join("\n\n")}\n\nBabyBloom`);
@@ -54,9 +56,9 @@ describe("invoiceCopyToNannyEmail", () => {
     expect(e.text).toContain("It replaces invoice BB-SophieTaylor-270212-0001, which you cancelled.");
   });
 
-  it("a Trial Shift's subject names its date", () => {
-    expect(invoiceCopyToNannyEmail({ ...BASE, kind: "trial_shift", periodStart: "2027-02-03" }).subject).toBe(
-      `Copy: invoice ${NUMBER} to Olivia Hartley — Trial Shift, Wed 3 Feb 2027`,
+  it("one day's subject names its date (no Trial Shift wording)", () => {
+    expect(invoiceCopyToNannyEmail({ ...BASE, periodStart: "2027-02-03", periodEnd: "2027-02-03" }).subject).toBe(
+      `Copy: invoice ${NUMBER} to Olivia Hartley — 3 Feb 2027`,
     );
   });
 

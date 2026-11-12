@@ -6,16 +6,17 @@
  * No bank details (they are on the PDF only); her name and the family's are escaped in the html; the nanny footer.
  * Pure: builds strings, sends nothing.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * 06b-4 rework: the period label ("2–29 Nov 2026") replaces "the week of …" and "the Trial Shift on …".
+ *
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 
 import { emailFooter } from "@/lib/email/brand";
 import type { EmailDelivery } from "../types";
 import {
   firstNameOf,
+  invoicePeriod,
   oneLine,
-  periodForSentence,
-  periodForSubject,
   renderEmail,
   totalsClause,
   type InvoiceEmail,
@@ -31,18 +32,19 @@ export interface InvoiceCopyToNannyParams extends InvoiceEmailFacts {
 }
 
 export function invoiceCopyToNannyEmail(params: InvoiceCopyToNannyParams): InvoiceEmail {
-  const { number, kind, periodStart, nannyName, familyName, figures, replacesNumber, familyDelivery } = params;
+  const { number, nannyName, familyName, figures, replacesNumber, familyDelivery } = params;
   const first = firstNameOf(nannyName);
+  const period = invoicePeriod(params);
   const paragraphs = [
     `Hi ${first === "" ? "there" : first},`,
-    `Here is a copy of your invoice to ${familyName} for ${periodForSentence(kind, periodStart)}: ${totalsClause(figures)}.`,
+    `Here is a copy of your invoice to ${familyName} for ${period}: ${totalsClause(figures)}.`,
     ...(replacesNumber === null ? [] : [`It replaces invoice ${replacesNumber}, which you cancelled.`]),
     familyDelivery === "sent"
       ? `${familyName} has been sent the attached invoice.`
       : `We couldn't deliver it to ${familyName}; try Resend on your invoices page.`,
   ];
   return {
-    subject: oneLine(`Copy: invoice ${number} to ${familyName} — ${periodForSubject(kind, periodStart)}`),
+    subject: oneLine(`Copy: invoice ${number} to ${familyName} — ${period}`),
     ...renderEmail({ heading: `Invoice ${number}`, paragraphs, footer: emailFooter() }),
   };
 }

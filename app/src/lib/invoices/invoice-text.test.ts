@@ -7,7 +7,10 @@
  * - Totals: "Childcare", "VAT at 20%" (added) or "Childcare (including VAT)" with "of which VAT at 20%" (included),
  *   "Expenses" when there are any; a VAT rate in basis points as a percent.
  *
- * BB-wave1-041126/06b4, 2026-11-12 (moved unchanged from `pdf/sections/{issuer,totals}.tsx`, which re-export them).
+ * - 06b-4 rework (reading 6): an invoice of expenses only (0 hours) has no Childcare or VAT line, whatever her VAT.
+ *
+ * BB-wave1-041126/06b4, 2026-11-12 (moved unchanged from `pdf/sections/{issuer,totals}.tsx`, which re-export them);
+ * BB-wave1-041126/06b4-server, 2026-11-12.
  */
 import { describe, expect, it } from "vitest";
 import { businessLines, businessName, fromLines, totalsLines, vatRateLabel } from "./invoice-text";
@@ -44,7 +47,7 @@ describe("the parties", () => {
 });
 
 describe("the totals", () => {
-  const base = { shiftsPence: 58_400, expensesPence: 1_250 };
+  const base = { hours: 32, shiftsPence: 58_400, expensesPence: 1_250 };
   it("per VAT mode; expenses only when there are any", () => {
     expect(totalsLines({ ...base, vat: { mode: "none", rateBp: null, pence: 0 } })).toEqual([
       { label: "Childcare", pence: 58_400 }, { label: "Expenses", pence: 1_250 },
@@ -52,9 +55,15 @@ describe("the totals", () => {
     expect(totalsLines({ ...base, vat: { mode: "added", rateBp: 2000, pence: 11_680 } })).toEqual([
       { label: "Childcare", pence: 58_400 }, { label: "VAT at 20%", pence: 11_680 }, { label: "Expenses", pence: 1_250 },
     ]);
-    expect(totalsLines({ shiftsPence: 58_400, expensesPence: 0, vat: { mode: "included", rateBp: 1750, pence: 8_698 } })).toEqual([
+    expect(totalsLines({ hours: 32, shiftsPence: 58_400, expensesPence: 0, vat: { mode: "included", rateBp: 1750, pence: 8_698 } })).toEqual([
       { label: "Childcare (including VAT)", pence: 58_400 }, { label: "of which VAT at 17.5%", pence: 8_698 },
     ]);
+  });
+
+  it("expenses only (0 hours): no Childcare or VAT line, whatever her VAT setting", () => {
+    for (const vat of [{ mode: "none", rateBp: null, pence: 0 }, { mode: "added", rateBp: 2000, pence: 0 }, { mode: "included", rateBp: 2000, pence: 0 }] as const) {
+      expect(totalsLines({ hours: 0, shiftsPence: 0, expensesPence: 1_250, vat })).toEqual([{ label: "Expenses", pence: 1_250 }]);
+    }
   });
 
   it("a rate as a percent", () => {

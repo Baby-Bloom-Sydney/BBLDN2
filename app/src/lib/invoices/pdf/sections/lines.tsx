@@ -1,25 +1,25 @@
 /**
- * The invoice's lines (plan 06 §14.8; brief §0a D): **childcare** — "Childcare, week of 8–14 Feb 2027" (or "Trial
- * Shift, Wed 3 Feb 2027") over Date · Description · Hours · Rate · Amount, one row per shift in date order (several
- * on one date, at their own rates, keep her order) — then **expenses**, Type · Description · Amount, in her order, when
- * she has any. A long table runs on to the next page row by row; a row is never split. Called as functions, never
- * mounted.
+ * The invoice's lines (plan 06 §14.8; brief §0a D; 06b-4 rework, ledger readings 6, 7): **childcare** — "Childcare,
+ * 2–29 Nov 2026" (the period: the earliest to the latest shift date; one date for one day) over Date · Description ·
+ * Hours · Rate · Amount, one row per shift in date order (several on one date, at their own rates, keep her order),
+ * and no table at all for an invoice of expenses only — then **expenses**, Type · Description · Amount, in her order,
+ * when she has any. A long table runs on to the next page row by row; a row is never split. Called as functions,
+ * never mounted.
  *
- * BB-wave1-041126/06b2-build, 2026-11-06 (shifts in date order: coordinator follow-up).
+ * BB-wave1-041126/06b2-build, 2026-11-06 (shifts in date order: coordinator follow-up); 06b4-server, 2026-11-12.
  */
 
 import { Text, View } from "@react-pdf/renderer";
 import type { ReactElement } from "react";
 import { EXPENSE_TYPES } from "@/config/invoices";
 import { formatHours, formatInvoiceMoney } from "../../money";
-import type { InvoiceKind } from "../../types";
-import { dayLabel, shiftDateLabel, weekRangeLabel } from "../../week";
+import { dayLabel, periodLabel } from "../../week";
 import type { InvoicePdfData, InvoicePdfExpense, InvoicePdfShift } from "../InvoicePdf";
 import { styles } from "../theme";
 
-/** "Childcare, week of 8–14 Feb 2027" or "Trial Shift, Wed 3 Feb 2027" (plan §3a, 14.8). */
-export function describeLine(kind: InvoiceKind, periodStart: string): string {
-  return kind === "regular_week" ? `Childcare, week of ${weekRangeLabel(periodStart)}` : `Trial Shift, ${shiftDateLabel(periodStart)}`;
+/** "Childcare, 2–29 Nov 2026" or "Childcare, 5 Oct 2026" (ledger reading 7: replaces "week of …" and "Trial Shift, …"). */
+export function describeLine(periodStart: string, periodEnd: string): string {
+  return `Childcare, ${periodLabel(periodStart, periodEnd)}`;
 }
 
 type CellStyle = (typeof styles)[keyof typeof styles];
@@ -78,10 +78,11 @@ function table(title: string, cells: readonly (readonly [string, CellStyle])[], 
   );
 }
 
-/** The shift table: every shift, in date order. */
-export function shiftTable(data: InvoicePdfData): ReactElement {
+/** The shift table: every shift, in date order; nothing for an invoice of expenses only. */
+export function shiftTable(data: InvoicePdfData): ReactElement | null {
+  if (data.shifts.length === 0) return null;
   return table(
-    describeLine(data.kind, data.periodStart),
+    describeLine(data.periodStart, data.periodEnd),
     [["Date", styles.cellDate], ["Description", styles.cellDescription], ["Hours", styles.cellHours], ["Rate", styles.cellRate], ["Amount", styles.cellAmount]],
     inDateOrder(data.shifts).map(shiftRow),
   );

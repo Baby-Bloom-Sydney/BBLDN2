@@ -10,15 +10,16 @@
  *   drops in as a paragraph before the footer, here and in the nanny's copy.
  * - Pure: builds strings, sends nothing.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * - 06b-4 rework: the period label ("2–29 Nov 2026") replaces "the week of …" and "the Trial Shift on …".
+ *
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 
 import { emailFooter } from "@/lib/email/brand";
 import {
   firstNameOf,
+  invoicePeriod,
   oneLine,
-  periodForSentence,
-  periodForSubject,
   renderEmail,
   totalsClause,
   type InvoiceEmail,
@@ -31,16 +32,17 @@ export const INVOICE_TO_FAMILY_EMAIL_TYPE = "invoice_to_family";
 export type InvoiceToFamilyParams = InvoiceEmailFacts;
 
 export function invoiceToFamilyEmail(params: InvoiceToFamilyParams): InvoiceEmail {
-  const { number, kind, periodStart, nannyName, figures, replacesNumber } = params;
+  const { number, nannyName, figures, replacesNumber } = params;
   const first = firstNameOf(nannyName) || nannyName;
+  const period = invoicePeriod(params);
   const paragraphs = [
-    `${nannyName} has sent you an invoice for ${periodForSentence(kind, periodStart)}: ${totalsClause(figures)}.`,
+    `${nannyName} has sent you an invoice for ${period}: ${totalsClause(figures)}.`,
     ...(replacesNumber === null ? [] : [`It replaces invoice ${replacesNumber}, which was cancelled.`]),
     `Please pay ${first} directly, using the bank details on the attached invoice.`,
     `Reply to this email to reach ${first}.`,
   ];
   return {
-    subject: oneLine(`Invoice ${number} from ${nannyName} — ${periodForSubject(kind, periodStart)}`),
+    subject: oneLine(`Invoice ${number} from ${nannyName} — ${period}`),
     ...renderEmail({ heading: `Invoice ${number}`, paragraphs, footer: emailFooter({ terms: "client" }) }),
   };
 }

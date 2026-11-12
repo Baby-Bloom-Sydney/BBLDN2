@@ -3,7 +3,10 @@
  * family, her name, the issuer, the lines and every figure — and her full bank details (the last-4 check is kept).
  * Pure. A created row whose figures don't add up by `totals.ts` is never printed (one set of maths, risk X2).
  *
- * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
+ * 06b-4 rework: the PDF prints the period (start and end) from the created row; no kind. An invoice of expenses only
+ * (0 hours, no childcare) adds up too.
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CreatedInvoice, StoredPaymentDetails } from "../store-map";
@@ -15,7 +18,7 @@ const shift = (lineNo: number, date: string, hours: number, rate: number, descri
 const created: CreatedInvoice = {
   invoiceId: "b0600000-0000-4000-8000-000000009003", seq: 3, number: "BB-SophieTaylor-270215-0003", status: "sending",
   kind: "regular_week", placementId: "b0600000-0000-4000-8000-000000000411", connectionRequestId: null,
-  periodStart: "2027-02-08", hours: 32, shiftsPence: 58_400, expensesPence: 1250, vat: { mode: "added", rateBp: 2000, pence: 11_680 },
+  periodStart: "2027-02-08", periodEnd: "2027-02-12", hours: 32, shiftsPence: 58_400, expensesPence: 1250, vat: { mode: "added", rateBp: 2000, pence: 11_680 },
   totalPence: 71_330, parentUserId: "b0600000-0000-4000-8000-000000000011",
   familyName: "Olivia Hartley", familyEmail: "admin+b06-11@babybloomnannies.co.uk", nannyName: "Sophie Taylor",
   nannyEmail: "admin+b06-1@babybloomnannies.co.uk", accountLast4: "4321", pdfPath: "n/i.pdf",
@@ -40,8 +43,8 @@ describe("invoicePdfData", () => {
     expect(r).toEqual({ ok: true, value: {
       number: "BB-SophieTaylor-270215-0003",
       issuedAt: "2027-02-15T09:30:00.000Z",
-      kind: "regular_week",
       periodStart: "2027-02-08",
+      periodEnd: "2027-02-12",
       issuer: {
         name: "Sophie Taylor", businessType: "limited_company", tradingName: "Taylor Childcare", address: "1 Upper Street\nLondon N1 0AA",
         companyName: "Taylor Childcare Ltd", companyNumber: "12345678", registeredOffice: "20 Market Road\nLondon N7 9PW",
@@ -68,6 +71,15 @@ describe("invoicePdfData", () => {
     expect(r.ok && r.value.shifts.map((s) => s.date)).toEqual(["2027-02-08", "2027-02-09", "2027-02-10", "2027-02-11", "2027-02-12", "2027-02-10"]);
   });
 
+  it("an invoice of expenses only: no shifts, 0 hours, the expenses and the total", () => {
+    const expensesOnly: CreatedInvoice = {
+      ...created, periodStart: "2027-02-15", periodEnd: "2027-02-15", hours: 0, shiftsPence: 0, expensesPence: 1250,
+      vat: { mode: "added", rateBp: 2000, pence: 0 }, totalPence: 1250, lines: [created.lines[6] as CreatedInvoice["lines"][number]],
+    };
+    const r = invoicePdfData(expensesOnly, details);
+    expect(r.ok && [r.value.shifts, r.value.expenses.length, r.value.totals.hours, r.value.periodStart, r.value.periodEnd]).toEqual([[], 1, 0, "2027-02-15", "2027-02-15"]);
+  });
+
   it("refuses details for a different account than the invoice names (they changed in between) — a result, not a throw", () => {
     expect(invoicePdfData(created, { ...details, accountNumber: "87650000", accountLast4: "0000" })).toEqual({ ok: false, error: "no_details" });
   });
@@ -76,6 +88,8 @@ describe("invoicePdfData", () => {
     expect(invoicePdfData({ ...created, totalPence: 71_331 }, details)).toEqual({ ok: false, error: "error" });
     expect(invoicePdfData({ ...created, vat: { mode: "added", rateBp: 2000, pence: 11_679 } }, details)).toEqual({ ok: false, error: "error" });
     expect(invoicePdfData({ ...created, hours: 33 }, details)).toEqual({ ok: false, error: "error" });
+    expect(invoicePdfData({ ...created, periodEnd: "2027-02-11" }, details)).toEqual({ ok: false, error: "error" }); // a shift after the period
+    expect(invoicePdfData({ ...created, periodStart: "2027-02-09" }, details)).toEqual({ ok: false, error: "error" }); // a shift before it
     expect(invoicePdfData({ ...created, lines: created.lines.map((l) => (l.lineNo === 6 ? { ...l, amountPence: 4401 } : l)) }, details))
       .toEqual({ ok: false, error: "error" });
     expect(invoicePdfData({ ...created, vat: { mode: "included", rateBp: null, pence: 0 } }, details)).toEqual({ ok: false, error: "error" });

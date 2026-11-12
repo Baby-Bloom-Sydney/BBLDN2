@@ -113,7 +113,7 @@ describe("the invoice email", () => {
     expect(steps).toEqual(["update family_emailed_at", `download nanny-invoices ${PATH}`, "invoice_to_family", "update family_email_status,family_emailed_at"]);
     const [email] = h.sendEmail.mock.calls.map((c) => c[0]);
     expect(email).toMatchObject({
-      to: FAMILY_EMAIL, replyTo: NANNY_EMAIL, recipientUserId: PARENT_USER, subject: `Invoice ${NUMBER} from Sophie Taylor — week of 8 Feb 2027`,
+      to: FAMILY_EMAIL, replyTo: NANNY_EMAIL, recipientUserId: PARENT_USER, subject: `Invoice ${NUMBER} from Sophie Taylor — 8–12 Feb 2027`,
     });
     expect(email.attachments).toHaveLength(1);
     expect(email.attachments[0].filename).toBe(`${NUMBER}.pdf`);

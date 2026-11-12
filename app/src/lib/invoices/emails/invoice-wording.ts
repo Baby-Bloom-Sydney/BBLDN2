@@ -6,11 +6,14 @@
  * - **No bank detail is ever an input** here: `sendEmail` keeps every body in `email_logs` (brief §5, §9.8), so the
  *   facts are the number, the period, the two names and the figures only.
  * - The totals sentence is plan 14.8's: "32 hours of childcare and <expenses> of expenses, <total> in total", with
- *   ", including VAT" only when she charges VAT, and the expenses clause left out when there are none. Amounts are
- *   the one money format (`formatInvoiceMoney`).
+ *   ", including VAT" only when she charges VAT, and the expenses clause left out when there are none. An invoice of
+ *   expenses only leaves out the hours, and the VAT with them (expenses are at cost): "<expenses> of expenses,
+ *   <total> in total" (ledger reading 6). Amounts are the one money format (`formatInvoiceMoney`).
+ * - The period (06b-4 rework, reading 7): the period label — "2–29 Nov 2026", or "5 Oct 2026" for one day — in
+ *   place of "week of …" and "Trial Shift, …", in the subjects and the sentences alike.
  * - Names are escaped in the html; subjects are one line (no CR/LF or other controls), whatever the snapshot holds.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 
 import { NO_PENCE } from "@/config/invoices";
@@ -18,8 +21,8 @@ import { SITE_NAME } from "@/lib/constants";
 import { emailHeader } from "@/lib/email/brand";
 import type { EmailTemplate } from "@/lib/email/templates/types";
 import { formatHours, formatInvoiceMoney } from "../money";
-import type { CancelReason, InvoiceKind, VatMode } from "../types";
-import { shiftDateLabel, weekOfLabel } from "../week";
+import type { CancelReason, VatMode } from "../types";
+import { periodLabel } from "../week";
 
 /** The reasons she can give when cancelling (brief §0.8), as the list and the emails show them. */
 export const CANCEL_REASON_LABELS: Readonly<Record<CancelReason, string>> = Object.freeze({
@@ -41,9 +44,9 @@ export interface InvoiceEmailFigures {
 /** Everything an invoice email may say about the invoice. Never a bank field. */
 export interface InvoiceEmailFacts {
   readonly number: string;
-  readonly kind: InvoiceKind;
-  /** A Regular week's Monday, or the Trial Shift's date. */
+  /** The period: its first and last shift dates (for an invoice of expenses only, its send date both times). */
   readonly periodStart: string;
+  readonly periodEnd: string;
   /** Her full name (the invoice's snapshot). */
   readonly nannyName: string;
   /** The family's name (the invoice's snapshot). */
@@ -55,22 +58,20 @@ export interface InvoiceEmailFacts {
 
 export type InvoiceEmail = EmailTemplate & { readonly text: string };
 
-/** "week of 8 Feb 2027" or "Trial Shift, Wed 3 Feb 2027": a subject's period. */
-export function periodForSubject(kind: InvoiceKind, periodStart: string): string {
-  return kind === "trial_shift" ? `Trial Shift, ${shiftDateLabel(periodStart)}` : `week of ${weekOfLabel(periodStart)}`;
+/** "2–29 Nov 2026" or "5 Oct 2026": an invoice's period, in a subject or a sentence. */
+export function invoicePeriod(facts: { readonly periodStart: string; readonly periodEnd: string }): string {
+  return periodLabel(facts.periodStart, facts.periodEnd);
 }
 
-/** "the week of 8 Feb 2027" or "the Trial Shift on Wed 3 Feb 2027": a sentence's period. */
-export function periodForSentence(kind: InvoiceKind, periodStart: string): string {
-  return kind === "trial_shift" ? `the Trial Shift on ${shiftDateLabel(periodStart)}` : `the week of ${weekOfLabel(periodStart)}`;
-}
-
-/** Plan 14.8's totals sentence, without its full stop. */
+/** Plan 14.8's totals sentence, without its full stop; for expenses only, no hours and no VAT (reading 6). */
 export function totalsClause(figures: InvoiceEmailFigures): string {
+  const total = `${formatInvoiceMoney(figures.totalPence)} in total`;
+  const expenses = `${formatInvoiceMoney(figures.expensesPence)} of expenses`;
+  if (figures.hours === 0) return `${expenses}, ${total}`;
   const hours = `${formatHours(figures.hours)} ${figures.hours === 1 ? "hour" : "hours"} of childcare`;
-  const expenses = figures.expensesPence > NO_PENCE ? ` and ${formatInvoiceMoney(figures.expensesPence)} of expenses` : "";
+  const withExpenses = figures.expensesPence > NO_PENCE ? ` and ${expenses}` : "";
   const vat = figures.vatMode === "none" ? "" : ", including VAT";
-  return `${hours}${expenses}, ${formatInvoiceMoney(figures.totalPence)} in total${vat}`;
+  return `${hours}${withExpenses}, ${total}${vat}`;
 }
 
 /** The first word of a full name ("" when there is none). */

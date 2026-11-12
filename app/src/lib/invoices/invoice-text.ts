@@ -8,10 +8,11 @@
  * - **Business:** one name — her trading name when she has entered one (it isn't her own name), otherwise a company's
  *   or partnership's — then "Company no. …" for a limited company and "VAT no. GB 123 4567 89" when registered.
  * - **Totals:** "Childcare", then "VAT at 20%" (added), or "Childcare (including VAT)" and "of which VAT at 20%"
- *   (included); "Expenses" when she has any. The caller prints the total.
+ *   (included); "Expenses" when she has any. The caller prints the total. With no shift (0 hours: an invoice of
+ *   expenses only, 06b-4 rework reading 6) there is no Childcare or VAT line, whatever her VAT setting.
  *
  * BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126 (BAI's three-column layout), 2026-11-07; moved by
- * BB-wave1-041126/06b4, 2026-11-12.
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-server, 2026-11-12 (expenses only).
  */
 
 import { BASIS_POINTS_PER_PERCENT } from "@/config/invoices";
@@ -67,17 +68,26 @@ export function vatRateLabel(rateBp: number): string {
 }
 
 export interface TotalsText {
+  /** The shifts' hours: 0 means no shift, so no Childcare or VAT line. */
+  readonly hours: number;
   readonly shiftsPence: number;
   readonly expensesPence: number;
   readonly vat: { readonly mode: VatMode; readonly rateBp: number | null; readonly pence: number };
 }
 
-/** The totals' lines above the total (14.8): childcare and VAT per her mode, then expenses when she has any. */
-export function totalsLines(totals: TotalsText): ReadonlyArray<{ readonly label: string; readonly pence: number }> {
-  const { shiftsPence, expensesPence, vat } = totals;
+type TotalsLine = { readonly label: string; readonly pence: number };
+
+/** Childcare and VAT per her mode (14.8); none when there is no shift. */
+function childcareLines(totals: TotalsText): readonly TotalsLine[] {
+  const { hours, shiftsPence, vat } = totals;
+  if (hours === 0) return [];
   const rate = vat.rateBp === null ? "" : vatRateLabel(vat.rateBp);
-  const childcare = vat.mode === "included"
+  return vat.mode === "included"
     ? [{ label: "Childcare (including VAT)", pence: shiftsPence }, { label: `of which VAT at ${rate}`, pence: vat.pence }]
     : [{ label: "Childcare", pence: shiftsPence }, ...(vat.mode === "added" ? [{ label: `VAT at ${rate}`, pence: vat.pence }] : [])];
-  return [...childcare, ...(expensesPence > 0 ? [{ label: "Expenses", pence: expensesPence }] : [])];
+}
+
+/** The totals' lines above the total (14.8): childcare and VAT per her mode, then expenses when she has any. */
+export function totalsLines(totals: TotalsText): readonly TotalsLine[] {
+  return [...childcareLines(totals), ...(totals.expensesPence > 0 ? [{ label: "Expenses", pence: totals.expensesPence }] : [])];
 }

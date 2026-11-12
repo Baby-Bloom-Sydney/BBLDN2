@@ -4,7 +4,9 @@
  * her; the nanny's is sent after the family's result and says whether it reached them. No bank details; names
  * escaped; one-line subject.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * 06b-4 rework: the period label replaces "week of …" and "Trial Shift, …"; an invoice of expenses only says no hours.
+ *
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 import { describe, expect, it } from "vitest";
 import { emailFooter } from "@/lib/email/brand";
@@ -18,8 +20,8 @@ import {
 const NUMBER = "BB-SophieTaylor-270215-0001";
 const FACTS = {
   number: NUMBER,
-  kind: "regular_week",
   periodStart: "2027-02-08",
+  periodEnd: "2027-02-12",
   nannyName: "Sophie Taylor",
   familyName: "Olivia Hartley",
   figures: { hours: 30, expensesPence: 0, totalPence: 54_000, vatMode: "none" },
@@ -44,7 +46,7 @@ describe("invoiceCancelledEmail", () => {
   it("to the family: who cancelled it, the figures, disregard it, the reason, reply to reach her", () => {
     const e = invoiceCancelledEmail(FAMILY);
     const sentences = [
-      `Sophie Taylor has cancelled invoice ${NUMBER} for the week of 8 Feb 2027: 30 hours of childcare, £540.00 in total.`,
+      `Sophie Taylor has cancelled invoice ${NUMBER} for 8–12 Feb 2027: 30 hours of childcare, £540.00 in total.`,
       "Please disregard it. Reason: wrong hours.",
       "Reply to this email to reach Sophie.",
     ];
@@ -57,7 +59,7 @@ describe("invoiceCancelledEmail", () => {
     const sent = invoiceCancelledEmail(NANNY);
     expect(sent.text).toBe([
       "Hi Sophie,",
-      `You cancelled invoice ${NUMBER} to Olivia Hartley for the week of 8 Feb 2027: 30 hours of childcare, £540.00 in total.`,
+      `You cancelled invoice ${NUMBER} to Olivia Hartley for 8–12 Feb 2027: 30 hours of childcare, £540.00 in total.`,
       "Reason: wrong hours.",
       "We've told Olivia Hartley to disregard it.",
       "BabyBloom",
@@ -77,12 +79,14 @@ describe("invoiceCancelledEmail", () => {
     expect(invoiceCancelledEmail({ ...FAMILY, reason }).text).toContain(`Reason: ${words}.`);
   });
 
-  it("a Trial Shift and VAT read as in the invoice email", () => {
+  it("one day, VAT and expenses only read as in the invoice email", () => {
     const e = invoiceCancelledEmail({
-      ...FAMILY, kind: "trial_shift", periodStart: "2027-02-03",
+      ...FAMILY, periodStart: "2027-02-03", periodEnd: "2027-02-03",
       figures: { hours: 4, expensesPence: 0, totalPence: 8640, vatMode: "added" },
     });
-    expect(e.text).toContain("for the Trial Shift on Wed 3 Feb 2027: 4 hours of childcare, £86.40 in total, including VAT.");
+    expect(e.text).toContain("for 3 Feb 2027: 4 hours of childcare, £86.40 in total, including VAT.");
+    const expensesOnly = invoiceCancelledEmail({ ...NANNY, periodStart: "2027-02-15", periodEnd: "2027-02-15", figures: { hours: 0, expensesPence: 640, totalPence: 640, vatMode: "none" } });
+    expect(expensesOnly.text).toContain(`You cancelled invoice ${NUMBER} to Olivia Hartley for 15 Feb 2027: £6.40 of expenses, £6.40 in total.`);
   });
 
   it("no bank detail anywhere; names escaped; the subject one line", () => {

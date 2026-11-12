@@ -7,7 +7,9 @@
  *
  * No bank details; names escaped in the html; one-line subject. Pure: builds strings, sends nothing.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * 06b-4 rework: the period label ("2–29 Nov 2026") replaces "the week of …" and "the Trial Shift on …".
+ *
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 
 import { emailFooter } from "@/lib/email/brand";
@@ -15,8 +17,8 @@ import type { CancelReason, EmailDelivery } from "../types";
 import {
   CANCEL_REASON_LABELS,
   firstNameOf,
+  invoicePeriod,
   oneLine,
-  periodForSentence,
   renderEmail,
   totalsClause,
   type InvoiceEmail,
@@ -43,7 +45,7 @@ function reasonSentence(reason: CancelReason): string {
 function familyParagraphs(p: CancelledFacts): readonly string[] {
   const first = firstNameOf(p.nannyName) || p.nannyName;
   return [
-    `${p.nannyName} has cancelled invoice ${p.number} for ${periodForSentence(p.kind, p.periodStart)}: ${totalsClause(p.figures)}.`,
+    `${p.nannyName} has cancelled invoice ${p.number} for ${invoicePeriod(p)}: ${totalsClause(p.figures)}.`,
     `Please disregard it. ${reasonSentence(p.reason)}`,
     `Reply to this email to reach ${first}.`,
   ];
@@ -53,7 +55,7 @@ function nannyParagraphs(p: CancelledFacts, familyDelivery: EmailDelivery): read
   const first = firstNameOf(p.nannyName);
   return [
     `Hi ${first === "" ? "there" : first},`,
-    `You cancelled invoice ${p.number} to ${p.familyName} for ${periodForSentence(p.kind, p.periodStart)}: ${totalsClause(p.figures)}.`,
+    `You cancelled invoice ${p.number} to ${p.familyName} for ${invoicePeriod(p)}: ${totalsClause(p.figures)}.`,
     reasonSentence(p.reason),
     familyDelivery === "sent"
       ? `We've told ${p.familyName} to disregard it.`

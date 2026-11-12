@@ -7,11 +7,12 @@
  * - No VAT: "Childcare", "Expenses" (when she has any), "Total".
  * - VAT added: "Childcare", "VAT at 20%", "Expenses", "Total" (the worked example's figures are in the tests).
  * - VAT included: "Childcare (including VAT)", "of which VAT at 20%", "Expenses", "Total".
+ * - Expenses only (06b-4 rework): "Expenses", "Total" — no Childcare or VAT line, whatever her VAT setting.
  * - Pay to: her full account name, sort code and account number — the one place they appear (brief D12).
  *
  * The figures are the created row's (the database worked them out with the same calculator, `totals.ts`).
  *
- * BB-wave1-041126/06b2-build, 2026-11-06.
+ * BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 
 import { Text, View } from "@react-pdf/renderer";
