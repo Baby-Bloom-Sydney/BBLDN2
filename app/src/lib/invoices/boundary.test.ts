@@ -20,7 +20,8 @@
  *
  * BB-wave1-041126/06a-build, 2026-11-04; 06b2-build, 2026-11-06 (store-business; pdf/model, which logs through db);
  * 06b3-build, 2026-11-07 (the Settings seam, the actions, the details-changed sender); 06b3-rework, 2026-11-09;
- * 06b4, 2026-11-12 (the invoice actions; review, store-delivery, the invoice emails' sender).
+ * 06b4, 2026-11-12 (the invoice actions; review, store-delivery, the invoice emails' sender; store-pdf-link, her list's
+ * "View PDF").
  */
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
@@ -29,10 +30,10 @@ import { describe, expect, it } from "vitest";
 const SRC = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const SERVER_MODULES = [
   "store", "store-business", "families", "nanny-proof", "db", "gate", "readers", "index", "pdf/render", "pdf/font", "pdf/model",
-  "emails/send-payment-details-changed", "review", "store-delivery", "emails/send-invoice-emails",
+  "emails/send-payment-details-changed", "review", "store-delivery", "emails/send-invoice-emails", "store-pdf-link",
 ];
 const SERVER_MODULE =
-  "(?:/(?:store|store-business|families|nanny-proof|db|gate|readers|index|pdf/render|pdf/font|pdf/model|emails/send-payment-details-changed|review|store-delivery|emails/send-invoice-emails))?";
+  "(?:/(?:store|store-business|families|nanny-proof|db|gate|readers|index|pdf/render|pdf/font|pdf/model|emails/send-payment-details-changed|review|store-delivery|emails/send-invoice-emails|store-pdf-link))?";
 /** The actions (06b-3 Settings; 06b-4 invoices): `"use server"` on purpose, each exporting only its gated async action. */
 const ACTIONS: Readonly<Record<string, readonly [string, string]>> = {
   "actions/cancel-invoice": ["cancelInvoice", "CancelInvoiceResult"],
