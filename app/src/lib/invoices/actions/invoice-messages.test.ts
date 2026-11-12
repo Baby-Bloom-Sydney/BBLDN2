@@ -2,18 +2,19 @@
  * What the invoice actions answer (plan 06 §14.6 b4.2–b4.3): one fixed, plain message per refusal code — never the
  * database's words, never what she typed — and a draft the schema refused, by field.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * 06b-4 rework: no week and no kind, so no `no_trial` or `wrong_date`; a date before the family's earliest allowed date
+ * answers `too_early`, by field, as `future` does.
+ *
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 import { describe, expect, it } from "vitest";
 import { invoiceDraftSchema, LINE_MESSAGES } from "../validation-lines";
-import { draftRefusal, INVOICE_ACTION_MESSAGES, invoiceRefusal } from "./invoice-messages";
+import { draftRefusal, INVOICE_ACTION_MESSAGES, invoiceRefusal, tooEarlyRefusal } from "./invoice-messages";
 
 const NOW = new Date("2027-02-15T10:00:00Z");
 const DRAFT = {
   invoiceId: "b0600000-0000-4000-8000-000000009001",
-  kind: "regular_week",
   targetId: "b0600000-0000-4000-8000-000000000411",
-  periodStart: "2027-02-08",
   lines: [{ kind: "shift", date: "2027-02-08", hours: 6, ratePence: 1800, description: null }],
   replacesInvoiceId: null,
 };
@@ -47,6 +48,26 @@ describe("invoiceRefusal", () => {
   it("refusals are frozen", () => {
     expect(Object.isFrozen(invoiceRefusal("error"))).toBe(true);
   });
+
+  it("no code is left for a week or a Trial Shift (no kind, no week)", () => {
+    expect(Object.keys(INVOICE_ACTION_MESSAGES)).not.toEqual(expect.arrayContaining(["no_trial"]));
+    expect(Object.keys(INVOICE_ACTION_MESSAGES)).not.toEqual(expect.arrayContaining(["wrong_date"]));
+    expect(Object.values(INVOICE_ACTION_MESSAGES).join(" ")).not.toMatch(/Trial Shift|week or date/);
+  });
+});
+
+describe("tooEarlyRefusal (a date before the family's earliest allowed date)", () => {
+  it("answers `too_early` with the plain message on each date's path", () => {
+    const r = tooEarlyRefusal([0, 3]);
+    expect(r).toEqual({
+      ok: false,
+      error: "too_early",
+      message: LINE_MESSAGES.tooEarly,
+      fields: { "lines.0.date": LINE_MESSAGES.tooEarly, "lines.3.date": LINE_MESSAGES.tooEarly },
+    });
+    expect(INVOICE_ACTION_MESSAGES.too_early).toBe(LINE_MESSAGES.tooEarly);
+    expect(Object.isFrozen(r)).toBe(true);
+  });
 });
 
 describe("draftRefusal", () => {
@@ -58,14 +79,14 @@ describe("draftRefusal", () => {
 
   it("the first message per field wins; a whole-draft issue sits on its own key", () => {
     const r = refusalOf({ ...DRAFT, lines: [] });
-    expect(r.fields).toEqual({ lines: LINE_MESSAGES.noShift });
+    expect(r.fields).toEqual({ lines: LINE_MESSAGES.noLine });
   });
 
-  it("a week or day that hasn't happened yet answers `future`", () => {
-    const r = refusalOf({ ...DRAFT, periodStart: "2027-02-22", lines: [{ kind: "shift", date: "2027-02-22", hours: 6, ratePence: 1800, description: null }] });
+  it("a day that hasn't happened yet answers `future`, on that shift's date", () => {
+    const r = refusalOf({ ...DRAFT, lines: [{ kind: "shift", date: "2027-02-22", hours: 6, ratePence: 1800, description: null }] });
     expect(r.error).toBe("future");
     expect(r.message).toBe(LINE_MESSAGES.future);
-    expect(r.fields?.periodStart).toBe(LINE_MESSAGES.future);
+    expect(r.fields).toEqual({ "lines.0.date": LINE_MESSAGES.future });
   });
 
   it("never echoes what was typed", () => {

@@ -10,8 +10,11 @@
  *   duplicate warning and the invoice a correction replaces.
  * - Refusals carry a fixed plain message; a draft the schema refused carries its fields.
  * - No full bank number in the reply; nothing personal in a log.
+ * - 06b-4 rework: the draft is the family's link id, the lines and any correction — no kind, no period; the preview
+ *   carries the period (the earliest to the latest shift date, or today for expenses only); a date before the family's
+ *   earliest allowed date answers `too_early` by field.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -101,9 +104,23 @@ describe("the draft", () => {
     expect(resolveInvoiceTarget).not.toHaveBeenCalled();
   });
 
-  it("a week that hasn't happened yet → future", async () => {
-    const r = await previewInvoice({ ...DRAFT_IN, periodStart: "2027-02-22", lines: [{ kind: "shift", date: "2027-02-22", hours: 6, ratePence: 1800, description: null }] });
-    expect(r).toMatchObject({ ok: false, error: "future", message: LINE_MESSAGES.future });
+  it("a date that hasn't happened yet → future, on that date", async () => {
+    const r = await previewInvoice({ ...DRAFT_IN, lines: [{ kind: "shift", date: "2027-02-22", hours: 6, ratePence: 1800, description: null }] });
+    expect(r).toEqual({ ok: false, error: "future", message: LINE_MESSAGES.future, fields: { "lines.0.date": LINE_MESSAGES.future } });
+    expect(resolveInvoiceTarget).not.toHaveBeenCalled();
+  });
+
+  it("a date before the family's earliest allowed date → too_early, on each such date", async () => {
+    const lines = [{ kind: "shift", date: "2027-01-20", hours: 6, ratePence: 1800, description: null }, { kind: "expense", expenseType: "food", amountPence: 500 }];
+    expect(await previewInvoice({ ...DRAFT_IN, lines })).toEqual({
+      ok: false, error: "too_early", message: LINE_MESSAGES.tooEarly, fields: { "lines.0.date": LINE_MESSAGES.tooEarly },
+    });
+  });
+
+  it("a kind or a period in the input is ignored: the server works them out", async () => {
+    const r = await previewInvoice({ ...DRAFT_IN, kind: "trial_shift", periodStart: "2027-01-01" });
+    expect(r.ok && [r.preview.periodStart, r.preview.periodEnd]).toEqual(["2027-02-08", "2027-02-12"]);
+    expect(resolveInvoiceTarget).toHaveBeenCalledWith(expect.objectContaining({ nannyId: NANNY_ID }), DRAFT_IN.targetId, NOW);
   });
 });
 
@@ -125,6 +142,8 @@ describe("the review", () => {
     });
     expect(p.bank).toEqual({ accountName: "Sophie Taylor", sortCodeLast2: "33", accountLast4: "4321" });
     expect(p).toMatchObject({ needsPaymentDetails: false, needsAddress: false, addressVersion: null, duplicates: [], replaces: null });
+    expect([p.periodStart, p.periodEnd]).toEqual(["2027-02-08", "2027-02-12"]);
+    expect(p).not.toHaveProperty("kind");
     expect(JSON.stringify(r)).not.toMatch(/112233|87654321|admin\+b06-11@babybloom/);
     expect(sessionClient).not.toHaveBeenCalled();
   });
@@ -138,6 +157,12 @@ describe("the review", () => {
     expect(resolveInvoiceTarget.mock.calls[0]?.[0]).toMatchObject({ nannyId: NANNY_ID });
     const second = await previewInvoice(DRAFT_IN);
     expect(second.ok && second.preview.invoiceId).not.toBe(r.preview.invoiceId);
+  });
+
+  it("an invoice of expenses only: 0 hours, its period today", async () => {
+    const r = await previewInvoice({ ...DRAFT_IN, lines: [{ kind: "expense", expenseType: "travel", amountPence: 640, description: "Bus" }] });
+    if (!r.ok) throw new Error(r.error);
+    expect([r.preview.periodStart, r.preview.periodEnd, r.preview.totals.hours, r.preview.expectedTotalPence]).toEqual(["2027-02-15", "2027-02-15", 0, 640]);
   });
 
   it("no bank details: needsPaymentDetails, bank null", async () => {
@@ -169,7 +194,6 @@ describe("the review", () => {
 
   it.each([
     ["not_hers", "You can only invoice families you work with."],
-    ["no_trial", "This family has no Trial Shift date to invoice."],
     ["no_contact", "A name or email this invoice needs is missing."],
   ] as const)("the family read's %s → a plain message", async (error, message) => {
     resolveInvoiceTarget.mockResolvedValueOnce({ ok: false, error });

@@ -10,8 +10,10 @@
  * - A PDF that can't be made or stored → the row is finished as failed, no email is sent (R1: never deleted).
  * - The database's refusals (`changed`, `bad_lines`, `no_address`, `in_progress` …) come back as plain messages.
  * - No email carries a bank detail; nothing personal in a log.
+ * - 06b-4 rework: create gets the family's link id (as the review resolved it) and the lines — no kind, no period; a
+ *   date before the family's earliest allowed date at send answers `too_early` by field.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -34,6 +36,7 @@ import { SUPPORT_INBOX } from "@/lib/constants";
 import { fakeAdmin, type FakeAdmin, type Op } from "@/lib/payments/fake-admin.test-util";
 import {
   BANK_ROW,
+  CONNECTION,
   CREATED,
   DRAFT_IN,
   FAMILY_EMAIL,
@@ -48,6 +51,7 @@ import {
   SECRETS,
   TARGET,
 } from "../invoice-rows.test-util";
+import { LINE_MESSAGES } from "../validation-lines";
 import { previewInvoice } from "./preview-invoice";
 import { sendInvoice } from "./send-invoice";
 
@@ -151,12 +155,15 @@ describe("a send", () => {
     expect(h.revalidated).toEqual(["/nanny/invoices"]);
   });
 
-  it("create gets the session's nanny, the draft's lines, the server's total and the account she reviewed", async () => {
+  it("create gets the session's nanny, the family's link, the draft's lines, the server's total and the account she reviewed", async () => {
     await sendInvoice(await reviewed());
     expect(rpcArgs("nanny_invoice_create")).toEqual([expect.objectContaining({
-      p_id: INVOICE, p_nanny: NANNY_ID, p_kind: "regular_week", p_period_start: "2027-02-08", p_expected_total_pence: 59_650,
+      p_id: INVOICE, p_nanny: NANNY_ID, p_target: TARGET.targetId, p_expected_total_pence: 59_650,
       p_account_last4: "4321", p_replaces: null, p_daily_cap: 10,
     })]);
+    expect(Object.keys(rpcArgs("nanny_invoice_create")[0] as object).sort()).toEqual([
+      "p_account_last4", "p_daily_cap", "p_expected_total_pence", "p_id", "p_lines", "p_nanny", "p_replaces", "p_stale_minutes", "p_target",
+    ]);
     expect(rpcArgs("nanny_invoice_finish")).toEqual([{
       p_id: INVOICE, p_nanny: NANNY_ID, p_outcome: "sent", p_family_email_status: "sent", p_nanny_email_status: "sent",
     }]);
@@ -168,6 +175,13 @@ describe("a send", () => {
     expect(family).toMatchObject({ to: FAMILY_EMAIL, replyTo: NANNY_EMAIL, recipientUserId: PARENT_USER, attachments: [{ filename: `${NUMBER}.pdf`, content: PDF }] });
     expect(nanny).toMatchObject({ to: NANNY_EMAIL, replyTo: SUPPORT_INBOX, recipientUserId: NANNY_USER, attachments: [{ filename: `${NUMBER}.pdf`, content: PDF }] });
     expect(JSON.stringify(h.sendEmail.mock.calls)).not.toContain("evil.test");
+  });
+
+  it("picked by another of her ids for the family, create gets the link the review resolved", async () => {
+    const input = await reviewed({ targetId: CONNECTION });
+    await sendInvoice(input);
+    expect(rpcArgs("nanny_invoice_create")[0]).toMatchObject({ p_target: TARGET.targetId });
+    expect(h.resolveInvoiceTarget).toHaveBeenLastCalledWith(expect.objectContaining({ nannyId: NANNY_ID }), CONNECTION, NOW);
   });
 
   it("the PDF is made from the created row and her full details (the one place they appear)", async () => {
@@ -272,6 +286,15 @@ describe("refusals", () => {
     expect(steps).toEqual([]);
   });
 
+  it("a date before the family's earliest allowed date at send → too_early by field, nothing created", async () => {
+    const input = await reviewed();
+    h.resolveInvoiceTarget.mockResolvedValue({ ok: true, value: { ...TARGET, earliest: "2027-02-09" } });
+    expect(await sendInvoice(input)).toEqual({
+      ok: false, error: "too_early", message: LINE_MESSAGES.tooEarly, fields: { "lines.0.date": LINE_MESSAGES.tooEarly },
+    });
+    expect(steps).toEqual([]);
+  });
+
   it("no bank details → no_details; no address → no_address (the page returns to the setup)", async () => {
     const input = await reviewed();
     f.reads.nanny_payment_details = null;
@@ -284,7 +307,7 @@ describe("refusals", () => {
 
   it.each([
     "changed", "bad_lines", "no_address", "no_details", "in_progress", "already_done", "already_failed", "cap", "not_hers",
-    "wrong_date", "nanny_inactive", "bad_replaces", "already_replaced", "no_contact", "future", "invalid",
+    "nanny_inactive", "bad_replaces", "already_replaced", "no_contact", "future", "invalid",
   ] as const)("the database answers %s: a plain message, nothing rendered or sent", async (status) => {
     f.rpcResults.nanny_invoice_create = { data: { status }, error: null };
     const r = await sendInvoice(await reviewed());

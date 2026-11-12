@@ -6,7 +6,10 @@
  * Client-safe (no I/O): the invoice pages read these types and messages, and a `"use server"` file can export only
  * async functions, so they live here (as `messages.ts` does for the Settings action).
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * 06b-4 rework (BAI 2026-11-12): no week and no kind. The draft is the family's link id, the lines and any correction;
+ * a date before the family's earliest allowed date answers `too_early` by field, as a future date answers `future`.
+ *
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 
 import type { z } from "zod";
@@ -14,7 +17,7 @@ import { INVOICE_RULES } from "@/config/invoices";
 import { EDIT_MESSAGES } from "@/lib/settings/edit-messages";
 import type { Issuer } from "../store-map-lines";
 import type { InvoiceTotals } from "../totals";
-import type { CancelReason, EmailDelivery, InvoiceError, InvoiceKind, VatMode } from "../types";
+import type { CancelReason, EmailDelivery, InvoiceError, VatMode } from "../types";
 import { FUTURE_ISSUE, LINE_MESSAGES, type invoiceLineSchema } from "../validation-lines";
 import { ACTION_MESSAGES } from "./messages";
 
@@ -28,7 +31,7 @@ export interface InvoiceActionRefusal {
   readonly ok: false;
   readonly error: InvoiceActionError;
   readonly message: string;
-  /** Field path → its message, when the draft's schema refused fields (nothing was read or written). */
+  /** Field path → its message: fields the draft's schema refused (nothing read or written), or dates too early. */
   readonly fields?: Readonly<Record<string, string>>;
 }
 
@@ -39,9 +42,8 @@ export const INVOICE_ACTION_MESSAGES: Readonly<Record<InvoiceActionError, string
   signed_out: ACTION_MESSAGES.signed_out,
   invalid: "Please check the invoice and try again.",
   future: LINE_MESSAGES.future,
+  too_early: LINE_MESSAGES.tooEarly,
   not_hers: "You can only invoice families you work with.",
-  no_trial: "This family has no Trial Shift date to invoice.",
-  wrong_date: LINE_MESSAGES.trialDate,
   nanny_inactive: "Your account isn't active, so you can't send or change invoices. Please contact us.",
   cap: `You can send up to ${INVOICE_RULES.dailySendCap} invoices a day. Please try again tomorrow.`,
   busy: "Another invoice of yours is being sent — try again in a moment.",
@@ -71,6 +73,12 @@ export function invoiceRefusal(error: InvoiceActionError): InvoiceActionRefusal 
   return Object.freeze({ ok: false, error, message: INVOICE_ACTION_MESSAGES[error] });
 }
 
+/** Shifts dated before the family's earliest allowed date (by their index in the draft's lines): `too_early`, by field. */
+export function tooEarlyRefusal(lineIndexes: readonly number[]): InvoiceActionRefusal {
+  const fields = Object.fromEntries(lineIndexes.map((i) => [`lines.${i}.date`, LINE_MESSAGES.tooEarly]));
+  return Object.freeze({ ok: false, error: "too_early", message: LINE_MESSAGES.tooEarly, fields: Object.freeze(fields) });
+}
+
 /** The first message for each field path the schema refused ("form" when it names none). Messages are fixed text. */
 function fieldsByPath(error: z.ZodError): Readonly<Record<string, string>> {
   return error.issues.reduce<Readonly<Record<string, string>>>((found, issue) => {
@@ -79,7 +87,7 @@ function fieldsByPath(error: z.ZodError): Readonly<Record<string, string>> {
   }, {});
 }
 
-/** A draft the schema refused: `future` when a week or day hasn't happened yet, else `invalid`; by field either way. */
+/** A draft the schema refused: `future` when a shift's date hasn't happened yet, else `invalid`; by field either way. */
 export function draftRefusal(error: z.ZodError): InvoiceActionRefusal {
   const future = error.issues.some((i) => i.code === "custom" && i.params?.issue === FUTURE_ISSUE);
   return Object.freeze({
@@ -114,6 +122,9 @@ export interface InvoicePreview {
   /** The server's total: send it back with `sendInvoice`. */
   readonly expectedTotalPence: number;
   readonly totals: InvoiceTotals;
+  /** The period (spec d): the first and last shift dates, any length apart; for expenses only, today for both. */
+  readonly periodStart: string;
+  readonly periodEnd: string;
   readonly vat: { readonly mode: VatMode; readonly rateBp: number | null };
   /** "This invoice goes to Olivia Hartley (olivia@…)": the email masked to its local part. */
   readonly recipient: { readonly familyName: string; readonly emailHint: string; readonly area: string | null };
@@ -126,7 +137,7 @@ export interface InvoicePreview {
   readonly needsAddress: boolean;
   /** Her home address row's version when `needsAddress` (null = she has no row); null otherwise. */
   readonly addressVersion: string | null;
-  /** Her live invoices to this family for the same week or Trial Shift date: "You have already invoiced …". */
+  /** Her live invoices to this family whose period overlaps this one on any date: "You have already invoiced …". */
   readonly duplicates: readonly InvoiceRef[];
   /** The cancelled invoice this one corrects. */
   readonly replaces: InvoiceRef | null;
@@ -165,13 +176,11 @@ export type ResendInvoiceEmailResult =
 /** One line of the form, as the actions take it (the shared schema's input). */
 export type InvoiceLineInput = z.input<typeof invoiceLineSchema>;
 
-/** `previewInvoice`'s input. */
+/** `previewInvoice`'s input: no kind and no period — the server works them out (ledger reading 5). */
 export interface PreviewInvoiceInput {
-  readonly kind: InvoiceKind;
-  /** A Regular week's placement id, or a Trial Shift's connection id. */
+  /** The family's link id (`InvoiceableFamily.targetId`): her placement's or her connection's id. */
   readonly targetId: string;
-  /** A Regular week's Monday, or the Trial Shift's date ("YYYY-MM-DD"). */
-  readonly periodStart: string;
+  /** Shifts (each with its own date) and expenses, in her order; at least one. */
   readonly lines: readonly InvoiceLineInput[];
   /** The cancelled invoice this one corrects (`?replaces=`), else null. */
   readonly replacesInvoiceId: string | null;
