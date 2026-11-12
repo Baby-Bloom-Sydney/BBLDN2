@@ -8,6 +8,8 @@
  *   hers saying whether it reached them; both deliveries are recorded on the row (R15). A failed email or record
  *   never undoes the cancel.
  * - Nothing personal in a log.
+ * Security review (2026-11-12): a suspended or deactivated nanny is refused (L1); when the family no longer has an
+ * account, their email is skipped and recorded as failed (L2).
  *
  * BB-wave1-041126/06b4, 2026-11-12.
  */
@@ -46,7 +48,7 @@ beforeEach(() => {
   steps = [];
   moved = [true, true];
   h.revalidated.splice(0);
-  f = fakeAdmin({ nanny_invoices: sentRow() });
+  f = fakeAdmin({ nanny_invoices: sentRow(), nannies: { id: NANNY_ID, status: "active" }, user_profiles: { user_id: PARENT_USER } });
   f.writeResults.nanny_invoices = (op: Op) => {
     steps.push(`update ${Object.keys(op.payload as object).join(",")}`);
     return moved.shift() === false ? [] : [{ id: INVOICE }];
@@ -110,7 +112,8 @@ describe("a cancel", () => {
     expect(nanny).toMatchObject({ to: NANNY_EMAIL, recipientUserId: NANNY_USER });
     expect(family.text).toContain(`Sophie Taylor has cancelled invoice ${NUMBER} for the week of 8 Feb 2027`);
     expect(JSON.stringify(h.sendEmail.mock.calls)).not.toContain("evil.test");
-    expect(f.ops[0]?.filters).toEqual(expect.arrayContaining([["eq", "nanny_id", NANNY_ID]]));
+    expect(f.ops.find((o) => o.table === "nanny_invoices")?.filters).toEqual(expect.arrayContaining([["eq", "nanny_id", NANNY_ID]]));
+    expect(f.ops.find((o) => o.table === "nannies")?.filters).toEqual([["eq", "id", NANNY_ID]]);
   });
 
   it("the family's email failed: recorded as failed; hers says so; still cancelled", async () => {
@@ -123,6 +126,35 @@ describe("a cancel", () => {
   it("the deliveries can't be recorded: still cancelled (logged by code)", async () => {
     moved = [true, false];
     expect(await cancelInvoice(INPUT)).toMatchObject({ ok: true, delivery: { family: "sent", nanny: "sent" } });
+  });
+});
+
+describe("the security review's cases", () => {
+  it.each(["suspended", "deactivated"])("a %s nanny → nanny_inactive, nothing written or sent (L1)", async (status) => {
+    f.reads.nannies = { id: NANNY_ID, status };
+    expect(await cancelInvoice(INPUT)).toEqual({
+      ok: false, error: "nanny_inactive", message: "Your account isn't active, so you can't send or change invoices. Please contact us.",
+    });
+    expect(writesTo(f, "nanny_invoices")).toEqual([]);
+    expect(h.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("the family no longer has an account: cancelled, their email skipped and recorded failed; hers says so (L2)", async () => {
+    f.reads.user_profiles = null;
+    expect(await cancelInvoice(INPUT)).toMatchObject({ ok: true, delivery: { family: "failed", nanny: "sent" } });
+    expect(h.sendEmail.mock.calls.map((c) => c[0].emailType)).toEqual(["invoice_cancelled_nanny"]);
+    expect(h.sendEmail.mock.calls[0]?.[0].text).toContain("We couldn't deliver the cancellation to Olivia Hartley");
+    expect(writesTo(f, "nanny_invoices")[1]?.payload).toEqual({ cancel_family_email_status: "failed", cancel_nanny_email_status: "sent" });
+  });
+
+  it("her status or the family's account can't be read → error, nothing written or sent", async () => {
+    f.readErrors.nannies = { message: "down" };
+    expect(await cancelInvoice(INPUT)).toMatchObject({ ok: false, error: "error" });
+    f.readErrors.nannies = undefined;
+    f.readErrors.user_profiles = { message: "down" };
+    expect(await cancelInvoice(INPUT)).toMatchObject({ ok: false, error: "error" });
+    expect(writesTo(f, "nanny_invoices")).toEqual([]);
+    expect(h.sendEmail).not.toHaveBeenCalled();
   });
 });
 

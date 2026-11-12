@@ -14,6 +14,8 @@
  * - The bodies carry no bank detail: the templates take none (`sendEmail` keeps every body in `email_logs`).
  * - **Cancellations** (brief §0.8; R15, R16): the family's first (reply-to her), then hers saying whether the
  *   family's arrived; no attachment. Each email also goes alone, for a resend (old step 13).
+ * - **A family with no account any more** (security review L2): their email is skipped — `failed`, logged by code —
+ *   rather than sent to the address of a closed account.
  *
  * BB-wave1-041126/06b4, 2026-11-12.
  */
@@ -140,12 +142,19 @@ export function nannyCancellation(facts: CancelledFacts, to: InvoiceAddresses, f
   });
 }
 
-/** Both cancellation emails: the family's, then hers (R16's order). */
+/** The family's email not sent because they no longer have an account (L2): `failed`, logged by code. */
+export function skippedFamilyEmail(): EmailDelivery {
+  logFailure("the family email", { code: "no_family_account" });
+  return "failed";
+}
+
+/** Both cancellation emails: the family's (skipped when they have no account), then hers (R16's order). */
 export async function sendCancellationEmails(
   facts: CancelledFacts,
   to: InvoiceAddresses,
+  familyHasAccount: boolean,
 ): Promise<{ readonly family: EmailDelivery; readonly nanny: EmailDelivery }> {
-  const family = await familyCancellation(facts, to);
+  const family = familyHasAccount ? await familyCancellation(facts, to) : skippedFamilyEmail();
   const nanny = await nannyCancellation(facts, to, family);
   return { family, nanny };
 }

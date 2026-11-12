@@ -7,6 +7,10 @@
  * - To the invoice's snapshot address; the outcome recorded on the row; a resend that fails again is `failed`, not
  *   a refusal.
  * - Nothing personal in a log.
+ * Security review (2026-11-12): an invoice email is claimed before it is sent again (M1: two resends at once send
+ * one email; a second within a minute answers `too_soon`); a cancellation goes again only from `failed`, never while
+ * its deliveries aren't recorded; a suspended or deactivated nanny is refused (L1); the family's email is skipped
+ * when the family no longer has an account (L2).
  *
  * BB-wave1-041126/06b4, 2026-11-12.
  */
@@ -39,7 +43,9 @@ const row = (over: Readonly<Record<string, unknown>> = {}) => invoiceRow({
 
 let f: FakeAdmin;
 let steps: string[];
+let claims: boolean[];
 let downloadResult: { data: unknown; error: unknown };
+const isClaim = (op: Op) => op.filters.some(([fn]) => fn === "lt");
 const spies: Array<ReturnType<typeof vi.spyOn>> = [];
 
 beforeEach(() => {
@@ -49,8 +55,17 @@ beforeEach(() => {
   steps = [];
   h.revalidated.splice(0);
   downloadResult = { data: new Blob([STORED]), error: null };
-  f = fakeAdmin({ nanny_invoices: row({ family_email_status: "failed" }) });
-  f.writeResults.nanny_invoices = (op: Op) => (steps.push(`update ${Object.keys(op.payload as object).join(",")}`), [{ id: INVOICE }]);
+  claims = [];
+  f = fakeAdmin({ nanny_invoices: row({ family_email_status: "failed" }), nannies: { id: NANNY_ID, status: "active" }, user_profiles: { user_id: PARENT_USER } });
+  // the database's row lock: the first claim of an email wins, a later one matches nothing (`claims` overrides)
+  let claimed = false;
+  f.writeResults.nanny_invoices = (op: Op) => {
+    steps.push(`update ${Object.keys(op.payload as object).join(",")}`);
+    if (!isClaim(op)) return [{ id: INVOICE }];
+    const wins = claims.length > 0 ? claims.shift() === true : !claimed;
+    claimed = true;
+    return wins ? [{ id: INVOICE }] : [];
+  };
   Object.assign(f.client, {
     storage: { from: (bucket: string) => ({ download: async (path: string) => (steps.push(`download ${bucket} ${path}`), downloadResult) }) },
   });
@@ -95,7 +110,7 @@ describe("gates", () => {
 describe("the invoice email", () => {
   it("to the family: the stored PDF, the same number, reply-to her; recorded; revalidated", async () => {
     expect(await resendInvoiceEmail(TO_FAMILY)).toEqual({ ok: true, invoiceId: INVOICE, what: "invoice", recipient: "family", delivery: "sent" });
-    expect(steps).toEqual([`download nanny-invoices ${PATH}`, "invoice_to_family", "update family_email_status,family_emailed_at"]);
+    expect(steps).toEqual(["update family_emailed_at", `download nanny-invoices ${PATH}`, "invoice_to_family", "update family_email_status,family_emailed_at"]);
     const [email] = h.sendEmail.mock.calls.map((c) => c[0]);
     expect(email).toMatchObject({
       to: FAMILY_EMAIL, replyTo: NANNY_EMAIL, recipientUserId: PARENT_USER, subject: `Invoice ${NUMBER} from Sophie Taylor — week of 8 Feb 2027`,
@@ -103,7 +118,10 @@ describe("the invoice email", () => {
     expect(email.attachments).toHaveLength(1);
     expect(email.attachments[0].filename).toBe(`${NUMBER}.pdf`);
     expect(Buffer.from(email.attachments[0].content).equals(STORED)).toBe(true);
-    expect(writesTo(f, "nanny_invoices")[0]?.payload).toEqual({ family_email_status: "sent", family_emailed_at: NOW.toISOString() });
+    const [claim, record] = writesTo(f, "nanny_invoices");
+    expect(claim?.payload).toEqual({ family_emailed_at: NOW.toISOString() });
+    expect(record?.payload).toEqual({ family_email_status: "sent", family_emailed_at: NOW.toISOString() });
+    expect(record?.filters).toContainEqual(["eq", "family_emailed_at", NOW.toISOString()]);
     expect(h.revalidated).toEqual(["/nanny/invoices"]);
   });
 
@@ -113,20 +131,36 @@ describe("the invoice email", () => {
     const [email] = h.sendEmail.mock.calls.map((c) => c[0]);
     expect(email).toMatchObject({ to: NANNY_EMAIL, replyTo: SUPPORT_INBOX, recipientUserId: NANNY_USER, emailType: "invoice_copy_to_nanny" });
     expect(email.text).toContain("We couldn't deliver it to Olivia Hartley");
-    expect(writesTo(f, "nanny_invoices")[0]?.payload).toEqual({ nanny_email_status: "sent", nanny_emailed_at: NOW.toISOString() });
+    expect(writesTo(f, "nanny_invoices").map((w) => w.payload)).toEqual([
+      { nanny_emailed_at: NOW.toISOString() }, { nanny_email_status: "sent", nanny_emailed_at: NOW.toISOString() },
+    ]);
   });
 
   it("fails again: recorded as failed, answered as failed (not a refusal)", async () => {
     h.sendEmail.mockResolvedValueOnce({ success: false, error: "bounce" });
     expect(await resendInvoiceEmail(TO_FAMILY)).toMatchObject({ ok: true, delivery: "failed" });
-    expect(writesTo(f, "nanny_invoices")[0]?.payload).toEqual({ family_email_status: "failed", family_emailed_at: NOW.toISOString() });
+    expect(writesTo(f, "nanny_invoices")[1]?.payload).toEqual({ family_email_status: "failed", family_emailed_at: NOW.toISOString() });
   });
 
-  it("the stored PDF can't be read → error, nothing sent or recorded", async () => {
+  it("the stored PDF can't be read → error, nothing sent; only the claim was written (it lapses in a minute)", async () => {
     downloadResult = { data: null, error: { message: `missing ${PATH}` } };
     expect(await resendInvoiceEmail(TO_FAMILY)).toMatchObject({ ok: false, error: "error" });
     expect(h.sendEmail).not.toHaveBeenCalled();
-    expect(writesTo(f, "nanny_invoices")).toEqual([]);
+    expect(writesTo(f, "nanny_invoices").map((w) => w.payload)).toEqual([{ family_emailed_at: NOW.toISOString() }]);
+  });
+
+  it("two resends at once: one claim wins, one email; the other answers too_soon (M1)", async () => {
+    const [a, b] = await Promise.all([resendInvoiceEmail(TO_FAMILY), resendInvoiceEmail(TO_FAMILY)]);
+    expect([a, b].filter((r) => r.ok)).toHaveLength(1);
+    expect([a, b].find((r) => !r.ok)).toEqual({ ok: false, error: "too_soon", message: "That email was just tried. Please wait a minute, then try again." });
+    expect(h.sendEmail).toHaveBeenCalledTimes(1);
+    expect(steps.filter((x) => x === "invoice_to_family")).toHaveLength(1);
+  });
+
+  it("tried in the last minute (the claim matches nothing) → too_soon, nothing downloaded or sent", async () => {
+    claims = [false];
+    expect(await resendInvoiceEmail(TO_FAMILY)).toMatchObject({ ok: false, error: "too_soon" });
+    expect(steps).toEqual(["update family_emailed_at"]);
   });
 
   it.each([
@@ -135,6 +169,8 @@ describe("the invoice email", () => {
     ["a failed invoice", row({ status: "failed", sent_at: null, family_email_status: null, nanny_email_status: null }), TO_FAMILY],
     ["a cancellation on a sent invoice", row({ family_email_status: "failed" }), { ...TO_FAMILY, what: "cancellation" }],
     ["a cancellation already delivered", row({ ...CANCELLED, cancel_family_email_status: "sent", cancel_nanny_email_status: "sent" }), { ...TO_FAMILY, what: "cancellation" }],
+    ["a cancellation whose deliveries aren't recorded yet (M1)", row({ ...CANCELLED }), { ...TO_FAMILY, what: "cancellation" }],
+    ["her cancellation not recorded yet (M1)", row({ ...CANCELLED }), { ...TO_FAMILY, what: "cancellation", recipient: "nanny" }],
   ])("%s → not_resendable, nothing sent", async (_case, stored, input) => {
     f.reads.nanny_invoices = stored;
     expect(await resendInvoiceEmail(input)).toEqual({ ok: false, error: "not_resendable", message: "There's nothing to resend for this invoice." });
@@ -150,9 +186,36 @@ describe("the invoice email", () => {
     expect(h.sendEmail).not.toHaveBeenCalled();
   });
 
-  it("delivered in between (the record moved nothing): still answers what this send did", async () => {
-    f.writeResults.nanny_invoices = [];
+  it("the record moves nothing after the send: still answers what this send did", async () => {
+    const write = f.writeResults.nanny_invoices as (op: Op) => unknown;
+    f.writeResults.nanny_invoices = (op: Op) => (isClaim(op) ? write(op) : []);
     expect(await resendInvoiceEmail(TO_FAMILY)).toMatchObject({ ok: true, delivery: "sent" });
+  });
+
+  it("a suspended or deactivated nanny → nanny_inactive, nothing written or sent (L1)", async () => {
+    for (const status of ["suspended", "deactivated"]) {
+      f.reads.nannies = { id: NANNY_ID, status };
+      expect(await resendInvoiceEmail(TO_FAMILY)).toEqual({
+        ok: false, error: "nanny_inactive", message: "Your account isn't active, so you can't send or change invoices. Please contact us.",
+      });
+    }
+    expect(writesTo(f, "nanny_invoices")).toEqual([]);
+    expect(h.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("the family no longer has an account: their email is skipped and answered failed, nothing claimed (L2)", async () => {
+    f.reads.user_profiles = null;
+    expect(await resendInvoiceEmail(TO_FAMILY)).toMatchObject({ ok: true, recipient: "family", delivery: "failed" });
+    expect(h.sendEmail).not.toHaveBeenCalled();
+    expect(writesTo(f, "nanny_invoices")).toEqual([]);
+    expect(JSON.stringify(spies.flatMap((x) => x.mock.calls))).toContain("no_family_account");
+  });
+
+  it("her own copy still goes when the family's account is gone", async () => {
+    f.reads.user_profiles = null;
+    f.reads.nanny_invoices = row({ nanny_email_status: "failed" });
+    expect(await resendInvoiceEmail({ ...TO_FAMILY, recipient: "nanny" })).toMatchObject({ ok: true, delivery: "sent" });
+    expect(h.sendEmail).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -163,16 +226,25 @@ describe("the cancellation (R15)", () => {
       ok: true, invoiceId: INVOICE, what: "cancellation", recipient: "family", delivery: "sent",
     });
     expect(steps).toEqual(["invoice_cancelled_family", "update cancel_family_email_status"]);
+    expect(writesTo(f, "nanny_invoices")[0]?.filters).toContainEqual(["eq", "cancel_family_email_status", "failed"]);
     const [email] = h.sendEmail.mock.calls.map((c) => c[0]);
     expect(email).toMatchObject({ to: FAMILY_EMAIL, replyTo: NANNY_EMAIL, emailType: "invoice_cancelled_family" });
     expect(email.attachments).toBeUndefined();
     expect(email.text).toContain("Reason: wrong rate.");
   });
 
-  it("to her, with no delivery recorded yet (the record failed at cancel): resendable", async () => {
-    f.reads.nanny_invoices = row({ ...CANCELLED });
+  it("to her, after a failed one", async () => {
+    f.reads.nanny_invoices = row({ ...CANCELLED, cancel_family_email_status: "sent", cancel_nanny_email_status: "failed" });
     expect(await resendInvoiceEmail({ ...TO_FAMILY, what: "cancellation", recipient: "nanny" })).toMatchObject({ ok: true, delivery: "sent" });
     expect(h.sendEmail.mock.calls[0]?.[0]).toMatchObject({ to: NANNY_EMAIL, emailType: "invoice_cancelled_nanny" });
+    expect(h.sendEmail.mock.calls[0]?.[0].text).toContain("We've told Olivia Hartley to disregard it.");
     expect(writesTo(f, "nanny_invoices")[0]?.payload).toEqual({ cancel_nanny_email_status: "sent" });
+  });
+
+  it("to the family whose account is gone: skipped, answered failed (L2)", async () => {
+    f.reads.nanny_invoices = row({ ...CANCELLED, cancel_family_email_status: "failed", cancel_nanny_email_status: "sent" });
+    f.reads.user_profiles = null;
+    expect(await resendInvoiceEmail({ ...TO_FAMILY, what: "cancellation" })).toMatchObject({ ok: true, delivery: "failed" });
+    expect(h.sendEmail).not.toHaveBeenCalled();
   });
 });

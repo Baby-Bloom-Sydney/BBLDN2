@@ -42,7 +42,7 @@ export const INVOICE_ACTION_MESSAGES: Readonly<Record<InvoiceActionError, string
   not_hers: "You can only invoice families you work with.",
   no_trial: "This family has no Trial Shift date to invoice.",
   wrong_date: LINE_MESSAGES.trialDate,
-  nanny_inactive: "Your account isn't active, so invoices can't be sent. Please contact us.",
+  nanny_inactive: "Your account isn't active, so you can't send or change invoices. Please contact us.",
   cap: `You can send up to ${INVOICE_RULES.dailySendCap} invoices a day. Please try again tomorrow.`,
   busy: "Another invoice of yours is being sent — try again in a moment.",
   in_progress: "This invoice is being sent — check your invoices in a moment.",
@@ -62,6 +62,7 @@ export const INVOICE_ACTION_MESSAGES: Readonly<Record<InvoiceActionError, string
   error: GENERAL,
   not_cancellable: "Only a sent invoice can be cancelled.",
   not_resendable: "There's nothing to resend for this invoice.",
+  too_soon: "That email was just tried. Please wait a minute, then try again.",
   not_recorded: "Your invoice was emailed, but your list couldn't be updated. Check your invoices before sending it again.",
 });
 

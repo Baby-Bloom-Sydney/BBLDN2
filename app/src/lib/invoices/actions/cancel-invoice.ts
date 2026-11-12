@@ -14,6 +14,8 @@
  * - Both cancellation emails go to the addresses the invoice was sent to (its snapshot, never an input): the
  *   family's first (reply-to her), then hers saying whether it reached them; both deliveries are recorded (R15), so
  *   her list can offer "Resend cancellation". A failed email or record never undoes the cancel.
+ * - Security review (2026-11-12): a suspended or deactivated nanny is refused (`nanny_inactive`, L1); when the family
+ *   no longer has an account, their email is skipped and recorded as failed (L2). Both are read before any write.
  *
  * Only this async function is exported: every async export of a `"use server"` file is callable from a browser.
  *
@@ -25,7 +27,7 @@ import { z } from "zod";
 import { nannyInvoicesEnabled } from "@/lib/features/flags";
 import { sendCancellationEmails } from "../emails/send-invoice-emails";
 import { proveNanny } from "../nanny-proof";
-import { cancelSentInvoice, readSentInvoice, recordCancelDelivery } from "../store-delivery";
+import { cancelSentInvoice, familyHasAccount, readInvoiceToChange, recordCancelDelivery } from "../store-delivery";
 import { CANCEL_REASONS } from "../types";
 import { invoiceRefusal, type CancelInvoiceResult } from "./invoice-messages";
 
@@ -39,13 +41,15 @@ export async function cancelInvoice(input: unknown): Promise<CancelInvoiceResult
   const parsed = cancelInput.safeParse(input);
   if (!parsed.success) return invoiceRefusal("invalid");
   const { invoiceId, reason } = parsed.data;
-  const invoice = await readSentInvoice(proof, invoiceId);
+  const invoice = await readInvoiceToChange(proof, invoiceId);
   if (!invoice.ok) return invoiceRefusal(invoice.error);
   if (invoice.value.status !== "sent") return invoiceRefusal("not_cancellable");
+  const sent = invoice.value;
+  const family = await familyHasAccount(proof, sent.parentUserId);
+  if (!family.ok) return invoiceRefusal(family.error);
   const cancelled = await cancelSentInvoice(proof, invoiceId, reason, new Date());
   if (!cancelled.ok) return invoiceRefusal(cancelled.error);
-  const sent = invoice.value;
-  const delivery = await sendCancellationEmails({ ...sent, reason }, { ...sent, nannyUserId: proof.userId });
+  const delivery = await sendCancellationEmails({ ...sent, reason }, { ...sent, nannyUserId: proof.userId }, family.value);
   await recordCancelDelivery(proof, invoiceId, delivery); // a failure is logged by code; the cancel stands
   revalidatePath(INVOICES_PATH);
   return { ok: true, invoiceId, number: sent.number, delivery };

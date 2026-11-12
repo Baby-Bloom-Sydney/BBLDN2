@@ -24,6 +24,7 @@ import {
   nannyInvoiceCopy,
   sendCancellationEmails,
   sendInvoiceEmails,
+  skippedFamilyEmail,
   type InvoiceAddresses,
 } from "./send-invoice-emails";
 
@@ -115,7 +116,7 @@ describe("sendCancellationEmails", () => {
   const CANCELLED = { ...FACTS, reason: "wrong_hours" } as const;
 
   it("the family's first (reply-to her, no attachment), then hers saying it reached them", async () => {
-    expect(await sendCancellationEmails(CANCELLED, TO)).toEqual({ family: "sent", nanny: "sent" });
+    expect(await sendCancellationEmails(CANCELLED, TO, true)).toEqual({ family: "sent", nanny: "sent" });
     const [family, nanny] = sendEmail.mock.calls.map((c) => c[0]);
     expect(family).toMatchObject({
       to: FAMILY_EMAIL, replyTo: NANNY_EMAIL, emailType: "invoice_cancelled_family", recipientUserId: PARENT_USER,
@@ -130,8 +131,15 @@ describe("sendCancellationEmails", () => {
 
   it("the family's failed: hers says so", async () => {
     sendEmail.mockResolvedValueOnce({ success: false, error: "bounce" });
-    expect(await sendCancellationEmails(CANCELLED, TO)).toEqual({ family: "failed", nanny: "sent" });
+    expect(await sendCancellationEmails(CANCELLED, TO, true)).toEqual({ family: "failed", nanny: "sent" });
     expect(sendEmail.mock.calls[1]?.[0].text).toContain("We couldn't deliver the cancellation to Olivia Hartley");
+  });
+
+  it("the family has no account any more: theirs is skipped (failed, logged by code); hers says so (security L2)", async () => {
+    expect(await sendCancellationEmails(CANCELLED, TO, false)).toEqual({ family: "failed", nanny: "sent" });
+    expect(sendEmail.mock.calls.map((c) => c[0].emailType)).toEqual(["invoice_cancelled_nanny"]);
+    expect(JSON.stringify(spies.flatMap((s) => s.mock.calls))).toContain("no_family_account");
+    expect(skippedFamilyEmail()).toBe("failed");
   });
 
   it("one at a time, for a resend", async () => {

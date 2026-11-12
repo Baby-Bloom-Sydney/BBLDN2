@@ -63,6 +63,7 @@ export type InvoiceError =
   | "not_sending" // finishing an invoice that isn't sending
   | "not_cancellable" // cancelling an invoice that isn't sent (06b-4)
   | "not_resendable" // resending an email that isn't undelivered on an invoice in that state (06b-4)
+  | "too_soon" // resending an invoice email another resend holds, or tried in the last minute (06b-4 security M1)
   | "error"; // the database or renderer failed (logged by code)
 
 export type InvoiceResult<T> =

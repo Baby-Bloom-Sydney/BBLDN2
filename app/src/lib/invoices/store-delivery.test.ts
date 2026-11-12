@@ -7,6 +7,8 @@
  * her own invoice read for its emails (the snapshot addresses); a cancel only from `sent`, with a reason; the
  * cancellation's deliveries and a resend recorded once, each a conditional update whose values are checked first,
  * so no write can fail a CHECK (which would log the row). The stored PDF read back for a resend.
+ * Security review (2026-11-12): a resend of an invoice email first claims it (M1); a cancellation's resend only from
+ * `failed`; her account's status (L1) and whether the family still has an account (L2).
  *
  * BB-wave1-041126/06b4, 2026-11-12.
  */
@@ -22,11 +24,15 @@ import { FAMILY_EMAIL, INVOICE, invoiceRow, NANNY_EMAIL, NANNY_ID, NANNY_USER, N
 import { proveNanny, type NannyProof } from "./nanny-proof";
 import {
   cancelSentInvoice,
+  claimInvoiceResend,
   downloadInvoicePdf,
+  familyHasAccount,
   INVOICE_BUCKET,
+  readNannyActive,
   readSentInvoice,
   recordCancelDelivery,
   recordResend,
+  RESEND_LEASE_SECONDS,
   uploadInvoicePdf,
 } from "./store-delivery";
 
@@ -204,23 +210,64 @@ describe("recordCancelDelivery", () => {
   });
 });
 
-describe("recordResend", () => {
-  it("an invoice email: its status and time, on a sent invoice, only while not delivered", async () => {
+describe("claimInvoiceResend (security M1: one resend at a time)", () => {
+  const CLAIM = NOW.toISOString();
+  const CUTOFF = new Date(NOW.getTime() - RESEND_LEASE_SECONDS * 1000).toISOString();
+
+  it("stamps the attempt before any email, only on a sent invoice whose email failed over a minute ago", async () => {
     f.writeResults.nanny_invoices = [{ id: INVOICE }];
-    expect(await recordResend(proof, INVOICE, { what: "invoice", recipient: "family" }, "sent", NOW)).toEqual({ ok: true, value: true });
+    expect(await claimInvoiceResend(proof, INVOICE, "family", NOW)).toEqual({ ok: true, value: CLAIM });
+    const [w] = writesTo(f, "nanny_invoices");
+    expect(w?.payload).toEqual({ family_emailed_at: CLAIM });
+    expect(w?.filters).toEqual([
+      ["eq", "id", INVOICE], ["eq", "nanny_id", NANNY_ID], ["eq", "status", "sent"],
+      ["eq", "family_email_status", "failed"], ["lt", "family_emailed_at", CUTOFF],
+    ]);
+    expect(RESEND_LEASE_SECONDS).toBe(60);
+  });
+
+  it("her copy on its own columns", async () => {
+    f.writeResults.nanny_invoices = [{ id: INVOICE }];
+    await claimInvoiceResend(proof, INVOICE, "nanny", NOW);
+    expect(writesTo(f, "nanny_invoices")[0]?.payload).toEqual({ nanny_emailed_at: CLAIM });
+  });
+
+  it("another resend holds it, it was tried in the last minute, or it's delivered → too_soon (the loser sends nothing)", async () => {
+    f.writeResults.nanny_invoices = [];
+    expect(await claimInvoiceResend(proof, INVOICE, "family", NOW)).toEqual({ ok: false, error: "too_soon" });
+  });
+
+  it("an error → error; a recipient that isn't one → invalid", async () => {
+    expect(await claimInvoiceResend(proof, INVOICE, "admin" as never, NOW)).toEqual({ ok: false, error: "invalid" });
+    f.writeErrors.nanny_invoices = { message: "x" };
+    expect(await claimInvoiceResend(proof, INVOICE, "family", NOW)).toEqual({ ok: false, error: "error" });
+  });
+});
+
+describe("recordResend", () => {
+  const CLAIM = "2027-02-15T09:59:58.000Z";
+
+  it("an invoice email: its outcome, only on the claim this resend made", async () => {
+    f.writeResults.nanny_invoices = [{ id: INVOICE }];
+    expect(await recordResend(proof, INVOICE, { what: "invoice", recipient: "family" }, "sent", NOW, CLAIM)).toEqual({ ok: true, value: true });
     const [w] = writesTo(f, "nanny_invoices");
     expect(w?.payload).toEqual({ family_email_status: "sent", family_emailed_at: NOW.toISOString() });
     expect(w?.filters).toEqual([
       ["eq", "id", INVOICE], ["eq", "nanny_id", NANNY_ID], ["eq", "status", "sent"],
-      ["or", "family_email_status.is.null,family_email_status.eq.failed", undefined],
+      ["eq", "family_email_status", "failed"], ["eq", "family_emailed_at", CLAIM],
     ]);
   });
 
-  it("her copy, and the cancellations, each on their own column", async () => {
+  it("an invoice email without a claim → invalid, nothing written", async () => {
+    expect(await recordResend(proof, INVOICE, { what: "invoice", recipient: "family" }, "sent", NOW, null)).toEqual({ ok: false, error: "invalid" });
+    expect(writesTo(f, "nanny_invoices")).toEqual([]);
+  });
+
+  it("her copy, and the cancellations (only from failed — never from a delivery not yet recorded)", async () => {
     f.writeResults.nanny_invoices = [{ id: INVOICE }];
-    await recordResend(proof, INVOICE, { what: "invoice", recipient: "nanny" }, "failed", NOW);
-    await recordResend(proof, INVOICE, { what: "cancellation", recipient: "family" }, "sent", NOW);
-    await recordResend(proof, INVOICE, { what: "cancellation", recipient: "nanny" }, "sent", NOW);
+    await recordResend(proof, INVOICE, { what: "invoice", recipient: "nanny" }, "failed", NOW, CLAIM);
+    await recordResend(proof, INVOICE, { what: "cancellation", recipient: "family" }, "sent", NOW, null);
+    await recordResend(proof, INVOICE, { what: "cancellation", recipient: "nanny" }, "sent", NOW, null);
     const writes = writesTo(f, "nanny_invoices");
     expect(writes.map((w) => w.payload)).toEqual([
       { nanny_email_status: "failed", nanny_emailed_at: NOW.toISOString() },
@@ -228,17 +275,49 @@ describe("recordResend", () => {
       { cancel_nanny_email_status: "sent" },
     ]);
     expect(writes[1]?.filters).toEqual([
-      ["eq", "id", INVOICE], ["eq", "nanny_id", NANNY_ID], ["eq", "status", "cancelled"],
-      ["or", "cancel_family_email_status.is.null,cancel_family_email_status.eq.failed", undefined],
+      ["eq", "id", INVOICE], ["eq", "nanny_id", NANNY_ID], ["eq", "status", "cancelled"], ["eq", "cancel_family_email_status", "failed"],
     ]);
   });
 
   it("no row moved → not_resendable; an error → error; a bad kind → invalid", async () => {
     f.writeResults.nanny_invoices = [];
-    expect(await recordResend(proof, INVOICE, { what: "invoice", recipient: "family" }, "sent", NOW)).toEqual({ ok: false, error: "not_resendable" });
+    expect(await recordResend(proof, INVOICE, { what: "invoice", recipient: "family" }, "sent", NOW, CLAIM)).toEqual({ ok: false, error: "not_resendable" });
     f.writeErrors.nanny_invoices = { message: "x" };
-    expect(await recordResend(proof, INVOICE, { what: "invoice", recipient: "family" }, "sent", NOW)).toEqual({ ok: false, error: "error" });
-    expect(await recordResend(proof, INVOICE, { what: "invoice", recipient: "admin" as never }, "sent", NOW)).toEqual({ ok: false, error: "invalid" });
+    expect(await recordResend(proof, INVOICE, { what: "invoice", recipient: "family" }, "sent", NOW, CLAIM)).toEqual({ ok: false, error: "error" });
+    expect(await recordResend(proof, INVOICE, { what: "invoice", recipient: "admin" as never }, "sent", NOW, CLAIM)).toEqual({ ok: false, error: "invalid" });
+  });
+});
+
+describe("readNannyActive (security L1)", () => {
+  it.each([
+    ["active", true], ["pending_verification", true], ["inactive", true], [null, true], ["suspended", false], ["deactivated", false],
+  ])("status %j → %j, read for the proof's nanny", async (status, active) => {
+    f.reads.nannies = { id: NANNY_ID, status };
+    expect(await readNannyActive(proof)).toEqual({ ok: true, value: active });
+    expect(f.ops.find((o) => o.table === "nannies")?.filters).toEqual([["eq", "id", NANNY_ID]]);
+  });
+
+  it("no nanny row → invalid; a failed read → error", async () => {
+    f.reads.nannies = null;
+    expect(await readNannyActive(proof)).toEqual({ ok: false, error: "invalid" });
+    f.readErrors.nannies = { message: "down", code: "08006" };
+    expect(await readNannyActive(proof)).toEqual({ ok: false, error: "error" });
+  });
+});
+
+describe("familyHasAccount (security L2)", () => {
+  it("the family's profile row is still there → true; gone → false", async () => {
+    f.reads.user_profiles = { user_id: PARENT_USER };
+    expect(await familyHasAccount(proof, PARENT_USER)).toEqual({ ok: true, value: true });
+    expect(f.ops.find((o) => o.table === "user_profiles")?.filters).toEqual([["eq", "user_id", PARENT_USER]]);
+    f.reads.user_profiles = null;
+    expect(await familyHasAccount(proof, PARENT_USER)).toEqual({ ok: true, value: false });
+  });
+
+  it("not an id → invalid; a failed read → error", async () => {
+    expect(await familyHasAccount(proof, "x")).toEqual({ ok: false, error: "invalid" });
+    f.readErrors.user_profiles = { message: "down" };
+    expect(await familyHasAccount(proof, PARENT_USER)).toEqual({ ok: false, error: "error" });
   });
 });
 
@@ -273,7 +352,10 @@ describe("switch off: every operation refuses before a client", () => {
     expect(await readSentInvoice(proof, INVOICE)).toEqual({ ok: false, error: "invoices_disabled" });
     expect(await cancelSentInvoice(proof, INVOICE, "other", NOW)).toEqual({ ok: false, error: "invoices_disabled" });
     expect(await recordCancelDelivery(proof, INVOICE, { family: "sent", nanny: "sent" })).toEqual({ ok: false, error: "invoices_disabled" });
-    expect(await recordResend(proof, INVOICE, { what: "invoice", recipient: "family" }, "sent", NOW)).toEqual({ ok: false, error: "invoices_disabled" });
+    expect(await recordResend(proof, INVOICE, { what: "invoice", recipient: "family" }, "sent", NOW, NOW.toISOString())).toEqual({ ok: false, error: "invoices_disabled" });
+    expect(await claimInvoiceResend(proof, INVOICE, "family", NOW)).toEqual({ ok: false, error: "invoices_disabled" });
+    expect(await readNannyActive(proof)).toEqual({ ok: false, error: "invoices_disabled" });
+    expect(await familyHasAccount(proof, PARENT_USER)).toEqual({ ok: false, error: "invoices_disabled" });
     expect(await downloadInvoicePdf(proof, { invoiceId: INVOICE, pdfPath: PATH })).toEqual({ ok: false, error: "invoices_disabled" });
     expect(createAdminClient).not.toHaveBeenCalled();
   });
