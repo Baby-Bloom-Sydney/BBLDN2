@@ -3,12 +3,13 @@
  * - Switch off ("", "false", "TRUE", "1"): `notFound()` before any auth or read.
  * - No nanny session (a parent, an admin, nobody): `notFound()`.
  * - On: her families, her VAT setting and the target the parameters ask for (`?placement=`, `?connection=`,
- *   `?replaces=`; never a `week`). **The RSC payload** holds the families (no family id), the target (no family id, no
- *   email), her VAT mode and rate, and London's today — nothing of her bank details, her address or her name.
+ *   `?replaces=`; never a `week`). **The RSC payload** holds the families (no family id), the target (the family to
+ *   pre-select by its key; a correction's lines), her VAT mode and rate, and London's today — nothing of her bank
+ *   details, her address or her name.
  * - A failed read: the page with one plain message.
  * - `maxDuration = 30` (render, upload and two emails; security L6).
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-ui, 2026-11-12 (rework: a family, no week or kind).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isValidElement, type ReactElement } from "react";
@@ -42,15 +43,15 @@ import { NewInvoiceClient } from "./NewInvoiceClient";
 
 const PROOF = { kind: "nanny_proof", nannyId: NANNY_ID, userId: NANNY_USER };
 const FAMILY = {
-  parentUserId: PARENT_USER, familyName: "Olivia Hartley", area: "Islington",
-  placements: [{ placementId: PLACEMENT, status: "active", startDate: "2027-02-02", weeklyHours: 30, ratePence: RATE }], trials: [],
+  parentUserId: PARENT_USER, familyName: "Olivia Hartley", area: "Islington", targetId: PLACEMENT, kind: "regular_week",
+  earliest: "2027-01-25", ratePence: RATE, rateSource: "placement",
 };
 
 beforeEach(() => {
   vi.stubEnv("NANNY_INVOICES_ENABLED", "true");
   calls.proveNanny.mockReset().mockResolvedValue(PROOF);
   calls.listInvoiceableFamilies.mockReset().mockResolvedValue({ ok: true, value: [FAMILY] });
-  calls.resolveInvoiceTarget.mockReset().mockResolvedValue({ ok: true, value: { ...TARGET, prefill: { shifts: [{ date: "2027-02-01", hours: 6, ratePence: RATE, description: null }], ratePence: RATE, rateSource: "placement" } } });
+  calls.resolveInvoiceTarget.mockReset().mockResolvedValue({ ok: true, value: TARGET });
   calls.readIssuer.mockReset().mockResolvedValue({ ok: true, value: issuerReply.parse({ ...ISSUER, vat_mode: "added", vat_rate_bp: 2000, vat_number: "GB123456789" }) });
   calls.readMyInvoices.mockReset();
   calls.readMyInvoiceLines.mockReset();
@@ -88,20 +89,22 @@ describe("/nanny/invoices/new — switch on", () => {
     expect(calls.resolveInvoiceTarget).not.toHaveBeenCalled();
   });
 
-  it("?placement= → its target; the RSC payload carries no family id, email, bank detail, address or her name", async () => {
+  it("?placement= → that family pre-selected; the RSC payload carries no family id, email, bank detail, address or her name", async () => {
     const out = await render({ placement: PLACEMENT });
     expect(Object.keys(out.props).sort()).toEqual(["families", "loadFailed", "target", "today", "vat"]);
-    expect(out.props.target).toMatchObject({ kind: "regular_week", targetId: PLACEMENT, familyName: "Olivia Hartley" });
-    expect(typeof out.props.today).toBe("string");
+    expect(out.props.families).toEqual([{ key: "0", familyName: "Olivia Hartley", area: "Islington", targetId: PLACEMENT, earliest: "2027-01-25", ratePence: RATE }]);
+    expect(out.props.target).toEqual({ familyKey: "0", shifts: [], expenses: [], replaces: null });
+    expect(out.props.today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     const payload = JSON.stringify(out.props);
     for (const secret of [PARENT_USER, NANNY_ID, NANNY_USER, "admin+b06", "112233", "87654321", "Upper Street", "Sophie", "GB123456789", "nanny_proof"]) {
       expect(payload).not.toContain(secret);
     }
   });
 
-  it("a week parameter isn't read (06b-5's)", async () => {
+  it("a week parameter isn't read (06b-5's): the family is resolved from its id alone", async () => {
     await render({ placement: PLACEMENT, week: "2027-02-08" });
-    expect(calls.resolveInvoiceTarget.mock.calls[0]?.[3]).not.toBe("2027-02-08");
+    expect(calls.resolveInvoiceTarget).toHaveBeenCalledWith(PROOF, PLACEMENT, expect.any(Date));
+    expect(JSON.stringify(calls.resolveInvoiceTarget.mock.calls)).not.toContain("2027-02-08");
   });
 
   it.each([

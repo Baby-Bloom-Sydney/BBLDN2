@@ -1,35 +1,36 @@
 /**
- * The new-invoice form's model (plan 06 §14.3, §14.5, §14.6 b4.4; brief §0a A, §3 nanny 3–5). Pure, client-safe:
+ * The new-invoice form's model (plan 06 §14.3, §14.5, §14.6 b4.4; brief §0a A, §3 nanny 3–5; 06b-4 rework, BAI
+ * 2026-11-12: no week, no kind, start empty). Pure, client-safe:
  * - **Money as she types it** ("18", "18.5", "£18.50", "1,250") in whole pence with no float maths; anything else is
  *   NaN, so the shared schema refuses it with its plain message. Pence back to the field's text ("18.00").
- * - **The draft** the actions take: shifts then expenses, in her order; hours and amounts as numbers.
+ * - **The draft** the actions take: the family's link id, shifts then expenses in her order, and any correction — no
+ *   kind and no period; hours and amounts as numbers.
  * - **Live totals** from `totals.ts` over the rows that are complete, with her VAT setting; a line's amount.
- * - **Weeks** she can pick: this London week back to the placement's first week, at most 26, newest first (a
- *   correction's week always included); a week's seven days.
- * - **Pre-fill for any week:** the usual pattern (weekday, hours, rate, description) laid on the week chosen; days after
- *   today dropped; none left → one row on the Monday, hours blank, her rate (`weekPrefill`'s rule).
+ * - **A new shift row:** the date given (blank from "Add shift"; the same date from "Add another shift this day"),
+ *   hours blank, the family's rate. **A correction's rows:** its stored lines, each with its own date.
  * - **Refusals by path** ("lines.2.hours") mapped onto her rows ("expenses.0.amount") and the form.
+ * - **The local check:** the shared schema, then a date before the family's earliest date (`tooEarly`), by field.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-ui, 2026-11-12 (rework).
  */
 import { describe, expect, it } from "vitest";
+import { LINE_MESSAGES } from "@/lib/invoices/validation-lines";
 import {
+  correctionRows,
   draftOf,
   formIssues,
   lineAmountText,
   liveTotals,
   localCheck,
-  patternOf,
+  newShiftRow,
   penceOfPounds,
   poundsOfPence,
-  shiftsForWeek,
-  weekDays,
-  weekOptions,
-  WEEKS_SHOWN,
   type InvoiceFormValues,
 } from "./invoice-form";
 
 const RATE = 1800;
+const TARGET = "b0600000-0000-4000-8000-000000000411";
+const HEADER = { targetId: TARGET, replacesInvoiceId: null };
 const shiftRow = (date: string, hours: string, rate = "18.00", description = "") => ({ date, hours, rate, description });
 const values = (over: Partial<InvoiceFormValues> = {}): InvoiceFormValues => ({ shifts: [shiftRow("2027-02-08", "6")], expenses: [], ...over });
 
@@ -49,27 +50,26 @@ describe("money as she types it", () => {
 });
 
 describe("draftOf", () => {
-  it("shifts then expenses, in her order, as the actions take them", () => {
+  it("the family's link id, shifts then expenses in her order, any correction — no kind, no period", () => {
     const draft = draftOf(
-      { kind: "regular_week", targetId: "t", periodStart: "2027-02-08", replacesInvoiceId: null },
+      { targetId: "t", replacesInvoiceId: "r" },
       values({
-        shifts: [shiftRow("2027-02-08", "6"), shiftRow("2027-02-10", " 2 ", "22", "evening, agreed rate")],
+        shifts: [shiftRow("2027-02-10", "6"), shiftRow("2027-01-29", " 2 ", "22", "evening, agreed rate")],
         expenses: [{ expenseType: "activities", amount: "12.50", description: "" }],
       }),
     );
     expect(draft).toEqual({
-      kind: "regular_week", targetId: "t", periodStart: "2027-02-08", replacesInvoiceId: null,
+      targetId: "t", replacesInvoiceId: "r",
       lines: [
-        { kind: "shift", date: "2027-02-08", hours: 6, ratePence: RATE, description: "" },
-        { kind: "shift", date: "2027-02-10", hours: 2, ratePence: 2200, description: "evening, agreed rate" },
+        { kind: "shift", date: "2027-02-10", hours: 6, ratePence: RATE, description: "" },
+        { kind: "shift", date: "2027-01-29", hours: 2, ratePence: 2200, description: "evening, agreed rate" },
         { kind: "expense", expenseType: "activities", amountPence: 1250, description: "" },
       ],
     });
   });
 
   it("hours: plain decimals only — not exponents, hex or binary (code review L)", () => {
-    const hoursOf = (text: string) => draftOf({ kind: "regular_week", targetId: "t", periodStart: "2027-02-08", replacesInvoiceId: null },
-      values({ shifts: [shiftRow("2027-02-08", text)] })).lines[0];
+    const hoursOf = (text: string) => draftOf(HEADER, values({ shifts: [shiftRow("2027-02-08", text)] })).lines[0];
     for (const text of ["1e1", "0x10", "0b11", "7.5e0", "+7", "-7", "7.", ".", "Infinity", "7 5"]) expect(hoursOf(text)).toMatchObject({ hours: Number.NaN });
     expect(hoursOf(" 7.75 ")).toMatchObject({ hours: 7.75 });
     expect(hoursOf(".25")).toMatchObject({ hours: 0.25 });
@@ -77,9 +77,8 @@ describe("draftOf", () => {
   });
 
   it("blank or unreadable hours and amounts are NaN (the schema's plain messages refuse them)", () => {
-    const draft = draftOf({ kind: "regular_week", targetId: "t", periodStart: "2027-02-08", replacesInvoiceId: null },
-      values({ shifts: [shiftRow("2027-02-08", "", "x")], expenses: [{ expenseType: "", amount: "", description: "" }] }));
-    expect(draft.lines[0]).toMatchObject({ hours: Number.NaN, ratePence: Number.NaN });
+    const draft = draftOf(HEADER, values({ shifts: [shiftRow("", "", "x")], expenses: [{ expenseType: "", amount: "", description: "" }] }));
+    expect(draft.lines[0]).toMatchObject({ date: "", hours: Number.NaN, ratePence: Number.NaN });
     expect(draft.lines[1]).toMatchObject({ amountPence: Number.NaN, expenseType: "" });
   });
 });
@@ -96,9 +95,17 @@ describe("live totals and line amounts", () => {
     expect(liveTotals(worked, { mode: "included", rateBp: 2000 })).toMatchObject({ vatPence: 9733, totalPence: 59650 });
   });
 
-  it("rows not complete yet count as nothing (no throw while she types)", () => {
-    const typing = values({ shifts: [shiftRow("2027-02-08", "6"), shiftRow("2027-02-09", "7.1"), shiftRow("2027-02-10", "", "")], expenses: [{ expenseType: "food", amount: "4.", description: "" }] });
+  it("rows not complete yet count as nothing (no throw while she types); a blank date isn't complete", () => {
+    const typing = values({
+      shifts: [shiftRow("2027-02-08", "6"), shiftRow("2027-02-09", "7.1"), shiftRow("2027-02-10", "", ""), shiftRow("", "4")],
+      expenses: [{ expenseType: "food", amount: "4.", description: "" }],
+    });
     expect(liveTotals(typing, { mode: "none", rateBp: null })).toMatchObject({ hours: 6, shiftsPence: 10800, expensesPence: 0, totalPence: 10800 });
+  });
+
+  it("expenses only: no hours, no childcare", () => {
+    const only = values({ shifts: [], expenses: [{ expenseType: "travel", amount: "8.40", description: "" }] });
+    expect(liveTotals(only, { mode: "added", rateBp: 2000 })).toMatchObject({ hours: 0, shiftsPence: 0, vatPence: 0, expensesPence: 840, totalPence: 840 });
   });
 
   it("a line's amount, or a dash while it isn't complete", () => {
@@ -108,65 +115,25 @@ describe("live totals and line amounts", () => {
   });
 });
 
-describe("weeks", () => {
-  it("this week back to the placement's first week, newest first", () => {
-    expect(weekOptions({ today: "2027-02-17", startDate: "2027-02-02", include: null })).toEqual(["2027-02-15", "2027-02-08", "2027-02-01"]);
+describe("new rows and a correction's rows", () => {
+  it("a new shift: the date given, hours blank, the family's rate (blank when it has none)", () => {
+    expect(newShiftRow("", RATE)).toEqual(shiftRow("", ""));
+    expect(newShiftRow("2027-02-10", RATE)).toEqual(shiftRow("2027-02-10", ""));
+    expect(newShiftRow("", null)).toEqual(shiftRow("", "", ""));
   });
 
-  it("no start date: 26 weeks; a long placement is cut at 26", () => {
-    const weeks = weekOptions({ today: "2027-02-17", startDate: null, include: null });
-    expect(weeks).toHaveLength(WEEKS_SHOWN);
-    expect(WEEKS_SHOWN).toBe(26);
-    expect(weeks[0]).toBe("2027-02-15");
-    expect(weekOptions({ today: "2027-02-17", startDate: "2020-01-01", include: null })).toHaveLength(WEEKS_SHOWN);
-  });
-
-  it("a start in the future: this week only; a correction's week is always there", () => {
-    expect(weekOptions({ today: "2027-02-17", startDate: "2027-03-01", include: null })).toEqual(["2027-02-15"]);
-    expect(weekOptions({ today: "2027-02-17", startDate: "2027-02-10", include: "2026-11-02" })).toEqual(["2027-02-15", "2027-02-08", "2026-11-02"]);
-    expect(weekOptions({ today: "2027-02-17", startDate: null, include: "2027-03-01" })).not.toContain("2027-03-01");
-  });
-
-  it("a week's seven days, across a month and a clock change", () => {
-    expect(weekDays("2027-03-22")).toEqual(["2027-03-22", "2027-03-23", "2027-03-24", "2027-03-25", "2027-03-26", "2027-03-27", "2027-03-28"]);
-  });
-});
-
-describe("pre-fill for any week", () => {
-  const LAST = "2027-02-08";
-  const pattern = patternOf([
-    { date: "2027-02-08", hours: 8.5, ratePence: RATE, description: null },
-    { date: "2027-02-10", hours: 8.25, ratePence: RATE, description: null },
-    { date: "2027-02-12", hours: 8.25, ratePence: RATE, description: "late finish" },
-  ], LAST);
-
-  it("the pattern is weekday offsets with their hours, rate and description", () => {
-    expect(pattern).toEqual([
-      { offset: 0, hours: 8.5, ratePence: RATE, description: null },
-      { offset: 2, hours: 8.25, ratePence: RATE, description: null },
-      { offset: 4, hours: 8.25, ratePence: RATE, description: "late finish" },
-    ]);
-  });
-
-  it("laid on a past week whole", () => {
-    expect(shiftsForWeek(pattern, "2027-01-25", "2027-02-17", RATE)).toEqual([
-      shiftRow("2027-01-25", "8.5"), shiftRow("2027-01-27", "8.25"), shiftRow("2027-01-29", "8.25", "18.00", "late finish"),
-    ]);
-  });
-
-  it("this week: days after today dropped", () => {
-    expect(shiftsForWeek(pattern, "2027-02-15", "2027-02-17", RATE)).toEqual([shiftRow("2027-02-15", "8.5"), shiftRow("2027-02-17", "8.25")]);
-  });
-
-  it("none left (or no usual days): one row on the Monday, hours blank, her rate", () => {
-    expect(shiftsForWeek(patternOf([{ date: "2027-02-12", hours: 6, ratePence: RATE, description: null }], LAST), "2027-02-15", "2027-02-16", RATE))
-      .toEqual([shiftRow("2027-02-15", "")]);
-    expect(shiftsForWeek([], "2027-02-15", "2027-02-16", null)).toEqual([shiftRow("2027-02-15", "", "")]);
-  });
-
-  it("a Trial Shift: its one date", () => {
-    const trial = patternOf([{ date: "2027-02-03", hours: null, ratePence: RATE, description: null }], "2027-02-03");
-    expect(shiftsForWeek(trial, "2027-02-03", "2027-02-17", RATE)).toEqual([shiftRow("2027-02-03", "")]);
+  it("a correction: its shifts with their own dates, hours, rates and descriptions; its expenses", () => {
+    expect(correctionRows({
+      shifts: [
+        { date: "2027-02-08", hours: 7.75, ratePence: RATE, description: null },
+        { date: "2027-01-29", hours: 2, ratePence: 2200, description: "evening" },
+        { date: "2027-01-30", hours: null, ratePence: null, description: null },
+      ],
+      expenses: [{ expenseType: "activities", amountPence: 1250, description: null }, { expenseType: "travel", amountPence: 840, description: "bus" }],
+    })).toEqual({
+      shifts: [shiftRow("2027-02-08", "7.75"), shiftRow("2027-01-29", "2", "22.00", "evening"), shiftRow("2027-01-30", "", "")],
+      expenses: [{ expenseType: "activities", amount: "12.50", description: "" }, { expenseType: "travel", amount: "8.40", description: "bus" }],
+    });
   });
 });
 
@@ -175,17 +142,19 @@ describe("refusals by path, onto her rows", () => {
     expect(formIssues({
       "lines.1.hours": "Enter the hours in quarter-hour steps, like 7.75",
       "lines.0.ratePence": "rate message",
+      "lines.0.date": LINE_MESSAGES.tooEarly,
       "lines.2.amountPence": "amount message",
       "lines.2.expenseType": "type message",
       "lines.3": "whole expense",
       "lines.0.description": "desc",
-      lines: "Add at least one shift",
-      periodStart: "Choose the Monday the week starts on",
+      lines: LINE_MESSAGES.noLine,
+      targetId: LINE_MESSAGES.family,
     }, 2)).toEqual({
-      form: "Add at least one shift",
+      form: LINE_MESSAGES.noLine,
       fields: {
         "shifts.1.hours": "Enter the hours in quarter-hour steps, like 7.75",
         "shifts.0.rate": "rate message",
+        "shifts.0.date": LINE_MESSAGES.tooEarly,
         "shifts.0.description": "desc",
         "expenses.0.amount": "amount message",
         "expenses.0.expenseType": "type message",
@@ -194,24 +163,26 @@ describe("refusals by path, onto her rows", () => {
     });
   });
 
-  it("only a period issue: it's the form's message", () => {
-    expect(formIssues({ periodStart: "You can't invoice a week or date that hasn't happened yet" }, 1)).toEqual({
-      form: "You can't invoice a week or date that hasn't happened yet", fields: {},
-    });
+  it("only an issue that names no line: it's the form's message", () => {
+    expect(formIssues({ targetId: LINE_MESSAGES.family }, 1)).toEqual({ form: LINE_MESSAGES.family, fields: {} });
   });
 });
 
-describe("localCheck (the shared schema, before the server is asked)", () => {
-  const draft = (over: Partial<InvoiceFormValues>) =>
-    draftOf({ kind: "regular_week", targetId: "b0600000-0000-4000-8000-000000000411", periodStart: "2027-02-08", replacesInvoiceId: null }, values(over));
+describe("localCheck (the shared schema and the family's earliest date, before the server is asked)", () => {
+  const draft = (over: Partial<InvoiceFormValues>) => draftOf(HEADER, values(over));
   const NOW = new Date("2027-02-15T10:00:00Z");
+  const EARLIEST = "2027-01-25";
 
-  it("a complete draft passes", () => {
-    expect(localCheck(draft({}), NOW)).toBeNull();
+  it("a complete draft passes, its dates from the earliest to today", () => {
+    expect(localCheck(draft({ shifts: [shiftRow("2027-01-25", "6"), shiftRow("2027-02-15", "6")] }), NOW, EARLIEST)).toBeNull();
+  });
+
+  it("expenses only pass", () => {
+    expect(localCheck(draft({ shifts: [], expenses: [{ expenseType: "food", amount: "4.50", description: "" }] }), NOW, EARLIEST)).toBeNull();
   });
 
   it("refused by field, with the schema's plain messages, never what she typed", () => {
-    const refusal = localCheck(draft({ shifts: [shiftRow("2027-02-08", "7.1", "abc")], expenses: [{ expenseType: "", amount: "999999", description: "" }] }), NOW);
+    const refusal = localCheck(draft({ shifts: [shiftRow("2027-02-08", "7.1", "abc")], expenses: [{ expenseType: "", amount: "999999", description: "" }] }), NOW, EARLIEST);
     expect(refusal?.fields).toEqual({
       "lines.0.hours": "Enter the hours in quarter-hour steps, like 7.75",
       "lines.0.ratePence": "Enter a rate of up to £250.00 an hour",
@@ -221,7 +192,31 @@ describe("localCheck (the shared schema, before the server is asked)", () => {
     expect(JSON.stringify(refusal)).not.toContain("abc");
   });
 
-  it("no shift → Add at least one shift", () => {
-    expect(localCheck(draft({ shifts: [] }), NOW)?.fields).toEqual({ lines: "Add at least one shift" });
+  it("no date chosen → Choose a date; a date after today → the future message, by field", () => {
+    expect(localCheck(draft({ shifts: [shiftRow("", "6")] }), NOW, EARLIEST)?.fields).toEqual({ "lines.0.date": LINE_MESSAGES.date });
+    const future = localCheck(draft({ shifts: [shiftRow("2027-02-15", "6"), shiftRow("2027-02-16", "6")] }), NOW, EARLIEST);
+    expect(future).toMatchObject({ error: "future", fields: { "lines.1.date": LINE_MESSAGES.future } });
+  });
+
+  it("a date before the family's earliest → tooEarly, by field (as the server answers too_early)", () => {
+    const refusal = localCheck(draft({ shifts: [shiftRow("2027-01-25", "6"), shiftRow("2027-01-24", "6"), shiftRow("2026-12-01", "2")] }), NOW, EARLIEST);
+    expect(refusal).toEqual({
+      ok: false, error: "too_early", message: LINE_MESSAGES.tooEarly,
+      fields: { "lines.1.date": LINE_MESSAGES.tooEarly, "lines.2.date": LINE_MESSAGES.tooEarly },
+    });
+  });
+
+  it("too early alongside other problems: each under its own field, the schema's message first", () => {
+    const refusal = localCheck(draft({ shifts: [shiftRow("2027-01-24", "7.1"), shiftRow("", "6")] }), NOW, EARLIEST);
+    expect(refusal?.message).toBe("Please check the details marked below.");
+    expect(refusal?.fields).toEqual({
+      "lines.0.hours": "Enter the hours in quarter-hour steps, like 7.75",
+      "lines.0.date": LINE_MESSAGES.tooEarly,
+      "lines.1.date": LINE_MESSAGES.date,
+    });
+  });
+
+  it("no line at all → Add a shift or an expense", () => {
+    expect(localCheck(draft({ shifts: [] }), NOW, EARLIEST)?.fields).toEqual({ lines: LINE_MESSAGES.noLine });
   });
 });

@@ -1,39 +1,34 @@
 /**
- * The new-invoice form's model (plan 06 §14.3, §14.5, §14.6 b4.4; brief §0a A, §3 nanny 3–5). Pure and client-safe:
- * the form holds what she types as text; this turns it into the draft the actions take, works out the live totals
- * with the one calculator (`totals.ts`), lists the weeks she can pick and lays her usual week on the one she picks.
+ * The new-invoice form's model (plan 06 §14.3, §14.5, §14.6 b4.4; brief §0a A, §3 nanny 3–5; 06b-4 rework, BAI
+ * 2026-11-12: "we can deduce this from their earliest and latest date"; "start off with a short and simple, button …
+ * to add shift or add expense"). Pure and client-safe: the form holds what she types as text; this turns it into the
+ * draft the actions take, works out the live totals with the one calculator (`totals.ts`) and checks the draft before
+ * the server is asked.
  *
  * - **Money** is typed in pounds (with or without a pound sign, pence and thousands commas) and becomes whole pence
- *   with no float maths;
- *   anything else is NaN, which the shared schema refuses with its plain message (never echoing what she typed).
- * - **The draft:** shifts, then expenses, each in her order — the order her PDF prints them.
+ *   with no float maths; anything else is NaN, which the shared schema refuses with its plain message (never echoing
+ *   what she typed).
+ * - **The draft:** the family's link id, shifts then expenses in her order (the PDF prints shifts by date), and any
+ *   correction. No kind and no period: the server works them out from the family and the dates (ledger reading 5).
  * - **Live totals** count only the rows that are complete (the shared line schemas), so nothing throws while she
  *   types; VAT is hers (from her Settings, read by the page). The server works every figure out again.
- * - **Weeks:** this London week back to the placement's first week, at most `WEEKS_SHOWN`, newest first; a
- *   correction's week is always offered. Future weeks are never offered; future days are disabled in the form.
- * - **Pre-fill for a week** (plan 14.3, as `prefill.ts` makes it for one week): her usual pattern — weekday, hours,
- *   rate, description — laid on the chosen week; days after London's today dropped; none left → one row on the
- *   Monday with the hours blank and her rate. The page gets the pattern from last week's pre-fill (a week with no
- *   future day), so every week she picks starts from the same pattern.
- * - **Refusals** come by path ("lines.2.hours"); `formIssues` maps them onto her rows ("expenses.0.amount").
+ * - **Rows:** a new shift starts with the date given (blank from "Add shift"), hours blank and the family's rate; a
+ *   correction starts from its own lines, each with its own date.
+ * - **The local check:** the shared schema, then any shift dated before the family's earliest date (`tooEarly`, as the
+ *   server's `too_early`), by field. Refusals come by path ("lines.2.hours"); `formIssues` maps them onto her rows.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-ui, 2026-11-12 (rework: no week, no kind, start empty).
  */
 
 import { NO_PENCE } from "@/config/invoices";
-import { draftRefusal, type InvoiceActionRefusal } from "@/lib/invoices/actions/invoice-messages";
+import { draftRefusal, tooEarlyRefusal, type InvoiceActionRefusal } from "@/lib/invoices/actions/invoice-messages";
 import { formatInvoiceMoney } from "@/lib/invoices/money";
-import type { PrefillShift } from "@/lib/invoices/prefill";
+import type { PrefillExpense, PrefillShift } from "@/lib/invoices/prefill";
 import { invoiceTotals, lineAmountPence, type InvoiceTotals, type VatSetting } from "@/lib/invoices/totals";
-import type { InvoiceKind } from "@/lib/invoices/types";
 import { expenseLineSchema, invoiceDraftSchema, shiftLineSchema } from "@/lib/invoices/validation-lines";
-import { isLondonDate, isLondonMonday } from "@/lib/invoices/week";
-import { addLondonDays, londonMondayOf } from "@/lib/timezone";
+import { isLondonDate } from "@/lib/invoices/week";
 
-/** The weeks a Regular week can be picked from, counting this one. */
-export const WEEKS_SHOWN = 26;
 const PENCE_PER_POUND = 100;
-const DAY_MS = 86_400_000;
 const NO_AMOUNT = "—";
 /** The schema needs an invoice id; the local check uses this one and the server mints its own (it ignores the client's). */
 const LOCAL_CHECK_ID = "00000000-0000-4000-8000-000000000000";
@@ -56,19 +51,10 @@ export interface InvoiceFormValues {
   expenses: ExpenseRowValue[];
 }
 
-/** Her usual shift, as a weekday of any week (0 = Monday; a Trial Shift's is 0 from its date). */
-export interface PatternShift {
-  readonly offset: number;
-  readonly hours: number | null;
-  readonly ratePence: number | null;
-  readonly description: string | null;
-}
-
 /** What the draft is for: the header the form doesn't edit as rows. */
 export interface DraftHeader {
-  readonly kind: InvoiceKind;
+  /** The family's link id (`FamilyOption.targetId`). */
   readonly targetId: string;
-  readonly periodStart: string;
   readonly replacesInvoiceId: string | null;
 }
 
@@ -80,31 +66,25 @@ export interface FormDraft extends DraftHeader {
   readonly lines: readonly DraftLine[];
 }
 
-/** A family she can invoice, as the picker shows it. */
+/** A family she can invoice, as the picker holds it: client-safe, no family id. */
 export interface FamilyOption {
   readonly key: string;
   readonly familyName: string;
   readonly area: string | null;
-  /** The placement a Regular week for this family uses; null = Trial Shifts only. */
-  readonly placementId: string | null;
-  readonly trials: readonly { readonly connectionId: string; readonly date: string }[];
+  /** The family's link id, which the draft sends. */
+  readonly targetId: string;
+  /** The first date she can invoice this family for ("YYYY-MM-DD"); London's today is the last. */
+  readonly earliest: string;
+  /** Her rate for a new shift row, in pence; null = blank. */
+  readonly ratePence: number | null;
 }
 
-/** The invoice the form starts from. */
+/** What the page opens on: the family chosen (by its option's key) and, for a correction, its lines. */
 export interface InvoiceTargetView {
-  readonly kind: InvoiceKind;
-  readonly targetId: string;
   readonly familyKey: string;
-  readonly familyName: string;
-  readonly area: string | null;
-  /** A Regular week's Mondays she can pick, newest first; [] for a Trial Shift. */
-  readonly weeks: readonly string[];
-  /** The Monday shown first, or the Trial Shift's date. */
-  readonly periodStart: string;
-  readonly pattern: readonly PatternShift[];
+  readonly shifts: readonly ShiftRowValue[];
   readonly expenses: readonly ExpenseRowValue[];
-  /** Her rate for a new row. */
-  readonly ratePence: number | null;
+  /** The cancelled invoice this one corrects: the family is then fixed. */
   readonly replaces: { readonly invoiceId: string; readonly number: string } | null;
 }
 
@@ -135,9 +115,25 @@ const hoursOf = (text: string): number => (PLAIN_HOURS.test(text.trim()) ? Numbe
 const shiftLine = (s: ShiftRowValue): DraftLine => ({ kind: "shift", date: s.date, hours: hoursOf(s.hours), ratePence: penceOfPounds(s.rate), description: s.description });
 const expenseLine = (e: ExpenseRowValue): DraftLine => ({ kind: "expense", expenseType: e.expenseType, amountPence: penceOfPounds(e.amount), description: e.description });
 
-/** The draft the actions take: shifts then expenses, in her order. */
+/** The draft the actions take: the family, shifts then expenses in her order, any correction. */
 export function draftOf(header: DraftHeader, values: InvoiceFormValues): FormDraft {
-  return { ...header, lines: [...values.shifts.map(shiftLine), ...values.expenses.map(expenseLine)] };
+  return { targetId: header.targetId, replacesInvoiceId: header.replacesInvoiceId, lines: [...values.shifts.map(shiftLine), ...values.expenses.map(expenseLine)] };
+}
+
+/** A new shift row: the date given ("" from "Add shift"), hours blank, the family's rate. */
+export function newShiftRow(date: string, ratePence: number | null): ShiftRowValue {
+  return { date, hours: "", rate: poundsOfPence(ratePence), description: "" };
+}
+
+/** A correction's lines as her rows (`correctionPrefill`'s), each shift with its own date. */
+export function correctionRows(prefill: { readonly shifts: readonly PrefillShift[]; readonly expenses: readonly PrefillExpense[] }): {
+  readonly shifts: readonly ShiftRowValue[];
+  readonly expenses: readonly ExpenseRowValue[];
+} {
+  return {
+    shifts: prefill.shifts.map((s) => ({ date: s.date, hours: s.hours === null ? "" : String(s.hours), rate: poundsOfPence(s.ratePence), description: s.description ?? "" })),
+    expenses: prefill.expenses.map((e) => ({ expenseType: e.expenseType, amount: poundsOfPence(e.amountPence), description: e.description ?? "" })),
+  };
 }
 
 /** The complete lines only, for the live totals. */
@@ -172,47 +168,6 @@ export function lineAmountText(row: ShiftRowValue): string {
   return parsed.success ? formatInvoiceMoney(lineAmountPence(parsed.data.hours, parsed.data.ratePence)) : NO_AMOUNT;
 }
 
-/** The Mondays she can pick: this week back to the placement's first week (at most `WEEKS_SHOWN`), newest first. */
-export function weekOptions(input: { readonly today: string; readonly startDate: string | null; readonly include: string | null }): readonly string[] {
-  const current = londonMondayOf(input.today);
-  const first = input.startDate !== null && isLondonDate(input.startDate) ? londonMondayOf(input.startDate) : null;
-  const weeks: string[] = [];
-  for (let i = 0; i < WEEKS_SHOWN; i += 1) {
-    const week = addLondonDays(current, -7 * i);
-    if (i > 0 && first !== null && week < first) break;
-    weeks.push(week);
-  }
-  const extra = input.include;
-  const offered = extra !== null && isLondonMonday(extra) && extra <= current && !weeks.includes(extra);
-  return offered ? [...weeks, extra].sort((a, b) => b.localeCompare(a)) : weeks;
-}
-
-/** A week's seven days, Monday first. */
-export function weekDays(monday: string): readonly string[] {
-  return Array.from({ length: 7 }, (_, i) => addLondonDays(monday, i));
-}
-
-const daysFrom = (start: string, date: string): number =>
-  Math.round((Date.parse(`${date}T12:00:00Z`) - Date.parse(`${start}T12:00:00Z`)) / DAY_MS);
-
-/** Shifts dated in the week starting `start` (or on a Trial Shift's date) as a pattern of offsets from it. */
-export function patternOf(shifts: readonly PrefillShift[], start: string): readonly PatternShift[] {
-  return shifts.map((s) => ({ offset: daysFrom(start, s.date), hours: s.hours, ratePence: s.ratePence, description: s.description }));
-}
-
-/** Her pattern laid on the week starting `start`: days after `today` dropped; none left → one blank row on `start`. */
-export function shiftsForWeek(pattern: readonly PatternShift[], start: string, today: string, ratePence: number | null): ShiftRowValue[] {
-  const rows = pattern
-    .map((p): ShiftRowValue => ({
-      date: addLondonDays(start, p.offset),
-      hours: p.hours === null ? "" : String(p.hours),
-      rate: poundsOfPence(p.ratePence),
-      description: p.description ?? "",
-    }))
-    .filter((row) => row.date <= today);
-  return rows.length > 0 ? rows : [{ date: start, hours: "", rate: poundsOfPence(ratePence), description: "" }];
-}
-
 const SHIFT_FIELDS: Readonly<Record<string, keyof ShiftRowValue>> = { date: "date", hours: "hours", ratePence: "rate", description: "description" };
 const EXPENSE_FIELDS: Readonly<Record<string, keyof ExpenseRowValue>> = { expenseType: "expenseType", amountPence: "amount", description: "description" };
 
@@ -227,7 +182,7 @@ function rowField(path: string, shiftCount: number): string | null {
 }
 
 export interface FormIssues {
-  /** The first refusal that names no row ("Add at least one shift"; a week that hasn't happened). */
+  /** The first refusal that names no row ("Add a shift or an expense"). */
   readonly form: string | null;
   /** Her rows' fields → their messages. */
   readonly fields: Readonly<Record<string, string>>;
@@ -242,8 +197,35 @@ export function formIssues(byPath: Readonly<Record<string, string>>, shiftCount:
   }, { form: null, fields: {} });
 }
 
-/** The shared schema on her draft before the server is asked (the server checks it again): null when it passes. */
-export function localCheck(draft: FormDraft, now: Date): InvoiceActionRefusal | null {
+/** The indexes of shifts dated (a real date) before the family's earliest date. */
+const tooEarlyIndexes = (draft: FormDraft, earliest: string): number[] =>
+  draft.lines.flatMap((line, i) => (line.kind === "shift" && isLondonDate(line.date) && line.date < earliest ? [i] : []));
+
+/** A field path's place on the page: its line, then a line's date before its other fields ("lines" → first). */
+function placeOf(path: string): readonly [number, number] {
+  const m = /^lines\.(\d+)(\.date)?/.exec(path);
+  return m ? [Number(m[1]), m[2] ? 0 : 1] : [-1, 0];
+}
+
+/** Fields in page order, so the first one is the first she sees (focus goes there). */
+function inPageOrder(fields: Readonly<Record<string, string>>): Readonly<Record<string, string>> {
+  const entries = Object.entries(fields).sort(([a], [b]) => {
+    const [la, fa] = placeOf(a);
+    const [lb, fb] = placeOf(b);
+    return la - lb || fa - fb;
+  });
+  return Object.fromEntries(entries);
+}
+
+/**
+ * The shared schema on her draft, then the family's earliest date, before the server is asked (the server checks both
+ * again): null when it passes. A field the schema refused keeps the schema's message.
+ */
+export function localCheck(draft: FormDraft, now: Date, earliest: string): InvoiceActionRefusal | null {
   const parsed = invoiceDraftSchema(now).safeParse({ ...draft, invoiceId: LOCAL_CHECK_ID });
-  return parsed.success ? null : draftRefusal(parsed.error);
+  const early = tooEarlyIndexes(draft, earliest);
+  if (parsed.success) return early.length === 0 ? null : tooEarlyRefusal(early);
+  const refusal = draftRefusal(parsed.error);
+  const tooEarly = early.length === 0 ? {} : tooEarlyRefusal(early).fields;
+  return { ...refusal, fields: inPageOrder({ ...tooEarly, ...refusal.fields }) };
 }
