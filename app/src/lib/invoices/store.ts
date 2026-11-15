@@ -281,11 +281,14 @@ function weekHoursOf(lines: readonly WeekLine[], from: string, to: string): numb
  * 07's rows (spec j): the placement's live invoices (sent, with a PDF) with shift lines dated in that London week and
  * on or after the placement's start, each with those lines' hours, oldest number first. A week before the start, or a
  * placement that isn't there, reads no invoice. The query keeps only those lines; the rows are checked again here.
+ * The id is read in lower case, as every reply writes a uuid.
  */
-export async function readPlacementWeekRows(proof: AdminProof, placementId: string, weekStart: string): Promise<InvoiceResult<readonly WeekRow[]>> {
+export async function readPlacementWeekRows(proof: AdminProof, givenId: string, weekStart: string): Promise<InvoiceResult<readonly WeekRow[]>> {
   const gate = adminGate(proof);
   if (gate) return gate;
-  if (!guid.safeParse(placementId).success || !isLondonMonday(weekStart)) return INVALID;
+  if (!guid.safeParse(givenId).success || !isLondonMonday(weekStart)) return INVALID;
+  // a uuid comes back in lower case, so the query and the re-check below use that form (security review L2)
+  const placementId = givenId.toLowerCase();
   const admin = serviceClient();
   if (!admin) return FAILED;
   const placement = await readOne("readPlacementWeekRows.placement", () =>

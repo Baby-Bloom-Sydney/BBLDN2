@@ -594,6 +594,15 @@ describe("the readers' rows (an admin proof first; R1: what went out, with its P
     expect(columnsOn("nanny_invoices")).not.toMatch(/email|account|pdf_url|issuer/);
   });
 
+  it("an id in upper case reads the same placement: lower-cased for the query and the re-check (security review L2)", async () => {
+    f.reads.nanny_placements = { id: PLACEMENT, start_date: "2027-01-11" };
+    f.reads.nanny_invoices = [weekRow];
+    const r = await readPlacementWeekRows(admin, PLACEMENT.toUpperCase(), "2027-02-08");
+    expect(r.ok && r.value.map((w) => [w.invoiceId, w.hours])).toEqual([[INVOICE, 16.25]]);
+    expect(filtersOf("nanny_placements")).toEqual([["eq", "id", PLACEMENT]]);
+    expect(filtersOf("nanny_invoices")[0]).toEqual(["eq", "placement_id", PLACEMENT]);
+  });
+
   it("re-checks what the query returned: lines outside the week, expenses and other placements never count", async () => {
     f.reads.nanny_placements = { id: PLACEMENT, start_date: null };
     const spread = { ...weekRow, nanny_invoice_lines: [weekLine("2027-02-07", 5), weekLine("2027-02-09", 4), weekLine("2027-02-15", 3), { kind: "expense", shift_date: null, hours: null }] };
