@@ -8,8 +8,9 @@
  * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { invoiceDraftSchema, LINE_MESSAGES } from "../validation-lines";
-import { draftRefusal, INVOICE_ACTION_MESSAGES, invoiceRefusal, tooEarlyRefusal } from "./invoice-messages";
+import { draftRefusal, FIELDS_SHOWN, INVOICE_ACTION_MESSAGES, invoiceRefusal, tooEarlyRefusal } from "./invoice-messages";
 
 const NOW = new Date("2027-02-15T10:00:00Z");
 const DRAFT = {
@@ -92,5 +93,22 @@ describe("draftRefusal", () => {
   it("never echoes what was typed", () => {
     const r = refusalOf({ ...DRAFT, lines: [{ kind: "shift", date: "2027-02-08", hours: 6, ratePence: 1800, description: "a\u0000b SECRET-112233" }] });
     expect(JSON.stringify(r)).not.toContain("SECRET");
+  });
+
+  it("names at most 50 fields, the first ones, however many the schema refused (security review M)", () => {
+    expect(FIELDS_SHOWN).toBe(50);
+    const bad = { kind: "shift", date: "2027-02-08", hours: 6.1, ratePence: 1800, description: null };
+    const r = refusalOf({ ...DRAFT, lines: Array.from({ length: 140 }, () => bad) });
+    const keys = Object.keys(r.fields ?? {});
+    expect(keys).toHaveLength(FIELDS_SHOWN);
+    expect([keys[0], keys.at(-1)]).toEqual(["lines.0.hours", "lines.49.hours"]);
+  });
+
+  it("10,000 issues: still 50 fields, and the same first message per field", () => {
+    const issues = Array.from({ length: 10_000 }, (_, i) => ({ code: "custom" as const, path: ["lines", i % 7, "hours"], message: `m${i}`, input: null }));
+    const r = draftRefusal(new z.ZodError(issues));
+    expect(r.fields).toEqual(Object.fromEntries(Array.from({ length: 7 }, (_, i) => [`lines.${i}.hours`, `m${i}`])));
+    const many = draftRefusal(new z.ZodError(issues.map((issue, i) => ({ ...issue, path: ["lines", i, "date"] }))));
+    expect(Object.keys(many.fields ?? {})).toHaveLength(FIELDS_SHOWN);
   });
 });

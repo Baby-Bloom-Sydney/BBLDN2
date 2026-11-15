@@ -9,6 +9,7 @@
  * - The draft — `{ targetId, lines, replacesInvoiceId }`, the family's link id (06b-4 rework: no kind, no period) —
  *   is parsed with the shared schema (`validation-lines.ts`); a refusal names each field by path ("lines.2.hours")
  *   with its plain message. Anything else the client sends (a kind, a period, an id, a total, an address) is ignored.
+ *   More lines than an invoice can hold answer `invalid` before the schema runs (security review M).
  * - The figures, the family's link and the period are the server's (`review.ts`), never the client's. A shift dated
  *   before the family's earliest allowed date answers `too_early`, by field ("lines.0.date").
  * - It answers the period, the family (name, the email masked to its local part, area), who she is on the invoice (read-only;
@@ -26,7 +27,7 @@ import { readOwnHome } from "@/lib/settings/home-address";
 import { createClient } from "@/lib/supabase/server";
 import { proveNanny, type NannyProof } from "../nanny-proof";
 import { newInvoiceId, readReview, type ReviewFacts } from "../review";
-import { invoiceDraftSchema } from "../validation-lines";
+import { hasTooManyLines, invoiceDraftSchema } from "../validation-lines";
 import { draftRefusal, invoiceRefusal, tooEarlyRefusal, type InvoicePreview, type PreviewInvoiceResult } from "./invoice-messages";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -64,7 +65,7 @@ export async function previewInvoice(input: unknown): Promise<PreviewInvoiceResu
   if (!nannyInvoicesEnabled()) return invoiceRefusal("invoices_disabled");
   const proof = await proveNanny();
   if (!proof) return invoiceRefusal("signed_out");
-  if (!isRecord(input)) return invoiceRefusal("invalid");
+  if (!isRecord(input) || hasTooManyLines(input)) return invoiceRefusal("invalid");
   const now = new Date();
   const draft = invoiceDraftSchema(now).safeParse({ ...input, invoiceId: newInvoiceId() });
   if (!draft.success) return draftRefusal(draft.error);

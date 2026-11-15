@@ -152,6 +152,17 @@ export function invoiceDraftSchema(now: Date) {
 }
 export type InvoiceDraft = z.output<ReturnType<typeof invoiceDraftSchema>>;
 
+/**
+ * True when `input` is an object whose `lines` is an array longer than an invoice can hold (140). Checked before the
+ * schema: zod records an issue for every bad element before `.max()` applies, so a huge payload is refused without
+ * being parsed line by line (security review M).
+ */
+export function hasTooManyLines(input: unknown): boolean {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) return false;
+  const lines = (input as { readonly lines?: unknown }).lines;
+  return Array.isArray(lines) && lines.length > maxShiftLines + maxExpenseLines;
+}
+
 /** An invoice's period: London calendar dates, first and last, inclusive. */
 export interface InvoicePeriod {
   readonly start: string;

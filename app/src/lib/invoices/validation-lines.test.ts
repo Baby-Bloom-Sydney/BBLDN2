@@ -8,7 +8,7 @@
  * BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 import { describe, expect, it } from "vitest";
-import { invoiceDraftSchema, invoiceLineSchema, invoicePeriodOf, LINE_MESSAGES as M, type InvoiceLine } from "./validation-lines";
+import { hasTooManyLines, invoiceDraftSchema, invoiceLineSchema, invoicePeriodOf, LINE_MESSAGES as M, type InvoiceLine } from "./validation-lines";
 
 const NOW = new Date("2027-02-15T10:00:00Z"); // Monday 15 Feb 2027, London
 const DAY = "2027-02-08";
@@ -196,6 +196,15 @@ describe("invoicePeriodOf (ledger readings 3, 7; spec d, g)", () => {
 
   it("refuses a 'today' that isn't a date", () => {
     expect(() => invoicePeriodOf([], "15/02/2027")).toThrow(RangeError);
+  });
+});
+
+describe("hasTooManyLines (checked before the schema, so a huge payload is never parsed line by line: security review M)", () => {
+  it("true only for an object whose lines are an array of more than 140", () => {
+    expect(hasTooManyLines({ lines: Array.from({ length: 141 }, () => null) })).toBe(true);
+    expect(hasTooManyLines({ lines: Array.from({ length: 10_000 }, () => "junk") })).toBe(true);
+    expect(hasTooManyLines({ lines: Array.from({ length: 140 }, () => null) })).toBe(false);
+    for (const input of [{ lines: "x".repeat(200) }, { lines: undefined }, {}, null, "lines", [], 42]) expect(hasTooManyLines(input)).toBe(false);
   });
 });
 

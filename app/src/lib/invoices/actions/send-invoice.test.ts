@@ -145,6 +145,19 @@ describe("gates", () => {
   });
 });
 
+describe("too many lines (security review M)", () => {
+  it("more lines than an invoice can hold → invalid before the schema runs (no fields), nothing created", async () => {
+    const input = await reviewed();
+    h.resolveInvoiceTarget.mockClear();
+    for (const length of [141, 10_000]) {
+      const r = await sendInvoice({ ...input, lines: Array.from({ length }, () => ({ kind: "junk" })) });
+      expect(r).toEqual({ ok: false, error: "invalid", message: "Please check the invoice and try again." });
+    }
+    expect(h.resolveInvoiceTarget).not.toHaveBeenCalled();
+    expect(steps).toEqual([]);
+  });
+});
+
 describe("a send", () => {
   it("in order: create → render → upload → the family's email → her copy → finish; revalidated", async () => {
     const r = await sendInvoice(await reviewed());

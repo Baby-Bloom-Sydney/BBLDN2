@@ -79,12 +79,22 @@ export function tooEarlyRefusal(lineIndexes: readonly number[]): InvoiceActionRe
   return Object.freeze({ ok: false, error: "too_early", message: LINE_MESSAGES.tooEarly, fields: Object.freeze(fields) });
 }
 
-/** The first message for each field path the schema refused ("form" when it names none). Messages are fixed text. */
+/** The most fields a refusal names: enough for a whole form, and a bound on the work (security review M). */
+export const FIELDS_SHOWN = 50;
+
+/**
+ * The first message for each field path the schema refused ("form" when it names none), at most `FIELDS_SHOWN` of
+ * them. One pass over the issues, stopping once that many fields are named (a spread per issue was quadratic).
+ * Messages are fixed text.
+ */
 function fieldsByPath(error: z.ZodError): Readonly<Record<string, string>> {
-  return error.issues.reduce<Readonly<Record<string, string>>>((found, issue) => {
+  const found = new Map<string, string>();
+  for (const issue of error.issues) {
+    if (found.size >= FIELDS_SHOWN) break;
     const key = issue.path.length === 0 ? "form" : issue.path.map(String).join(".");
-    return Object.hasOwn(found, key) ? found : { ...found, [key]: issue.message };
-  }, {});
+    if (!found.has(key)) found.set(key, issue.message);
+  }
+  return Object.freeze(Object.fromEntries(found));
 }
 
 /** A draft the schema refused: `future` when a shift's date hasn't happened yet, else `invalid`; by field either way. */

@@ -98,6 +98,15 @@ describe("the draft", () => {
     expect(resolveInvoiceTarget).not.toHaveBeenCalled();
   });
 
+  it("more lines than an invoice can hold → invalid before the schema runs (no fields), nothing read (security review M)", async () => {
+    for (const length of [141, 10_000]) {
+      const r = await previewInvoice({ ...DRAFT_IN, lines: Array.from({ length }, () => ({ kind: "junk", x: "y".repeat(10) })) });
+      expect(r).toEqual({ ok: false, error: "invalid", message: "Please check the invoice and try again." });
+    }
+    expect(resolveInvoiceTarget).not.toHaveBeenCalled();
+    expect(f.rpcCalls).toEqual([]);
+  });
+
   it("refused by field, with the schema's plain messages; nothing read", async () => {
     const r = await previewInvoice({ ...DRAFT_IN, lines: [{ kind: "shift", date: "2027-02-08", hours: 0.1, ratePence: 1800, description: null }] });
     expect(r).toEqual({ ok: false, error: "invalid", message: "Please check the details marked below.", fields: { "lines.0.hours": LINE_MESSAGES.hourStep } });

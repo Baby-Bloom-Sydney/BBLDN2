@@ -8,6 +8,7 @@
  *   session (`proveNanny`; none → `signed_out`). The nanny is always the proof's.
  * - The input is what the review gave plus the draft: `{ invoiceId, targetId, lines, replacesInvoiceId,
  *   expectedTotalPence, reviewKey }` (06b-4 rework: no kind, no period). Anything else (an address, a figure) is ignored.
+ *   More lines than an invoice can hold answer `invalid` before the schema runs (security review M).
  * - **Checked before anything is created** (`review.ts`): her bank details and a printable address are there
  *   (`no_details` / `no_address` → the setup), no shift is dated before the family's earliest allowed date
  *   (`too_early`, by field), and what she reviewed — the family's link, the period, her issuer, VAT, the account,
@@ -42,7 +43,7 @@ import { checkSend } from "../review";
 import { createInvoice, finishInvoice, type CreatedInvoice, type FinishOutcome, type StoredPaymentDetails } from "../store";
 import { uploadInvoicePdf } from "../store-delivery";
 import type { InvoiceResult } from "../types";
-import { invoiceDraftSchema } from "../validation-lines";
+import { hasTooManyLines, invoiceDraftSchema } from "../validation-lines";
 import { draftRefusal, invoiceRefusal, tooEarlyRefusal, type InvoiceDeliveries, type SendInvoiceResult } from "./invoice-messages";
 
 const INVOICES_PATH = "/nanny/invoices";
@@ -102,7 +103,7 @@ export async function sendInvoice(input: unknown): Promise<SendInvoiceResult> {
   const proof = await proveNanny();
   if (!proof) return invoiceRefusal("signed_out");
   const reviewed = sealed.safeParse(input);
-  if (!reviewed.success) return invoiceRefusal("invalid");
+  if (!reviewed.success || hasTooManyLines(input)) return invoiceRefusal("invalid");
   const now = new Date();
   const draft = invoiceDraftSchema(now).safeParse(input);
   if (!draft.success) return draftRefusal(draft.error);
