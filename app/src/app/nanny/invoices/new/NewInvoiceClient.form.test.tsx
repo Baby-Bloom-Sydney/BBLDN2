@@ -214,16 +214,29 @@ describe("a family whose first day is still to come (a hire starting later, no t
 
   it("no date she could pick: Add shift is off, with a short note saying from when; an expense still works", async () => {
     render(<NewInvoiceClient {...BASE} families={[...FAMILIES, LATER]} target={{ ...OLIVIA, familyKey: "2" }} />);
-    expect(button("Add shift")).toBeDisabled();
+    expect(button("Add shift")).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByText(NOTE)).toBeInTheDocument();
     expect(button("Add shift")).toHaveAccessibleDescription(NOTE);
+    await userEvent.click(button("Add shift"));
+    expect(shiftCards()).toHaveLength(0);
     await addExpense("food", "4.50");
     expect(button("Review")).toBeInTheDocument();
+  });
+
+  it("off but still focusable (code review L), so the note is announced when she reaches it", async () => {
+    render(<NewInvoiceClient {...BASE} families={[...FAMILIES, LATER]} target={{ ...OLIVIA, familyKey: "2" }} />);
+    expect(button("Add shift")).not.toBeDisabled();
+    familySelect().focus();
+    await userEvent.tab();
+    expect(document.activeElement).toBe(button("Add shift"));
+    await userEvent.keyboard("{Enter}");
+    expect(shiftCards()).toHaveLength(0);
   });
 
   it("a first day of today is fine: Add shift is on, no note", () => {
     render(<NewInvoiceClient {...BASE} families={[...FAMILIES, { ...LATER, earliest: "2027-02-17" }]} target={{ ...OLIVIA, familyKey: "2" }} />);
     expect(button("Add shift")).toBeEnabled();
+    expect(button("Add shift")).not.toHaveAttribute("aria-disabled");
     expect(screen.queryByText(/You can add shifts from/)).toBeNull();
   });
 });

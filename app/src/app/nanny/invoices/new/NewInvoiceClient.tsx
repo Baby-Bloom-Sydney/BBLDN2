@@ -94,7 +94,8 @@ interface AddButtonsProps {
 
 /**
  * "Add shift" and "Add expense", side by side under the lines. A family whose first day is still to come (a hire
- * starting later, no trial) has no date she could pick: "Add shift" is off, with a note saying from when.
+ * starting later, no trial) has no date she could pick: "Add shift" is off (`aria-disabled`, still focusable so its
+ * note is announced), with a note saying from when.
  */
 function AddButtons({ f, family, today, addShift, addExpense }: AddButtonsProps) {
   const noteId = useId();
@@ -102,8 +103,10 @@ function AddButtons({ f, family, today, addShift, addExpense }: AddButtonsProps)
   return (
     <div className="space-y-2">
       <div className="flex gap-2">
-        <Button ref={addShift} type="button" variant="outline" size="sm" className={ADD} disabled={notYet} aria-describedby={notYet ? noteId : undefined}
-          onClick={() => f.shifts.append(f.newShift(""))}>
+        {/* off but still focusable, so the note is announced (code review L): aria-disabled, a click does nothing */}
+        <Button ref={addShift} type="button" variant="outline" size="sm" className={`${ADD} aria-disabled:cursor-not-allowed aria-disabled:opacity-50`}
+          aria-disabled={notYet || undefined} aria-describedby={notYet ? noteId : undefined}
+          onClick={notYet ? undefined : () => f.shifts.append(f.newShift(""))}>
           <Plus aria-hidden="true" />
           Add shift
         </Button>
