@@ -76,7 +76,7 @@ describe("names and text", () => {
 
   it("every cancel reason has a plain label", () => {
     expect(Object.keys(CANCEL_REASON_LABELS).sort()).toEqual([...CANCEL_REASONS].sort());
-    expect(CANCEL_REASON_LABELS.wrong_period).toBe("Wrong week or date");
+    expect(CANCEL_REASON_LABELS.wrong_period).toBe("Wrong dates"); // no weeks any more (code review, 06b-4 rework)
   });
 });
 

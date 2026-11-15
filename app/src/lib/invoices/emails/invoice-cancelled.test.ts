@@ -72,7 +72,7 @@ describe("invoiceCancelledEmail", () => {
 
   it.each([
     ["wrong_rate", "wrong rate"],
-    ["wrong_period", "wrong week or date"],
+    ["wrong_period", "wrong dates"],
     ["wrong_family", "wrong family"],
     ["other", "other"],
   ] as const)("reason %s reads \"%s\"", (reason, words) => {

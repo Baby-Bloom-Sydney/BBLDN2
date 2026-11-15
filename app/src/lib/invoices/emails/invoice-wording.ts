@@ -28,7 +28,7 @@ import { periodLabel } from "../week";
 export const CANCEL_REASON_LABELS: Readonly<Record<CancelReason, string>> = Object.freeze({
   wrong_hours: "Wrong hours",
   wrong_rate: "Wrong rate",
-  wrong_period: "Wrong week or date",
+  wrong_period: "Wrong dates", // no weeks any more (06b-4 rework); the code stays `wrong_period`
   wrong_family: "Wrong family",
   other: "Other",
 });

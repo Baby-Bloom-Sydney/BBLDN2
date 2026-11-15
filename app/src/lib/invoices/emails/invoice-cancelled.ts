@@ -36,7 +36,7 @@ export type InvoiceCancelledParams =
   | (CancelledFacts & { readonly to: "family" })
   | (CancelledFacts & { readonly to: "nanny"; readonly familyDelivery: EmailDelivery });
 
-/** "Reason: wrong week or date." */
+/** "Reason: wrong dates." */
 function reasonSentence(reason: CancelReason): string {
   const label = CANCEL_REASON_LABELS[reason];
   return `Reason: ${label.charAt(0).toLowerCase()}${label.slice(1)}.`;
