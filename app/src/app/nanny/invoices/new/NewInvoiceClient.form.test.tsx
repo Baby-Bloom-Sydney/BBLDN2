@@ -228,6 +228,56 @@ describe("a family whose first day is still to come (a hire starting later, no t
   });
 });
 
+describe("Add family by keyboard (code review M: a closed select reports each arrow as a change)", () => {
+  const browseTo = (value: string, key = "ArrowDown") => {
+    fireEvent.keyDown(familySelect(), { key });
+    fireEvent.change(familySelect(), { target: { value } });
+  };
+
+  it.each(["ArrowDown", "ArrowRight", "End", "PageDown"])("%s onto Add family only shows it; Enter then goes", (key) => {
+    render(<NewInvoiceClient {...BASE} target={OLIVIA} />);
+    browseTo("add-family", key);
+    expect(calls.push).not.toHaveBeenCalled();
+    expect(familySelect().value).toBe("add-family");
+    fireEvent.keyDown(familySelect(), { key: "Enter" });
+    expect(calls.push).toHaveBeenCalledWith(ADD_FAMILY);
+  });
+
+  it("a change with no browsing key before it (mouse, touch, a picker's commit) goes at once", () => {
+    render(<NewInvoiceClient {...BASE} target={OLIVIA} />);
+    fireEvent.change(familySelect(), { target: { value: "add-family" } });
+    expect(calls.push).toHaveBeenCalledWith(ADD_FAMILY);
+  });
+
+  it("a pointer press after browsing keys: the change is deliberate again", () => {
+    render(<NewInvoiceClient {...BASE} target={OLIVIA} />);
+    fireEvent.keyDown(familySelect(), { key: "ArrowDown" });
+    fireEvent.pointerDown(familySelect());
+    fireEvent.change(familySelect(), { target: { value: "add-family" } });
+    expect(calls.push).toHaveBeenCalledWith(ADD_FAMILY);
+  });
+
+  it("leaving the select while browsing Add family: her family again, nowhere to go", () => {
+    render(<NewInvoiceClient {...BASE} target={OLIVIA} />);
+    browseTo("add-family");
+    fireEvent.blur(familySelect());
+    expect(familySelect().value).toBe("0");
+    expect(calls.push).not.toHaveBeenCalled();
+    fireEvent.keyDown(familySelect(), { key: "Enter" });
+    expect(calls.push).not.toHaveBeenCalled();
+  });
+
+  it("arrowing onto a family chooses it, as before; Enter there goes nowhere", () => {
+    render(<NewInvoiceClient {...BASE} target={OLIVIA} />);
+    browseTo("add-family");
+    browseTo("1", "ArrowUp");
+    expect(familySelect().value).toBe("1");
+    expect(button("Add shift")).toBeInTheDocument();
+    fireEvent.keyDown(familySelect(), { key: "Enter" });
+    expect(calls.push).not.toHaveBeenCalled();
+  });
+});
+
 describe("shifts", () => {
   it("the date: a date input from the family's earliest date to today, blank until chosen", async () => {
     render(<NewInvoiceClient {...BASE} target={OLIVIA} />);
