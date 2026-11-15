@@ -2,7 +2,7 @@
 
 /**
  * Cancel a sent invoice (plan 06 old step 13–14, §14.6 b4.4; brief §0.8, §3 nanny 8–9): she picks the reason ("Wrong
- * hours", "Wrong rate", "Wrong week or date", "Wrong family", "Other") and confirms. A sent invoice is never edited;
+ * hours", "Wrong rate", "Wrong dates", "Wrong family", "Other") and confirms. A sent invoice is never edited;
  * the number stays used, and both sides get the cancellation email (the action's job).
  *
  * - "Cancel invoice" waits for a reason; "Back" closes without cancelling.
