@@ -2,8 +2,10 @@
  * The review and send (plan 06 old steps 12, 14, §14.3, §14.6 b4.2/b4.4; brief §0.4–0.5, §0a A, C, §3 nanny 6–7;
  * A4; ledger B06 §9.10 item 4; risk X5):
  * - The review: "This invoice goes to … and a copy to you", who she is read-only (From / Business / Bill to, as the PDF
- *   prints) with "Change in Settings" in a new tab, her bank details masked, every line and the server's totals, the
- *   duplicate warning, "Replaces …"; Back and Send.
+ *   prints) with "Change in Settings" in a new tab, her bank details masked, every line under "Childcare, {period}"
+ *   (the server's period: the first to the last shift date; shifts by date, as the PDF prints them) and "Expenses", the
+ *   server's totals, the duplicate warning (an overlapping period), "Replaces …"; Back and Send.
+ * - **Expenses only:** no Childcare section, and totals with no Childcare line (06b-4 rework reading 6).
  * - **The first-invoice setup** appears only when her bank details (or, rarely, an address) are missing; it saves
  *   through the Business page's action (bank with no version: none saved; address with its row's version), then
  *   reviews again — the setup is gone and Send is there. Send never shows while the setup is needed.
@@ -11,7 +13,7 @@
  *   list. `changed`, `no_details`, `no_address`, `already_failed` → reviewed again, with the message. `in_progress`,
  *   `already_done`, `not_recorded` → her list with that message. Anything else → its message, on the review.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-ui, 2026-11-12 (rework: the period, expenses only).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
@@ -38,14 +40,14 @@ const PLACEMENT = "b0600000-0000-4000-8000-000000000411";
 const INVOICE = "b0600000-0000-4000-8000-000000009001";
 const KEY = "a".repeat(64);
 const RATE = 1800;
+/** Her lines as the form holds them (as a correction would start): she entered the evening first. */
 const TARGET: NonNullable<NewInvoiceClientProps["target"]> = {
-  kind: "regular_week", targetId: PLACEMENT, familyKey: "0", familyName: "Olivia Hartley", area: "Islington",
-  weeks: ["2027-02-15", "2027-02-08"], periodStart: "2027-02-08",
-  pattern: [{ offset: 0, hours: 6, ratePence: RATE, description: null }, { offset: 2, hours: 2, ratePence: 2200, description: "evening" }],
-  expenses: [{ expenseType: "activities", amount: "12.50", description: "" }], ratePence: RATE, replaces: null,
+  familyKey: "0",
+  shifts: [{ date: "2027-02-10", hours: "2", rate: "22.00", description: "evening" }, { date: "2027-02-08", hours: "6", rate: "18.00", description: "" }],
+  expenses: [{ expenseType: "activities", amount: "12.50", description: "" }], replaces: null,
 };
 const BASE: NewInvoiceClientProps = {
-  families: [{ key: "0", familyName: "Olivia Hartley", area: "Islington", placementId: PLACEMENT, trials: [] }],
+  families: [{ key: "0", familyName: "Olivia Hartley", area: "Islington", targetId: PLACEMENT, earliest: "2027-01-25", ratePence: RATE }],
   target: TARGET, vat: { mode: "none", rateBp: null }, today: "2027-02-17", loadFailed: false,
 };
 const ISSUER: InvoicePreview["issuer"] = {
@@ -56,6 +58,7 @@ const ISSUER: InvoicePreview["issuer"] = {
 const preview = (over: Partial<InvoicePreview> = {}): InvoicePreview => ({
   invoiceId: INVOICE, reviewKey: KEY, expectedTotalPence: 16_450,
   totals: { hours: 8, shiftsPence: 15_200, expensesPence: 1_250, vatPence: 0, netShiftsPence: 15_200, totalPence: 16_450 },
+  periodStart: "2027-02-08", periodEnd: "2027-02-10",
   vat: { mode: "none", rateBp: null },
   recipient: { familyName: "Olivia Hartley", emailHint: "olivia@…", area: "Islington" },
   issuer: ISSUER, bank: { accountName: "Sophie Taylor", sortCodeLast2: "33", accountLast4: "4321" },
@@ -63,10 +66,10 @@ const preview = (over: Partial<InvoicePreview> = {}): InvoicePreview => ({
   ...over,
 });
 const DRAFT = {
-  kind: "regular_week", targetId: PLACEMENT, periodStart: "2027-02-08", replacesInvoiceId: null,
+  targetId: PLACEMENT, replacesInvoiceId: null,
   lines: [
-    { kind: "shift", date: "2027-02-08", hours: 6, ratePence: RATE, description: "" },
     { kind: "shift", date: "2027-02-10", hours: 2, ratePence: 2200, description: "evening" },
+    { kind: "shift", date: "2027-02-08", hours: 6, ratePence: RATE, description: "" },
     { kind: "expense", expenseType: "activities", amountPence: 1250, description: "" },
   ],
 };
@@ -99,9 +102,10 @@ describe("the review", () => {
     expect(change).toHaveAttribute("href", "/nanny/settings?s=business");
     expect(change).toHaveAttribute("target", "_blank");
     expect(screen.getByText("sort code ••-••-33, account ending 4321")).toBeInTheDocument();
-    expect(screen.getByText("Childcare, week of 8–14 Feb 2027")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Childcare, 8–10 Feb 2027" })).toBeInTheDocument();
     expect(screen.getByText("6 h × £18.00")).toBeInTheDocument();
     expect(screen.getByText("evening")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Expenses" })).toBeInTheDocument();
     expect(screen.getByText("Activities")).toBeInTheDocument();
     const totals = within(screen.getByRole("region", { name: "Totals" }));
     expect(totals.getByText("£164.50")).toBeInTheDocument();
@@ -129,15 +133,36 @@ describe("the review", () => {
       replaces: { invoiceId: "y", number: "BB-SophieTaylor-270211-0001" },
     }) });
     await toReview();
-    expect(screen.getByText("You have already invoiced Olivia Hartley for this week (BB-SophieTaylor-270212-0001)")).toBeInTheDocument();
+    expect(screen.getByText("You have already invoiced Olivia Hartley for dates in this period (BB-SophieTaylor-270212-0001)")).toBeInTheDocument();
     expect(screen.getByText("Replaces BB-SophieTaylor-270211-0001")).toBeInTheDocument();
+  });
+
+  it("shifts by date, earliest first, as the PDF prints them; a period across years", async () => {
+    calls.previewInvoice.mockResolvedValueOnce({ ok: true, preview: preview({ periodStart: "2026-12-29", periodEnd: "2027-01-02" }) });
+    await toReview();
+    expect(screen.getByRole("heading", { name: "Childcare, 29 Dec 2026 – 2 Jan 2027" })).toBeInTheDocument();
+    const days = screen.getAllByText(/^(Mon 8 Feb|Wed 10 Feb)/).map((p) => p.textContent);
+    expect(days).toEqual(["Mon 8 Feb · 6 h × £18.00", "Wed 10 Feb · 2 h × £22.00"]);
+  });
+
+  it("expenses only: no Childcare section; totals with no Childcare line", async () => {
+    calls.previewInvoice.mockResolvedValueOnce({ ok: true, preview: preview({
+      totals: { hours: 0, shiftsPence: 0, expensesPence: 1_250, vatPence: 0, netShiftsPence: 0, totalPence: 1_250 },
+      vat: { mode: "added", rateBp: 2000 }, periodStart: "2027-02-17", periodEnd: "2027-02-17",
+    }) });
+    await toReview({ target: { ...TARGET, shifts: [] } });
+    expect(screen.queryByRole("heading", { name: /^Childcare/ })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Expenses" })).toBeInTheDocument();
+    const totals = within(screen.getByRole("region", { name: "Totals" }));
+    expect(totals.queryByText(/Childcare|VAT/)).toBeNull();
+    expect(totals.getByText("Expenses")).toBeInTheDocument();
   });
 
   it("Back: the form again, as she left it, focus on Review", async () => {
     await toReview();
     await userEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getAllByRole("group", { name: /^Shift \d+$/ })).toHaveLength(2);
-    expect(within(screen.getByRole("group", { name: "Shift 2" })).getByLabelText("Description")).toHaveValue("evening");
+    expect(within(screen.getByRole("group", { name: "Shift 1" })).getByLabelText("Description")).toHaveValue("evening");
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Review" }));
   });
 
@@ -261,6 +286,7 @@ describe("Send", () => {
     await toReview();
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
     const hours = within(await screen.findByRole("group", { name: "Shift 2" })).getByLabelText("Hours");
+    expect(hours).toHaveValue("6");
     await waitFor(() => expect(document.activeElement).toBe(hours));
     expect(hours).toHaveAttribute("aria-invalid", "true");
   });
