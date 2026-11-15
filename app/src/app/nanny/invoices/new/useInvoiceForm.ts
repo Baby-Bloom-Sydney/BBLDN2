@@ -1,17 +1,18 @@
 "use client";
 
 /**
- * The new-invoice form's state (plan 06 §14.3, §14.6 b4.4): react-hook-form with one field array for the shifts and one
- * for the expenses, the week she's invoicing, and the refusals shown on it.
+ * The new-invoice form's state (plan 06 §14.3, §14.6 b4.4; 06b-4 rework, BAI 2026-11-12: start empty): react-hook-form
+ * with one field array for the shifts and one for the expenses, for one family, and the refusals shown on it.
  *
- * - **Starts** from the target: her usual week laid on the week shown first (or the Trial Shift's date), a correction's
- *   lines and expenses (`invoice-form.ts`).
- * - **Another week** lays her usual week on it again (her shifts start over; expenses stay).
- * - **A refusal** (the shared schema's, or the server's) by path lands under her fields and the message that names no
- *   field shows above the button ("Please check the details marked below." otherwise). The first refused field is
- *   focused once the form is on screen (`focusTo`; a refusal from Send arrives while the review is showing).
+ * - **Starts empty** — or, for a correction, from its own lines (`invoice-form.ts`). The form is keyed by its family,
+ *   so another family starts afresh (rates belong to a family).
+ * - **A new shift** carries the family's rate; the draft carries the family's link id and any correction.
+ * - **A refusal** (the shared schema's, the earliest date's, or the server's) by path lands under her fields and the
+ *   message that names no field shows above the button ("Please check the details marked below." otherwise). The
+ *   first refused field is focused once the form is on screen (`focusTo`; a refusal from Send arrives while the review
+ *   is showing).
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-ui, 2026-11-12 (rework).
  */
 
 import { useCallback, useState } from "react";
@@ -19,13 +20,16 @@ import { useFieldArray, useForm, type FieldPath } from "react-hook-form";
 import type { InvoiceActionRefusal } from "@/lib/invoices/actions/invoice-messages";
 import {
   formIssues,
-  poundsOfPence,
-  shiftsForWeek,
+  newShiftRow,
   type DraftHeader,
+  type FamilyOption,
   type InvoiceFormValues,
   type InvoiceTargetView,
   type ShiftRowValue,
 } from "./invoice-form";
+
+/** What the form starts from: nothing, or a correction's lines and what it replaces. */
+export type FormStart = Omit<InvoiceTargetView, "familyKey">;
 
 const SHIFT_FIELDS = ["date", "hours", "rate", "description"] as const;
 const EXPENSE_FIELDS = ["expenseType", "amount", "description"] as const;
@@ -43,24 +47,16 @@ function fieldPath(key: string): FieldPath<InvoiceFormValues> | null {
   return field ? `expenses.${index}.${field}` : null;
 }
 
-export function useInvoiceForm(target: InvoiceTargetView, today: string) {
+export function useInvoiceForm(family: FamilyOption, start: FormStart | null) {
   const form = useForm<InvoiceFormValues>({
     defaultValues: {
-      shifts: shiftsForWeek(target.pattern, target.periodStart, today, target.ratePence),
-      expenses: target.expenses.map((e) => ({ ...e })),
+      shifts: (start?.shifts ?? []).map((s) => ({ ...s })),
+      expenses: (start?.expenses ?? []).map((e) => ({ ...e })),
     },
   });
   const shifts = useFieldArray({ control: form.control, name: "shifts" });
   const expenses = useFieldArray({ control: form.control, name: "expenses" });
-  const [periodStart, setPeriodStart] = useState(target.periodStart);
   const [message, setMessage] = useState<string | null>(null);
-
-  const setWeek = (monday: string) => {
-    setPeriodStart(monday);
-    shifts.replace(shiftsForWeek(target.pattern, monday, today, target.ratePence));
-    form.clearErrors();
-    setMessage(null);
-  };
 
   /** The field to focus once the form is on screen (a refusal can arrive while the review is showing). */
   const [focusTo, setFocusTo] = useState<{ readonly path: FieldPath<InvoiceFormValues> } | null>(null);
@@ -78,7 +74,7 @@ export function useInvoiceForm(target: InvoiceTargetView, today: string) {
     setMessage(issues.form ?? refusal.message);
   };
 
-  const header: DraftHeader = { kind: target.kind, targetId: target.targetId, periodStart, replacesInvoiceId: target.replaces?.invoiceId ?? null };
-  const newShift = (date: string): ShiftRowValue => ({ date, hours: "", rate: poundsOfPence(target.ratePence), description: "" });
-  return { form, shifts, expenses, periodStart, setWeek, header, message, setMessage, showRefusal, newShift, focusTo, focused };
+  const header: DraftHeader = { targetId: family.targetId, replacesInvoiceId: start?.replaces?.invoiceId ?? null };
+  const newShift = (date: string): ShiftRowValue => newShiftRow(date, family.ratePence);
+  return { form, shifts, expenses, header, message, setMessage, showRefusal, newShift, focusTo, focused };
 }

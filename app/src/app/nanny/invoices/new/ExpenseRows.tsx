@@ -3,15 +3,14 @@
 /**
  * The invoice's expenses (plan 06 §14.3, §14.6 b4.4; brief §0a A "add expenses with a type section for details"): what
  * she bought for the child and the family repays at cost — a **Type** (Food, Activities, Travel, Supplies, Other), an
- * optional **Description** and the **Amount** in pounds. None to start with; "Add expense" adds one, "Remove" takes it
- * away (focus to the expense in its place, else "Add expense"). A card per expense, stacked at 320 px; a field's
- * problem under it.
+ * optional **Description** and the **Amount** in pounds. None to start with, and the "Expenses" heading only once there
+ * is one; "Add expense" (which the form renders under the lines) adds one, "Remove" takes it away (focus to the expense
+ * in its place, else "Add expense"). A card per expense, stacked at 320 px; a field's problem under it.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-ui, 2026-11-12 (rework: the add button sits with Add shift).
  */
 
-import { useCallback, useId } from "react";
-import { Plus } from "lucide-react";
+import { useCallback, useId, type RefObject } from "react";
 import type { UseFieldArrayReturn, UseFormReturn } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,20 +18,23 @@ import { EXPENSE_TYPES, INVOICE_RULES } from "@/config/invoices";
 import { EXPENSE_TYPE_KEYS } from "@/lib/invoices/types";
 import { LINE_MESSAGES } from "@/lib/invoices/validation-lines";
 import { cn } from "@/lib/utils";
-import type { InvoiceFormValues } from "./invoice-form";
-import { INVALID, invalidProps, PoundsInput, RowField, SELECT, useFocusAfterRemove } from "./ShiftRows";
+import type { ExpenseRowValue, InvoiceFormValues } from "./invoice-form";
+import { INVALID, invalidProps, LinesSection, PoundsInput, RowField, SELECT, useFocusAfterRemove } from "./ShiftRows";
 
 export interface ExpenseRowsProps {
   readonly form: UseFormReturn<InvoiceFormValues>;
   readonly rows: UseFieldArrayReturn<InvoiceFormValues, "expenses">;
+  /** "Add expense": focus goes there when the last expense is removed. */
+  readonly addButton: RefObject<HTMLButtonElement>;
 }
 
-const NEW_EXPENSE = Object.freeze({ expenseType: "", amount: "", description: "" });
+/** A new expense: nothing chosen or typed yet. */
+export const newExpenseRow = (): ExpenseRowValue => ({ expenseType: "", amount: "", description: "" });
 
 function ExpenseCard({ form, index, onRemove }: Pick<ExpenseRowsProps, "form"> & { readonly index: number; readonly onRemove: () => void }) {
   const id = `${useId()}-expense`;
   const errors = form.formState.errors.expenses?.[index];
-  const register = (name: "expenseType" | "amount" | "description") => {
+  const register = (name: keyof ExpenseRowValue) => {
     const path = `expenses.${index}.${name}` as const;
     return { ...form.register(path, { onChange: () => form.clearErrors(path) }), ...invalidProps(`${id}-${name}`, errors?.[name]?.message), id: `${id}-${name}` };
   };
@@ -60,25 +62,21 @@ function ExpenseCard({ form, index, onRemove }: Pick<ExpenseRowsProps, "form"> &
   );
 }
 
-export function ExpenseRows({ form, rows }: ExpenseRowsProps) {
+export function ExpenseRows({ form, rows, addButton }: ExpenseRowsProps) {
   const focusRow = useCallback((index: number) => {
     if (index >= form.getValues("expenses").length) return false;
     form.setFocus(`expenses.${index}.expenseType`);
     return true;
   }, [form]);
-  const { add, removedAt } = useFocusAfterRemove(focusRow);
+  const removedAt = useFocusAfterRemove(focusRow, addButton);
   return (
-    <div className="space-y-3">
+    <LinesSection title="Expenses" count={rows.fields.length}>
       {rows.fields.map((field, index) => (
         <ExpenseCard key={field.id} form={form} index={index} onRemove={() => {
           rows.remove(index);
           removedAt(index);
         }} />
       ))}
-      <Button ref={add} type="button" variant="outline" size="sm" className="text-violet-700 hover:bg-violet-50 hover:text-violet-800" onClick={() => rows.append({ ...NEW_EXPENSE })}>
-        <Plus aria-hidden="true" />
-        Add expense
-      </Button>
-    </div>
+    </LinesSection>
   );
 }

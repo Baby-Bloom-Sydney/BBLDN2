@@ -3,10 +3,10 @@
 /**
  * The invoice's totals (plan 06 §14.5, §14.8; brief §0a A "Totals … updating as she types", §7 the green "Estimated
  * weekly pay" box): childcare, VAT per her mode, expenses when there are any, and the total — the PDF's own lines
- * (`invoice-text.ts`). The form passes its live figures (`totals.ts` over the complete rows); the review passes the
- * server's.
+ * (`invoice-text.ts`). With no hours (expenses only, or no shift complete yet) there is no Childcare or VAT line. The
+ * form passes its live figures (`totals.ts` over the complete rows); the review passes the server's.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-ui, 2026-11-12 (rework: expenses only).
  */
 
 import { totalsLines } from "@/lib/invoices/invoice-text";
@@ -15,6 +15,7 @@ import type { InvoiceTotals, VatSetting } from "@/lib/invoices/totals";
 
 export function TotalsBox({ totals, vat }: { readonly totals: InvoiceTotals; readonly vat: VatSetting }) {
   const lines = totalsLines({
+    hours: totals.hours,
     shiftsPence: totals.shiftsPence,
     expensesPence: totals.expensesPence,
     vat: { mode: vat.mode, rateBp: vat.rateBp, pence: totals.vatPence },
