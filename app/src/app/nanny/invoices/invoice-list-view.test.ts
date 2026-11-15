@@ -1,12 +1,12 @@
 /**
  * Her invoice list as the page shows it (plan 06 old step 14, §14.6 b4.4; brief §0.6–0.9, §3 nanny 7–11; R1, R15):
- * one row per invoice, newest first as read — number, family, the period ("week of 8 Feb 2027" / "Trial Shift, Wed 3
- * Feb 2027"), hours, total, the shown status (a send stuck past the stale time is "failed"), "Emailed ✓", what wasn't
+ * one row per invoice, newest first as read — number, family, the period (its first to last shift date: "8–12 Feb
+ * 2027", one day "3 Feb 2027"; 06b-4 rework), hours, total, the shown status (a send stuck past the stale time is "failed"), "Emailed ✓", what wasn't
  * delivered (a recorded failure, the resend action's rule, so it can be resent), "Replaces …" / "Replaced by …", and
  * which actions apply. Strings and the invoice
  * id only: no family id, no nanny id, no placement.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-ui, 2026-11-12 (rework: the period).
  */
 import { describe, expect, it } from "vitest";
 import { myInvoiceRow } from "@/lib/invoices/store-map-lines";
@@ -16,13 +16,13 @@ import { familyNames, noticeFor, toInvoiceRows } from "./invoice-list-view";
 const mine = (...over: Array<Record<string, unknown>>) => over.map((o) => myInvoiceRow.parse(invoiceRow(o)));
 
 describe("toInvoiceRows", () => {
-  it("a sent Regular week: number, family, period, hours, total, Sent, Emailed ✓, View PDF and Cancel", () => {
+  it("a sent invoice: number, family, period, hours, total, Sent, Emailed ✓, View PDF and Cancel", () => {
     const [row] = toInvoiceRows(mine({ invoice_number: "BB-SophieTaylor-270215-0001" }), NOW);
     expect(row).toEqual({
       invoiceId: expect.any(String),
       number: "BB-SophieTaylor-270215-0001",
       familyName: "Olivia Hartley",
-      period: "week of 8 Feb 2027",
+      period: "8–12 Feb 2027",
       hours: "30 h",
       total: "£540.00",
       status: "sent",
@@ -37,10 +37,24 @@ describe("toInvoiceRows", () => {
     });
   });
 
-  it("a Trial Shift reads as its date", () => {
-    const [row] = toInvoiceRows(mine({ kind: "trial_shift", period_start: "2027-02-03", placement_id: null, connection_request_id: PLACEMENT, hours: 4 }), NOW);
-    expect(row?.period).toBe("Trial Shift, Wed 3 Feb 2027");
+  it("one day reads as its date, whatever the link (no Trial Shift wording)", () => {
+    const [row] = toInvoiceRows(mine({ kind: "trial_shift", period_start: "2027-02-03", period_end: "2027-02-03", placement_id: null, connection_request_id: PLACEMENT, hours: 4 }), NOW);
+    expect(row?.period).toBe("3 Feb 2027");
     expect(row?.hours).toBe("4 h");
+  });
+
+  it("a period of any length: across months, and across years", () => {
+    const rows = toInvoiceRows(mine(
+      { period_start: "2026-10-29", period_end: "2026-11-02" },
+      { period_start: "2026-12-29", period_end: "2027-01-02" },
+      { period_start: "2026-11-02", period_end: "2026-11-29" },
+    ), NOW);
+    expect(rows.map((r) => r.period)).toEqual(["29 Oct – 2 Nov 2026", "29 Dec 2026 – 2 Jan 2027", "2–29 Nov 2026"]);
+  });
+
+  it("expenses only: its send date, 0 h", () => {
+    const [row] = toInvoiceRows(mine({ period_start: "2027-02-14", period_end: "2027-02-14", hours: 0, shifts_pence: 0, expenses_pence: 1250, total_pence: 1250 }), NOW);
+    expect(row).toMatchObject({ period: "14 Feb 2027", hours: "0 h", total: "£12.50" });
   });
 
   it("carries no family, nanny or placement id", () => {

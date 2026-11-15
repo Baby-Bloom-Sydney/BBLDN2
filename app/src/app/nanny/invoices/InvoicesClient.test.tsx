@@ -11,7 +11,7 @@
  *   its plain message in the dialog.
  * - Resend: the action with what and to whom, then a refresh.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-ui, 2026-11-12 (rework: the period).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
@@ -100,7 +100,7 @@ describe("InvoicesClient — rows", () => {
   it("a sent row: family, period, hours, total, Sent; View PDF in a new tab; Cancel invoice; family not delivered → Resend email", () => {
     render(<InvoicesClient {...BASE} />);
     const row = within(rowOf("BB-SophieTaylor-270215-0002"));
-    for (const text of ["Olivia Hartley", "week of 8 Feb 2027", "30 h", "£540.00", "Sent", "Not delivered to the family"]) {
+    for (const text of ["Olivia Hartley", "8–12 Feb 2027", "30 h", "£540.00", "Sent", "Not delivered to the family"]) {
       expect(row.getByText(text)).toBeInTheDocument();
     }
     expect(row.queryByText("Emailed ✓")).toBeNull();

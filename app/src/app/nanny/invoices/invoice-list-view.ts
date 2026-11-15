@@ -3,6 +3,8 @@
  * Pure: the server page maps her invoices (`readMyInvoices`, newest first) into rows of strings, so the browser gets
  * what it shows and the invoice id its buttons need — never the family's, her own or a placement's id.
  *
+ * - **The period** is the invoice's first to last shift date (`periodLabel`: "2–29 Nov 2026", one day "5 Oct 2026"; an
+ *   invoice of expenses only: its send date) — no week and no Trial Shift wording (06b-4 rework, ledger reading 7).
  * - **Status** is the shown one (`status.ts`): a send stuck past the stale time is `failed` (R1).
  * - **"Emailed ✓"** once the family's email went. **Undelivered** — what can be resent, a recorded failure (the resend
  *   action's rule): on a sent invoice, the invoice email to whoever didn't get it; on a cancelled one, the
@@ -12,15 +14,16 @@
  * - `noticeFor`: the three send answers that land on the list (`in_progress`, `already_done`, `not_recorded`), as
  *   their plain messages; anything else in `?notice=` is ignored.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-ui, 2026-11-12 (rework: the period).
  */
 
 import { INVOICE_ACTION_MESSAGES, type ResendRecipient, type ResendWhat } from "@/lib/invoices/actions/invoice-messages";
-import { CANCEL_REASON_LABELS, periodForSubject } from "@/lib/invoices/emails/invoice-wording";
+import { CANCEL_REASON_LABELS } from "@/lib/invoices/emails/invoice-wording";
 import { formatHours, formatInvoiceMoney } from "@/lib/invoices/money";
 import { shownStatus } from "@/lib/invoices/status";
 import type { MyInvoice } from "@/lib/invoices/store-map-lines";
 import type { EmailDelivery, InvoiceStatus } from "@/lib/invoices/types";
+import { periodLabel } from "@/lib/invoices/week";
 
 export interface Undelivered {
   readonly what: ResendWhat;
@@ -31,7 +34,7 @@ export interface InvoiceRowView {
   readonly invoiceId: string;
   readonly number: string;
   readonly familyName: string;
-  /** "week of 8 Feb 2027" or "Trial Shift, Wed 3 Feb 2027". */
+  /** "8–12 Feb 2027", or "3 Feb 2027" for one day. */
   readonly period: string;
   /** "30 h". */
   readonly hours: string;
@@ -80,7 +83,7 @@ function rowOf(invoice: MyInvoice, mine: readonly MyInvoice[], now: Date): Invoi
     invoiceId: invoice.invoiceId,
     number: invoice.number,
     familyName: invoice.familyName,
-    period: periodForSubject(invoice.kind, invoice.periodStart),
+    period: periodLabel(invoice.periodStart, invoice.periodEnd),
     hours: `${formatHours(invoice.hours)} h`,
     total: formatInvoiceMoney(invoice.totalPence),
     status,

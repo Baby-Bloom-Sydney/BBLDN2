@@ -2,12 +2,12 @@
 
 /**
  * Her invoices, newest first (plan 06 old step 14, §14.6 b4.4; brief §0.6–0.9, §3 nanny 7–11; R15). Each a card:
- * the family, the period, the number; the total and hours; the status ("Sent", "Cancelled · Wrong hours"), "Emailed
+ * the family, the period (its first to last shift date, "8–12 Feb 2027"), the number; the total and hours; the status ("Sent", "Cancelled · Wrong hours"), "Emailed
  * ✓", "Replaces …" / "Replaced by …"; what wasn't delivered with its resend; then "View PDF" (a new tab, through the
  * PDF route), "Cancel invoice", "Send a corrected invoice". Cards stack at every width, so nothing scrolls sideways
  * at 320 px.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06b4-ui, 2026-11-12 (rework: the period).
  */
 
 import Link from "next/link";
