@@ -100,7 +100,19 @@ describe("NannyHubClient — arriving from Add family", () => {
 
   it("no add in the address: it is left as it is", () => {
     window.history.replaceState(null, "", "/nanny?tab=children&x=1");
+    const replace = vi.spyOn(window.history, "replaceState");
     hub(3, { initialTab: "children" });
     expect(window.location.search).toBe("?tab=children&x=1");
+    expect(replace).not.toHaveBeenCalled();
+    replace.mockRestore();
+  });
+
+  it("replaceState is called once, without add, keeping every other parameter and the hash (code review L)", () => {
+    window.history.replaceState(null, "", "/nanny?tab=children&x=1&add=child&y=2#top");
+    const replace = vi.spyOn(window.history, "replaceState");
+    hub(3, ARRIVAL);
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(replace).toHaveBeenCalledWith(null, "", "/nanny?tab=children&x=1&y=2#top");
+    replace.mockRestore();
   });
 });
