@@ -53,6 +53,25 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("a template that can't be built (security review L1: never throws)", () => {
+  const BROKEN = { ...FACTS, periodStart: "2027-02-31" }; // the period label throws on a date that isn't one
+  const CANCEL = { ...BROKEN, reason: "other" } as const;
+
+  it("each email answers failed, sends nothing and logs by code only", async () => {
+    expect(await familyInvoiceEmail(BROKEN, TO, PDF)).toBe("failed");
+    expect(await nannyInvoiceCopy(BROKEN, TO, PDF, "sent")).toBe("failed");
+    expect(await familyCancellation(CANCEL, TO)).toBe("failed");
+    expect(await nannyCancellation(CANCEL, TO, "sent")).toBe("failed");
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledWith("[invoices] the invoice email to the family failed", { code: "RangeError" });
+  });
+
+  it("both pairs answer failed, failed — never a throw", async () => {
+    await expect(sendInvoiceEmails(BROKEN, TO, PDF)).resolves.toEqual({ family: "failed", nanny: "failed" });
+    await expect(sendCancellationEmails(CANCEL, TO, true)).resolves.toEqual({ family: "failed", nanny: "failed" });
+  });
+});
+
 describe("sendInvoiceEmails", () => {
   it("the family's first — PDF attached, reply-to her — then her copy with the same PDF", async () => {
     expect(await sendInvoiceEmails(FACTS, TO, PDF)).toEqual({ family: "sent", nanny: "sent" });

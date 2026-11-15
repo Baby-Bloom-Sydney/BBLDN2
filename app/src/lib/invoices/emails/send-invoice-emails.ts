@@ -7,8 +7,9 @@
  *   client field); the family's email first, with the PDF attached and **reply-to her** (brief §0.5: replying
  *   reaches her, not BabyBloom); then her copy, with the same PDF, **after** the family's result so it can say
  *   whether it arrived (R16). Her copy replies to the support inbox.
- * - **Never throws.** A provider failure, a throw, or no answer within `INVOICE_EMAIL_WAIT_MS` is `failed` (the
- *   row records it, and her list offers Resend), logged by code only. A timed-out email may still arrive; a Resend
+ * - **Never throws.** A template that can't be built (a date that isn't one: security review L1), a provider failure,
+ *   a throw, or no answer within `INVOICE_EMAIL_WAIT_MS` is `failed` (the row records it, and her list offers
+ *   Resend), logged by code only. Each template is built inside `deliver`'s guard. A timed-out email may still arrive; a Resend
  *   then sends the same PDF and number again, which is harmless. The wait keeps the whole send (render, upload, two
  *   emails) inside the page's 30 s.
  * - The bodies carry no bank detail: the templates take none (`sendEmail` keeps every body in `email_logs`).
@@ -17,7 +18,7 @@
  * - **A family with no account any more** (security review L2): their email is skipped — `failed`, logged by code —
  *   rather than sent to the address of a closed account.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * BB-wave1-041126/06b4, 2026-11-12; review fix L1, BB-wave1-041126/06b4-server, 2026-11-16.
  */
 
 import { SUPPORT_INBOX } from "@/lib/constants";
@@ -51,16 +52,30 @@ export interface InvoicePdfFile {
   readonly content: Buffer;
 }
 
-/** One email, bounded and never thrown: `sent` or `failed` (logged by code). */
-async function deliver(label: string, email: SendEmailParams): Promise<EmailDelivery> {
+/** Build an email's params, or null when its template throws (logged by code: never the facts). */
+function built(label: string, build: () => SendEmailParams): SendEmailParams | null {
+  try {
+    return build();
+  } catch (thrown) {
+    logFailure(label, thrown);
+    return null;
+  }
+}
+
+/** One email, built inside the guard, bounded and never thrown: `sent` or `failed` (logged by code). */
+async function deliver(label: string, build: () => SendEmailParams): Promise<EmailDelivery> {
+  const email = built(label, build);
+  if (email === null) return "failed";
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<"timeout">((resolve) => {
     timer = setTimeout(() => resolve("timeout"), INVOICE_EMAIL_WAIT_MS);
   });
-  const sent = sendEmail(email).then(
-    (r) => (r.success ? ("sent" as const) : ("send_failed" as const)),
-    () => "threw" as const,
-  );
+  const sent = Promise.resolve()
+    .then(() => sendEmail(email))
+    .then(
+      (r) => (r.success ? ("sent" as const) : ("send_failed" as const)),
+      () => "threw" as const,
+    );
   const outcome = await Promise.race([sent, late]);
   clearTimeout(timer);
   if (outcome === "sent") return "sent";
@@ -70,16 +85,18 @@ async function deliver(label: string, email: SendEmailParams): Promise<EmailDeli
 
 /** The family's email (PDF attached, reply-to her). */
 export function familyInvoiceEmail(facts: InvoiceEmailFacts, to: InvoiceAddresses, pdf: InvoicePdfFile): Promise<EmailDelivery> {
-  const email = invoiceToFamilyEmail(facts);
-  return deliver("the invoice email to the family", {
-    to: to.familyEmail,
-    subject: email.subject,
-    html: email.html,
-    text: email.text,
-    replyTo: to.nannyEmail,
-    emailType: INVOICE_TO_FAMILY_EMAIL_TYPE,
-    recipientUserId: to.parentUserId,
-    attachments: [{ filename: pdf.filename, content: pdf.content }],
+  return deliver("the invoice email to the family", () => {
+    const email = invoiceToFamilyEmail(facts);
+    return {
+      to: to.familyEmail,
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+      replyTo: to.nannyEmail,
+      emailType: INVOICE_TO_FAMILY_EMAIL_TYPE,
+      recipientUserId: to.parentUserId,
+      attachments: [{ filename: pdf.filename, content: pdf.content }],
+    };
   });
 }
 
@@ -90,16 +107,18 @@ export function nannyInvoiceCopy(
   pdf: InvoicePdfFile,
   familyDelivery: EmailDelivery,
 ): Promise<EmailDelivery> {
-  const email = invoiceCopyToNannyEmail({ ...facts, familyDelivery });
-  return deliver("the invoice copy to the nanny", {
-    to: to.nannyEmail,
-    subject: email.subject,
-    html: email.html,
-    text: email.text,
-    replyTo: SUPPORT_INBOX,
-    emailType: INVOICE_COPY_TO_NANNY_EMAIL_TYPE,
-    recipientUserId: to.nannyUserId,
-    attachments: [{ filename: pdf.filename, content: pdf.content }],
+  return deliver("the invoice copy to the nanny", () => {
+    const email = invoiceCopyToNannyEmail({ ...facts, familyDelivery });
+    return {
+      to: to.nannyEmail,
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+      replyTo: SUPPORT_INBOX,
+      emailType: INVOICE_COPY_TO_NANNY_EMAIL_TYPE,
+      recipientUserId: to.nannyUserId,
+      attachments: [{ filename: pdf.filename, content: pdf.content }],
+    };
   });
 }
 
@@ -116,29 +135,33 @@ export async function sendInvoiceEmails(
 
 /** The family's cancellation email (reply-to her). */
 export function familyCancellation(facts: CancelledFacts, to: InvoiceAddresses): Promise<EmailDelivery> {
-  const email = invoiceCancelledEmail({ ...facts, to: "family" });
-  return deliver("the cancellation email to the family", {
-    to: to.familyEmail,
-    subject: email.subject,
-    html: email.html,
-    text: email.text,
-    replyTo: to.nannyEmail,
-    emailType: INVOICE_CANCELLED_FAMILY_EMAIL_TYPE,
-    recipientUserId: to.parentUserId,
+  return deliver("the cancellation email to the family", () => {
+    const email = invoiceCancelledEmail({ ...facts, to: "family" });
+    return {
+      to: to.familyEmail,
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+      replyTo: to.nannyEmail,
+      emailType: INVOICE_CANCELLED_FAMILY_EMAIL_TYPE,
+      recipientUserId: to.parentUserId,
+    };
   });
 }
 
 /** Her cancellation email, saying what happened to the family's. */
 export function nannyCancellation(facts: CancelledFacts, to: InvoiceAddresses, familyDelivery: EmailDelivery): Promise<EmailDelivery> {
-  const email = invoiceCancelledEmail({ ...facts, to: "nanny", familyDelivery });
-  return deliver("the cancellation email to the nanny", {
-    to: to.nannyEmail,
-    subject: email.subject,
-    html: email.html,
-    text: email.text,
-    replyTo: SUPPORT_INBOX,
-    emailType: INVOICE_CANCELLED_NANNY_EMAIL_TYPE,
-    recipientUserId: to.nannyUserId,
+  return deliver("the cancellation email to the nanny", () => {
+    const email = invoiceCancelledEmail({ ...facts, to: "nanny", familyDelivery });
+    return {
+      to: to.nannyEmail,
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+      replyTo: SUPPORT_INBOX,
+      emailType: INVOICE_CANCELLED_NANNY_EMAIL_TYPE,
+      recipientUserId: to.nannyUserId,
+    };
   });
 }
 
