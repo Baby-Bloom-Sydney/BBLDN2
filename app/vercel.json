@@ -67,6 +67,14 @@
     {
       "path": "/api/cron/usage-weekly-check",
       "schedule": "0 6 * * 1"
+    },
+    {
+      "path": "/api/cron/invoice-reminders",
+      "schedule": "0 15 * * 5"
+    },
+    {
+      "path": "/api/cron/invoice-reminders",
+      "schedule": "0 16 * * 5"
     }
   ]
 }
