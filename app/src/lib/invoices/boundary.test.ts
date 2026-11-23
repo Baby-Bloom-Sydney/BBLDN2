@@ -22,7 +22,9 @@
  * 06b3-build, 2026-11-07 (the Settings seam, the actions, the details-changed sender); 06b3-rework, 2026-11-09;
  * 06b4, 2026-11-12 (the invoice actions; review, store-delivery, the invoice emails' sender; store-pdf-link, her list's
  * "View PDF"; the family popup's Create invoice, a second seam); 06b5, 2026-11-23 (the Friday reminder: its store, its
- * run and the cron proof are server modules; the entry point exports the run and the proof for the cron route).
+ * run and the cron proof are server modules; the entry point exports the run and the proof for the cron route); 06c,
+ * 2026-11-23 (BAI's read-only list: its store is a server module; the entry point exports its reader, never its PDF link,
+ * which the admin route takes from `store-pdf-link` inside the feature's folders, as the nanny's route does).
  */
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
@@ -32,10 +34,10 @@ const SRC = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..
 const SERVER_MODULES = [
   "store", "store-business", "families", "nanny-proof", "db", "gate", "readers", "index", "pdf/render", "pdf/font", "pdf/model",
   "emails/send-payment-details-changed", "review", "store-delivery", "emails/send-invoice-emails", "store-pdf-link",
-  "store-reminders", "reminders", "cron-proof",
+  "store-reminders", "reminders", "cron-proof", "store-admin",
 ];
 const SERVER_MODULE =
-  "(?:/(?:store|store-business|families|nanny-proof|db|gate|readers|index|pdf/render|pdf/font|pdf/model|emails/send-payment-details-changed|review|store-delivery|emails/send-invoice-emails|store-pdf-link|store-reminders|reminders|cron-proof))?";
+  "(?:/(?:store|store-business|families|nanny-proof|db|gate|readers|index|pdf/render|pdf/font|pdf/model|emails/send-payment-details-changed|review|store-delivery|emails/send-invoice-emails|store-pdf-link|store-reminders|reminders|cron-proof|store-admin))?";
 /** The actions (06b-3 Settings; 06b-4 invoices): `"use server"` on purpose, each exporting only its gated async action. */
 const ACTIONS: Readonly<Record<string, readonly [string, string]>> = {
   "actions/cancel-invoice": ["cancelInvoice", "CancelInvoiceResult"],
@@ -173,6 +175,14 @@ describe("src/lib/invoices boundaries", () => {
     const code = readFileSync(path.join(SRC, "lib/invoices/index.ts"), "utf8");
     expect(code).toMatch(/^export \{ runInvoiceReminders \} from "\.\/reminders";$/m);
     expect(code).toMatch(/^export \{ proveInvoiceCron \} from "\.\/cron-proof";$/m);
+  });
+
+  it("the entry point exports BAI's list reader with the readers, and no PDF link (06c)", () => {
+    const code = readFileSync(path.join(SRC, "lib/invoices/index.ts"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    const readers = /export \{([^}]*)\} from "\.\/readers";/.exec(code)?.[1] ?? "";
+    expect(readers).toMatch(/\blistAdminInvoices,/);
+    expect(readers).toMatch(/\btype AdminInvoice,/);
+    expect(code).not.toMatch(/PdfLink|pdf-link/);
   });
 
   it("the entry point exports no bank-detail, store, PDF or family function", () => {

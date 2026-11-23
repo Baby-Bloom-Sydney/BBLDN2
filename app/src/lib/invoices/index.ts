@@ -15,15 +15,22 @@
  * 06b-5 (plan §16.7 b5.6): the cron route's two — `proveInvoiceCron`, the proof made only from the request's cron
  * secret, and `runInvoiceReminders`, the Friday reminder's run, which takes it.
  *
- * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b4-server, 2026-11-12; BB-wave1-041126/06b5-app, 2026-11-23.
+ * 06c (plan 06 step 17): `listAdminInvoices`, BAI's read-only `/admin/invoices` list — a reader like the others (an
+ * admin proof, [] with the switch off, `InvoiceReadError` on a failed read, no bank detail, email, PDF path or link).
+ * Its "View PDF" link is not exported here: the admin route takes it from inside the feature, as the nanny's does.
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b4-server, 2026-11-12; BB-wave1-041126/06b5-app, 2026-11-23;
+ * BB-wave1-041126/06c, 2026-11-23.
  */
 
 export {
   formatFamilySummary,
   getFamilyInvoiceSummary,
   getPlacementWeekHours,
+  listAdminInvoices,
   listFamilyInvoices,
   summarise,
+  type AdminInvoice,
   type FamilyInvoice,
   type FamilyInvoiceSummary,
   type PlacementWeekHours,

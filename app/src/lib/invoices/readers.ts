@@ -22,7 +22,12 @@
  * its own dates, and a trial day before the start, expenses and invoices linked to a trial connection add nothing. An
  * invoice with no such line is not listed. A family's invoice carries its period's end.
  *
- * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b4-server, 2026-11-12.
+ * 06c (plan 06 step 17, §14.6 c.1): `listAdminInvoices`, BAI's read-only `/admin/invoices` — every family's invoices that
+ * went out, under the same rules, adding the family's name, the VAT mode and the email deliveries (never an address).
+ * Its per-family summary is this module's `summarise()`, the one 07 reads.
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b4-server, 2026-11-12;
+ * BB-wave1-041126/06c, 2026-11-23.
  */
 
 import { NO_PENCE } from "@/config/invoices";
@@ -30,7 +35,8 @@ import { isAdminProof, type AdminProof } from "@/lib/calls/admin-proof";
 import { nannyInvoicesEnabled } from "@/lib/features/flags";
 import { formatHours, formatInvoiceMoney } from "./money";
 import { readFamilyRows, readPlacementWeekRows, type FamilyRow } from "./store";
-import { InvoiceReadError, type CancelReason, type InvoiceKind, type InvoiceResult, type IssuedStatus } from "./types";
+import { readAdminInvoiceRows, type InvoiceDeliveries } from "./store-admin";
+import { InvoiceReadError, type CancelReason, type InvoiceKind, type InvoiceResult, type IssuedStatus, type VatMode } from "./types";
 import { isLondonMonday } from "./week";
 
 export interface WeekHoursInvoice {
@@ -80,6 +86,15 @@ export interface FamilyInvoice {
   readonly replacedByNumber: string | null;
 }
 
+/** One invoice on BAI's read-only list (06c): a family's invoice, with the family, its VAT mode and its deliveries. */
+export interface AdminInvoice extends FamilyInvoice {
+  readonly parentUserId: string;
+  readonly familyName: string;
+  readonly vatMode: VatMode;
+  /** Each email's delivery, both recipients (brief §3 admin 2); never an address. */
+  readonly delivery: InvoiceDeliveries;
+}
+
 /** R18 / R21: all invoices that went out, the live ones, the cancelled ones; hours and total of the live ones. */
 export interface FamilyInvoiceSummary {
   readonly invoiceCount: number;
@@ -122,11 +137,12 @@ export async function getPlacementWeekHours(proof: AdminProof, placementId: stri
   };
 }
 
-function toFamilyInvoices(rows: readonly FamilyRow[]): FamilyInvoice[] {
+/** Rows as invoices, each with `withMore`'s fields on top; the correction links are read within `rows`; newest first. */
+function toInvoices<R extends FamilyRow, T extends FamilyInvoice>(rows: readonly R[], withMore: (invoice: FamilyInvoice, row: R) => T): T[] {
   const numberOf = new Map(rows.map((r) => [r.invoiceId, r.number]));
   const replacedBy = new Map(rows.flatMap((r) => (r.replacesInvoiceId ? [[r.replacesInvoiceId, r.number] as const] : [])));
   return rows
-    .map((r): FamilyInvoice => ({
+    .map((r) => withMore({
       invoiceId: r.invoiceId,
       number: r.number,
       nannyId: r.nannyId,
@@ -146,9 +162,11 @@ function toFamilyInvoices(rows: readonly FamilyRow[]): FamilyInvoice[] {
       cancelReason: r.cancelReason,
       replacesNumber: r.replacesInvoiceId ? numberOf.get(r.replacesInvoiceId) ?? null : null,
       replacedByNumber: replacedBy.get(r.invoiceId) ?? null,
-    }))
+    }, r))
     .sort((a, b) => b.sentAt.localeCompare(a.sentAt) || b.invoiceId.localeCompare(a.invoiceId));
 }
+
+const toFamilyInvoices = (rows: readonly FamilyRow[]): FamilyInvoice[] => toInvoices(rows, (invoice) => invoice);
 
 /** Every invoice that went out to one family (cancelled ones marked), newest first. [] with the switch off (R18). */
 export async function listFamilyInvoices(proof: AdminProof, parentUserId: string): Promise<readonly FamilyInvoice[]> {
@@ -179,4 +197,21 @@ export function formatFamilySummary(s: FamilyInvoiceSummary): string {
 export async function getFamilyInvoiceSummary(proof: AdminProof, parentUserId: string): Promise<FamilyInvoiceSummary> {
   if (!nannyInvoicesEnabled()) return summarise([]);
   return summarise(await listFamilyInvoices(proof, parentUserId));
+}
+
+/**
+ * BAI's read-only `/admin/invoices` (06c, plan 06 step 17): every invoice that went out, to any family, newest sent
+ * first — the newest `INVOICE_RULES.adminListLimit` — each a family's invoice with the family's name, the VAT mode and
+ * both recipients' deliveries. A family's summary is `summarise()` over its invoices here. [] with the switch off.
+ */
+export async function listAdminInvoices(proof: AdminProof): Promise<readonly AdminInvoice[]> {
+  if (!nannyInvoicesEnabled()) return [];
+  requireProof(proof);
+  return toInvoices(rowsOf("admin invoices", await readAdminInvoiceRows(proof)), (invoice, r): AdminInvoice => ({
+    ...invoice,
+    parentUserId: r.parentUserId,
+    familyName: r.familyName,
+    vatMode: r.vatMode,
+    delivery: r.delivery,
+  }));
 }

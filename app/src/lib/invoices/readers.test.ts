@@ -14,7 +14,12 @@
  * dated in that London Monday–Sunday and on or after its start; an invoice with no such line is not listed. A family's
  * invoice carries its period's end.
  *
- * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b4-server, 2026-11-12.
+ * 06c (plan 06 step 17, §14.6 c.1): `listAdminInvoices`, BAI's read-only list — every invoice that went out, to any
+ * family, as a family's invoice plus the family's name, the VAT mode and both recipients' deliveries; its per-family
+ * summary is the same `summarise()`.
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b4-server, 2026-11-12;
+ * BB-wave1-041126/06c, 2026-11-23.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -29,6 +34,7 @@ import {
   getFamilyInvoiceSummary,
   getPlacementWeekHours,
   InvoiceReadError,
+  listAdminInvoices,
   listFamilyInvoices,
   londonWeekStart,
   summarise,
@@ -259,5 +265,60 @@ describe("getFamilyInvoiceSummary and summarise (the admin summary uses the same
     vi.stubEnv("NANNY_INVOICES_ENABLED", "true");
     f.readErrors.nanny_invoices = { message: "x", code: "XX000" };
     await expect(getFamilyInvoiceSummary(admin, HARTLEY)).rejects.toThrow(InvoiceReadError);
+  });
+});
+
+describe("listAdminInvoices — BAI's read-only list (06c)", () => {
+  /** A row as the admin read has it: the family's name, the VAT mode and the deliveries on top. */
+  const withAdmin = (r: Record<string, unknown>) => ({
+    ...r, family_name: r.parent_user_id === HARTLEY ? "Olivia Hartley" : "Amira Ahmed", vat_mode: "none",
+    family_email_status: "sent", nanny_email_status: "sent",
+    cancel_family_email_status: r.status === "cancelled" ? "sent" : null, cancel_nanny_email_status: r.status === "cancelled" ? "failed" : null,
+  });
+
+  beforeEach(() => {
+    f.reads.nanny_invoices = table([INV1, INV2, INV3, FAILED, SENDING].map(withAdmin));
+  });
+
+  it("lists every invoice that went out, to any family, newest sent first, with the correction links", async () => {
+    const list = await listAdminInvoices(admin);
+    expect(list.map((i) => [i.number, i.familyName, i.status, i.replacesNumber, i.replacedByNumber])).toEqual([
+      ["BB-SophieTaylor-270215-0003", "Olivia Hartley", "sent", "BB-SophieTaylor-270215-0001", null],
+      ["BB-SophieTaylor-270215-0002", "Amira Ahmed", "sent", null, null],
+      ["BB-SophieTaylor-270215-0001", "Olivia Hartley", "cancelled", null, "BB-SophieTaylor-270215-0003"],
+    ]);
+    expect(list[2]).toMatchObject({
+      parentUserId: HARTLEY, vatMode: "none", cancelReason: "wrong_hours",
+      delivery: { family: "sent", nanny: "sent", cancelFamily: "sent", cancelNanny: "failed" },
+    });
+    expect(list[1]).toMatchObject({ kind: "trial_shift", periodStart: "2027-02-03", periodEnd: "2027-02-03", hours: 4, totalPence: 7200 });
+  });
+
+  it("returns exactly a family invoice's keys plus the family, the VAT mode and the deliveries — no email, bank, PDF or link", async () => {
+    const list = await listAdminInvoices(admin);
+    expect(Object.keys(list[0] ?? {}).sort()).toEqual([
+      "cancelReason", "cancelledAt", "delivery", "expensesPence", "familyName", "hours", "invoiceId", "kind", "nannyId", "nannyName", "number",
+      "parentUserId", "periodEnd", "periodStart", "ratePence", "replacedByNumber", "replacesNumber", "sentAt", "shiftsPence", "status",
+      "totalPence", "vatMode", "vatPence",
+    ]);
+    expect(JSON.stringify(list)).not.toMatch(/@|4321|\.pdf|pdf_path|account/);
+  });
+
+  it("a family's summary from these rows is the same summarise() as 07's reader (the worked example)", async () => {
+    const hartley = (await listAdminInvoices(admin)).filter((i) => i.parentUserId === HARTLEY);
+    f.reads.nanny_invoices = table([INV1, INV2, INV3, FAILED, SENDING]);
+    expect(summarise(hartley)).toEqual(await getFamilyInvoiceSummary(admin, HARTLEY));
+    expect(formatFamilySummary(summarise(hartley))).toBe("2 invoices · 1 cancelled · 28 h · £504.00");
+  });
+
+  it("switch off → [] with nothing read; a failed read throws InvoiceReadError; no proof throws", async () => {
+    vi.stubEnv("NANNY_INVOICES_ENABLED", "");
+    createAdminClient.mockClear();
+    expect(await listAdminInvoices(admin)).toEqual([]);
+    expect(createAdminClient).not.toHaveBeenCalled();
+    vi.stubEnv("NANNY_INVOICES_ENABLED", "true");
+    f.readErrors.nanny_invoices = { message: "x", code: "XX000" };
+    await expect(listAdminInvoices(admin)).rejects.toThrow(InvoiceReadError);
+    await expect(listAdminInvoices({} as AdminProof)).rejects.toThrow(TypeError);
   });
 });
