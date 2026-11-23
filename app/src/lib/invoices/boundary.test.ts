@@ -21,7 +21,8 @@
  * BB-wave1-041126/06a-build, 2026-11-04; 06b2-build, 2026-11-06 (store-business; pdf/model, which logs through db);
  * 06b3-build, 2026-11-07 (the Settings seam, the actions, the details-changed sender); 06b3-rework, 2026-11-09;
  * 06b4, 2026-11-12 (the invoice actions; review, store-delivery, the invoice emails' sender; store-pdf-link, her list's
- * "View PDF"; the family popup's Create invoice, a second seam).
+ * "View PDF"; the family popup's Create invoice, a second seam); 06b5, 2026-11-23 (the Friday reminder: its store, its
+ * run and the cron proof are server modules; the entry point exports the run and the proof for the cron route).
  */
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
@@ -31,10 +32,10 @@ const SRC = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..
 const SERVER_MODULES = [
   "store", "store-business", "families", "nanny-proof", "db", "gate", "readers", "index", "pdf/render", "pdf/font", "pdf/model",
   "emails/send-payment-details-changed", "review", "store-delivery", "emails/send-invoice-emails", "store-pdf-link",
-  "store-reminders", "reminders",
+  "store-reminders", "reminders", "cron-proof",
 ];
 const SERVER_MODULE =
-  "(?:/(?:store|store-business|families|nanny-proof|db|gate|readers|index|pdf/render|pdf/font|pdf/model|emails/send-payment-details-changed|review|store-delivery|emails/send-invoice-emails|store-pdf-link|store-reminders|reminders))?";
+  "(?:/(?:store|store-business|families|nanny-proof|db|gate|readers|index|pdf/render|pdf/font|pdf/model|emails/send-payment-details-changed|review|store-delivery|emails/send-invoice-emails|store-pdf-link|store-reminders|reminders|cron-proof))?";
 /** The actions (06b-3 Settings; 06b-4 invoices): `"use server"` on purpose, each exporting only its gated async action. */
 const ACTIONS: Readonly<Record<string, readonly [string, string]>> = {
   "actions/cancel-invoice": ["cancelInvoice", "CancelInvoiceResult"],
@@ -166,6 +167,12 @@ describe("src/lib/invoices boundaries", () => {
     expect(settings('import { getPlacementWeekHours } from "@/lib/invoices";')).toHaveLength(0);
     expect(settings('import { x } from "../positions/NannyPositionsClient";')).toHaveLength(0);
     expect(pageImports("lib/foo/bar.ts", 'import { x } from "../invoices/store";')).toHaveLength(0); // lib/invoices: DEEP_IMPORT's
+  });
+
+  it("the entry point exports the Friday reminder's run and cron proof from their own modules (06b-5 b5.6)", () => {
+    const code = readFileSync(path.join(SRC, "lib/invoices/index.ts"), "utf8");
+    expect(code).toMatch(/^export \{ runInvoiceReminders \} from "\.\/reminders";$/m);
+    expect(code).toMatch(/^export \{ proveInvoiceCron \} from "\.\/cron-proof";$/m);
   });
 
   it("the entry point exports no bank-detail, store, PDF or family function", () => {
