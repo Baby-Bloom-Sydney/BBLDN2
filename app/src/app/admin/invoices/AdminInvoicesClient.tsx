@@ -155,8 +155,9 @@ function InvoiceTable({ rows }: { readonly rows: readonly AdminInvoiceRow[] }) {
   }
   return (
     <Card>
-      {/* scrolls inside its card on a narrow screen; focusable so the keyboard can scroll it too */}
-      <CardContent className="overflow-x-auto p-0" tabIndex={0} role="region" aria-label="Invoices table">
+      {/* scrolls inside its card on a narrow screen; focusable so the keyboard can scroll it too; `relative` keeps the
+          screen-reader-only text (absolutely placed) inside the scroll box, so the page itself never scrolls sideways */}
+      <CardContent className="relative overflow-x-auto p-0" tabIndex={0} role="region" aria-label="Invoices table">
         <table className="w-full min-w-[60rem] text-left text-sm">
           <caption className="sr-only">Invoices, newest first</caption>
           <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
