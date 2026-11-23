@@ -4,8 +4,9 @@
  *
  * - **The clock:** it acts only when London's wall clock reads Friday 16:xx, so of the two UTC cron entries
  *   (15:00 and 16:00) exactly one acts in any season, the Fridays before both clock changes included. A skip reads
- *   nothing. Every clock block runs with the host in several zones (CI also runs this file under `TZ=UTC` and the
- *   Sydney zone: BUILD/README § Wave 1 alignment item 2; no zone literal is written in `src/`).
+ *   nothing. Every clock block switches the host zone in the file, because `vitest.setup.ts` pins `TZ` for every run
+ *   (a command-line `TZ` never reaches a test): UTC, the fixed offsets UTC+11 and UTC+10, a southern-hemisphere zone
+ *   with its own clock changes, and New York (BUILD/README § Wave 1 alignment item 2).
  * - **The worked example** (§16.3) and the families that get nothing.
  * - **Claim, then send, then release on failure**, nannies one at a time; a held claim is skipped; a second run the
  *   same week sends nothing.
@@ -32,7 +33,7 @@ const SOPHIE = 101;
 const BEN = 102;
 const CHLOE = 103;
 const DANI = 104;
-const HOST_ZONES = ["UTC", "Etc/GMT-11", "Etc/GMT-10", "America/New_York"] as const;
+const HOST_ZONES = ["UTC", "Etc/GMT-11", "Etc/GMT-10", "Pacific/Auckland", "America/New_York"] as const;
 
 type Row = Record<string, unknown>;
 const placement = (n: number, nanny: number, parent: number, extra: Row = {}): Row => ({
