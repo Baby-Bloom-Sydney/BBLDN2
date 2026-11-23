@@ -5,7 +5,7 @@
  * - **Switch off:** `notFound()` before any auth or read. **Her nanny session only** (`proveNanny`): none is a 404.
  * - Reads, as hers: the families she can invoice, her VAT setting (for the live totals only), and what the parameters
  *   ask for — `?placement=` or `?connection=` (any of her ids for a family: that family pre-selected) or `?replaces=`
- *   (a correction: its family fixed, its lines). The `week` parameter is 06b-5's (plan §16.7 b5.8) and isn't read here.
+ *   (a correction: its family fixed, its lines).
  * - **The props are the RSC payload:** the families and the target as `target.ts` shapes them (no family id, no
  *   email, no kind), her VAT mode and rate, and London's today (the last date she can pick) — nothing of her bank
  *   details, her address or her name. The review step asks the server for those (`previewInvoice`), masked.
