@@ -12,7 +12,10 @@
  * placement's live invoices dated in that London Monday–Sunday, on or after its start. `FamilyInvoice` carries its
  * period's end.
  *
- * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b4-server, 2026-11-12.
+ * 06b-5 (plan §16.7 b5.6): the cron route's two — `proveInvoiceCron`, the proof made only from the request's cron
+ * secret, and `runInvoiceReminders`, the Friday reminder's run, which takes it.
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b4-server, 2026-11-12; BB-wave1-041126/06b5-app, 2026-11-23.
  */
 
 export {
@@ -29,3 +32,6 @@ export {
 export { InvoiceReadError, type CancelReason, type InvoiceKind, type IssuedStatus } from "./types";
 /** 07's weeks: `londonWeekStart(date)`, the one clock's Monday, as `getPlacementWeekHours` expects (R21). */
 export { londonWeekStart } from "./week";
+/** The Friday invoice reminder (06b-5): the cron route proves the request, then runs it. */
+export { runInvoiceReminders } from "./reminders";
+export { proveInvoiceCron } from "./cron-proof";

@@ -104,7 +104,8 @@ export function emailHint(email: string): string {
 }
 
 const fullName = (p: { readonly first_name: string; readonly last_name: string }): string => `${p.first_name} ${p.last_name}`.trim();
-const isDismissed = (row: PlacementRow): boolean => row.end_notes?.includes(DISMISSED) ?? false;
+/** A placement she dismissed (`[NANNY_DISMISSED]` in its end notes); the Friday reminder reads the same rule (06b-5). */
+export const isDismissed = (row: { readonly end_notes: string | null }): boolean => row.end_notes?.includes(DISMISSED) ?? false;
 const unique = (values: readonly (string | null)[]): string[] => [...new Set(values.filter((v): v is string => v !== null))];
 const compare = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 const hasTrial = (row: ConnectionRow): row is TrialRow => row.trial_date !== null && isLondonDate(row.trial_date);
