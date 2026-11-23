@@ -182,9 +182,19 @@ describe.each(HOST_ZONES)("the clock, with the host in %s", (zone) => {
     expect(await acts("2027-02-13T16:00:00Z")).toBe(false);
   });
 
-  it("the Friday before each clock change, and the Friday after, acts exactly once of the two entries", async () => {
+  it("Fri 26 Mar 2027, the Friday before BST starts (still GMT): 16:00 UTC acts; 15:00 UTC is skipped", async () => {
+    expect(await acts("2027-03-26T16:00:00Z")).toBe(true);
+    expect(await acts("2027-03-26T15:00:00Z")).toBe(false);
+  });
+
+  it("Fri 29 Oct 2027, the Friday before GMT returns (still BST): 15:00 UTC acts; 16:00 UTC is skipped", async () => {
+    expect(await acts("2027-10-29T15:00:00Z")).toBe(true);
+    expect(await acts("2027-10-29T16:00:00Z")).toBe(false);
+  });
+
+  it("the Friday after each clock change acts exactly once of the two entries", async () => {
     // spring: clocks go forward on Sun 28 Mar 2027; autumn: back on Sun 31 Oct 2027
-    for (const [day, utcHourThatActs] of [["2027-03-26", 16], ["2027-04-02", 15], ["2027-10-29", 15], ["2027-11-05", 16]] as const) {
+    for (const [day, utcHourThatActs] of [["2027-04-02", 15], ["2027-11-05", 16]] as const) {
       const results = [await acts(`${day}T15:00:00Z`), await acts(`${day}T16:00:00Z`)];
       expect(results).toEqual([utcHourThatActs === 15, utcHourThatActs === 16]);
     }

@@ -107,6 +107,7 @@ async function readNannies(admin: AdminClient, nannyIds: readonly string[]): Pro
 }
 
 /** The placements with a live invoice holding a shift dated in the week (§16.0). */
+// No `!inner` on the embedded line filters, so an invoice with no line in the week still comes back: every row is checked again below.
 async function readInvoiced(admin: AdminClient, placementIds: readonly string[], monday: string, sunday: string): Promise<InvoiceResult<ReadonlySet<string>>> {
   const rows = parseRows("reminders.invoices", await allPagesByIds("reminders.invoices", placementIds, (chunk) => (from, to) =>
     admin.from("nanny_invoices").select(INVOICE_COLUMNS).in("placement_id", [...chunk]).eq("status", "sent").not("pdf_path", "is", null)
