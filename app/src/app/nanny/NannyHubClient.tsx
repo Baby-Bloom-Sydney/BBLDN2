@@ -144,6 +144,10 @@ interface NannyHubClientProps {
   /** Subscribed-family tick state per child — DSS §8 Q8. */
   subscribedChildIds?: string[];
   pendingInvites?: PendingInviteCard[];
+  /** `?tab=children` (06b-4, "Add family"): start on Children, only when the tabs aren't locked. */
+  initialTab?: "children";
+  /** `?add=child`: open the add-child sheet once on arrival, only when the tabs aren't locked. */
+  openAddChild?: boolean;
 }
 
 // ── Tab definitions ──────────────────────────────────────────────────────────
@@ -184,6 +188,8 @@ export function NannyHubClient({
   educationChildren,
   subscribedChildIds,
   pendingInvites = [],
+  initialTab,
+  openAddChild = false,
 }: NannyHubClientProps) {
   const subscribedChildIdSet = subscribedChildIds
     ? new Set(subscribedChildIds)
@@ -192,8 +198,20 @@ export function NannyHubClient({
   const isTabsLocked = verificationLevel < 3;
 
   const [activeTab, setActiveTab] = useState<MainTabId>(
-    isTabsLocked ? "verification" : "nannying",
+    isTabsLocked ? "verification" : (initialTab ?? "nannying"),
   );
+  // "Add family" (06b-4): the add-child sheet opens once, on arrival; `add` then leaves the address (Next syncs a
+  // native replaceState without a fetch), so a refresh or a later visit to Children doesn't open it again.
+  const [addChildOnArrival, setAddChildOnArrival] = useState(
+    !isTabsLocked && openAddChild,
+  );
+  useEffect(() => {
+    setAddChildOnArrival(false);
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("add")) return;
+    url.searchParams.delete("add");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, []);
   // Default sub-tab is Connections (leftmost) per user spec
   // 2026-05-07. Connections show first because most active nannies
   // already have placements they want to glance at; Jobs is the
@@ -1105,6 +1123,7 @@ export function NannyHubClient({
               children={educationChildren}
               role="nanny"
               subscribedChildIds={subscribedChildIdSet}
+              openAddOnArrival={addChildOnArrival}
             />
           </div>
         </>

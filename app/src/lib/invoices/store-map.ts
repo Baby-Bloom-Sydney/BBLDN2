@@ -9,19 +9,26 @@
  * 06b-3 rework (ledger B06 §9.1 R1, R3): a bank save's reply carries the version now stored, exactly as the database
  * sent it (it goes back with her next save); her own Settings page reads her full details and that version.
  *
- * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b3-rework, 2026-11-09.
+ * 06b-4 rework (amendment 21 as revised): a created invoice and the readers' rows carry the period's end; its hours
+ * may be 0 (an invoice of expenses only, whose childcare is 0); `no_trial` and `wrong_date` are gone. Brief 07's week
+ * rows carry the placement's shift lines (date and hours), which the store sums for that week.
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b3-rework, 2026-11-09;
+ * BB-wave1-041126/06b4-server, 2026-11-12.
  */
 
 import { z } from "zod";
 import type { DetailMasks } from "./masking";
 import { isInvoiceNumber } from "./numbering";
 import {
+  headerHours,
   hoursValue,
   instant,
   lineRow,
   linesInOrder,
   londonDate,
   pence,
+  periodEndsInOrder,
   printedAddress,
   printedLine,
   singleRate,
@@ -48,15 +55,18 @@ export const MASK_COLUMNS = "account_name, sort_code_last2, account_last4, updat
 export const FULL_COLUMNS = "account_name, sort_code, account_number, account_last4";
 /** Her own Settings page (06b-3 rework R3): her full details, shown to her only, and the version a save sends back. */
 export const SETTINGS_BANK_COLUMNS = "account_name, sort_code, account_number, updated_at";
-/** 07's week reader: no email, bank or PDF field leaves (pdf_path is read only to re-check R1). */
-export const WEEK_COLUMNS = "id, invoice_seq, invoice_number, nanny_id, nanny_name, hours, status, pdf_path, sent_at";
+/**
+ * 07's week reader: no email, bank or PDF field leaves (pdf_path is read only to re-check R1); the shift lines' dates
+ * and hours, which the store sums for the week (the query keeps only that week's shift lines; the store checks again).
+ */
+export const WEEK_COLUMNS =
+  "id, invoice_seq, invoice_number, nanny_id, nanny_name, placement_id, status, pdf_path, sent_at, nanny_invoice_lines(kind, shift_date, hours)";
 /** The family readers: no email, bank, issuer or PDF field leaves; the lines' kinds and rates give 07 its rate (14.7). */
 export const FAMILY_COLUMNS =
-  "id, invoice_seq, invoice_number, nanny_id, nanny_name, kind, period_start, hours, shifts_pence, expenses_pence, vat_pence, " +
+  "id, invoice_seq, invoice_number, nanny_id, nanny_name, kind, period_start, period_end, hours, shifts_pence, expenses_pence, vat_pence, " +
   "total_pence, status, pdf_path, sent_at, cancelled_at, cancel_reason, replaces_invoice_id, nanny_invoice_lines(kind, rate_pence)";
 
 const id = z.string().min(1);
-const hours = hoursValue;
 const seq = z.number().int().positive();
 /** BB-<name>-<YYMMDD>-<seq>, as the database stored it (BAI 2026-11-04). */
 const invoiceNumber = z.string().refine(isInvoiceNumber);
@@ -112,6 +122,8 @@ export interface CreatedInvoice {
   readonly placementId: string | null;
   readonly connectionRequestId: string | null;
   readonly periodStart: string;
+  /** The last shift's date (the first's is `periodStart`); for an invoice of expenses only, both are its send date. */
+  readonly periodEnd: string;
   readonly hours: number;
   readonly shiftsPence: number;
   readonly expensesPence: number;
@@ -137,6 +149,7 @@ export interface WeekRow {
   readonly number: string;
   readonly nannyId: string;
   readonly nannyName: string;
+  /** This invoice's shift hours in the week asked for (not its whole hours). */
   readonly hours: number;
   readonly sentAt: string;
 }
@@ -149,6 +162,7 @@ export interface FamilyRow {
   readonly nannyName: string;
   readonly kind: InvoiceKind;
   readonly periodStart: string;
+  readonly periodEnd: string;
   readonly hours: number;
   /** The single rate when every shift has it; null when the rates differ (14.7). */
   readonly ratePence: number | null;
@@ -228,8 +242,9 @@ export const createdReply = z
     placement_id: id.nullable(),
     connection_request_id: id.nullable(),
     period_start: londonDate,
-    hours,
-    shifts_pence: pence.positive(),
+    period_end: londonDate,
+    hours: headerHours,
+    shifts_pence: pence.nonnegative(),
     expenses_pence: pence.nonnegative(),
     vat_mode: z.enum(VAT_MODES),
     vat_rate_bp: z.number().int().nullable(),
@@ -253,8 +268,9 @@ export const createdReply = z
     registered_office: printedAddress.nullable(),
     partnership_name: printedLine.nullable(),
     vat_number: z.string().nullable(),
-    lines: z.array(lineRow).min(1), // every invoice has at least one shift
+    lines: z.array(lineRow).min(1), // every invoice has at least one line, a shift or an expense
   })
+  .refine(periodEndsInOrder)
   .transform((r): CreatedInvoice => ({
     invoiceId: r.invoice_id,
     seq: r.invoice_seq,
@@ -264,6 +280,7 @@ export const createdReply = z
     placementId: r.placement_id,
     connectionRequestId: r.connection_request_id,
     periodStart: r.period_start,
+    periodEnd: r.period_end,
     hours: r.hours,
     shiftsPence: r.shifts_pence,
     expensesPence: r.expenses_pence,
@@ -295,13 +312,17 @@ export const createdReply = z
 /** A refusal from amendment 21's functions (status codes only; a retry of an id answers in_progress / already_done). */
 export const refusalReply = z.object({
   status: z.enum([
-    "invalid", "future", "not_hers", "no_trial", "wrong_date", "no_details", "bad_replaces", "already_replaced", "no_contact",
+    "invalid", "future", "not_hers", "no_details", "bad_replaces", "already_replaced", "no_contact",
     "nanny_inactive", "cap", "busy", "in_progress", "already_done", "already_failed", "not_found", "not_sending", "no_pdf",
     "no_address", "bad_lines", "changed", "stale",
   ]),
 });
 
 export const finishedReply = z.object({ status: z.enum(["sent", "failed"]) });
+
+/** One embedded line of a week row: a shift's date and hours (an expense has neither). */
+const weekLine = z.object({ kind: z.enum(LINE_KINDS), shift_date: londonDate.nullable(), hours: hoursValue.nullable() });
+export type WeekLine = z.output<typeof weekLine>;
 
 /** Both row kinds carry status and pdf_path so R1 is re-checked here, whatever the query asked for. */
 export const weekRow = z.object({
@@ -310,10 +331,11 @@ export const weekRow = z.object({
   invoice_number: invoiceNumber,
   nanny_id: id,
   nanny_name: z.string(),
-  hours,
+  placement_id: id.nullable(),
   status: z.enum(INVOICE_STATUSES),
   pdf_path: z.string().nullable(),
   sent_at: instant.nullable(),
+  nanny_invoice_lines: z.array(weekLine),
 });
 
 /** The daily-cap count's rows (security M2: the database's own rule, re-told for 06b's screen). */
@@ -327,7 +349,8 @@ export const familyRow = z.object({
   nanny_name: z.string(),
   kind: z.enum(INVOICE_KINDS),
   period_start: londonDate,
-  hours,
+  period_end: londonDate,
+  hours: headerHours,
   shifts_pence: pence,
   expenses_pence: pence,
   vat_pence: pence,
@@ -339,15 +362,15 @@ export const familyRow = z.object({
   cancelled_at: instant.nullable(),
   cancel_reason: z.enum(CANCEL_REASONS).nullable(),
   replaces_invoice_id: id.nullable(),
-});
+}).refine(periodEndsInOrder);
 
-export const toWeekRow = (r: z.output<typeof weekRow>, sentAt: string): WeekRow => ({
+export const toWeekRow = (r: z.output<typeof weekRow>, sentAt: string, hours: number): WeekRow => ({
   invoiceId: r.id,
   seq: r.invoice_seq,
   number: r.invoice_number,
   nannyId: r.nanny_id,
   nannyName: r.nanny_name,
-  hours: r.hours,
+  hours,
   sentAt,
 });
 
@@ -359,6 +382,7 @@ export const toFamilyRow = (r: z.output<typeof familyRow>, status: "sent" | "can
   nannyName: r.nanny_name,
   kind: r.kind,
   periodStart: r.period_start,
+  periodEnd: r.period_end,
   hours: r.hours,
   ratePence: singleRate(r.nanny_invoice_lines),
   shiftsPence: r.shifts_pence,

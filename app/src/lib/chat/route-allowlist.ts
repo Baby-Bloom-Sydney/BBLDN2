@@ -18,6 +18,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { BotRole } from "@/lib/ai/model-selector";
 import { SENDERS } from "@/lib/constants";
+import { nannyInvoicesEnabled } from "@/lib/features/flags";
 
 interface ManifestPage {
   path: string;
@@ -58,8 +59,13 @@ function toTemplatePath(path: string): string {
   return path.replace(/\[(\.\.\.)?(\w+)\]/g, (_, _spread, name) => `{${name}}`);
 }
 
+/** Pages behind a build-time switch, left out while it's off: the build writes them into the manifest whatever the
+ * switch says, and a link to one would 404 (brief 06 §8: with the switch off nothing changes). Read at call time. */
+const HIDDEN_WHILE_OFF: ReadonlyArray<readonly [root: string, on: () => boolean]> = [["/nanny/invoices", nannyInvoicesEnabled]];
+
 function isAllowed(path: string): boolean {
   if (PATH_DENY_EXACT.has(path)) return false;
+  if (HIDDEN_WHILE_OFF.some(([root, on]) => (path === root || path.startsWith(`${root}/`)) && !on())) return false;
   for (const prefix of PATH_DENY_PREFIXES) {
     if (path.startsWith(prefix)) return false;
   }

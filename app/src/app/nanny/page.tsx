@@ -174,7 +174,11 @@ async function fetchNannyApplications(
     });
 }
 
-export default async function NannyHubPage() {
+interface NannyHubPageProps {
+  readonly searchParams?: Readonly<Record<string, string | string[] | undefined>>;
+}
+
+export default async function NannyHubPage({ searchParams }: NannyHubPageProps) {
   const supabase = createClient();
   const {
     data: { user },
@@ -365,6 +369,9 @@ export default async function NannyHubPage() {
         educationChildren={educationChildrenRows}
         subscribedChildIds={subscribedChildIds}
         pendingInvites={pendingInvitesResult.data ?? []}
+        // "Add family" from the invoice picker (06b-4): `?tab=children&add=child`; nothing else is honoured
+        initialTab={searchParams?.tab === "children" ? "children" : undefined}
+        openAddChild={searchParams?.add === "child"}
       />
     </div>
   );

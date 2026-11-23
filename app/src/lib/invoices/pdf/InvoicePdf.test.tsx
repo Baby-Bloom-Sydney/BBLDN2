@@ -9,8 +9,11 @@
  * The parties block (BAI 2026-11-07): From | Business | Bill to, all three formatted alike; Business is one name (her
  * trading name, else the company's or partnership's), the company number and the VAT number; a limited company's
  * registered office is the one address under her name.
+ * 06b-4 rework (BAI 2026-11-12; ledger readings 6, 7, 9): the heading is "Childcare, {period}" — the earliest to the
+ * latest shift date — and no week or Trial Shift wording is left; an invoice of expenses only has no Childcare table
+ * and no Childcare or VAT line; at 100 shifts and 40 expenses rows and the closing block still never split.
  * BB-wave1-041126/06a-build, 2026-11-04; 06b-1, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06;
- * BB-wave1-041126 (three-column parties), 2026-11-07.
+ * BB-wave1-041126 (three-column parties), 2026-11-07; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -25,12 +28,14 @@ import { vatRateLabel } from "./sections/totals";
 import {
   CORRECTION_INVOICE,
   expenseOf,
+  EXPENSES_ONLY_INVOICE,
   HARTLEY_INVOICE,
   LTD_VAT_ADDED,
   MAX_INVOICE,
+  ONE_DAY_INVOICE,
   PARTNERSHIP_INVOICE,
   shiftOf,
-  TRIAL_INVOICE,
+  TWO_WEEK_INVOICE,
   VAT_INCLUDED,
 } from "./fixtures.test-util";
 
@@ -81,12 +86,12 @@ describe("InvoicePdf — the worked example (sole trader, no VAT: 14.5)", () => 
   });
 
   it("bills the family by name and email only (brief §11 Q10)", () => {
-    expect(between(lines, "Bill to", "Childcare, week of 8–14 Feb 2027")).toEqual(["Bill to", "Olivia Hartley", "admin+b06-11@babybloomnannies.co.uk"]);
+    expect(between(lines, "Bill to", "Childcare, 8–12 Feb 2027")).toEqual(["Bill to", "Olivia Hartley", "admin+b06-11@babybloomnannies.co.uk"]);
   });
 
   it("prints each shift — date, description, hours, rate, amount — including two shifts on one date at different rates", () => {
-    const table = between(lines, "Childcare, week of 8–14 Feb 2027", "Expenses");
-    expect(table.slice(0, 6)).toEqual(["Childcare, week of 8–14 Feb 2027", "Date", "Description", "Hours", "Rate", "Amount"]);
+    const table = between(lines, "Childcare, 8–12 Feb 2027", "Expenses");
+    expect(table.slice(0, 6)).toEqual(["Childcare, 8–12 Feb 2027", "Date", "Description", "Hours", "Rate", "Amount"]);
     expect(table.slice(6, 11)).toEqual(["Mon 8 Feb", "", "6", "£18.00", "£108.00"]);
     expect(table.filter((l) => l === "Wed 10 Feb")).toHaveLength(2);
     expect(table.slice(-5)).toEqual(["Fri 12 Feb", "", "6", "£18.00", "£108.00"]);
@@ -94,7 +99,7 @@ describe("InvoicePdf — the worked example (sole trader, no VAT: 14.5)", () => 
 
   it("prints the shifts in date order: the Wed 2 h line, entered after Fri, follows the Wed 6 h row (coordinator, 06b-2)", () => {
     expect(HARTLEY_INVOICE.shifts.map((s) => s.date)).toEqual(["2027-02-08", "2027-02-09", "2027-02-10", "2027-02-11", "2027-02-12", "2027-02-10"]);
-    const rows = between(lines, "Childcare, week of 8–14 Feb 2027", "Expenses").slice(6);
+    const rows = between(lines, "Childcare, 8–12 Feb 2027", "Expenses").slice(6);
     expect(rows.filter((l) => /^\w{3} \d+ Feb$/.test(l))).toEqual(["Mon 8 Feb", "Tue 9 Feb", "Wed 10 Feb", "Wed 10 Feb", "Thu 11 Feb", "Fri 12 Feb"]);
     const wed = rows.indexOf("Wed 10 Feb");
     expect(rows.slice(wed, wed + 10)).toEqual(["Wed 10 Feb", "", "6", "£18.00", "£108.00", "Wed 10 Feb", "evening, agreed rate", "2", "£22.00", "£44.00"]);
@@ -107,7 +112,7 @@ describe("InvoicePdf — the worked example (sole trader, no VAT: 14.5)", () => 
       expenses: [expenseOf("travel", 640, "Bus"), expenseOf("food", 900, "Lunch"), expenseOf("activities", 1250, "Soft play")],
     };
     const shown = linesOf(InvoicePdf(data));
-    const rows = between(shown, "Childcare, week of 8–14 Feb 2027", "Expenses").slice(6);
+    const rows = between(shown, "Childcare, 8–12 Feb 2027", "Expenses").slice(6);
     expect(rows.filter((l) => /^\w{3} \d+ Feb$|^(evening|day)$/.test(l))).toEqual(["Mon 8 Feb", "Tue 9 Feb", "evening", "Tue 9 Feb", "day"]);
     expect(between(shown, "Expenses", "Childcare").slice(4)).toEqual(["Travel", "Bus", "£6.40", "Food", "Lunch", "£9.00", "Activities", "Soft play", "£12.50"]);
     expect(data.shifts.map((s) => s.description)).toEqual(["evening", null, "day"]);
@@ -275,7 +280,7 @@ describe("InvoicePdf — the issuer by business type (§0a D, 14.8)", () => {
   });
 });
 
-describe("InvoicePdf — corrections, Trial Shifts and the most lines", () => {
+describe("InvoicePdf — corrections, the period, expenses only and the most lines", () => {
   it("a correction prints its own number, 'Replaces <number>', and her trading name under Business, accents exact (R7)", () => {
     const correction = linesOf(InvoicePdf(CORRECTION_INVOICE));
     expect(correction).toContain("BB-LucjaWisniewska-270215-0003");
@@ -284,18 +289,42 @@ describe("InvoicePdf — corrections, Trial Shifts and the most lines", () => {
     expect(correction).toEqual(expect.arrayContaining(["Kateřina Dvořák", "Café, then Łazienki-style park walk", "£252.00"]));
   });
 
-  it("a Trial Shift is one dated table (plan §3a), with its expense", () => {
-    const trial = linesOf(InvoicePdf(TRIAL_INVOICE));
-    expect(trial).toContain("Trial Shift, Wed 3 Feb 2027");
-    expect(trial.join("\n")).not.toContain("week of");
-    expect(trial).toEqual(expect.arrayContaining(["Wed 3 Feb", "4", "£72.00", "Travel", "Bus to the trial", "£6.40"]));
-    expect(after(trial, "Total")).toBe("£78.40");
+  it("one day's work: \"Childcare, 3 Feb 2027\", with its expense; no week or Trial Shift wording", () => {
+    const day = linesOf(InvoicePdf(ONE_DAY_INVOICE));
+    expect(day).toContain("Childcare, 3 Feb 2027");
+    expect(day.join("\n")).not.toMatch(/week of|Trial Shift/);
+    expect(day).toEqual(expect.arrayContaining(["Wed 3 Feb", "4", "£72.00", "Travel", "Bus to the trial", "£6.40"]));
+    expect(after(day, "Total")).toBe("£78.40");
   });
 
-  it("at the most lines prints all 28 shifts and 20 expenses", () => {
+  it("two weeks: the heading is the earliest to the latest shift date; the shifts in date order", () => {
+    const lines = linesOf(InvoicePdf(TWO_WEEK_INVOICE));
+    expect(lines).toContain("Childcare, 1–12 Feb 2027");
+    const rows = between(lines, "Childcare, 1–12 Feb 2027", "Expenses").slice(6);
+    expect(rows.filter((l) => /^\w{3} \d+ Feb$/.test(l))).toEqual([
+      "Mon 1 Feb", "Tue 2 Feb", "Wed 3 Feb", "Thu 4 Feb", "Fri 5 Feb", "Mon 8 Feb", "Tue 9 Feb", "Wed 10 Feb", "Wed 10 Feb", "Thu 11 Feb", "Fri 12 Feb",
+    ]);
+    expect(after(lines, "Childcare")).toBe("£1,394.00");
+  });
+
+  it("a period across a year prints both years (7 Nov 2026 – 14 Feb 2027)", () => {
+    expect(linesOf(InvoicePdf(MAX_INVOICE))).toContain("Childcare, 7 Nov 2026 – 14 Feb 2027");
+  });
+
+  it("expenses only: no Childcare table, and no Childcare or VAT line in the totals, even when she charges VAT (reading 6)", () => {
+    const lines = linesOf(InvoicePdf(EXPENSES_ONLY_INVOICE));
+    expect(lines.join("\n")).not.toMatch(/Childcare,|Date|Hours|Rate|VAT at|of which VAT/);
+    expect(lines.filter((l) => l === "Childcare" || l === "Childcare (including VAT)")).toEqual([]);
+    expect(lines.slice(lines.lastIndexOf("Expenses"), lines.indexOf("Pay to"))).toEqual(["Expenses", "£18.90", "Total", "£18.90"]);
+    expect(lines.slice(lines.indexOf("Expenses"), lines.indexOf("Expenses") + 4)).toEqual(["Expenses", "Type", "Description", "Amount"]);
+    // her VAT number still prints under Business: it is who she is, not a figure
+    expect(between(lines, "Business", "Bill to")).toContain("VAT no. GB 123 4567 89");
+  });
+
+  it("at the most lines prints all 100 shifts and 40 expenses", () => {
     const lines = linesOf(InvoicePdf(MAX_INVOICE));
-    expect(lines.filter((l) => / care$/.test(l))).toHaveLength(28);
-    expect(lines.filter((l) => /^Receipt \d+$/.test(l))).toHaveLength(20);
+    expect(lines.filter((l) => / care$/.test(l))).toHaveLength(100);
+    expect(lines.filter((l) => /^Receipt \d+$/.test(l))).toHaveLength(40);
   });
 
   it("keeps the totals and the pay-to box whole across a page break, and the band and footer on every page", () => {
@@ -328,9 +357,9 @@ describe("InvoicePdf — corrections, Trial Shifts and the most lines", () => {
   it("never splits a row, and never leaves a table's title and head without its first row (review React M2, M4)", () => {
     const elements = elementsOf(InvoicePdf(MAX_INVOICE));
     const rows = elements.filter((e) => e.type === View && flat(e.props.style).borderBottom !== undefined && flat(e.props.style).flexDirection === "row");
-    expect(rows).toHaveLength(48);
+    expect(rows).toHaveLength(140);
     expect(rows.every((r) => r.props.wrap === false)).toBe(true);
-    for (const [title, firstCell] of [["Childcare, week of 8–14 Feb 2027", "Mon 8 Feb"], ["Expenses", "Food"]]) {
+    for (const [title, firstCell] of [["Childcare, 7 Nov 2026 – 14 Feb 2027", "Sat 7 Nov"], ["Expenses", "Food"]]) {
       const opening = elements.find((e) => e.type === View && e.props.wrap === false && linesOf(e.props.children)[0] === title);
       expect(opening && linesOf(opening.props.children)).toEqual(expect.arrayContaining([title, "Description", "Amount", firstCell]));
     }

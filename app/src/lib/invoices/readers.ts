@@ -12,12 +12,17 @@
  *   the 37.5-hour cap and the flat rate.
  * - A read failure throws `InvoiceReadError` — never a silent null that 07 could mistake for "no invoice".
  *
- * 06b-2 (plan 14.7): an invoice is a header plus lines. A week's hours are still the headers' `hours`, which the
- * database keeps equal to the sum of each invoice's shift lines (so Trial Shifts and expenses never add hours to a
- * placement's week). A family's invoice carries its childcare, expenses and VAT; `totalPence` is the whole total;
- * `ratePence` is null when its shifts' rates differ. The issuer snapshot is not returned (07 doesn't need it).
+ * 06b-2 (plan 14.7): an invoice is a header plus lines. A family's invoice carries its childcare, expenses and VAT;
+ * `totalPence` is the whole total; `ratePence` is null when its shifts' rates differ. The issuer snapshot is not
+ * returned (07 doesn't need it).
  *
- * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06.
+ * 06b-4 rework (spec j; BAI 2026-11-12: an invoice is any set of dated shifts, over any period): `getPlacementWeekHours`
+ * keeps its signature. A week's hours are the shift lines of the live invoices linked to that placement, dated in that
+ * London Monday–Sunday and on or after the placement's start — so a two-week or monthly invoice counts in each week by
+ * its own dates, and a trial day before the start, expenses and invoices linked to a trial connection add nothing. An
+ * invoice with no such line is not listed. A family's invoice carries its period's end.
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 
 import { NO_PENCE } from "@/config/invoices";
@@ -32,7 +37,7 @@ export interface WeekHoursInvoice {
   readonly invoiceId: string;
   readonly number: string; // "BB-SophieTaylor-270215-0003", as stored at insert
   readonly nannyName: string;
-  readonly hours: number; // quarter-hour steps: the sum of the invoice's shifts
+  readonly hours: number; // quarter-hour steps: the invoice's shifts dated in that week, from the placement's start
 }
 
 /**
@@ -52,8 +57,11 @@ export interface FamilyInvoice {
   readonly number: string;
   readonly nannyId: string;
   readonly nannyName: string;
+  /** The link's type: `regular_week` for a placement, `trial_shift` for a connection (derived, never chosen). */
   readonly kind: InvoiceKind;
+  /** The period: its first and last shift dates (for an invoice of expenses only, its send date both times). */
   readonly periodStart: string;
+  readonly periodEnd: string;
   readonly hours: number;
   /** The single hourly rate when every shift on the invoice has it; null when the rates differ (14.7). */
   readonly ratePence: number | null;
@@ -77,7 +85,7 @@ export interface FamilyInvoiceSummary {
   readonly invoiceCount: number;
   readonly activeCount: number;
   readonly cancelledCount: number;
-  /** The live invoices' hours: Regular weeks and Trial Shifts (07 reads a week's hours from `getPlacementWeekHours`). */
+  /** The live invoices' hours, whatever they link to (07 reads a week's hours from `getPlacementWeekHours`). */
   readonly hours: number;
   /**
    * What the family was invoiced by her, in total (14.7): childcare, any VAT added on top, and her expenses. Not a
@@ -97,7 +105,7 @@ function rowsOf<T>(what: string, result: InvoiceResult<T>): T {
   throw new InvoiceReadError(what);
 }
 
-/** The hours on one placement's live Regular-week invoices for one London week; null when there are none. */
+/** The hours of one placement's live invoices' shifts in one London week, from its start; null when there are none. */
 export async function getPlacementWeekHours(proof: AdminProof, placementId: string, weekStart: string): Promise<PlacementWeekHours | null> {
   if (!nannyInvoicesEnabled()) return null;
   requireProof(proof);
@@ -125,6 +133,7 @@ function toFamilyInvoices(rows: readonly FamilyRow[]): FamilyInvoice[] {
       nannyName: r.nannyName,
       kind: r.kind,
       periodStart: r.periodStart,
+      periodEnd: r.periodEnd,
       hours: r.hours,
       ratePence: r.ratePence,
       shiftsPence: r.shiftsPence,

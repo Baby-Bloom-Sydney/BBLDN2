@@ -7,29 +7,24 @@
  * - No VAT: "Childcare", "Expenses" (when she has any), "Total".
  * - VAT added: "Childcare", "VAT at 20%", "Expenses", "Total" (the worked example's figures are in the tests).
  * - VAT included: "Childcare (including VAT)", "of which VAT at 20%", "Expenses", "Total".
+ * - Expenses only (06b-4 rework): "Expenses", "Total" — no Childcare or VAT line, whatever her VAT setting.
  * - Pay to: her full account name, sort code and account number — the one place they appear (brief D12).
  *
  * The figures are the created row's (the database worked them out with the same calculator, `totals.ts`).
  *
- * BB-wave1-041126/06b2-build, 2026-11-06.
+ * BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 
 import { Text, View } from "@react-pdf/renderer";
 import type { ReactElement } from "react";
-import { BASIS_POINTS_PER_PERCENT } from "@/config/invoices";
+import { totalsLines, vatRateLabel } from "../../invoice-text";
 import { formatSortCode } from "../../masking";
 import { formatInvoiceMoney } from "../../money";
 import type { InvoicePdfData } from "../InvoicePdf";
 import { styles, wholeUnlessLong } from "../theme";
 
-const PERCENT = BASIS_POINTS_PER_PERCENT;
-
-/** 2000 → "20%", 1750 → "17.5%", 1 → "0.01%" (basis points to a percent, no trailing zeros). */
-export function vatRateLabel(rateBp: number): string {
-  const whole = Math.floor(rateBp / PERCENT);
-  const hundredths = String(rateBp % PERCENT).padStart(2, "0").replace(/0+$/, "");
-  return `${whole}${hundredths === "" ? "" : `.${hundredths}`}%`;
-}
+/** "20%": one copy for the PDF and her review screen (moved unchanged to `invoice-text.ts`, 06b-4). */
+export { vatRateLabel };
 
 function row(label: string, pence: number): ReactElement {
   return (
@@ -42,18 +37,12 @@ function row(label: string, pence: number): ReactElement {
 
 /** Childcare, VAT per her mode, expenses and the total (14.8). */
 export function totalsBox(data: InvoicePdfData): ReactElement {
-  const { shiftsPence, expensesPence, vat, totalPence } = data.totals;
-  const rate = vat.rateBp === null ? "" : vatRateLabel(vat.rateBp);
-  const childcare = vat.mode === "included"
-    ? [row("Childcare (including VAT)", shiftsPence), row(`of which VAT at ${rate}`, vat.pence)]
-    : [row("Childcare", shiftsPence), ...(vat.mode === "added" ? [row(`VAT at ${rate}`, vat.pence)] : [])];
   return (
     <View style={styles.totals} wrap={false}>
-      {childcare}
-      {expensesPence > 0 ? row("Expenses", expensesPence) : null}
+      {totalsLines(data.totals).map((line) => row(line.label, line.pence))}
       <View style={styles.totalRow}>
         <Text style={styles.totalLabel}>Total</Text>
-        <Text style={styles.total}>{formatInvoiceMoney(totalPence)}</Text>
+        <Text style={styles.total}>{formatInvoiceMoney(data.totals.totalPence)}</Text>
       </View>
     </View>
   );

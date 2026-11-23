@@ -15,39 +15,18 @@
 
 import { Text, View } from "@react-pdf/renderer";
 import type { ComponentProps, ReactElement } from "react";
+import { businessLines, businessName, fromLines } from "../../invoice-text";
 import { formatVatNumber } from "../../vat-number";
-import type { InvoicePdfData, InvoicePdfIssuer } from "../InvoicePdf";
+import type { InvoicePdfData } from "../InvoicePdf";
 import { keepWhole, styles, wholeUnlessLong } from "../theme";
 
 /** "GB 123 4567 89": one formatter for the PDF and Settings (moved unchanged to `vat-number.ts` by 06b-3). */
 export { formatVatNumber };
+/** From and Business's lines: one copy for the PDF and her review screen (moved unchanged to `invoice-text.ts`, 06b-4). */
+export { businessLines, businessName, fromLines };
 
 /** The longest email Bill to prints on one line; a longer one breaks before its "@" (textkit hyphenates any other break). */
 const EMAIL_ONE_LINE = 36;
-
-const present = (lines: readonly (string | null)[]): string[] => lines.filter((l): l is string => l !== null && l !== "");
-
-/** The From column: her name, then one address — a limited company's registered office replaces the business address. */
-export function fromLines(issuer: InvoicePdfIssuer): string[] {
-  const office = issuer.businessType === "limited_company" ? issuer.registeredOffice : null;
-  return present([issuer.name, office || issuer.address]);
-}
-
-/** The business's one name: her trading name when she has entered one (it isn't her own name), else its registered name. */
-export function businessName(issuer: InvoicePdfIssuer): string | null {
-  if (issuer.tradingName && issuer.tradingName !== issuer.name) return issuer.tradingName;
-  if (issuer.businessType === "limited_company") return issuer.companyName || null;
-  if (issuer.businessType === "partnership") return issuer.partnershipName || null;
-  return null;
-}
-
-/** The Business column's lines under its name: a limited company's number, then the VAT number. */
-export function businessLines(issuer: InvoicePdfIssuer): string[] {
-  return present([
-    issuer.businessType === "limited_company" && issuer.companyNumber ? `Company no. ${issuer.companyNumber}` : null,
-    issuer.vatNumber && `VAT no. ${formatVatNumber(issuer.vatNumber)}`,
-  ]);
-}
 
 /** An email for Bill to: whole on one line up to 36 characters; a longer one on two, the second starting at its "@". */
 export function emailText(email: string): string {

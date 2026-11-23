@@ -6,7 +6,11 @@
  * Dates are London calendar dates ("YYYY-MM-DD"). Labels format a calendar date on a fixed noon-UTC instant with
  * `timeZone: "UTC"`, so the host's zone can't move a date (the `formatClockHourMinute` rule for wall clocks).
  *
- * BB-wave1-041126/06a-build, 2026-11-04; 06b2-build, 2026-11-06 (dayLabel).
+ * 06b-4 rework (BAI 2026-11-12): an invoice is any set of dated shifts, so its period — the earliest to the latest
+ * shift date — is labelled by `periodLabel`, which generalises the old week label. The week stays only for brief 07
+ * (`londonWeekStart`, `isLondonMonday`, `weekEndOf`: a placement's hours in one Monday–Sunday).
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; 06b2-build, 2026-11-06 (dayLabel); 06b4-server, 2026-11-12 (periodLabel).
  */
 
 import { APP_LOCALE } from "@/lib/constants";
@@ -38,17 +42,17 @@ export function isLondonDate(date: string): boolean {
   return noonOf(date) !== null;
 }
 
-/** A real date that is the Monday of its own week (a Regular week's `period_start`). */
+/** A real date that is the Monday of its own week (brief 07's week, `getPlacementWeekHours`). */
 export function isLondonMonday(date: string): boolean {
   return isLondonDate(date) && londonMondayOf(date) === date;
 }
 
-/** After London's today: future weeks and dates can't be invoiced; the current week can (brief §3 nanny 4). */
+/** After London's today: a future date can't be invoiced; today can (brief §3 nanny 4). */
 export function isFutureLondonDate(date: string, now: Date): boolean {
   return date > londonToday(now);
 }
 
-/** The Sunday that ends a week. */
+/** The Sunday that ends a week (brief 07's week). */
 export function weekEndOf(monday: string): string {
   return addLondonDays(monday, 6);
 }
@@ -64,31 +68,25 @@ const DAY_MONTH_YEAR = new Intl.DateTimeFormat(APP_LOCALE, { day: "numeric", mon
 const DAY = new Intl.DateTimeFormat(APP_LOCALE, { day: "numeric", timeZone: "UTC" });
 const WEEKDAY = new Intl.DateTimeFormat(APP_LOCALE, { weekday: "short", timeZone: "UTC" });
 
-/** "8–14 Feb 2027"; "29 Mar – 4 Apr 2027"; "28 Dec 2026 – 3 Jan 2027". */
-export function weekRangeLabel(monday: string): string {
-  const start = requireNoonOf(monday);
-  const end = requireNoonOf(weekEndOf(monday));
-  if (start.getUTCFullYear() !== end.getUTCFullYear()) {
-    return `${DAY_MONTH_YEAR.format(start)} – ${DAY_MONTH_YEAR.format(end)}`;
+/**
+ * An invoice's period (ledger reading 7): "2–29 Nov 2026"; "29 Oct – 2 Nov 2026"; "29 Dec 2026 – 2 Jan 2027"; and
+ * "5 Oct 2026" for one day. A RangeError for a date that isn't one, or an end before the start.
+ */
+export function periodLabel(start: string, end: string): string {
+  const from = requireNoonOf(start);
+  const to = requireNoonOf(end);
+  if (end < start) throw new RangeError("a period ends on or after its start");
+  if (start === end) return DAY_MONTH_YEAR.format(from);
+  if (from.getUTCFullYear() !== to.getUTCFullYear()) {
+    return `${DAY_MONTH_YEAR.format(from)} – ${DAY_MONTH_YEAR.format(to)}`;
   }
-  if (start.getUTCMonth() !== end.getUTCMonth()) {
-    return `${DAY_MONTH.format(start)} – ${DAY_MONTH_YEAR.format(end)}`;
+  if (from.getUTCMonth() !== to.getUTCMonth()) {
+    return `${DAY_MONTH.format(from)} – ${DAY_MONTH_YEAR.format(to)}`;
   }
-  return `${DAY.format(start)}–${DAY_MONTH_YEAR.format(end)}`;
+  return `${DAY.format(from)}–${DAY_MONTH_YEAR.format(to)}`;
 }
 
-/** "8 Feb 2027" — as in "week of 8 Feb 2027". */
-export function weekOfLabel(monday: string): string {
-  return DAY_MONTH_YEAR.format(requireNoonOf(monday));
-}
-
-/** "Wed 3 Feb 2027" — a Trial Shift's date. */
-export function shiftDateLabel(date: string): string {
-  const at = requireNoonOf(date);
-  return `${WEEKDAY.format(at)} ${DAY_MONTH_YEAR.format(at)}`;
-}
-
-/** "Mon 8 Feb" — a shift's date in the invoice's table, under its "week of …" heading (06b-2). */
+/** "Mon 8 Feb" — a shift's date in the invoice's table, under its period heading (06b-2). */
 export function dayLabel(date: string): string {
   const at = requireNoonOf(date);
   return `${WEEKDAY.format(at)} ${DAY_MONTH.format(at)}`;

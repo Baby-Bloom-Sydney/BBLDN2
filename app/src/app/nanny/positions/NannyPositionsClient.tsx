@@ -62,6 +62,7 @@ import { PositionAccordion } from "@/components/position/PositionAccordion";
 import { AvailabilityGrid } from "@/components/position/AvailabilityGrid";
 import Link from "next/link";
 import { isShareUnlocked } from "@/lib/features/flags";
+import { CreateInvoiceLink } from "@/app/nanny/invoices/CreateInvoiceLink";
 
 function formatStartWeekDisplay(dateStr: string): string {
   if (dateStr === "tbc") return "Start week to be confirmed";
@@ -882,6 +883,7 @@ export function NannyPositionsClient({
                           </p>
                         </div>
                       )}
+                      <CreateInvoiceLink placementId={placement.id} />
                     </div>
 
                     {/* Schedule table — days × time blocks */}

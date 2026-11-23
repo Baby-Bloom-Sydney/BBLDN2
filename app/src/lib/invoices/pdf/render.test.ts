@@ -2,15 +2,26 @@
 /**
  * The invoice PDF rendered for real (plan 06 step 8, §14.6 b2.6; R7 names with accents print exactly; R9 no `any`).
  * The text is read back out of the PDF bytes with `pdf-parse` (already a dependency; its library entry, so the
- * package's own self-test never runs), page by page. At the most lines (28 shifts, 20 expenses) the PDF runs to two
- * pages, with the footer on each and the totals and pay-to box whole on the last (plan 14.3, X7).
+ * package's own self-test never runs), page by page. At the most lines (06b-4 rework: 100 shifts, 40 expenses) the PDF
+ * runs to more pages (ledger reading 9), with the footer and "Page X of Y" on each and the totals and pay-to box whole
+ * on the last. The heading is "Childcare, {period}"; an invoice of expenses only has no childcare table.
  * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06;
- * BB-wave1-041126 (three-column parties: where Bill to's email sits on the page), 2026-11-07.
+ * BB-wave1-041126 (three-column parties: where Bill to's email sits on the page), 2026-11-07; 06b4-server, 2026-11-12.
  */
 import { createRequire } from "node:module";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderInvoicePdf } from "./render";
-import { CORRECTION_INVOICE, HARTLEY_INVOICE, LTD_VAT_ADDED, MAX_INVOICE, TRIAL_INVOICE, VAT_INCLUDED, WORST_INVOICE } from "./fixtures.test-util";
+import {
+  CORRECTION_INVOICE,
+  EXPENSES_ONLY_INVOICE,
+  HARTLEY_INVOICE,
+  LTD_VAT_ADDED,
+  MAX_INVOICE,
+  ONE_DAY_INVOICE,
+  TWO_WEEK_INVOICE,
+  VAT_INCLUDED,
+  WORST_INVOICE,
+} from "./fixtures.test-util";
 
 interface PdfPage {
   getTextContent(): Promise<{ readonly items: readonly { readonly str: string; readonly transform: readonly number[]; readonly width: number }[] }>;
@@ -48,7 +59,7 @@ describe("renderInvoicePdf", () => {
     const { bytes, text, pages } = await rendered(HARTLEY_INVOICE);
     expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
     expect(pages).toHaveLength(1);
-    for (const s of ["INVOICE", "BB-SophieTaylor-270215-0001", "15 Feb 2027", "Olivia Hartley", "Childcare, week of 8–14 Feb 2027",
+    for (const s of ["INVOICE", "BB-SophieTaylor-270215-0001", "15 Feb 2027", "Olivia Hartley", "Childcare, 8–12 Feb 2027",
       "Mon 8 Feb", "Fri 12 Feb", "evening, agreed rate", "£22.00", "Soft play, Islington", "£584.00", "£12.50", "£596.50",
       "11-22-33", "87654321", "Generated with BabyBloom"]) {
       expect(text).toContain(s);
@@ -112,30 +123,44 @@ describe("renderInvoicePdf", () => {
     }
   }, 30_000);
 
-  it("renders a Trial Shift", async () => {
-    const { text } = await rendered(TRIAL_INVOICE);
-    expect(text).toContain("Trial Shift, Wed 3 Feb 2027");
+  it("renders one day's work as \"Childcare, 3 Feb 2027\"", async () => {
+    const { text } = await rendered(ONE_DAY_INVOICE);
+    expect(text).toContain("Childcare, 3 Feb 2027");
+    expect(text).not.toMatch(/Trial Shift|week of/);
     expect(text).toContain("£78.40");
   }, 30_000);
 
-  it("at the most lines (28 shifts + 20 expenses) runs to two pages: the footer on each, totals and pay-to whole", async () => {
-    const { pages, text } = await rendered(MAX_INVOICE);
-    expect(pages).toHaveLength(2);
-    for (const page of pages) expect(page).toContain("Generated with BabyBloom");
-    // the closing block (totals and pay-to; its labels print upper-case) is whole on the last page, and only there
-    for (const s of [/Total/, /p\s*a\s*y\s*t\s*o/i, /Account name/, /Sort code/, /11-22-33/, /Account number/, /87654321/, /£\d/]) {
-      expect(pages[1]).toMatch(s);
-    }
-    for (const s of [/p\s*a\s*y\s*t\s*o/i, /Account name/, /87654321/, /Total/]) expect(pages[0]).not.toMatch(s);
-    expect((text.match(/ care/g) ?? []).length).toBe(28);
-    expect((text.match(/Receipt \d+/g) ?? []).length).toBe(20);
+  it("renders two weeks on one page as \"Childcare, 1–12 Feb 2027\"", async () => {
+    const { pages, text } = await rendered(TWO_WEEK_INVOICE);
+    expect(pages).toHaveLength(1);
+    for (const s of ["Childcare, 1–12 Feb 2027", "Mon 1 Feb", "Fri 12 Feb", "£1,394.00", "£6.40", "£1,400.40"]) expect(text).toContain(s);
   }, 30_000);
 
-  it("a two-page invoice prints 'Page 1 of 2' and 'Page 2 of 2'; a one-page invoice prints no page number (BAI 2026-11-07)", async () => {
-    const { pages } = await rendered(MAX_INVOICE);
-    expect(pages).toHaveLength(2);
-    expect(pages[0]).toContain("Page 1 of 2");
-    expect(pages[1]).toContain("Page 2 of 2");
+  it("renders an invoice of expenses only: no childcare table, no Childcare or VAT line, the expenses and the total", async () => {
+    const { pages, text } = await rendered(EXPENSES_ONLY_INVOICE);
+    expect(pages).toHaveLength(1);
+    expect(text).not.toMatch(/Childcare,|VAT at|Hours/);
+    for (const s of ["Soft play", "£12.50", "Bus", "£6.40", "£18.90", "VAT no. GB 123 4567 89"]) expect(text).toContain(s);
+  }, 30_000);
+
+  it("at the most lines (100 shifts + 40 expenses) runs to more pages: the footer and page number on each, totals and pay-to whole on the last", async () => {
+    const { pages, text } = await rendered(MAX_INVOICE);
+    expect(pages.length).toBeGreaterThanOrEqual(3);
+    const last = pages[pages.length - 1] ?? "";
+    pages.forEach((page, i) => {
+      expect(page).toContain("Generated with BabyBloom");
+      expect(page).toContain(`Page ${i + 1} of ${pages.length}`);
+    });
+    // the closing block (totals and pay-to; its labels print upper-case) is whole on the last page, and only there
+    for (const s of [/Total/, /p\s*a\s*y\s*t\s*o/i, /Account name/, /Sort code/, /11-22-33/, /Account number/, /87654321/, /£\d/]) {
+      expect(last).toMatch(s);
+    }
+    for (const page of pages.slice(0, -1)) for (const s of [/p\s*a\s*y\s*t\s*o/i, /Account name/, /87654321/, /Total/]) expect(page).not.toMatch(s);
+    expect((text.match(/ care/g) ?? []).length).toBe(100);
+    expect((text.match(/Receipt \d+/g) ?? []).length).toBe(40);
+  }, 30_000);
+
+  it("a one-page invoice prints no page number (BAI 2026-11-07)", async () => {
     expect((await rendered(HARTLEY_INVOICE)).text).not.toMatch(/Page \d/);
   }, 30_000);
 
@@ -147,15 +172,15 @@ describe("renderInvoicePdf", () => {
     // the label is letter-spaced, so its text comes out as "PAY   T O"
     for (const s of [/Total/, /p\s*a\s*y\s*t\s*o/i, /Account number/, /87654321/]) expect(last).toMatch(s);
     for (const page of pages.slice(0, -1)) for (const s of [/p\s*a\s*y\s*t\s*o/i, /Account number/, /Total/]) expect(page).not.toMatch(s);
-    expect((text.match(/end of shift \d+/g) ?? []).length).toBe(28);
-    expect((text.match(/end of receipt \d+/g) ?? []).length).toBe(20);
+    expect((text.match(/end of shift \d+/g) ?? []).length).toBe(100);
+    expect((text.match(/end of receipt \d+/g) ?? []).length).toBe(40);
   }, 30_000);
 
   it("names the document: title, author, subject and language (review React M5)", async () => {
     const { info, bytes } = await rendered(CORRECTION_INVOICE);
     expect(info.Title).toBe("Invoice BB-LucjaWisniewska-270215-0003");
     expect(info.Author).toBe("Zoë Ó Briain Childcare");
-    expect(info.Subject).toBe("Childcare, week of 8–14 Feb 2027");
+    expect(info.Subject).toBe("Childcare, 8–9 Feb 2027");
     expect(bytes.toString("latin1")).toMatch(/\/Lang \(en-GB\)/);
   }, 30_000);
 

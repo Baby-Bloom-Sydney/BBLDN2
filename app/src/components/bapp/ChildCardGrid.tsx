@@ -50,16 +50,24 @@ interface ChildCardGridProps {
    * Optional. Callers that don't pass it get no ticks.
    */
   subscribedChildIds?: Set<string>;
+  /**
+   * Starts the nanny's add-child sheet open, on arrival only (the hub's `?add=child`, from the invoice picker's "Add
+   * family", 06b-4). Read once as the sheet's starting state; a parent's grid ignores it.
+   */
+  openAddOnArrival?: boolean;
 }
 
 export function ChildCardGrid({
   children,
   role,
   subscribedChildIds,
+  openAddOnArrival = false,
 }: ChildCardGridProps) {
   const router = useRouter();
   const [chooserOpen, setChooserOpen] = useState(false);
-  const [addNannySheetOpen, setAddNannySheetOpen] = useState(false);
+  const [addNannySheetOpen, setAddNannySheetOpen] = useState(
+    role === "nanny" && openAddOnArrival,
+  );
   const [addParentSheetOpen, setAddParentSheetOpen] = useState(false);
   const [connectSheetOpen, setConnectSheetOpen] = useState(false);
   const [onboardChild, setOnboardChild] = useState<ChildClient | null>(null);

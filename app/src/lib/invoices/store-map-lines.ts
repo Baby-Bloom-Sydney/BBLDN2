@@ -8,10 +8,14 @@
  * office), with no `address_source`; it and a business save carry the version Settings sends back (`version`: the
  * database's text, never re-formatted — `instant` would cut its microseconds and every save would look stale).
  *
- * BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b3-rework, 2026-11-09.
+ * 06b-4 rework (amendment 21 as revised): an invoice's lines run 1–140; a header's hours may be 0 (an invoice of
+ * expenses only); every invoice carries its period's end, on or after its start.
+ *
+ * BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b3-rework, 2026-11-09; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 
 import { z } from "zod";
+import { INVOICE_RULES } from "@/config/invoices";
 import { isInvoiceNumber } from "./numbering";
 import {
   BUSINESS_TYPE_KEYS,
@@ -36,8 +40,12 @@ export const instant = z.string().refine((v) => !Number.isNaN(Date.parse(v))).tr
 /** A record's version (its `updated_at`), kept exactly as the database wrote it: it is compared again on the next save. */
 export const version = z.string().min(1).refine((v) => !Number.isNaN(Date.parse(v)));
 export const londonDate = z.string().refine(isLondonDate);
-/** `numeric`: PostgREST may send a number or its text. */
+/** `numeric`: PostgREST may send a number or its text. A shift line's hours are positive. */
 export const hoursValue = z.union([z.number(), z.string()]).transform(Number).pipe(z.number().positive().finite());
+/** An invoice's hours: the sum of its shifts, 0 for an invoice of expenses only. */
+export const headerHours = z.union([z.number(), z.string()]).transform(Number).pipe(z.number().nonnegative().finite());
+/** A period's two ends, the end on or after the start (both London dates). */
+export const periodEndsInOrder = (r: { readonly period_start: string; readonly period_end: string }): boolean => r.period_end >= r.period_start;
 export const pence = z.number().int();
 const delivery = z.enum(["sent", "failed"]).nullable();
 /**
@@ -69,7 +77,7 @@ export type StoredLine =
 /** The columns of a stored line (the reply's `lines`, and the embedded read). */
 export const LINE_COLUMNS = "line_no, kind, shift_date, hours, rate_pence, expense_type, description, amount_pence";
 
-const lineNo = z.number().int().min(1);
+const lineNo = z.number().int().min(1).max(INVOICE_RULES.maxShiftLines + INVOICE_RULES.maxExpenseLines);
 const shiftRow = z.object({
   line_no: lineNo, kind: z.literal("shift"), shift_date: londonDate, hours: hoursValue, rate_pence: pence.positive(),
   expense_type: z.null(), description: printedLine.nullable(), amount_pence: pence.nonnegative(),
@@ -162,6 +170,7 @@ export interface MyInvoice {
   readonly parentUserId: string;
   readonly familyName: string;
   readonly periodStart: string;
+  readonly periodEnd: string;
   readonly hours: number;
   readonly shiftsPence: number;
   readonly expensesPence: number;
@@ -184,23 +193,24 @@ export interface MyInvoice {
 
 export const MY_INVOICE_COLUMNS =
   "id, nanny_id, invoice_seq, invoice_number, kind, placement_id, connection_request_id, parent_user_id, family_name, period_start, " +
-  "hours, shifts_pence, expenses_pence, vat_mode, vat_pence, total_pence, status, replaces_invoice_id, family_email_status, " +
+  "period_end, hours, shifts_pence, expenses_pence, vat_mode, vat_pence, total_pence, status, replaces_invoice_id, family_email_status, " +
   "nanny_email_status, cancel_family_email_status, cancel_nanny_email_status, sent_at, cancelled_at, cancel_reason, created_at";
 
 export const myInvoiceRow = z
   .object({
     id, nanny_id: id, invoice_seq: z.number().int().positive(), invoice_number: z.string().refine(isInvoiceNumber),
     kind: z.enum(INVOICE_KINDS), placement_id: id.nullable(), connection_request_id: id.nullable(), parent_user_id: id,
-    family_name: z.string(), period_start: londonDate, hours: hoursValue, shifts_pence: pence, expenses_pence: pence,
+    family_name: z.string(), period_start: londonDate, period_end: londonDate, hours: headerHours, shifts_pence: pence, expenses_pence: pence,
     vat_mode: z.enum(VAT_MODES), vat_pence: pence, total_pence: pence, status: z.enum(INVOICE_STATUSES),
     replaces_invoice_id: id.nullable(), family_email_status: delivery, nanny_email_status: delivery,
     cancel_family_email_status: delivery, cancel_nanny_email_status: delivery, sent_at: instant.nullable(),
     cancelled_at: instant.nullable(), cancel_reason: z.enum(CANCEL_REASONS).nullable(), created_at: instant,
   })
+  .refine(periodEndsInOrder)
   .transform((r): MyInvoice => ({
     invoiceId: r.id, nannyId: r.nanny_id, seq: r.invoice_seq, number: r.invoice_number, kind: r.kind, placementId: r.placement_id,
     connectionRequestId: r.connection_request_id, parentUserId: r.parent_user_id, familyName: r.family_name,
-    periodStart: r.period_start, hours: r.hours, shiftsPence: r.shifts_pence, expensesPence: r.expenses_pence, vatMode: r.vat_mode,
+    periodStart: r.period_start, periodEnd: r.period_end, hours: r.hours, shiftsPence: r.shifts_pence, expensesPence: r.expenses_pence, vatMode: r.vat_mode,
     vatPence: r.vat_pence, totalPence: r.total_pence, status: r.status, replacesInvoiceId: r.replaces_invoice_id,
     delivery: { family: r.family_email_status, nanny: r.nanny_email_status, cancelFamily: r.cancel_family_email_status, cancelNanny: r.cancel_nanny_email_status },
     sentAt: r.sent_at, cancelledAt: r.cancelled_at, cancelReason: r.cancel_reason, createdAt: r.created_at,

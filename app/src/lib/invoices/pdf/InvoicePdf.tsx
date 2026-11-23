@@ -7,9 +7,13 @@
  * 06b-2: an invoice is a header plus lines. The page: the wordmark and "INVOICE"; the number, issue date and
  * "Replaces …"; three columns, From, Business and Bill to (`sections/issuer`, BAI 2026-11-07); the shift table and
  * the expenses (`sections/lines`); the closing block — childcare, VAT per her mode, expenses and the total, with Pay
- * to beside them — kept whole together (`sections/totals`). At the most lines (28 shifts, 20 expenses) it runs to two
- * A4 pages, with the violet band and the footer on each; a longer invoice's footer says "Page X of Y". Everything
- * comes from the created row's snapshot, so a later Settings change never alters it.
+ * to beside them — kept whole together (`sections/totals`). A longer invoice runs on to more A4 pages, with the
+ * violet band and the footer on each, and its footer says "Page X of Y". Everything comes from the created row's
+ * snapshot, so a later Settings change never alters it.
+ *
+ * 06b-4 rework (BAI 2026-11-12): the shift table's heading is "Childcare, {period}", the earliest to the latest shift
+ * date; an invoice of expenses only has no shift table and no Childcare or VAT line. At the most lines (100 shifts,
+ * 40 expenses) it runs to more pages; rows and the closing block still never split (ledger reading 9).
  *
  * Built from react-pdf primitives only (helpers are called, never mounted as components), so a test can walk every
  * string without rendering — the `client-hire-summary` pattern. The look (BAI 2026-11-04, 06b-1) is kept: an opaque
@@ -20,14 +24,14 @@
  * `@pending:legal` — brief 11's invoice wording (the sole-trader statement; `11-legal-text.md` §3) drops in at the
  * footer slot below; when it does, move the page label off the footer's first line (it sits at `top: 10`).
  * BB-wave1-041126/06a-build, 2026-11-04; 06b-1 (the look), 2026-11-04; 06b2-build, 2026-11-06; three columns and
- * page numbers, 2026-11-07.
+ * page numbers, 2026-11-07; 06b4-server, 2026-11-12.
  */
 
 import { Document, Page, Text, View, type DocumentProps } from "@react-pdf/renderer";
 import type { ReactElement } from "react";
 import { SITE_NAME } from "@/lib/constants";
-import type { ExpenseType, InvoiceKind, VatMode } from "../types";
-import { issueDateLabel } from "../week";
+import type { ExpenseType, VatMode } from "../types";
+import { issueDateLabel, periodLabel } from "../week";
 import type { IssuerSnapshot } from "../store-map";
 import { parties } from "./sections/issuer";
 import { describeLine, expenseTable, shiftTable } from "./sections/lines";
@@ -55,9 +59,9 @@ export interface InvoicePdfData {
   readonly number: string;
   /** The instant the invoice was created; printed as its London date. */
   readonly issuedAt: string;
-  readonly kind: InvoiceKind;
-  /** A Regular week's Monday, or the Trial Shift's date. */
+  /** The period: the first and last shift dates (for an invoice of expenses only, its send date both times). */
   readonly periodStart: string;
+  readonly periodEnd: string;
   readonly issuer: InvoicePdfIssuer;
   readonly billTo: { readonly name: string; readonly email: string };
   readonly shifts: readonly InvoicePdfShift[];
@@ -102,6 +106,10 @@ function meta(data: InvoicePdfData): ReactElement {
   );
 }
 
+/** The document's subject: "Childcare, {period}", or "Expenses, {period}" for an invoice of expenses only. */
+const subjectOf = (data: InvoicePdfData): string =>
+  data.shifts.length > 0 ? describeLine(data.periodStart, data.periodEnd) : `Expenses, ${periodLabel(data.periodStart, data.periodEnd)}`;
+
 /** "Page X of Y" in the footer of each page of a longer invoice; nothing on a one-page invoice (BAI 2026-11-07). */
 export const pageLabel = ({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }): string =>
   totalPages > 1 ? `Page ${pageNumber} of ${totalPages}` : "";
@@ -111,7 +119,7 @@ export function InvoicePdf(data: InvoicePdfData): ReactElement<DocumentProps> {
     <Document
       title={`Invoice ${data.number}`}
       author={data.issuer.tradingName}
-      subject={describeLine(data.kind, data.periodStart)}
+      subject={subjectOf(data)}
       language="en-GB"
     >
       <Page size="A4" style={styles.page}>

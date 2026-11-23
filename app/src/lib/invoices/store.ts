@@ -22,7 +22,12 @@
  * - The readers' rows are what went out, with a PDF (R1), re-checked here whatever the query returned.
  * - Failures are logged by code only (`db.ts`); results are closed codes, nothing is thrown to callers.
  *
- * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b3-rework, 2026-11-09.
+ * 06b-4 rework (amendment 21 as revised): an invoice goes as the family's link id and its lines; the database works
+ * out the family, the link, the kind, the earliest date and the period. Brief 07's week sums the placement's live
+ * invoices' shift lines dated in that Monday–Sunday, on or after the placement's start.
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b3-rework, 2026-11-09;
+ * BB-wave1-041126/06b4-server, 2026-11-12.
  */
 
 import { z } from "zod";
@@ -51,6 +56,7 @@ import {
   WEEK_COLUMNS,
   weekRow,
   type CreatedInvoice,
+  type WeekLine,
   type FamilyRow,
   type MaskedPaymentDetails,
   type SavedDetails,
@@ -61,6 +67,7 @@ import {
 import {
   linesArg,
   linesInOrder,
+  londonDate,
   MY_INVOICE_COLUMNS,
   MY_LINES_COLUMNS,
   myInvoiceRow,
@@ -71,8 +78,9 @@ import {
 } from "./store-map-lines";
 import { FAILED, INVALID, invoiceOk, refused, type EmailDelivery, type InvoiceError, type InvoiceResult } from "./types";
 import { paymentDetailsSchema } from "./validation";
+import { QUARTERS_PER_HOUR, toQuarters } from "./totals";
 import { FUTURE_ISSUE, invoiceDraftSchema } from "./validation-lines";
-import { isLondonMonday, londonDayRange } from "./week";
+import { isLondonMonday, londonDayRange, weekEndOf } from "./week";
 
 export type { CreatedInvoice, FamilyRow, IssuerSnapshot, MaskedPaymentDetails, SavedDetails, SettingsBankDetails, StoredPaymentDetails, WeekRow } from "./store-map";
 export type { MyInvoice, StoredLine } from "./store-map-lines";
@@ -150,19 +158,20 @@ export async function saveDetails(proof: NannyProof, input: unknown, expectedUpd
   return mapReply("nanny_payment_details_save", reply, savedReply);
 }
 
-/** A draft the schema refused: a future week or day, a line it can't take, or anything else (by issue code). */
+/** A draft the schema refused: a future day, a line it can't take, or anything else (by issue code). */
 function draftRefusal(issues: readonly z.core.$ZodIssue[]): InvoiceError {
   if (issues.some((i) => i.code === "custom" && i.params?.issue === FUTURE_ISSUE)) return "future";
   return issues.some((i) => i.path[0] === "lines") ? "bad_lines" : "invalid";
 }
 
 /**
- * Create an invoice (status `sending`, the next per-nanny number) from a draft — a header and her lines in order —
- * the last 4 of the account her PDF will print, and the total her review showed (`expectedTotalPence`, from
- * `totals.ts` and her issuer). The database decides, under her lock: the family and its name and email (from her own
- * placement — not dismissed — or her trial connection, on its trial date), the daily cap, her account status, the
- * correction rules, who she is on the invoice (her business details now: `no_address` when there's none), every
- * figure (`bad_lines`, and `changed` when the total isn't the one she saw). The draft's `invoiceId` is the caller's:
+ * Create an invoice (status `sending`, the next per-nanny number) from a draft — the family's link id and her lines
+ * in order — the last 4 of the account her PDF will print, and the total her review showed (`expectedTotalPence`,
+ * from `totals.ts` and her issuer). The database decides, under her lock: the family and its name and email, the
+ * link and its kind, the earliest date and the period (from her own placement — not dismissed — or her trial
+ * connection with that parent), the daily cap, her account status, the correction rules, who she is on the invoice
+ * (her business details now: `no_address` when there's none), every figure and date (`bad_lines` — a date before the
+ * family's earliest allowed date included — and `changed` when the total isn't the one she saw). The draft's `invoiceId` is the caller's:
  * sending the same id again never makes a second invoice or a second send — it answers `in_progress` or
  * `already_done`. Only a fresh `ok` may be rendered, uploaded, emailed and finished.
  */
@@ -185,9 +194,7 @@ export async function createInvoice(
   const reply = await callRpc(admin, "nanny_invoice_create", {
     p_id: d.invoiceId,
     p_nanny: proof.nannyId,
-    p_kind: d.kind,
     p_target: d.targetId,
-    p_period_start: d.periodStart,
     p_lines: linesArg(d.lines),
     p_expected_total_pence: expectedTotalPence,
     p_replaces: d.replacesInvoiceId,
@@ -256,22 +263,58 @@ export async function countTowardsDailyCap(proof: NannyProof, now: Date = new Da
   }
 }
 
-/** 07's rows: one placement's sent Regular-week invoices for a London week, oldest number first. */
-export async function readPlacementWeekRows(proof: AdminProof, placementId: string, weekStart: string): Promise<InvoiceResult<readonly WeekRow[]>> {
+const placementStartRow = z.object({ id: z.string().min(1), start_date: londonDate.nullable() });
+
+/** A week row's hours: its shift lines dated `from` to `to`, summed in whole quarters (no float drift); null when a
+ * line's hours aren't quarter hours (the database's CHECK says they are: never guessed). */
+function weekHoursOf(lines: readonly WeekLine[], from: string, to: string): number | null {
+  try {
+    const quarters = lines.reduce((sum, l) =>
+      l.kind === "shift" && l.shift_date !== null && l.hours !== null && l.shift_date >= from && l.shift_date <= to ? sum + toQuarters(l.hours) : sum, 0);
+    return quarters / QUARTERS_PER_HOUR;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 07's rows (spec j): the placement's live invoices (sent, with a PDF) with shift lines dated in that London week and
+ * on or after the placement's start, each with those lines' hours, oldest number first. A week before the start, or a
+ * placement that isn't there, reads no invoice. The query keeps only those lines; the rows are checked again here.
+ * The id is read in lower case, as every reply writes a uuid.
+ */
+export async function readPlacementWeekRows(proof: AdminProof, givenId: string, weekStart: string): Promise<InvoiceResult<readonly WeekRow[]>> {
   const gate = adminGate(proof);
   if (gate) return gate;
-  if (!guid.safeParse(placementId).success || !isLondonMonday(weekStart)) return INVALID;
+  if (!guid.safeParse(givenId).success || !isLondonMonday(weekStart)) return INVALID;
+  // a uuid comes back in lower case, so the query and the re-check below use that form (security review L2)
+  const placementId = givenId.toLowerCase();
   const admin = serviceClient();
   if (!admin) return FAILED;
-  const rows = await allPages("readPlacementWeekRows", (from, to) =>
-    admin.from("nanny_invoices").select(WEEK_COLUMNS).eq("placement_id", placementId).eq("period_start", weekStart)
-      .eq("kind", "regular_week").eq("status", "sent").not("pdf_path", "is", null)
-      .order("invoice_seq", { ascending: true }).order("id", { ascending: true }).range(from, to),
+  const placement = await readOne("readPlacementWeekRows.placement", () =>
+    admin.from("nanny_placements").select("id, start_date").eq("id", placementId).maybeSingle(), placementStartRow);
+  if (!placement.ok) return placement;
+  const weekEnd = weekEndOf(weekStart);
+  const start = placement.value?.start_date ?? null;
+  const from = start !== null && start > weekStart ? start : weekStart;
+  if (placement.value === null || from > weekEnd) return invoiceOk([]);
+  const rows = await allPages("readPlacementWeekRows", (first, last) =>
+    admin.from("nanny_invoices").select(WEEK_COLUMNS).eq("placement_id", placementId).eq("status", "sent").not("pdf_path", "is", null)
+      .lte("period_start", weekEnd).gte("period_end", from)
+      .eq("nanny_invoice_lines.kind", "shift").gte("nanny_invoice_lines.shift_date", from).lte("nanny_invoice_lines.shift_date", weekEnd)
+      .order("invoice_seq", { ascending: true }).order("id", { ascending: true }).range(first, last),
   );
   const parsed = parseRows("readPlacementWeekRows", rows, weekRow);
   if (!parsed.ok) return parsed;
-  return invoiceOk(parsed.value.flatMap((r) =>
-    countsAsSent({ status: r.status, pdfPath: r.pdf_path }) && r.sent_at !== null ? [toWeekRow(r, r.sent_at)] : []));
+  const live = parsed.value.flatMap((r) =>
+    r.placement_id === placementId && countsAsSent({ status: r.status, pdfPath: r.pdf_path }) && r.sent_at !== null
+      ? [{ row: r, sentAt: r.sent_at, hours: weekHoursOf(r.nanny_invoice_lines, from, weekEnd) }]
+      : []);
+  if (live.some((w) => w.hours === null)) {
+    logFailure("readPlacementWeekRows", { code: "unexpected_row" });
+    return FAILED;
+  }
+  return invoiceOk(live.flatMap((w) => (w.hours !== null && w.hours > 0 ? [toWeekRow(w.row, w.sentAt, w.hours)] : [])));
 }
 
 /** The family readers' rows: every invoice that went out to one family (sent or cancelled, with a PDF), oldest first. */

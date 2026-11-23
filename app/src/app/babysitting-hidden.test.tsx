@@ -235,7 +235,7 @@ describe("hubs never call the babysitting getters while off", () => {
     off();
     adminFromThrows = false;
     const { default: Page } = await import("./nanny/page");
-    const out = (await Page()) as ReactElement<{ children: ReactElement<Record<string, unknown>> }>;
+    const out = (await Page({ searchParams: {} })) as ReactElement<{ children: ReactElement<Record<string, unknown>> }>;
     const hub = out.props.children.props;
     expect(calls.read).not.toHaveBeenCalled();
     expect(hub.babysittingJobs).toEqual([]);
@@ -247,6 +247,6 @@ describe("hubs never call the babysitting getters while off", () => {
     on();
     adminFromThrows = false;
     const { default: Page } = await import("./nanny/page");
-    await expect(async () => Page()).rejects.toThrow("DATA_READ:getNannyBabysittingJobs");
+    await expect(async () => Page({ searchParams: {} })).rejects.toThrow("DATA_READ:getNannyBabysittingJobs");
   });
 });

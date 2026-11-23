@@ -4,7 +4,9 @@
  * store sends. Pure. A row or reply that doesn't fit is never guessed: the parse fails and the caller fails the read.
  * Fixture rates positionally (a test file, so the money-literal spec is satisfied either way).
  *
- * BB-wave1-041126/06b2-build, 2026-11-06.
+ * 06b-4 rework: lines run 1–140; a header's hours may be 0 (an invoice of expenses only); her list reads `period_end`.
+ *
+ * BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b4-server, 2026-11-12.
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -26,6 +28,7 @@ describe("lineRow", () => {
       lineNo: 1, kind: "shift", date: "2027-02-08", hours: 6, ratePence: 1800, description: "evening, agreed rate", amountPence: 10_800,
     });
     expect(lineRow.parse(EXPENSE_ROW)).toEqual({ lineNo: 7, kind: "expense", expenseType: "activities", description: "Soft play", amountPence: 1250 });
+    expect(lineRow.parse({ ...EXPENSE_ROW, line_no: 140 })).toMatchObject({ lineNo: 140 });
   });
 
   it.each([
@@ -37,6 +40,8 @@ describe("lineRow", () => {
     ["an unknown kind", { ...SHIFT_ROW, kind: "bonus" }],
     ["an amount that isn't whole pence", { ...SHIFT_ROW, amount_pence: 10.5 }],
     ["line 0", { ...SHIFT_ROW, line_no: 0 }],
+    ["line 141", { ...SHIFT_ROW, line_no: 141 }],
+    ["a shift of 0 hours", { ...SHIFT_ROW, hours: 0 }],
   ])("refuses %s", (_label, row) => {
     expect(lineRow.safeParse(row).success).toBe(false);
   });
@@ -131,7 +136,7 @@ describe("myInvoiceRow (her own list: no email, bank or PDF field)", () => {
     id: "b0600000-0000-4000-8000-000000009001", nanny_id: "b0600000-0000-4000-8000-000000000101", invoice_seq: 1,
     invoice_number: "BB-SophieTaylor-270215-0001", kind: "regular_week", placement_id: "b0600000-0000-4000-8000-000000000411",
     connection_request_id: null, parent_user_id: "b0600000-0000-4000-8000-000000000011", family_name: "Olivia Hartley",
-    period_start: "2027-02-08", hours: "32.00", shifts_pence: 58_400, expenses_pence: 1250, vat_mode: "none", vat_pence: 0,
+    period_start: "2027-02-08", period_end: "2027-02-12", hours: "32.00", shifts_pence: 58_400, expenses_pence: 1250, vat_mode: "none", vat_pence: 0,
     total_pence: 59_650, status: "sent", replaces_invoice_id: null, family_email_status: "sent", nanny_email_status: "sent",
     cancel_family_email_status: null, cancel_nanny_email_status: null, sent_at: "2027-02-15T10:00:00+00:00", cancelled_at: null,
     cancel_reason: null, created_at: "2027-02-15T09:59:58+00:00",
@@ -141,14 +146,22 @@ describe("myInvoiceRow (her own list: no email, bank or PDF field)", () => {
     expect(myInvoiceRow.parse(ROW)).toEqual({
       invoiceId: ROW.id, nannyId: ROW.nanny_id, seq: 1, number: "BB-SophieTaylor-270215-0001", kind: "regular_week",
       placementId: ROW.placement_id, connectionRequestId: null, parentUserId: ROW.parent_user_id, familyName: "Olivia Hartley",
-      periodStart: "2027-02-08", hours: 32, shiftsPence: 58_400, expensesPence: 1250, vatMode: "none", vatPence: 0,
+      periodStart: "2027-02-08", periodEnd: "2027-02-12", hours: 32, shiftsPence: 58_400, expensesPence: 1250, vatMode: "none", vatPence: 0,
       totalPence: 59_650, status: "sent", replacesInvoiceId: null,
       delivery: { family: "sent", nanny: "sent", cancelFamily: null, cancelNanny: null },
       sentAt: "2027-02-15T10:00:00.000Z", cancelledAt: null, cancelReason: null, createdAt: "2027-02-15T09:59:58.000Z",
     });
   });
 
+  it("maps an invoice of expenses only: 0 hours, its period one day (06b-4 rework)", () => {
+    const expensesOnly = { ...ROW, period_start: "2027-02-15", period_end: "2027-02-15", hours: "0", shifts_pence: 0, expenses_pence: 640, total_pence: 640 };
+    expect(myInvoiceRow.parse(expensesOnly)).toMatchObject({ periodStart: "2027-02-15", periodEnd: "2027-02-15", hours: 0, shiftsPence: 0 });
+  });
+
   it("refuses a row that doesn't fit", () => {
+    expect(myInvoiceRow.safeParse({ ...ROW, period_end: undefined }).success).toBe(false);
+    expect(myInvoiceRow.safeParse({ ...ROW, period_end: "2027-02-07" }).success).toBe(false);
+    expect(myInvoiceRow.safeParse({ ...ROW, hours: "-1" }).success).toBe(false);
     expect(myInvoiceRow.safeParse({ ...ROW, status: "lost" }).success).toBe(false);
     expect(myInvoiceRow.safeParse({ ...ROW, invoice_number: "INV-0001" }).success).toBe(false);
     expect(myInvoiceRow.safeParse({ ...ROW, total_pence: "lots" }).success).toBe(false);

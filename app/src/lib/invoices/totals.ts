@@ -8,10 +8,10 @@
  * - VAT is worked out once, on the childcare (shifts) subtotal, half up; never line by line. Expenses are at cost and
  *   carry no VAT (brief §0a B). `included`: the VAT is inside the childcare, so the family pays the agreed rate;
  *   `added`: it goes on top.
- * - The largest figure is about 8.4 × 10⁹ (168 h × 25,000 p × 2,000 bp), far under 2⁵³.
+ * - The largest figure is about 1.2 × 10¹¹ (2,400 h × 25,000 p × 2,000 bp: 100 shifts of 24 h), far under 2⁵³.
  * - A value that can't be a line or a VAT rate throws a RangeError: callers validate first (`validation-lines.ts`).
  *
- * BB-wave1-041126/06b2-build, 2026-11-06.
+ * BB-wave1-041126/06b2-build, 2026-11-06; comments brought up to date, BB-wave1-041126/06b4-server, 2026-11-16.
  */
 
 import { BASIS_POINTS, INVOICE_RULES, NO_PENCE } from "@/config/invoices";
@@ -32,7 +32,7 @@ export interface VatSetting {
 }
 
 export interface InvoiceTotals {
-  /** The sum of the shifts' hours (07 reads this off the header). */
+  /** The sum of the shifts' hours (0 for expenses only). 07 reads a week's hours from the shift lines by date. */
   readonly hours: number;
   /** The childcare subtotal: the shift lines' amounts (VAT inside it when included). */
   readonly shiftsPence: number;
