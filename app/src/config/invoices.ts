@@ -9,7 +9,10 @@
  * 06b-4 rework (BAI 2026-11-12): an invoice is no longer a week, so the line counts bound the PDF's pages, not a
  * period, and the hours backstop is every shift line at its most.
  *
- * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b4-server, 2026-11-12.
+ * 06c (plan 06 step 17): the admin list's length, a page bound with no CHECK behind it.
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b4-server, 2026-11-12;
+ * BB-wave1-041126/06c, 2026-11-23.
  */
 
 export const INVOICE_RULES = Object.freeze({
@@ -23,6 +26,7 @@ export const INVOICE_RULES = Object.freeze({
   maxExpenseLines: 40, // BAI 2026-11-12: a page-size bound for receipts; long descriptions may add a page, never split a row
   vatRateBp: Object.freeze({ default: 2_000, min: 1, max: 2_000 } as const), // §0a B: 20% unless she changes it; none is above 20%
   pdfLinkSeconds: 60, // plan §9 surface 6: a signed PDF link lives this long
+  adminListLimit: 500, // plan 06 step 17: /admin/invoices shows the newest 500 (the /admin/guarantees precedent)
   numberPrefix: "BB", // BAI 2026-11-04: BB-<NannyName>-<YYMMDD>-<Number>, e.g. BB-SophieTaylor-270215-0001
   numberPad: 4, // brief §11 Q4: her own running count, 0001 up
   numberNameMax: 30, // BAI 2026-11-04: letters of her name in the number

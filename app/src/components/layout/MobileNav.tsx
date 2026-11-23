@@ -40,11 +40,13 @@ import {
   BadgeCheck,
   CalendarRange,
   PhoneCall,
+  FileText,
 } from "lucide-react";
 import { payoutsEnabled } from "@/lib/payments/flags";
 import { shareLoopEnabled } from "@/lib/features/flags";
 import { cohortsEnabled } from "@/lib/features/flags";
 import { callBookingEnabled } from "@/lib/features/flags";
+import { nannyInvoicesEnabled } from "@/lib/features/flags";
 
 type UserRole = "nanny" | "parent" | "admin" | "super_admin" | "guest";
 
@@ -94,6 +96,7 @@ const adminNavItems: NavItem[] = [
   { href: "/admin/subscriptions", icon: CreditCard, label: "Subscriptions" },
   { href: "/admin/guarantees", icon: BadgeCheck, label: "Guarantees" },
   { href: "/admin/cohorts", icon: CalendarRange, label: "Cohorts" },
+  { href: "/admin/invoices", icon: FileText, label: "Invoices" },
   { href: "/admin/payouts", icon: Wallet, label: "Payouts" },
   { href: "/admin/support", icon: LifeBuoy, label: "Support" },
   { href: "/admin/analytics", icon: BarChart3, label: "Analytics" },
@@ -130,11 +133,13 @@ export function MobileNav({
   // 5b (P-23): the nanny Share Profile entry is hidden unless SHARE_LOOP_ENABLED.
   // Brief 02: the admin Cohorts entry is hidden unless COHORTS_ENABLED.
   // Brief 04: the admin Calls entry is hidden unless CALL_BOOKING_ENABLED.
+  // Brief 06 (06c): the admin Invoices entry is hidden unless NANNY_INVOICES_ENABLED.
   const navItems = (navItemsByRole[role] || publicNavItems).filter(
     (item) =>
       (payoutsEnabled() || item.href !== "/admin/payouts") &&
       (cohortsEnabled() || item.href !== "/admin/cohorts") &&
       (callBookingEnabled() || item.href !== "/admin/calls") &&
+      (nannyInvoicesEnabled() || item.href !== "/admin/invoices") &&
       (shareLoopEnabled() || item.href !== "/nanny/share"),
   );
 

@@ -11,13 +11,19 @@
  * - The link lives `INVOICE_RULES.pdfLinkSeconds` (60 s). The bucket is private, with no object policy.
  * - Failures are logged by code only (`db.ts`): a storage error can name the path.
  *
- * BB-wave1-041126/06b4, 2026-11-12.
+ * 06c (plan 06 step 17; brief §3 admin 2): BAI's "View PDF" on `/admin/invoices` — `adminInvoicePdfLink` takes an
+ * `AdminProof` and makes the same per-click, 60-second link to any nanny's invoice that went out, at the one path it may
+ * have (`<its nanny>/<invoice>.pdf`). Not exported through the entry point (whose readers never return a link): the
+ * admin route imports it from here, inside the feature's folders, as the nanny's route does.
+ *
+ * BB-wave1-041126/06b4, 2026-11-12; BB-wave1-041126/06c, 2026-11-23.
  */
 
 import { z } from "zod";
 import { INVOICE_RULES } from "@/config/invoices";
+import type { AdminProof } from "@/lib/calls/admin-proof";
 import { logFailure, readOne, serviceClient, type AdminClient } from "./db";
-import { nannyGate } from "./gate";
+import { adminGate, nannyGate } from "./gate";
 import { INVOICE_BUCKET } from "./store-delivery";
 import type { NannyProof } from "./nanny-proof";
 import { countsAsIssued } from "./status";
@@ -29,15 +35,21 @@ const id = z.string().min(1);
 const linkRow = z.object({ id, nanny_id: id, status: z.enum(INVOICE_STATUSES), pdf_path: z.string().min(1).nullable() });
 type LinkRow = z.output<typeof linkRow>;
 
-/** Hers, out (sent or cancelled), and at the one path it may have. */
-function isHersToShow(proof: NannyProof, invoiceId: string, row: LinkRow | null): row is LinkRow & { pdf_path: string } {
+type ShownRow = LinkRow & { pdf_path: string };
+
+/** Out (sent or cancelled), and at the one path it may have: `<its nanny>/<invoice>.pdf`. */
+function isOutAtItsPath(invoiceId: string, row: LinkRow | null): row is ShownRow {
   return (
     row !== null &&
     row.id === invoiceId &&
-    row.nanny_id === proof.nannyId &&
-    row.pdf_path === `${proof.nannyId}/${invoiceId}.pdf` &&
+    row.pdf_path === `${row.nanny_id}/${invoiceId}.pdf` &&
     countsAsIssued({ status: row.status, pdfPath: row.pdf_path })
   );
+}
+
+/** Hers, out (sent or cancelled), and at the one path it may have. */
+function isHersToShow(proof: NannyProof, invoiceId: string, row: LinkRow | null): row is ShownRow {
+  return isOutAtItsPath(invoiceId, row) && row.nanny_id === proof.nannyId;
 }
 
 async function signedLink(admin: AdminClient, path: string): Promise<InvoiceResult<string>> {
@@ -65,5 +77,19 @@ export async function invoicePdfLink(proof: NannyProof, invoiceId: string): Prom
     admin.from("nanny_invoices").select(LINK_COLUMNS).eq("id", invoiceId).eq("nanny_id", proof.nannyId).maybeSingle(), linkRow);
   if (!row.ok) return row;
   if (!isHersToShow(proof, invoiceId, row.value)) return refused("not_found");
+  return signedLink(admin, row.value.pdf_path);
+}
+
+/** BAI's "View PDF" (06c): a 60-second signed link to any invoice that went out; `not_found` when there's none. */
+export async function adminInvoicePdfLink(proof: AdminProof, invoiceId: string): Promise<InvoiceResult<string>> {
+  const gate = adminGate(proof);
+  if (gate) return gate;
+  if (!GUID.test(invoiceId)) return INVALID;
+  const admin = serviceClient();
+  if (!admin) return FAILED;
+  const row = await readOne("adminInvoicePdfLink", () =>
+    admin.from("nanny_invoices").select(LINK_COLUMNS).eq("id", invoiceId).maybeSingle(), linkRow);
+  if (!row.ok) return row;
+  if (!isOutAtItsPath(invoiceId, row.value)) return refused("not_found");
   return signedLink(admin, row.value.pdf_path);
 }

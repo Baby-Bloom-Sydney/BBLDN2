@@ -7,7 +7,10 @@
  * 06b-4 rework (BAI 2026-11-12): no week, so the line counts are a page-size bound (100 shifts, 40 expenses) and the
  * hours backstop is 100 shifts of 24 hours.
  *
- * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b4-server, 2026-11-12.
+ * 06c (plan 06 step 17): `/admin/invoices` shows the newest 500 invoices (the `/admin/guarantees` precedent).
+ *
+ * BB-wave1-041126/06a-build, 2026-11-04; BB-wave1-041126/06b2-build, 2026-11-06; BB-wave1-041126/06b4-server, 2026-11-12;
+ * BB-wave1-041126/06c, 2026-11-23.
  */
 import { describe, expect, it } from "vitest";
 import { BASIS_POINTS, BASIS_POINTS_PER_PERCENT, BUSINESS_TYPES, EXPENSE_TYPES, INVOICE_RULES, NO_PENCE } from "./invoices";
@@ -22,6 +25,10 @@ describe("INVOICE_RULES", () => {
     expect(INVOICE_RULES.numberNameFallback).toBe("Nanny");
     expect(INVOICE_RULES.numberMaxLength).toBe(52);
     expect(INVOICE_RULES.staleSendingMinutes).toBe(10);
+  });
+
+  it("pins the admin list's length: the newest 500 (06c; the /admin/guarantees precedent)", () => {
+    expect(INVOICE_RULES.adminListLimit).toBe(500);
   });
 
   it("pins the typo-guard ceilings of plan 14.3 (the database repeats each)", () => {
