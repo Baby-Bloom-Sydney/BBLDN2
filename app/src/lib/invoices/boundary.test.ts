@@ -31,9 +31,10 @@ const SRC = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..
 const SERVER_MODULES = [
   "store", "store-business", "families", "nanny-proof", "db", "gate", "readers", "index", "pdf/render", "pdf/font", "pdf/model",
   "emails/send-payment-details-changed", "review", "store-delivery", "emails/send-invoice-emails", "store-pdf-link",
+  "store-reminders",
 ];
 const SERVER_MODULE =
-  "(?:/(?:store|store-business|families|nanny-proof|db|gate|readers|index|pdf/render|pdf/font|pdf/model|emails/send-payment-details-changed|review|store-delivery|emails/send-invoice-emails|store-pdf-link))?";
+  "(?:/(?:store|store-business|families|nanny-proof|db|gate|readers|index|pdf/render|pdf/font|pdf/model|emails/send-payment-details-changed|review|store-delivery|emails/send-invoice-emails|store-pdf-link|store-reminders))?";
 /** The actions (06b-3 Settings; 06b-4 invoices): `"use server"` on purpose, each exporting only its gated async action. */
 const ACTIONS: Readonly<Record<string, readonly [string, string]>> = {
   "actions/cancel-invoice": ["cancelInvoice", "CancelInvoiceResult"],
