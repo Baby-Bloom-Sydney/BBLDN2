@@ -9,6 +9,7 @@
  * - `deposit` → `family_type='dfy'`, deposit columns, `status='deposit_paid'` unless already `placed` or a
  *   live self-serve trial/paid state (that access is kept; review HIGH).
  *   Opens **no** access (ADR-097) — no toggle or access column is written. Logs `dfy.deposit_paid`.
+ *   Brief 03: a deposit session carrying `metadata.deposit_link_id` goes to `recordDepositLinkPayment` instead.
  * - `balance-after-week-1` / `custom` → `bill_paid_at`, `bill_stripe_payment_intent_id`, `balance_pence`
  *   (+ `first_week_wages_pence` when the link carried it). Status untouched. Logs `dfy.bill_paid`.
  * - Returns `"ignored"` for: an unknown kind, no `user_id`, not a paid payment-mode session, no `amount_total`
@@ -24,6 +25,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
 import { PAYMENT_LINK_PRESETS, type PaymentLinkPreset } from "@/config/offer";
 import { isLiveSelfServe } from "./dfy-access";
+import { keepStatusFor, recordDepositLinkPayment } from "@/lib/deposit/webhook";
 
 export type DfyLinkOutcome = "applied" | "ignored";
 
@@ -109,6 +111,7 @@ export async function handleDfyLinkCompleted(
   const details = { session_id: session.id, payment_intent_id: pi, link_kind: kind, pence };
 
   if (kind === "deposit") {
+    if (session.metadata?.deposit_link_id) return recordDepositLinkPayment(admin, session, { userId, paymentIntentId: pi, pence, keepStatus: keepStatusFor(row ?? null) });
     if (row?.deposit_stripe_payment_intent_id === pi) return "ignored";
     // 4-w5fix (W5-M3): keep the session's customer when the family has none, so a refund traces back.
     const sessionCustomer = customerId(session);

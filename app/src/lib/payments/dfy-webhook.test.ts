@@ -9,6 +9,12 @@ import { PRICES } from "@/config/prices";
 import { handleDfyLinkCompleted } from "./dfy-webhook";
 import { fakeAdmin, writesTo } from "./fake-admin.test-util";
 
+// Brief 03 (plan 03 row A7, BB-wave2-231126/03-build): the deposit-link branch reads the card from Stripe after the
+// money is recorded. Added only; the tests above the brief 03 block never reach Stripe.
+import { beforeEach, vi } from "vitest";
+const stripe03 = vi.hoisted(() => ({ retrieveIntent: vi.fn() }));
+vi.mock("@/lib/stripe/client", () => ({ getStripeClient: () => ({ paymentIntents: { retrieve: stripe03.retrieveIntent } }) }));
+
 const PARENT = "11111111-1111-4111-8111-111111111111";
 
 /** Recorded shape — trimmed to the fields the handler reads, values as Stripe sends them. */
@@ -210,5 +216,147 @@ describe("handleDfyLinkCompleted — refusals", () => {
     const f = fakeAdmin({ parent_subscriptions: null });
     f.writeErrors.parent_subscriptions = { message: "boom" };
     await expect(handleDfyLinkCompleted(f.client, recordedSession())).rejects.toThrow(/boom/);
+  });
+});
+
+describe("handleDfyLinkCompleted — brief 03 deposit-link sessions (plan 03 row A7, D6)", () => {
+  const LINK = "d0300000-0000-4000-8000-000000000071";
+  const HOLD = "c0300000-0000-4000-8000-000000000071";
+  const CARD = { id: "pm_test_dep71", type: "card", card: { brand: "visa", last4: "4242", exp_month: 12, exp_year: 2030, fingerprint: "fp_x" } };
+  const session03 = (over: Partial<Stripe.Checkout.Session> = {}) =>
+    recordedSession({
+      id: "cs_test_dep71",
+      customer: "cus_test_dep71",
+      payment_intent: "pi_test_dep71",
+      metadata: {
+        user_id: PARENT, link_kind: "deposit", pence: "1", deposit_link_id: LINK, hold_id: HOLD,
+        cohort_start_date: "2027-02-01", goodwill: "false",
+      },
+      ...over,
+    });
+  const recorded = { status: "recorded", place: "taken", place_id: HOLD, cohort_start_date: "2027-02-01", over_by: 0 };
+  let log: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    log = vi.spyOn(console, "error").mockImplementation(() => {});
+    log.mockClear();
+    stripe03.retrieveIntent.mockReset();
+    stripe03.retrieveIntent.mockResolvedValue({ id: "pi_test_dep71", payment_method: CARD });
+  });
+
+  function with03(reply: unknown, row: unknown = null) {
+    const f = fakeAdmin({ parent_subscriptions: row });
+    f.rpcResults.deposit_record_card_payment = { data: reply, error: null };
+    return f;
+  }
+
+  it("one RPC with Stripe's amount (not metadata.pence), the intent, hold, link, session and customer → applied", async () => {
+    const f = with03(recorded);
+    expect(await handleDfyLinkCompleted(f.client, session03())).toBe("applied");
+    expect(f.rpcCalls).toEqual([
+      {
+        fn: "deposit_record_card_payment",
+        args: {
+          p_parent: PARENT, p_link_id: LINK, p_hold_id: HOLD, p_session_id: "cs_test_dep71", p_payment_intent: "pi_test_dep71",
+          p_pence: PRICES.dfy.depositPence, p_customer: "cus_test_dep71", p_keep_status: false,
+        },
+      },
+    ]);
+    // the deposit, the place and dfy.deposit_paid are the SQL function's, in one step — nothing written here
+    expect(writesTo(f, "parent_subscriptions")).toHaveLength(0);
+    expect(writesTo(f, "activity_logs")).toHaveLength(0);
+  });
+
+  it("the status rule is today's: a placed or live self-serve row keeps its status, no row doesn't", async () => {
+    const placed = with03(recorded, { id: "s1", status: "placed", deposit_stripe_payment_intent_id: null });
+    await handleDfyLinkCompleted(placed.client, session03());
+    expect(placed.rpcCalls[0].args).toMatchObject({ p_keep_status: true });
+    const trial = with03(recorded, { id: "s1", status: "trial", trial_ends_at: new Date(Date.now() + 86_400_000).toISOString() });
+    await handleDfyLinkCompleted(trial.client, session03());
+    expect(trial.rpcCalls[0].args).toMatchObject({ p_keep_status: true });
+    const lapsed = with03(recorded, { id: "s1", status: "lapsed" });
+    await handleDfyLinkCompleted(lapsed.client, session03());
+    expect(lapsed.rpcCalls[0].args).toMatchObject({ p_keep_status: false });
+  });
+
+  it("the replay → already_recorded → ignored, even when the row already holds this intent", async () => {
+    const f = with03({ status: "already_recorded" }, { id: "s1", status: "deposit_paid", deposit_stripe_payment_intent_id: "pi_test_dep71" });
+    expect(await handleDfyLinkCompleted(f.client, session03())).toBe("ignored");
+    expect(f.rpcCalls).toHaveLength(1);
+    expect(f.ops.filter((o) => o.kind !== "select")).toHaveLength(0);
+  });
+
+  it("a second, different payment → duplicate → applied; the first deposit is not written over", async () => {
+    const f = with03({ status: "duplicate" }, { id: "s1", status: "deposit_paid", deposit_stripe_payment_intent_id: "pi_first" });
+    expect(await handleDfyLinkCompleted(f.client, session03())).toBe("applied");
+    expect(writesTo(f, "parent_subscriptions")).toHaveLength(0);
+    expect(writesTo(f, "family_saved_cards")).toHaveLength(0);
+  });
+
+  it("the place refused → still applied, logged by status", async () => {
+    const f = with03({ status: "recorded", place: "hold_not_found" });
+    expect(await handleDfyLinkCompleted(f.client, session03())).toBe("applied");
+    expect(log).toHaveBeenCalledWith(expect.any(String), { status: "hold_not_found" });
+  });
+
+  it("an RPC error → throws (the existing contract: the route records the event unresolved)", async () => {
+    const f = fakeAdmin({ parent_subscriptions: null });
+    f.rpcResults.deposit_record_card_payment = { data: null, error: { message: "boom", code: "40P01" } };
+    await expect(handleDfyLinkCompleted(f.client, session03())).rejects.toThrow();
+  });
+
+  it("a malformed hold id → throws, with no RPC", async () => {
+    const f = with03(recorded);
+    const s = session03({ metadata: { ...session03().metadata, hold_id: "nope" } });
+    await expect(handleDfyLinkCompleted(f.client, s)).rejects.toThrow();
+    expect(f.rpcCalls).toHaveLength(0);
+  });
+
+  it("the card read fails → still applied, logged", async () => {
+    stripe03.retrieveIntent.mockRejectedValue(new Error("stripe down"));
+    const f = with03(recorded);
+    expect(await handleDfyLinkCompleted(f.client, session03())).toBe("applied");
+    expect(writesTo(f, "family_saved_cards")).toHaveLength(0);
+    expect(log).toHaveBeenCalled();
+  });
+
+  it("the card is saved with brand, last four and expiry only", async () => {
+    const f = with03(recorded);
+    await handleDfyLinkCompleted(f.client, session03());
+    const [up] = writesTo(f, "family_saved_cards");
+    expect(up.payload).toEqual({
+      parent_user_id: PARENT, stripe_customer_id: "cus_test_dep71", stripe_payment_method_id: "pm_test_dep71", brand: "visa",
+      last4: "4242", exp_month: 12, exp_year: 2030, source_payment_intent_id: "pi_test_dep71", saved_at: expect.any(String),
+    });
+  });
+
+  it.each([
+    ["unpaid", { payment_status: "unpaid" }],
+    ["not payment mode", { mode: "setup" }],
+    ["client_reference_id mismatch", { client_reference_id: "someone-else" }],
+    ["no amount_total", { amount_total: null }],
+  ] as const)("%s → ignored by the existing guards, with no RPC", async (_label, over) => {
+    const f = with03(recorded);
+    expect(await handleDfyLinkCompleted(f.client, session03(over as Partial<Stripe.Checkout.Session>))).toBe("ignored");
+    expect(f.rpcCalls).toHaveLength(0);
+    expect(stripe03.retrieveIntent).not.toHaveBeenCalled();
+  });
+
+  it("pinning: an old preset deposit (no deposit_link_id) takes today's exact path — no RPC, no card read", async () => {
+    const insert = fakeAdmin({ parent_subscriptions: null });
+    expect(await handleDfyLinkCompleted(insert.client, recordedSession({ customer: "cus_old" }))).toBe("applied");
+    expect(insert.rpcCalls).toHaveLength(0);
+    expect(writesTo(insert, "parent_subscriptions").map((o) => o.kind)).toEqual(["insert"]);
+    expect(writesTo(insert, "parent_subscriptions")[0].payload).toMatchObject({
+      parent_user_id: PARENT, status: "deposit_paid", family_type: "dfy", deposit_pence: PRICES.dfy.depositPence,
+      deposit_stripe_payment_intent_id: "pi_test_dep001", stripe_customer_id: "cus_old",
+    });
+    expect(writesTo(insert, "activity_logs")[0].payload).toMatchObject({ user_id: PARENT, action_type: "dfy.deposit_paid" });
+    const update = fakeAdmin({ parent_subscriptions: { id: "s1", status: "lapsed", deposit_stripe_payment_intent_id: null } });
+    expect(await handleDfyLinkCompleted(update.client, recordedSession())).toBe("applied");
+    expect(update.rpcCalls).toHaveLength(0);
+    expect(writesTo(update, "parent_subscriptions").map((o) => o.kind)).toEqual(["update"]);
+    expect(stripe03.retrieveIntent).not.toHaveBeenCalled();
+    expect(writesTo(insert, "family_saved_cards")).toHaveLength(0);
   });
 });
