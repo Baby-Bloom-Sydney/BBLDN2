@@ -44,6 +44,7 @@ let fake: FakeAdmin;
 let log: ReturnType<typeof vi.spyOn>;
 beforeEach(async () => {
   log = vi.spyOn(console, "error").mockImplementation(() => {});
+  log.mockClear();
   const p = await proveAdmin();
   if (!p) throw new Error("no admin proof");
   admin = p;
