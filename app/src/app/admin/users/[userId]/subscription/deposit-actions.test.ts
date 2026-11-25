@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
   revalidated: [] as string[],
   seq: [] as string[],
   sendEmail: vi.fn(),
+  stampThrows: false,
 }));
 vi.mock("@/lib/admin/require-admin", () => ({
   requireAdmin: async () => {
@@ -33,9 +34,21 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: (p: string) => h.revalidated.push(p) }));
 vi.mock("@/lib/email/resend", () => ({ sendEmail: h.sendEmail }));
+// 03b review LOW-3: the real stamp, unless a test makes it throw after the email is out.
+vi.mock("@/lib/deposit/links", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/deposit/links")>();
+  return {
+    ...actual,
+    stampLinkSent: async (...args: Parameters<typeof actual.stampLinkSent>) => {
+      if (h.stampThrows) throw new Error("stamp failed for sarah@gmail.com");
+      return actual.stampLinkSent(...args);
+    },
+  };
+});
 
 import { PRICES } from "@/config/prices";
 import { SITE_URL } from "@/lib/constants";
+import { EMAIL_MAX } from "@/lib/deposit/constants";
 import { fakeAdmin, writesTo } from "@/lib/payments/fake-admin.test-util";
 import * as actions from "./deposit-actions";
 import {
@@ -165,6 +178,7 @@ beforeEach(() => {
   h.gateCalls = 0;
   h.clients = 0;
   h.clientThrows = false;
+  h.stampThrows = false;
   h.revalidated = [];
   h.seq = [];
   h.sendEmail.mockReset();
@@ -365,6 +379,13 @@ describe("sendDepositLink", () => {
     ["a null email", { email: null, first_name: "Sarah" }],
     ["a blank email", { email: "   ", first_name: "Sarah" }],
     ["not an address", { email: "sarah", first_name: "Sarah" }],
+    // 03b review LOW-2: one plain address only — never a list or a display-name form for the provider to expand.
+    ["two addresses", { email: "a@b.com,c@d.com", first_name: "Sarah" }],
+    ["a trailing comma", { email: "sarah@gmail.com,", first_name: "Sarah" }],
+    ["a semicolon list", { email: "sarah@gmail.com;eve", first_name: "Sarah" }],
+    ["angle brackets", { email: "<sarah@gmail.com>", first_name: "Sarah" }],
+    ["a quoted local part", { email: '"sarah"@gmail.com', first_name: "Sarah" }],
+    ["longer than EMAIL_MAX", { email: `${"s".repeat(EMAIL_MAX)}@gmail.com`, first_name: "Sarah" }],
   ])("%s → no_email; no link made, nothing sent", async (_label, profile) => {
     fake.reads.user_profiles = profile;
     expect(await sendDepositLink(PARENT, { target: "current" })).toEqual({ ok: false, error: "no_email" });
@@ -384,6 +405,17 @@ describe("sendDepositLink", () => {
     world = { ...world, open: openRow() };
     fake.writeErrors.deposit_links = { message: `bad ${EMAIL}`, code: "XX000" };
     expect(await sendDepositLink(PARENT, { target: "current" })).toEqual({ ok: true, sentAt: NOW.toISOString(), to: MASKED });
+    expect(JSON.stringify(log.mock.calls)).not.toContain(EMAIL);
+  });
+
+  it("a stamp that throws after the email went → still ok, the history row still written, logged without the address", async () => {
+    world = { ...world, open: openRow() };
+    h.stampThrows = true;
+    expect(await sendDepositLink(PARENT, { target: "current" })).toEqual({ ok: true, sentAt: NOW.toISOString(), to: MASKED });
+    expect(emailed()).toHaveLength(1);
+    expect(activity()).toHaveLength(1);
+    expect(h.revalidated).toEqual([PANEL_PATH]);
+    expect(log).toHaveBeenCalled();
     expect(JSON.stringify(log.mock.calls)).not.toContain(EMAIL);
   });
 

@@ -98,7 +98,8 @@ const ERROR = fail("error");
 const OK = Object.freeze({ ok: true as const });
 const EMAIL_TYPE = "deposit_link";
 const LINK_SENT = "deposit.link_sent";
-const ADDRESS = /^[^\s@]+@[^\s@]+$/;
+/** One plain address (zod's), within the stored bound: never a list or a "Name <…>" form the provider would expand. */
+const address = z.email().max(EMAIL_MAX);
 
 const target = z.enum(DEPOSIT_TARGETS);
 const choice = z.enum(TARGET_DIFFERS_CHOICES).optional();
@@ -180,7 +181,7 @@ async function readContact(admin: AdminClient, parentUserId: string): Promise<Db
     return DB_FAILED;
   }
   const email = row.data.email?.trim() ?? "";
-  return dbOk(email.length <= EMAIL_MAX && ADDRESS.test(email) ? { email, firstName: row.data.first_name } : null);
+  return dbOk(address.safeParse(email).success ? { email, firstName: row.data.first_name } : null);
 }
 
 // ── the link: target, pin, target_differs ──
@@ -255,8 +256,13 @@ async function emailLink(parentUserId: string, contact: Contact, url: string): P
 
 /** After the email is out: the sent stamp and one history row (no address). A failure is logged, not answered. */
 async function recordSent(proof: AdminProof, admin: AdminClient, link: DepositLink, to: string): Promise<void> {
-  const stamped = await stampLinkSent(proof, admin, { linkId: link.id, to });
-  if (stamped.status !== "stamped") logFailure("deposit link sent stamp", { code: stamped.status });
+  // A stamp that fails (answered or thrown) leaves the send ok — the email is out — but the next Send won't ask first.
+  try {
+    const stamped = await stampLinkSent(proof, admin, { linkId: link.id, to });
+    if (stamped.status !== "stamped") logFailure("deposit link sent stamp", { code: stamped.status });
+  } catch (thrown) {
+    logFailure("deposit link sent stamp", thrown);
+  }
   try {
     const { error } = await admin.from("activity_logs").insert({
       user_id: link.parentUserId,
@@ -327,6 +333,8 @@ export async function takeDepositPaymentNow(parentUserId: string): Promise<TakeD
     const open = unpaid.panel.link;
     const wanted: Wanted = open === null ? { target: "current", goodwillStartDate: null } : { target: open.target, goodwillStartDate: open.goodwillStartDate };
     const resolved = await openLink(gated.proof, admin, { parentUserId, ...wanted }, "send_as_is", false);
+    // Only `invalid` maps through, the rest is `error`: send_as_is takes any open link (so no target_differs), and no
+    // goodwill pin is made here (so no goodwill_not_offered).
     if (resolved.link === null) return settle(parentUserId, resolved.wrote, resolved.failure.error === "invalid" ? INVALID : ERROR);
     return settle(parentUserId, resolved.wrote, { ok: true as const, url: depositLinkUrl(resolved.link.code) });
   });
