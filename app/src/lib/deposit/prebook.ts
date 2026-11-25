@@ -5,6 +5,7 @@
  *
  * - `recordPrebooking`: one open pre-booking per family (the unique index). A second press hits 23505 and gets the
  *   open one back: no second row, no second `deposit.prebooked` history row. No place is held (02 Q6).
+ * - `readOpenPrebooking`: her open one (the family panel; the 23505 re-read).
  * - `attachPrebookingCall`: 04's booking id on HER open pre-booking only.
  * - `countOpenPrebookings`: 02's "N pre-booked calls" for one cohort. Null = couldn't be read, never a stand-in 0.
  * - `readPendingPrebookRequests`: 04's to-call list and drawer. Pending only while open, with no booking and no
@@ -19,7 +20,7 @@
 import { z } from "zod";
 import { instant, uuid } from "@/lib/calls/zod-parts";
 import { isLondonDate } from "@/lib/cohorts/dates";
-import { allPagesByIds, logFailure, type AdminClient, type DbResult } from "@/lib/cohorts/db";
+import { allPagesByIds, dbOk, DB_FAILED, logFailure, type AdminClient, type DbResult } from "@/lib/cohorts/db";
 import { londonDateOf } from "@/lib/timezone";
 import { isDepositParentProof, type DepositParentProof } from "./proof";
 
@@ -88,16 +89,28 @@ async function logPrebooked(admin: AdminClient, prebooking: Prebooking): Promise
   if (error) logFailure("deposit.prebooked activity", error);
 }
 
-/** Her open pre-booking, after the unique index refused a second one. */
-async function rereadOpen(admin: AdminClient, parentUserId: string): Promise<RecordPrebookingResult> {
+/** Her open pre-booking, or null when she has none (one per family). `{ ok: false }` = couldn't be read. */
+export async function readOpenPrebooking(admin: AdminClient, parentUserId: string): Promise<DbResult<Prebooking | null>> {
   const { data, error } = await admin.from("deposit_prebookings").select(PREBOOKING_COLUMNS)
     .eq("parent_user_id", parentUserId).eq("state", "open").maybeSingle();
-  if (error || data === null) {
-    logFailure("deposit.prebook.reread", error ?? { code: "not_found" });
+  if (error) {
+    logFailure("deposit.prebook.open", error);
+    return DB_FAILED;
+  }
+  if (data === null) return dbOk(null);
+  const prebooking = prebookingOf(data, parentUserId, "deposit.prebook.open");
+  return prebooking ? dbOk(prebooking) : DB_FAILED;
+}
+
+/** Her open pre-booking, after the unique index refused a second one. */
+async function rereadOpen(admin: AdminClient, parentUserId: string): Promise<RecordPrebookingResult> {
+  const open = await readOpenPrebooking(admin, parentUserId);
+  if (!open.ok) return ERROR;
+  if (open.value === null) {
+    logFailure("deposit.prebook.reread", { code: "not_found" });
     return ERROR;
   }
-  const prebooking = prebookingOf(data, parentUserId, "deposit.prebook.reread");
-  return prebooking ? recorded(prebooking, false) : ERROR;
+  return recorded(open.value, false);
 }
 
 /** Record "Pre-book next available cohort" for the family her proof names (one open per family). */

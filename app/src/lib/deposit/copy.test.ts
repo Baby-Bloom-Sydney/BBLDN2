@@ -33,6 +33,18 @@ import {
   placeHeading,
   prebookCallLine,
 } from "./copy";
+import {
+  depositStateLine,
+  depositWarningLines,
+  goodwillChoiceLabel,
+  linkLine,
+  PANEL_COPY,
+  penceAmount,
+  prebookedLine,
+  savedCardWords,
+  sendAgainQuestion,
+} from "./copy";
+import type { DepositPanel, PanelLink } from "./panel";
 
 const POUND = "£";
 const PENCE_PER_POUND = 100;
@@ -161,5 +173,192 @@ describe("maskEmail", () => {
 
   it("a first character outside the basic plane is kept whole", () => {
     expect(maskEmail("\u{1F600}x@gmail.com")).toBe("\u{1F600}•••@gmail.com");
+  });
+});
+
+/**
+ * The admin panel's words (brief 03 §3 Admin 1–7; plan 03 row A5): pure functions of `readDepositPanel`'s view
+ * model. Amounts come from the formatter (what she paid, `deposit_pence`), dates from 02's helpers ("3 Feb",
+ * "Mon 1 Feb"), times on the London clock, emails masked. Placeholders BAI edits before switch-on (Q4).
+ */
+describe("the panel's words", () => {
+  const PARENT = "b0300000-0000-4000-8000-000000000001";
+  const PAID_AT = "2027-02-03T09:00:00.000Z";
+  const CARD = Object.freeze({ brand: "visa", last4: "4242", expMonth: 12, expYear: 2030 });
+  const TAKEN = Object.freeze({ cohortStartDate: "2027-02-01", isGoodwill: false, state: "taken" as const });
+  const LINK: PanelLink = Object.freeze({
+    id: "d0300000-0000-4000-8000-000000000001",
+    code: "Ab0_-".repeat(8) + "xyz",
+    target: "current",
+    goodwillStartDate: null,
+    createdAt: "2027-02-03T08:59:00.000Z",
+    lastEmailedAt: "2027-02-03T09:02:00.000Z",
+    lastEmailedTo: "sarah@gmail.com",
+  });
+  const panelOf = (over: Partial<DepositPanel> = {}): DepositPanel => ({
+    parentUserId: PARENT,
+    today: "2027-02-03",
+    state: "not_paid",
+    payment: null,
+    card: null,
+    bankTransfer: null,
+    place: null,
+    link: null,
+    prebooking: null,
+    duplicatePayments: 0,
+    warnings: [],
+    cohorts: { current: null, next: null, canOfferGoodwill: false },
+    canTakeDeposit: true,
+    canRecordBankRefund: false,
+    ...over,
+  });
+  const paid = (method: "card" | "bank_transfer" | null, pence: number | null = PRICES.dfy.depositPence) => ({
+    pence,
+    paidAt: PAID_AT,
+    refundedAt: null,
+    method,
+    paymentIntentId: method === "card" ? "pi_3Test" : null,
+  });
+
+  it("penceAmount formats what she paid like the page's amount — never written, always formatted", () => {
+    const base = PRICES.dfy.depositPence;
+    expect(penceAmount(base)).toBe(depositAmount());
+    expect(penceAmount(base)).toBe(whole(base));
+    expect(penceAmount(base + 1)).toBe(withPence(base + 1));
+    expect(penceAmount(base * 10)).toBe(whole(base * 10));
+  });
+
+  it("not paid", () => {
+    expect(depositStateLine(panelOf())).toBe("Not paid");
+  });
+
+  it("paid by card: amount, London day, saved card, her cohort (brief §3 Admin 1)", () => {
+    const line = depositStateLine(panelOf({ state: "paid_card", payment: paid("card"), card: CARD, place: TAKEN }));
+    expect(line).toBe(`Paid ${depositAmount()} by card, 3 Feb · Card saved Visa •••• 4242 (12/30) · Cohort Mon 1 Feb`);
+  });
+
+  it("paid by card with no card row → 'Card: not recorded' (D7); no place yet → no cohort part", () => {
+    expect(depositStateLine(panelOf({ state: "paid_card", payment: paid("card") }))).toBe(
+      `Paid ${depositAmount()} by card, 3 Feb · Card: not recorded`,
+    );
+  });
+
+  it("paid by bank transfer: no card saved (brief §3 Admin 1)", () => {
+    expect(depositStateLine(panelOf({ state: "paid_bank_transfer", payment: paid("bank_transfer") }))).toBe(
+      `Paid ${depositAmount()} by bank transfer · no card saved`,
+    );
+    expect(depositStateLine(panelOf({ state: "paid_bank_transfer", payment: paid("bank_transfer"), place: { ...TAKEN, isGoodwill: true } }))).toBe(
+      `Paid ${depositAmount()} by bank transfer · no card saved · Cohort Mon 1 Feb (goodwill)`,
+    );
+  });
+
+  it("an old preset deposit says so, with or without a card on file", () => {
+    expect(depositStateLine(panelOf({ state: "paid_preset", payment: paid(null) }))).toBe(
+      `Paid ${depositAmount()}, 3 Feb (old payment link) · no card saved`,
+    );
+    expect(depositStateLine(panelOf({ state: "paid_preset", payment: paid(null), card: CARD }))).toBe(
+      `Paid ${depositAmount()}, 3 Feb (old payment link) · Card saved Visa •••• 4242 (12/30)`,
+    );
+  });
+
+  it("the amount she actually paid, not today's price; no amount recorded → no amount shown", () => {
+    const other = PRICES.dfy.depositPence * 2;
+    expect(depositStateLine(panelOf({ state: "paid_card", payment: paid("card", other), card: CARD }))).toContain(`Paid ${whole(other)} by card`);
+    expect(depositStateLine(panelOf({ state: "paid_card", payment: paid("card", null), card: CARD }))).toMatch(/^Paid by card, 3 Feb · /);
+  });
+
+  it("a re-opened place shows no cohort", () => {
+    expect(depositStateLine(panelOf({ state: "paid_card", payment: paid("card"), card: CARD, place: { ...TAKEN, state: "reopened" } }))).not.toContain(
+      "Cohort",
+    );
+  });
+
+  it("refunded: the London day it was refunded", () => {
+    const payment = { ...paid("card"), refundedAt: "2027-02-10T12:00:00.000Z" };
+    expect(depositStateLine(panelOf({ state: "refunded", payment }))).toBe("Refunded 10 Feb");
+  });
+
+  it.each([
+    [{ brand: "visa", last4: "4242", expMonth: 12, expYear: 2030 }, "Visa •••• 4242 (12/30)"],
+    [{ brand: "mastercard", last4: "4444", expMonth: 2, expYear: 2031 }, "Mastercard •••• 4444 (02/31)"],
+    [{ brand: "amex", last4: "0005", expMonth: 1, expYear: 2100 }, "Amex •••• 0005 (01/00)"],
+    [{ brand: "jcb", last4: "0000", expMonth: 7, expYear: 2029 }, "JCB •••• 0000 (07/29)"],
+    [{ brand: "unionpay", last4: "0005", expMonth: 7, expYear: 2029 }, "UnionPay •••• 0005 (07/29)"],
+    [{ brand: "cartes_bancaires", last4: "1001", expMonth: 7, expYear: 2029 }, "Cartes Bancaires •••• 1001 (07/29)"],
+  ])("the saved card %j → %s", (card, words) => {
+    expect(savedCardWords(card)).toBe(words);
+  });
+
+  it("pre-booked: the cohort's short date, or none set up; nothing when not pre-booked", () => {
+    const prebooking = { id: "e0300000-0000-4000-8000-000000000001", parentUserId: PARENT, cohortStartDate: "2027-02-08", callBookingId: null, createdAt: PAID_AT };
+    expect(prebookedLine(panelOf({ prebooking }))).toBe("Pre-booked for Mon 8 Feb");
+    expect(prebookedLine(panelOf({ prebooking: { ...prebooking, cohortStartDate: null } }))).toBe("Pre-booked (no cohort set up yet)");
+    expect(prebookedLine(panelOf())).toBeNull();
+  });
+
+  it("the link: none, made but not emailed, sent today (London clock), sent another day", () => {
+    expect(linkLine(panelOf())).toBe("No deposit link yet");
+    expect(linkLine(panelOf({ link: { ...LINK, lastEmailedAt: null, lastEmailedTo: null } }))).toBe("Link made, not emailed yet");
+    expect(linkLine(panelOf({ link: LINK }))).toBe("Sent 09:02 to s•••@gmail.com");
+    expect(linkLine(panelOf({ link: { ...LINK, lastEmailedAt: "2027-02-01T18:30:00.000Z" } }))).toBe("Sent 1 Feb 18:30 to s•••@gmail.com");
+  });
+
+  it("the time is London's: 13:02 UTC in June is 14:02 (brief §0.1's example)", () => {
+    const june = panelOf({ today: "2027-06-01", link: { ...LINK, lastEmailedAt: "2027-06-01T13:02:00.000Z" } });
+    expect(linkLine(june)).toBe("Sent 14:02 to s•••@gmail.com");
+    expect(sendAgainQuestion(june)).toBe("Sent at 14:02. Send again?");
+  });
+
+  it("the address is always masked; none recorded → just the time; a goodwill link names its cohort", () => {
+    expect(linkLine(panelOf({ link: { ...LINK, lastEmailedTo: "not an address" } }))).toBe("Sent 09:02 to •••");
+    expect(linkLine(panelOf({ link: { ...LINK, lastEmailedTo: null } }))).toBe("Sent 09:02");
+    expect(linkLine(panelOf({ link: { ...LINK, target: "goodwill", goodwillStartDate: "2027-02-08" } }))).toBe(
+      "Sent 09:02 to s•••@gmail.com · goodwill Mon 8 Feb",
+    );
+  });
+
+  it("a second send asks first, only once it has been sent", () => {
+    expect(sendAgainQuestion(panelOf({ link: LINK }))).toBe("Sent at 09:02. Send again?");
+    expect(sendAgainQuestion(panelOf({ link: { ...LINK, lastEmailedAt: "2027-02-01T18:30:00.000Z" } }))).toBe("Sent at 1 Feb 18:30. Send again?");
+    expect(sendAgainQuestion(panelOf({ link: { ...LINK, lastEmailedAt: null } }))).toBeNull();
+    expect(sendAgainQuestion(panelOf())).toBeNull();
+  });
+
+  it("the warnings (brief §3 Admin 7), in the panel's order; none → none", () => {
+    expect(depositWarningLines(panelOf({ warnings: ["duplicate_payment", "refunded_but_held"] }))).toEqual([
+      "Second deposit received. Refund one in Stripe",
+      "Deposit refunded but place still held",
+    ]);
+    expect(depositWarningLines(panelOf())).toEqual([]);
+  });
+
+  it("the goodwill choice names next week and its places left (brief §3 Admin 2)", () => {
+    expect(goodwillChoiceLabel({ start: "2027-02-08", places: 5, taken: 0, beingPaid: 0, left: 5, overBy: 0 })).toBe(
+      "Next cohort, goodwill (Mon 8 Feb · 5 left)",
+    );
+  });
+
+  it("the panel's fixed words, frozen", () => {
+    expect(PANEL_COPY).toEqual({
+      notPaid: "Not paid",
+      cardNotRecorded: "Card: not recorded",
+      noCardSaved: "no card saved",
+      noLink: "No deposit link yet",
+      notEmailed: "Link made, not emailed yet",
+      duplicateWarning: "Second deposit received. Refund one in Stripe",
+      refundedButHeldWarning: "Deposit refunded but place still held",
+      emailButton: "Email deposit link",
+      copyButton: "Copy link",
+      cancelButton: "Cancel link",
+      takePaymentButton: "Take payment now",
+      markPaidButton: "Mark deposit paid (bank transfer)",
+      bankRefundButton: "Record refund (bank transfer)",
+      targetCurrent: "Current cohort",
+      emailFailed: "Email didn't send. Copy the link instead.",
+      cohortFull: "This cohort is full",
+      alreadyPaid: "The deposit is already paid.",
+      unavailable: "Deposit: could not be read",
+    });
+    expect(Object.isFrozen(PANEL_COPY)).toBe(true);
   });
 });

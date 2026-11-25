@@ -14,6 +14,10 @@ import { dayWords } from "@/lib/calls/slot-words";
 import { isLondonDate } from "@/lib/cohorts/dates";
 import { APP_LOCALE, SITE_NAME } from "@/lib/constants";
 import { EMAIL_MAX, HOLD_MINUTES } from "./constants";
+import { formatCohortShort, formatDayMonth } from "@/lib/cohorts/dates";
+import type { CohortView } from "@/lib/cohorts/types";
+import { formatClockHourMinute, londonWallClockOf } from "@/lib/timezone";
+import type { DepositPanel, DepositPayment, DepositWarning, PanelPlace, SavedCard } from "./panel";
 
 const PENCE_PER_POUND = 100;
 
@@ -83,3 +87,117 @@ export function maskEmail(email: unknown): string {
   if (match === null) return MASK;
   return `${Array.from(match[1])[0]}${MASK}@${match[2]}`;
 }
+
+// ── The admin panel's words (brief 03 §3 Admin 1–7; plan 03 row A5) ──────────────────────────────────────────────
+// Pure functions of `readDepositPanel`'s view model (`./panel`, imported for its types only, so this file stays
+// client-safe). Amounts are what she paid, formatted at run time (`penceAmount`; never written); dates are 02's
+// "3 Feb" / "Mon 1 Feb"; times are on the London clock; emails are masked. Placeholders BAI edits (Q4).
+
+/** Any amount in pence, written as `depositAmount()` writes the deposit: whole pounds without pence, else with. */
+export function penceAmount(pence: number): string {
+  const isWhole = pence % PENCE_PER_POUND === 0;
+  return new Intl.NumberFormat(APP_LOCALE, {
+    style: "currency",
+    currency: PRICES.currency.toUpperCase(),
+    ...(isWhole ? { minimumFractionDigits: 0 } : {}),
+  }).format(pence / PENCE_PER_POUND);
+}
+
+/** The panel's lines with nothing to fill in, and its buttons and refusals (brief §3 Admin 1–7). */
+export const PANEL_COPY = Object.freeze({
+  notPaid: "Not paid",
+  cardNotRecorded: "Card: not recorded",
+  noCardSaved: "no card saved",
+  noLink: "No deposit link yet",
+  notEmailed: "Link made, not emailed yet",
+  duplicateWarning: "Second deposit received. Refund one in Stripe",
+  refundedButHeldWarning: "Deposit refunded but place still held",
+  emailButton: "Email deposit link",
+  copyButton: "Copy link",
+  cancelButton: "Cancel link",
+  takePaymentButton: "Take payment now",
+  markPaidButton: "Mark deposit paid (bank transfer)",
+  bankRefundButton: "Record refund (bank transfer)",
+  targetCurrent: "Current cohort",
+  emailFailed: "Email didn't send. Copy the link instead.",
+  cohortFull: "This cohort is full",
+  alreadyPaid: "The deposit is already paid.",
+  unavailable: "Deposit: could not be read",
+} as const);
+
+/** Stripe's lower-case brand ids, as people write them; any other id is capitalised word by word. */
+const BRAND_WORDS: ReadonlyMap<string, string> = new Map([
+  ["jcb", "JCB"],
+  ["unionpay", "UnionPay"],
+]);
+const brandWords = (brand: string): string =>
+  BRAND_WORDS.get(brand) ?? brand.split("_").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+const twoDigits = (n: number): string => String(n % 100).padStart(2, "0");
+
+/** "Visa •••• 4242 (12/30)" — never more of the card than the last four. */
+export const savedCardWords = (card: SavedCard): string =>
+  `${brandWords(card.brand)} •••• ${card.last4} (${twoDigits(card.expMonth)}/${twoDigits(card.expYear)})`;
+
+function paidHead(payment: DepositPayment): string {
+  const paid = payment.pence === null ? "Paid" : `Paid ${penceAmount(payment.pence)}`;
+  const day = formatDayMonth(payment.paidAt);
+  if (payment.method === "card") return `${paid} by card, ${day}`;
+  if (payment.method === "bank_transfer") return `${paid} by bank transfer`;
+  return `${paid}, ${day} (old payment link)`;
+}
+
+function cardPart(payment: DepositPayment, card: SavedCard | null): string {
+  if (card !== null) return `Card saved ${savedCardWords(card)}`;
+  return payment.method === "card" ? PANEL_COPY.cardNotRecorded : PANEL_COPY.noCardSaved;
+}
+
+const cohortPart = (place: PanelPlace | null): string | null =>
+  place?.state === "taken" ? `Cohort ${formatCohortShort(place.cohortStartDate)}${place.isGoodwill ? " (goodwill)" : ""}` : null;
+
+/** The state line: "Not paid" · "Paid £150 by card, 3 Feb · Card saved Visa •••• 4242 (12/30) · Cohort Mon 1 Feb" · … */
+export function depositStateLine(panel: DepositPanel): string {
+  const { payment } = panel;
+  if (payment === null) return PANEL_COPY.notPaid;
+  if (payment.refundedAt !== null) return `Refunded ${formatDayMonth(payment.refundedAt)}`;
+  return [paidHead(payment), cardPart(payment, panel.card), cohortPart(panel.place)].filter((part): part is string => part !== null).join(" · ");
+}
+
+/** "Pre-booked for Mon 8 Feb"; null when she hasn't pre-booked. */
+export function prebookedLine(panel: DepositPanel): string | null {
+  const { prebooking } = panel;
+  if (prebooking === null) return null;
+  return prebooking.cohortStartDate === null ? "Pre-booked (no cohort set up yet)" : `Pre-booked for ${formatCohortShort(prebooking.cohortStartDate)}`;
+}
+
+/** "14:02" on London's clock when it was today in London, else "1 Feb 18:30". */
+function sentAt(at: string, today: string): string {
+  const wall = londonWallClockOf(at);
+  const time = formatClockHourMinute(wall.hour, wall.minute);
+  return wall.date === today ? time : `${formatDayMonth(at)} ${time}`;
+}
+
+/** "Sent 14:02 to s•••@gmail.com" (brief §0.1); a goodwill link names its cohort. */
+export function linkLine(panel: DepositPanel): string {
+  const { link } = panel;
+  if (link === null) return PANEL_COPY.noLink;
+  const to = link.lastEmailedTo === null ? "" : ` to ${maskEmail(link.lastEmailedTo)}`;
+  const sent = link.lastEmailedAt === null ? PANEL_COPY.notEmailed : `Sent ${sentAt(link.lastEmailedAt, panel.today)}${to}`;
+  return link.goodwillStartDate === null ? sent : `${sent} · goodwill ${formatCohortShort(link.goodwillStartDate)}`;
+}
+
+/** A second press of Email asks first: "Sent at 14:02. Send again?" (brief §3 Admin 3); null when never sent. */
+export function sendAgainQuestion(panel: DepositPanel): string | null {
+  const at = panel.link?.lastEmailedAt ?? null;
+  return at === null ? null : `Sent at ${sentAt(at, panel.today)}. Send again?`;
+}
+
+const WARNING_WORDS: Readonly<Record<DepositWarning, string>> = Object.freeze({
+  duplicate_payment: PANEL_COPY.duplicateWarning,
+  refunded_but_held: PANEL_COPY.refundedButHeldWarning,
+});
+
+/** The panel's warnings (brief §3 Admin 7), in the view model's order. */
+export const depositWarningLines = (panel: DepositPanel): readonly string[] => panel.warnings.map((w) => WARNING_WORDS[w]);
+
+/** The goodwill choice (brief §3 Admin 2): "Next cohort, goodwill (Mon 8 Feb · 5 left)". */
+export const goodwillChoiceLabel = (next: CohortView): string => `Next cohort, goodwill (${formatCohortShort(next.start)} · ${next.left} left)`;
