@@ -23,7 +23,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 import { PRICES } from "@/config/prices";
 import { depositAmount } from "@/lib/deposit/copy";
-import type { DepositPanel, DepositPanelResult, PanelLink } from "@/lib/deposit/panel";
+import type { ClientDepositPanel, ClientDepositPanelResult, ClientPanelLink } from "@/lib/deposit/panel";
 import { DepositBlock } from "./DepositBlock";
 
 const PARENT = "b0300000-0000-4000-8000-000000000001";
@@ -33,18 +33,17 @@ const CARD = Object.freeze({ brand: "visa", last4: "4242", expMonth: 12, expYear
 const TAKEN = Object.freeze({ cohortStartDate: "2027-02-01", isGoodwill: false, state: "taken" as const });
 const CURRENT = Object.freeze({ start: "2027-02-01", places: 5, taken: 5, beingPaid: 0, left: 0, overBy: 0 });
 const NEXT = Object.freeze({ start: "2027-02-08", places: 5, taken: 0, beingPaid: 0, left: 5, overBy: 0 });
-const LINK: PanelLink = Object.freeze({
-  id: "d0300000-0000-4000-8000-000000000001",
-  code: "Ab0_-".repeat(8) + "xyz",
+/** The client view (`toClientPanel`): no code, the address already masked (03b review M1). */
+const LINK: ClientPanelLink = Object.freeze({
   target: "current",
   goodwillStartDate: null,
   createdAt: "2027-02-03T08:59:00.000Z",
   lastEmailedAt: "2027-02-03T09:02:00.000Z",
-  lastEmailedTo: "sarah@gmail.com",
+  lastEmailedTo: "s•••@gmail.com",
 });
-const UNSENT: PanelLink = Object.freeze({ ...LINK, lastEmailedAt: null, lastEmailedTo: null });
+const UNSENT: ClientPanelLink = Object.freeze({ ...LINK, lastEmailedAt: null, lastEmailedTo: null });
 
-const panelOf = (over: Partial<DepositPanel> = {}): DepositPanel => ({
+const panelOf = (over: Partial<ClientDepositPanel> = {}): ClientDepositPanel => ({
   parentUserId: PARENT,
   today: "2027-02-03",
   state: "not_paid",
@@ -66,12 +65,11 @@ const paid = (method: "card" | "bank_transfer" | null, refundedAt: string | null
   paidAt: PAID_AT,
   refundedAt,
   method,
-  paymentIntentId: method === "card" ? "pi_3Test" : null,
 });
-const paidPanel = (over: Partial<DepositPanel>): DepositPanel => panelOf({ canTakeDeposit: false, ...over });
+const paidPanel = (over: Partial<ClientDepositPanel>): ClientDepositPanel => panelOf({ canTakeDeposit: false, ...over });
 
-const renderBlock = (deposit: DepositPanelResult) => render(<DepositBlock parentUserId={PARENT} deposit={deposit} />);
-const renderPanel = (over: Partial<DepositPanel> = {}) => renderBlock({ ok: true, value: panelOf(over) });
+const renderBlock = (deposit: ClientDepositPanelResult) => render(<DepositBlock parentUserId={PARENT} deposit={deposit} />);
+const renderPanel = (over: Partial<ClientDepositPanel> = {}) => renderBlock({ ok: true, value: panelOf(over) });
 const button = (name: string | RegExp) => screen.getByRole("button", { name });
 const noButton = (name: string | RegExp) => expect(screen.queryByRole("button", { name })).toBeNull();
 const stateLine = () => screen.getByTestId("deposit-state-line");
@@ -399,5 +397,102 @@ describe("the dialogs' buttons sit in the block", () => {
     await userEvent.click(button("Mark deposit paid (bank transfer)"));
     const dialog = within(await screen.findByRole("dialog"));
     expect(dialog.getByRole("heading", { name: "Mark deposit paid (bank transfer)" })).toBeInTheDocument();
+  });
+});
+
+describe("focus and announcements (03b review M2)", () => {
+  /** The block's one polite live region. */
+  const region = () => {
+    const regions = screen.getByTestId("deposit-block").querySelectorAll('[aria-live="polite"]');
+    expect(regions).toHaveLength(1);
+    return regions[0] as HTMLElement;
+  };
+
+  it("the region is there before any prompt; the prompts and the payment-page fallback render inside it", async () => {
+    vi.spyOn(window, "open").mockImplementation(() => null);
+    actions.takeDepositPaymentNow.mockResolvedValue({ ok: true, url: URL_ });
+    renderPanel({ link: LINK });
+    const live = region();
+    expect(live).toBeEmptyDOMElement();
+    await userEvent.click(button("Email deposit link"));
+    expect(within(live).getByText("Sent at 09:02. Send again?")).toBeInTheDocument();
+    await userEvent.click(button("Not now"));
+    await userEvent.click(button("Cancel link"));
+    expect(within(live).getByRole("button", { name: "Yes, cancel link" })).toBeInTheDocument();
+    await userEvent.click(button("Take payment now"));
+    const page = await within(live).findByRole("link", { name: "Open the payment page" });
+    expect(page.parentElement).toHaveTextContent("If it didn't open: Open the payment page");
+    expect(region()).toBe(live);
+  });
+
+  it("a prompt's first button gets focus; Not now returns it to the button that opened the prompt", async () => {
+    renderPanel({ link: LINK });
+    await userEvent.click(button("Email deposit link"));
+    expect(button("Send again")).toHaveFocus();
+    await userEvent.click(button("Not now"));
+    expect(button("Email deposit link")).toHaveFocus();
+    await userEvent.click(button("Cancel link"));
+    expect(button("Yes, cancel link")).toHaveFocus();
+    await userEvent.click(button("Not now"));
+    expect(button("Cancel link")).toHaveFocus();
+  });
+
+  it("after a choice, focus is back on the originating button once the request is done", async () => {
+    actions.sendDepositLink.mockResolvedValue({ ok: true, sentAt: PAID_AT, to: "s•••@gmail.com" });
+    renderPanel({ link: LINK });
+    await userEvent.click(button("Email deposit link"));
+    await userEvent.click(button("Send again"));
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    await waitFor(() => expect(button("Email deposit link")).toHaveFocus());
+  });
+
+  it("the server's question (target_differs on Copy): its first button gets focus; a choice returns focus to Copy link", async () => {
+    actions.copyDepositLink
+      .mockResolvedValueOnce({ ok: false, error: "target_differs", openTarget: "current", openGoodwillStartDate: null })
+      .mockResolvedValueOnce({ ok: true, url: URL_ });
+    renderPanel();
+    await userEvent.click(button("Copy link"));
+    await waitFor(() => expect(button("Copy as is")).toHaveFocus());
+    await userEvent.click(button("Copy as is"));
+    expect(await screen.findByRole("textbox", { name: "Deposit link" })).toHaveValue(URL_);
+    await waitFor(() => expect(button("Copy link")).toHaveFocus());
+  });
+
+  it("the button that opened it is gone (the link was cancelled) → focus goes to the block", async () => {
+    let resolve: (v: unknown) => void = () => undefined;
+    actions.cancelDepositLink.mockReturnValue(new Promise((r) => (resolve = r)));
+    const view = renderPanel({ link: LINK });
+    await userEvent.click(button("Cancel link"));
+    await userEvent.click(button("Yes, cancel link"));
+    view.rerender(<DepositBlock parentUserId={PARENT} deposit={{ ok: true, value: panelOf({ link: null }) }} />);
+    resolve({ ok: true, cancelled: true });
+    await waitFor(() => expect(screen.getByTestId("deposit-block")).toHaveFocus());
+  });
+
+  it("changing the target dismisses an open prompt (03b review code LOW-2); focus stays on the choice", async () => {
+    actions.copyDepositLink.mockResolvedValue({ ok: false, error: "target_differs", openTarget: "current", openGoodwillStartDate: null });
+    renderPanel({ link: LINK, cohorts: { current: CURRENT, next: NEXT, canOfferGoodwill: true } });
+    const goodwill = screen.getByRole("radio", { name: /^Next cohort, goodwill/ });
+    await userEvent.click(button("Email deposit link"));
+    await userEvent.click(goodwill);
+    expect(screen.queryByText("Sent at 09:02. Send again?")).toBeNull();
+    expect(goodwill).toHaveFocus();
+    await userEvent.click(button("Copy link"));
+    expect(await screen.findByRole("button", { name: "Copy as is" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("radio", { name: "Current cohort" }));
+    expect(screen.queryByRole("button", { name: "Copy as is" })).toBeNull();
+    expect(actions.sendDepositLink).not.toHaveBeenCalled();
+    expect(actions.copyDepositLink).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the shown link (03b review React L3)", () => {
+  it("only while a deposit can be taken: a refresh to paid hides the link box", async () => {
+    actions.copyDepositLink.mockResolvedValue({ ok: true, url: URL_ });
+    const view = renderPanel();
+    await userEvent.click(button("Copy link"));
+    expect(await screen.findByRole("textbox", { name: "Deposit link" })).toHaveValue(URL_);
+    view.rerender(<DepositBlock parentUserId={PARENT} deposit={{ ok: true, value: paidPanel({ state: "paid_card", payment: paid("card") }) }} />);
+    expect(screen.queryByRole("textbox", { name: "Deposit link" })).toBeNull();
   });
 });

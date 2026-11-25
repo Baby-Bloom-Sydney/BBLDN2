@@ -49,7 +49,7 @@ export function MarkPaidDialog(props: MarkPaidDialogProps) {
           {PANEL_COPY.markPaidButton}
         </button>
       </DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{PANEL_COPY.markPaidButton}</DialogTitle>
           <DialogDescription>{PANEL_ACTION_COPY.markPaidDescription}</DialogDescription>

@@ -24,6 +24,7 @@ import type { CohortView } from "@/lib/cohorts/types";
 import { londonToday } from "@/lib/timezone";
 import { isDepositCode } from "./code";
 import { EMAIL_MAX } from "./constants";
+import { maskEmail } from "./copy";
 import { readOpenPrebooking, type Prebooking } from "./prebook";
 import { DEPOSIT_TARGETS, type DepositTarget } from "./types";
 
@@ -58,7 +59,7 @@ export interface PanelPlace {
   readonly state: "taken" | "reopened";
 }
 
-/** Her open link. The code is here because BAI copies the same link again (brief §3 Admin 3–4). */
+/** Her open link, as the server reads it. The code and the full address stay on the server: `toClientPanel`. */
 export interface PanelLink {
   readonly id: string;
   readonly code: string;
@@ -289,4 +290,52 @@ export async function readDepositPanel(proof: AdminProof, admin: AdminClient, pa
     logFailure("deposit.panel", thrown);
     return ERROR;
   }
+}
+
+// ── What the admin page hands its client block (03b review M1; BB-wave2-231126/03-build, 2026-11-25) ──────────────
+// The page (a server component) passes the panel to `SubscriptionDetailHeader`, a client component, so all of it is
+// sent to the browser. The block never needs the link's code (Copy and Take payment get the URL from the server
+// actions) or the payment intent id, and shows the address only masked: `toClientPanel` leaves them out.
+
+/** Her open link as the client block gets it: no id, no code, the address masked ("s•••@gmail.com"). */
+export interface ClientPanelLink {
+  readonly target: DepositTarget;
+  readonly goodwillStartDate: string | null;
+  readonly createdAt: string;
+  readonly lastEmailedAt: string | null;
+  /** Masked (`maskEmail`). */
+  readonly lastEmailedTo: string | null;
+}
+
+export type ClientDepositPayment = Omit<DepositPayment, "paymentIntentId">;
+
+export type ClientDepositPanel = Omit<DepositPanel, "link" | "payment"> & {
+  readonly link: ClientPanelLink | null;
+  readonly payment: ClientDepositPayment | null;
+};
+
+export type ClientDepositPanelResult = { readonly ok: true; readonly value: ClientDepositPanel } | Extract<DepositPanelResult, { readonly ok: false }>;
+
+const clientLink = (link: PanelLink): ClientPanelLink =>
+  Object.freeze({
+    target: link.target,
+    goodwillStartDate: link.goodwillStartDate,
+    createdAt: link.createdAt,
+    lastEmailedAt: link.lastEmailedAt,
+    lastEmailedTo: link.lastEmailedTo === null ? null : maskEmail(link.lastEmailedTo),
+  });
+
+const clientPayment = (payment: DepositPayment): ClientDepositPayment =>
+  Object.freeze({ pence: payment.pence, paidAt: payment.paidAt, refundedAt: payment.refundedAt, method: payment.method });
+
+/** The page's read, for the client block: the same panel less the code, the payment intent id and the full address. */
+export function toClientPanel(result: DepositPanelResult): ClientDepositPanelResult {
+  if (!result.ok) return result;
+  const { link, payment, ...rest } = result.value;
+  const value: ClientDepositPanel = Object.freeze({
+    ...rest,
+    link: link === null ? null : clientLink(link),
+    payment: payment === null ? null : clientPayment(payment),
+  });
+  return Object.freeze({ ok: true as const, value });
 }

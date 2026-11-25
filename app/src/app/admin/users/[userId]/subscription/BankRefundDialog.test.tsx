@@ -30,6 +30,11 @@ async function openDialog() {
 }
 
 describe("Record refund (bank transfer)", () => {
+  it("the dialog scrolls inside a short screen (03b review React L4)", async () => {
+    await openDialog();
+    expect(screen.getByRole("dialog")).toHaveClass("max-w-md", "max-h-[90vh]", "overflow-y-auto");
+  });
+
   it("the trigger follows the block's pending state", () => {
     render(<BankRefundDialog parentUserId={PARENT} disabled />);
     expect(screen.getByRole("button", { name: "Record refund (bank transfer)" })).toBeDisabled();

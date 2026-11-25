@@ -365,11 +365,23 @@ describe("the panel's words", () => {
 
 // ── The panel's action words (plan 03 row B3; BB-wave2-231126/03-build, 2026-11-25) ─────────────────────────────────
 import {
+  ACTION_ERROR_COPY,
   depositActionErrorLine,
   PANEL_ACTION_COPY,
   sendAgainQuestionAt,
   targetDiffersLine,
+  type DepositActionCode,
+  type DepositRefusalCode,
 } from "./copy";
+
+/** Every code contract-03b gives the six actions; the two prompts are asked, never shown as a line (03b review TS M1). */
+const CONTRACT_CODES = [
+  "deposit_disabled", "not_admin", "invalid", "error", "confirm_resend", "target_differs", "email_failed", "already_paid",
+  "goodwill_not_offered", "no_email", "cohort_full", "being_paid", "not_bookable", "not_a_cohort", "already_taken",
+  "not_bank_transfer", "already_refunded",
+] as const;
+const PROMPT_CODES = ["confirm_resend", "target_differs"] as const;
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 
 describe("the panel's action words (row B3)", () => {
   it("the server's 'already sent' time asks the same question, on the London clock", () => {
@@ -412,14 +424,24 @@ describe("the panel's action words (row B3)", () => {
     ["already_taken", "This family already has a place."],
     ["not_bank_transfer", "This deposit wasn't paid by bank transfer."],
     ["already_refunded", "The deposit is already refunded."],
-  ])("the refusal %s → %s", (code, line) => {
+  ] satisfies ReadonlyArray<readonly [DepositRefusalCode, string]>)("the refusal %s → %s", (code, line) => {
     expect(depositActionErrorLine(code)).toBe(line);
   });
 
   it("an unknown code (or an object key) → the generic line, never the code itself", () => {
-    expect(depositActionErrorLine("something_new")).toBe("Something went wrong. Try again.");
-    expect(depositActionErrorLine("constructor")).toBe("Something went wrong. Try again.");
-    expect(depositActionErrorLine("__proto__")).toBe("Something went wrong. Try again.");
+    for (const unknown of ["something_new", "constructor", "__proto__", "confirm_resend", "target_differs"]) {
+      expect(depositActionErrorLine(unknown as DepositRefusalCode)).toBe("Something went wrong. Try again.");
+    }
+  });
+
+  it("the line table is complete at compile time: exactly the contract's codes, less the two it asks about", () => {
+    const derivedIsTheContract: Same<DepositActionCode, (typeof CONTRACT_CODES)[number]> = true;
+    const tableIsTheRefusals: Same<DepositRefusalCode, Exclude<(typeof CONTRACT_CODES)[number], (typeof PROMPT_CODES)[number]>> = true;
+    expect([derivedIsTheContract, tableIsTheRefusals]).toEqual([true, true]);
+    const refusals = CONTRACT_CODES.filter((code) => !(PROMPT_CODES as readonly string[]).includes(code));
+    expect(Object.keys(ACTION_ERROR_COPY).sort()).toEqual([...refusals].sort());
+    expect(Object.isFrozen(ACTION_ERROR_COPY)).toBe(true);
+    for (const line of Object.values(ACTION_ERROR_COPY)) expect(line).not.toMatch(new RegExp(`${POUND}\\d`));
   });
 
   it("the action words, frozen; no amount written in any of them", () => {
@@ -435,6 +457,7 @@ describe("the panel's action words (row B3)", () => {
       cancelConfirm: "Yes, cancel link",
       noOpenLink: "There was no open link to cancel.",
       openPaymentPage: "Open the payment page",
+      openPaymentPageLead: "If it didn't open:",
       confirm: "Confirm",
       back: "Back",
       genericError: "Something went wrong. Try again.",

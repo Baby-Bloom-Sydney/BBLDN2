@@ -18,14 +18,14 @@ vi.mock("./DepositBlock", () => ({
 }));
 
 import type { UserData } from "@/app/admin/users/page";
-import type { DepositPanel, DepositPanelResult } from "@/lib/deposit/panel";
+import type { ClientDepositPanel, ClientDepositPanelResult } from "@/lib/deposit/panel";
 import { SubscriptionDetailHeader } from "./SubscriptionDetailHeader";
 
 const PARENT = { user_id: "b0200000-0000-4000-8000-000000000001", first_name: "Sarah", last_name: "Jones", email: "s@example.test" } as unknown as UserData;
 const VIEW = { start: "2027-02-01", places: 5, taken: 3, beingPaid: 0, left: 2, overBy: 0 };
-const READ: DepositPanelResult = { ok: true, value: { parentUserId: PARENT.user_id } as unknown as DepositPanel };
+const READ: ClientDepositPanelResult = { ok: true, value: { parentUserId: PARENT.user_id } as unknown as ClientDepositPanel };
 
-const renderWith = (deposit?: DepositPanelResult | null) =>
+const renderWith = (deposit?: ClientDepositPanelResult | null) =>
   render(
     <SubscriptionDetailHeader
       parentUserData={PARENT}

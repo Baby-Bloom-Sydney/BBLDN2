@@ -11,7 +11,36 @@ const seen = vi.hoisted(() => ({
   proof: { kind: "admin_proof", userId: "admin-1" } as object | null,
   headerProps: null as Record<string, unknown> | null,
 }));
-const PANEL = vi.hoisted(() => ({ ok: true, value: { parentUserId: "p1", state: "not_paid" } }));
+const CODE = "Ab0_-".repeat(8) + "xyz";
+/** A full server read: the link's code, the payment intent id and the whole address are all in it. */
+const FULL = vi.hoisted(() => ({
+  ok: true,
+  value: {
+    parentUserId: "p1",
+    today: "2027-02-03",
+    state: "paid_card",
+    payment: { pence: null, paidAt: "2027-02-03T09:00:00.000Z", refundedAt: null, method: "card", paymentIntentId: "pi_3Test" },
+    card: null,
+    bankTransfer: null,
+    place: null,
+    link: {
+      id: "d0300000-0000-4000-8000-000000000001",
+      code: "Ab0_-".repeat(8) + "xyz",
+      target: "current",
+      goodwillStartDate: null,
+      createdAt: "2027-02-03T08:59:00.000Z",
+      lastEmailedAt: "2027-02-03T09:02:00.000Z",
+      lastEmailedTo: "sarah@gmail.com",
+    },
+    prebooking: null,
+    duplicatePayments: 0,
+    warnings: [],
+    cohorts: { current: null, next: null, canOfferGoodwill: false },
+    canTakeDeposit: false,
+    canRecordBankRefund: false,
+  },
+}));
+const PANEL = vi.hoisted(() => ({ read: null as unknown }));
 
 function builder(table: string) {
   const b: Record<string, unknown> = {};
@@ -32,10 +61,11 @@ vi.mock("@/lib/calls/admin-proof", () => ({
     return seen.proof;
   },
 }));
-vi.mock("@/lib/deposit/panel", () => ({
+vi.mock("@/lib/deposit/panel", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/deposit/panel")>()),
   readDepositPanel: async (...args: unknown[]) => {
     seen.reads.push(args);
-    return PANEL;
+    return PANEL.read;
   },
 }));
 vi.mock("./SubscriptionDetailHeader", () => ({ SubscriptionDetailHeader: () => null }));
@@ -47,6 +77,7 @@ beforeEach(() => {
   seen.reads = [];
   seen.proof = { kind: "admin_proof", userId: "admin-1" };
   seen.headerProps = null;
+  PANEL.read = FULL;
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -84,7 +115,27 @@ describe("admin subscription dossier — the deposit panel", () => {
     expect(admin).toEqual(expect.objectContaining({ from: expect.any(Function) }));
     expect(parentUserId).toBe("p1");
     expect(now).toBeInstanceOf(Date);
-    expect(seen.headerProps?.deposit).toEqual(PANEL);
+    expect(seen.headerProps?.deposit).toMatchObject({ ok: true, value: { parentUserId: "p1", state: "paid_card", canTakeDeposit: false } });
+  });
+
+  it("on: the header (a client component) gets no link code, no payment intent id and only the masked address (03b review M1)", async () => {
+    vi.stubEnv("DEPOSIT_LINK_ENABLED", "true");
+    vi.stubEnv("COHORTS_ENABLED", "true");
+    await renderPage();
+    const props = JSON.stringify(seen.headerProps?.deposit);
+    expect(props).not.toContain(CODE);
+    expect(props).not.toContain("pi_");
+    expect(props).not.toContain("paymentIntentId");
+    expect(props).not.toContain("sarah@gmail.com");
+    expect(props).toContain("s•••@gmail.com");
+  });
+
+  it("on, a failed read: handed on as it is (the block's one line)", async () => {
+    vi.stubEnv("DEPOSIT_LINK_ENABLED", "true");
+    vi.stubEnv("COHORTS_ENABLED", "true");
+    PANEL.read = { ok: false, status: "error" };
+    await renderPage();
+    expect(seen.headerProps?.deposit).toEqual({ ok: false, status: "error" });
   });
 
   it("on, but no admin proof: no read, and no deposit prop", async () => {

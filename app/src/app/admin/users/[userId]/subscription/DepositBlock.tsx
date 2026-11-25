@@ -11,7 +11,11 @@
  *   Cancel while a link is open (its question never promises to close a payment page already open), Mark paid.
  *   Once paid they're hidden (B2 refuses them too); Record refund shows for a bank-transfer deposit.
  * - `target_differs`: the open link's target is named, and nothing happens until BAI picks "as is" or "cancel and
- *   make a new one". Refusals are plain amber `role="alert"` lines; after any write the page refreshes.
+ *   make a new one"; changing the target closes any prompt. Refusals are plain amber `role="alert"` lines; after any
+ *   write the page refreshes. The link box shows only while nothing is paid.
+ * - The prompts and the payment-page fallback render in one polite live region, always there; a prompt takes focus
+ *   and gives it back to the button that opened it (`usePromptFocus`, 03b review M2).
+ * - It gets `toClientPanel`'s view: no link code, no payment intent id, the address masked (03b review M1).
  *
  * BB-wave2-231126/03-build, 2026-11-25.
  */
@@ -20,13 +24,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   depositActionErrorLine, depositStateLine, depositWarningLines, linkLine, PANEL_ACTION_COPY, PANEL_COPY, prebookedLine,
-  sendAgainQuestion, sendAgainQuestionAt, targetDiffersLine,
+  sendAgainQuestion, sendAgainQuestionAt, targetDiffersLine, type DepositRefusalCode,
 } from "@/lib/deposit/copy";
-import type { DepositPanel, DepositPanelResult } from "@/lib/deposit/panel";
+import type { ClientDepositPanel, ClientDepositPanelResult } from "@/lib/deposit/panel";
 import type { DepositTarget } from "@/lib/deposit/types";
 import { BankRefundDialog } from "./BankRefundDialog";
 import { cancelDepositLink, copyDepositLink, sendDepositLink, takeDepositPaymentNow, type TargetDiffersChoice } from "./deposit-actions";
-import { AlertLine, BUTTON, CopyableUrl, goodwillNext, QUIET_BUTTON, TargetChoice, useOneAtATime } from "./DepositParts";
+import { AlertLine, BUTTON, CopyableUrl, goodwillNext, QUIET_BUTTON, TargetChoice, useOneAtATime, usePromptFocus } from "./DepositParts";
 import { MarkPaidDialog } from "./MarkPaidDialog";
 
 interface SendOptions { readonly confirmResend?: boolean; readonly onTargetDiffers?: TargetDiffersChoice }
@@ -37,13 +41,13 @@ type Prompt =
 type Shown = { readonly kind: "link" | "pay"; readonly url: string };
 type Choice = readonly [label: string, act: () => void];
 
-export function DepositBlock({ parentUserId, deposit }: { readonly parentUserId: string; readonly deposit: DepositPanelResult }) {
+export function DepositBlock({ parentUserId, deposit }: { readonly parentUserId: string; readonly deposit: ClientDepositPanelResult }) {
   if (!deposit.ok) return <AlertLine text={PANEL_COPY.unavailable} />;
   return <DepositControls parentUserId={parentUserId} panel={deposit.value} />;
 }
 
 /** The screen state, and the send / copy steps (each may stop at a prompt). */
-function useDepositFlow(parentUserId: string, panel: DepositPanel) {
+function useDepositFlow(parentUserId: string, panel: ClientDepositPanel) {
   const router = useRouter();
   const { pending, run } = useOneAtATime();
   const [choice, setChoice] = useState<DepositTarget>("current");
@@ -62,10 +66,9 @@ function useDepositFlow(parentUserId: string, panel: DepositPanel) {
     setShown(null);
     return run(task, () => setMessage(PANEL_ACTION_COPY.genericError));
   };
-  const fail = (code: string) => setMessage(depositActionErrorLine(code));
+  const fail = (code: DepositRefusalCode) => setMessage(depositActionErrorLine(code));
   const differs = (action: "send" | "copy", options: SendOptions, open: { openTarget: DepositTarget; openGoodwillStartDate: string | null }) =>
     setPrompt({ kind: "differs", action, options, line: targetDiffersLine(open.openTarget, open.openGoodwillStartDate) });
-
   const send = (options: SendOptions) =>
     start(async () => {
       const res = await sendDepositLink(parentUserId, { target, ...options });
@@ -86,13 +89,17 @@ function useDepositFlow(parentUserId: string, panel: DepositPanel) {
       router.refresh();
     });
   const flow = { pending, start, ask, fail, setShown, setMessage, refresh: () => router.refresh(), dismiss: () => setPrompt(null) };
-  return { ...flow, choice, setChoice, prompt, shown, message, send, copy };
+  const pickTarget = (next: DepositTarget) => {
+    setChoice(next);
+    setPrompt(null); // a prompt was for the old target
+  };
+  return { ...flow, choice, pickTarget, prompt, shown, message, send, copy };
 }
 
 type Flow = ReturnType<typeof useDepositFlow>;
 
 /** Take payment now (D15), Cancel, and Email's own question before a second send. */
-function depositActions(parentUserId: string, panel: DepositPanel, flow: Flow) {
+function depositActions(parentUserId: string, panel: ClientDepositPanel, flow: Flow) {
   const email = () => {
     const question = sendAgainQuestion(panel);
     return question === null ? flow.send({}) : flow.ask({ kind: "resend", question, options: {} });
@@ -135,7 +142,7 @@ function PromptBox({ flow, actions }: { readonly flow: Flow; readonly actions: A
   if (flow.prompt === null) return null;
   const { text, choices } = promptView(flow.prompt, flow, actions);
   return (
-    <div aria-live="polite" className="space-y-2 rounded-md bg-slate-50 p-2">
+    <div className="space-y-2 rounded-md bg-slate-50 p-2">
       <p className="break-words text-sm text-slate-700">{text}</p>
       <div className="flex flex-wrap gap-2">
         {choices.map(([label, act]) => (
@@ -151,7 +158,19 @@ function PromptBox({ flow, actions }: { readonly flow: Flow; readonly actions: A
   );
 }
 
-function DepositLines({ panel }: { readonly panel: DepositPanel }) {
+/** The fallback when the payment page's new tab didn't open (D15). */
+function PayFallback({ url }: { readonly url: string }) {
+  return (
+    <p className="text-sm text-slate-600">
+      {PANEL_ACTION_COPY.openPaymentPageLead}{" "}
+      <a href={url} target="_blank" rel="noopener noreferrer" className="text-violet-700 hover:underline">
+        {PANEL_ACTION_COPY.openPaymentPage}
+      </a>
+    </p>
+  );
+}
+
+function DepositLines({ panel }: { readonly panel: ClientDepositPanel }) {
   const prebooked = prebookedLine(panel);
   return (
     <>
@@ -163,7 +182,15 @@ function DepositLines({ panel }: { readonly panel: DepositPanel }) {
   );
 }
 
-function ActionButtons({ parentUserId, panel, flow, actions }: { readonly parentUserId: string; readonly panel: DepositPanel; readonly flow: Flow; readonly actions: Actions }) {
+function ActionButtons(props: {
+  readonly parentUserId: string;
+  readonly panel: ClientDepositPanel;
+  readonly flow: Flow;
+  readonly actions: Actions;
+  /** Where focus goes back to once a prompt this button opened closes. */
+  readonly from: (button: HTMLElement) => void;
+}) {
+  const { parentUserId, panel, flow, actions, from } = props;
   const buttons: readonly Choice[] = [
     [PANEL_COPY.emailButton, actions.email],
     [PANEL_COPY.copyButton, () => flow.copy({})],
@@ -173,7 +200,16 @@ function ActionButtons({ parentUserId, panel, flow, actions }: { readonly parent
   return (
     <div className="flex flex-wrap gap-2">
       {buttons.map(([label, act]) => (
-        <button key={label} type="button" onClick={act} disabled={flow.pending} className={BUTTON}>
+        <button
+          key={label}
+          type="button"
+          onClick={(e) => {
+            from(e.currentTarget);
+            act();
+          }}
+          disabled={flow.pending}
+          className={BUTTON}
+        >
           {label}
         </button>
       ))}
@@ -182,27 +218,31 @@ function ActionButtons({ parentUserId, panel, flow, actions }: { readonly parent
   );
 }
 
-function DepositControls({ parentUserId, panel }: { readonly parentUserId: string; readonly panel: DepositPanel }) {
+function DepositControls({ parentUserId, panel }: { readonly parentUserId: string; readonly panel: ClientDepositPanel }) {
   const flow = useDepositFlow(parentUserId, panel);
+  const focus = usePromptFocus(flow.prompt, flow.pending);
   const actions = depositActions(parentUserId, panel, flow);
+  const shown = panel.canTakeDeposit ? flow.shown : null; // once a refresh shows it paid, a link shown earlier goes
+  const pickTarget = (next: DepositTarget) => {
+    focus.forget();
+    flow.pickTarget(next);
+  };
   return (
-    <div className="space-y-2" data-testid="deposit-block">
+    <div ref={focus.home} tabIndex={-1} className="space-y-2" data-testid="deposit-block">
       <p className="text-sm font-medium text-slate-900">{PANEL_ACTION_COPY.heading}</p>
       <DepositLines panel={panel} />
       {panel.canTakeDeposit && (
         <>
-          <TargetChoice cohorts={panel.cohorts} value={flow.choice} onChange={flow.setChoice} disabled={flow.pending} />
-          <ActionButtons parentUserId={parentUserId} panel={panel} flow={flow} actions={actions} />
+          <TargetChoice cohorts={panel.cohorts} value={flow.choice} onChange={pickTarget} disabled={flow.pending} />
+          <ActionButtons parentUserId={parentUserId} panel={panel} flow={flow} actions={actions} from={focus.from} />
         </>
       )}
       {panel.canRecordBankRefund && <BankRefundDialog parentUserId={parentUserId} disabled={flow.pending} />}
-      <PromptBox flow={flow} actions={actions} />
-      {flow.shown && <CopyableUrl url={flow.shown.url} />}
-      {flow.shown?.kind === "pay" && (
-        <a href={flow.shown.url} target="_blank" rel="noopener noreferrer" className="inline-block text-sm text-violet-700 hover:underline">
-          {PANEL_ACTION_COPY.openPaymentPage}
-        </a>
-      )}
+      {shown && <CopyableUrl url={shown.url} />}
+      <div ref={focus.region} aria-live="polite" className="space-y-2 empty:!mt-0">
+        <PromptBox flow={flow} actions={actions} />
+        {shown?.kind === "pay" && <PayFallback url={shown.url} />}
+      </div>
       {flow.message && <AlertLine text={flow.message} />}
     </div>
   );

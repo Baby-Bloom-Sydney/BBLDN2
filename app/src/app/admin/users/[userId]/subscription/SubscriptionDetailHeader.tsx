@@ -18,7 +18,7 @@ import type { UserData } from "@/app/admin/users/page";
 import type { ParentSubscriptionRow } from "./page";
 import { panelLine } from "@/lib/cohorts/copy";
 import type { CurrentCohortSummary } from "@/lib/cohorts/types";
-import type { DepositPanelResult } from "@/lib/deposit/panel";
+import type { ClientDepositPanelResult } from "@/lib/deposit/panel";
 import { DepositBlock } from "./DepositBlock";
 
 interface Props {
@@ -31,7 +31,7 @@ interface Props {
   /** Brief 02 — the current cohort, read only while COHORTS_ENABLED is on (absent/null = no line). */
   cohort?: CurrentCohortSummary | null;
   /** Brief 03 — the deposit panel, read only while DEPOSIT_LINK_ENABLED is on (absent/null = the panel as today). */
-  deposit?: DepositPanelResult | null;
+  deposit?: ClientDepositPanelResult | null;
 }
 
 /** Top-of-page parent + nanny tiles with quick-access drawer buttons
@@ -243,7 +243,7 @@ function DfyPanel({
   sub: ParentSubscriptionRow | null;
   placementWagesPence: number | null;
   cohort: CurrentCohortSummary | null;
-  deposit: DepositPanelResult | null;
+  deposit: ClientDepositPanelResult | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();

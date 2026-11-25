@@ -3,16 +3,17 @@
 /**
  * The deposit block's small shared parts (plan 03 row B3), used by `DepositBlock` and its two dialogs: today's
  * DfyPanel look only (the violet-50 button, the Copy control, the amber `role="alert"` line), the cohort target
- * choice (goodwill only when offered, D10), one request at a time, and the dialogs' write-then-refresh step.
+ * choice (goodwill only when offered, D10), one request at a time, a prompt's focus, and the dialogs'
+ * write-then-refresh step.
  *
  * BB-wave2-231126/03-build, 2026-11-25.
  */
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Copy } from "lucide-react";
 import type { CohortView } from "@/lib/cohorts/types";
-import { depositActionErrorLine, goodwillChoiceLabel, PANEL_ACTION_COPY, PANEL_COPY } from "@/lib/deposit/copy";
+import { depositActionErrorLine, goodwillChoiceLabel, PANEL_ACTION_COPY, PANEL_COPY, type DepositRefusalCode } from "@/lib/deposit/copy";
 import type { PanelCohorts } from "@/lib/deposit/panel";
 import type { DepositTarget } from "@/lib/deposit/types";
 
@@ -106,7 +107,40 @@ export function useOneAtATime() {
   return { pending, run };
 }
 
-type WriteResult = { readonly ok: true } | { readonly ok: false; readonly error: string };
+const canFocus = (element: HTMLElement | null): element is HTMLElement =>
+  element !== null && element.isConnected && !(element instanceof HTMLButtonElement && element.disabled);
+
+/**
+ * A prompt's focus (03b review M2). Opening one focuses its first button (once enabled); closing it — a choice, once
+ * its request is done, or "Not now" — gives focus back to the button that opened it (`from`), or to the block when
+ * that button is gone. `forget` closes without moving focus (BAI changed the target). `region` is the block's live
+ * region the prompts render in; `home` is the block.
+ */
+export function usePromptFocus(prompt: object | null, pending: boolean) {
+  const region = useRef<HTMLDivElement>(null);
+  const home = useRef<HTMLDivElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
+  const isOpen = useRef(false);
+  useEffect(() => {
+    if (prompt !== null) {
+      isOpen.current = true;
+      region.current?.querySelector("button")?.focus();
+      return;
+    }
+    if (!isOpen.current || pending) return;
+    isOpen.current = false;
+    (canFocus(opener.current) ? opener.current : home.current)?.focus();
+  }, [prompt, pending]);
+  const from = (element: HTMLElement) => {
+    opener.current = element;
+  };
+  const forget = () => {
+    isOpen.current = false;
+  };
+  return { region, home, from, forget };
+}
+
+type WriteResult = { readonly ok: true } | { readonly ok: false; readonly error: DepositRefusalCode };
 
 /**
  * A dialog's write: a refusal stays in the dialog as its plain line; done → `reset`, close, refresh the page. It
