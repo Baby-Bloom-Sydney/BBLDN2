@@ -1,7 +1,9 @@
 /**
  * BAI's deposit-link operations (plan 03 row A5, §3 "Link"; brief 03 §3 admin 3–4). One open link per family with a
  * stable code: get-or-create returns the same code every time, mints a 43-character code only when none is open, and
- * re-reads on the unique conflict a concurrent press causes. Cancel ends the link, so the next send makes a new code.
+ * re-reads on the unique conflict a concurrent press causes. An open link made for another target (or another goodwill
+ * pin) is handed back unchanged as `target_differs`, never as `ok`. Cancel ends the link, so the next send makes a new
+ * code.
  * Every admin operation refuses a non-proof before any read; logs carry an error code only — never the code value.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -38,6 +40,8 @@ const linkRow = (over: Record<string, unknown> = {}) => ({
 });
 
 const CURRENT = { parentUserId: PARENT, target: "current", goodwillStartDate: null } as const;
+const GOODWILL_A = { parentUserId: PARENT, target: "goodwill", goodwillStartDate: "2027-02-08" } as const;
+const GOODWILL_B = { parentUserId: PARENT, target: "goodwill", goodwillStartDate: "2027-02-15" } as const;
 
 let admin: AdminProof;
 let fake: FakeAdmin;
@@ -92,9 +96,9 @@ describe("getOrCreateOpenLink — the same code every time", () => {
     if (r.status === "ok") expect(Object.isFrozen(r.link)).toBe(true);
   });
 
-  it("an open goodwill link is returned as it is, whatever target this press asks for", async () => {
+  it("an open goodwill link asked for with the same pin → ok, that link, and zero writes", async () => {
     fake.reads.deposit_links = linkRow({ target: "goodwill", goodwill_cohort_start_date: "2027-02-08" });
-    const r = await getOrCreateOpenLink(admin, fake.client, CURRENT);
+    const r = await getOrCreateOpenLink(admin, fake.client, GOODWILL_A);
     expect(r).toMatchObject({ status: "ok", created: false, link: { code: CODE, target: "goodwill", goodwillStartDate: "2027-02-08" } });
     expect(writesTo(fake, "deposit_links")).toHaveLength(0);
   });
@@ -141,6 +145,33 @@ describe("getOrCreateOpenLink — the same code every time", () => {
     fake.reads.deposit_links = null;
     fake.writeErrors.deposit_links = { message: "duplicate key value", code: "23505" };
     expect(await getOrCreateOpenLink(admin, fake.client, CURRENT)).toEqual({ status: "error" });
+  });
+});
+
+describe("getOrCreateOpenLink — the open link was made for another target (03b decides: send as is, or cancel)", () => {
+  it.each([
+    ["current → goodwill", linkRow(), GOODWILL_A],
+    ["goodwill → current", linkRow({ target: "goodwill", goodwill_cohort_start_date: "2027-02-08" }), CURRENT],
+    ["goodwill pin A → pin B", linkRow({ target: "goodwill", goodwill_cohort_start_date: "2027-02-08" }), GOODWILL_B],
+  ])("%s → target_differs with the open link unchanged (same code), and zero writes", async (_label, row, req) => {
+    fake.reads.deposit_links = row;
+    const r = await getOrCreateOpenLink(admin, fake.client, req);
+    expect(r).toMatchObject({
+      status: "target_differs",
+      link: { code: CODE, target: row.target, goodwillStartDate: row.goodwill_cohort_start_date },
+    });
+    expect(r).not.toHaveProperty("created");
+    expect(Object.isFrozen(r)).toBe(true);
+    expect(fake.ops.map((o) => o.kind)).toEqual(["select"]);
+    expect(writesTo(fake, "deposit_links")).toHaveLength(0);
+  });
+
+  it("the unique conflict's re-read finds a link for another target → target_differs", async () => {
+    let reads = 0;
+    fake.reads.deposit_links = () => (reads++ === 0 ? null : linkRow({ code: OTHER_CODE }));
+    fake.writeErrors.deposit_links = { message: "duplicate key value", code: "23505" };
+    const r = await getOrCreateOpenLink(admin, fake.client, GOODWILL_A);
+    expect(r).toMatchObject({ status: "target_differs", link: { code: OTHER_CODE, target: "current" } });
   });
 });
 

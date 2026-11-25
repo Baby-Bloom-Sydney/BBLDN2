@@ -106,16 +106,16 @@ describe("recordDepositLinkPayment — the money and the place in one step", () 
     expect(writesTo(fake, "family_saved_cards")).toHaveLength(0);
   });
 
-  it.each(["hold_not_found", "already_taken", "invalid"])("the place refused (%s) → still applied, logged by status only, card saved", async (place) => {
+  it.each(["hold_not_found", "already_taken", "invalid"])("the place refused (%s) → still applied, logged like every failure (its status as the code), card saved", async (place) => {
     answer({ status: "recorded", place });
     expect(await recordDepositLinkPayment(fake.client, session(), FACTS)).toBe("applied");
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("[deposit-webhook]"), { status: place });
+    expect(log).toHaveBeenCalledWith("[cohorts] deposit webhook place failed", { code: place });
     expect(writesTo(fake, "family_saved_cards")).toHaveLength(1);
   });
 
-  it("the place taken → no place warning", async () => {
+  it("the place taken → no place warning, nothing logged", async () => {
     await recordDepositLinkPayment(fake.client, session(), FACTS);
-    expect(logged()).not.toContain("without a place");
+    expect(log).not.toHaveBeenCalled();
   });
 
   it("the function answers invalid → throws (the route records the event unresolved)", async () => {

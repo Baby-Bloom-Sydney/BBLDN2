@@ -11,10 +11,9 @@
 
 import { PRICES } from "@/config/prices";
 import { dayWords } from "@/lib/calls/slot-words";
-import { isLondonDate } from "@/lib/cohorts/dates";
+import { formatCohortShort, formatDayMonth, isLondonDate } from "@/lib/cohorts/dates";
 import { APP_LOCALE, SITE_NAME } from "@/lib/constants";
 import { EMAIL_MAX, HOLD_MINUTES } from "./constants";
-import { formatCohortShort, formatDayMonth } from "@/lib/cohorts/dates";
 import type { CohortView } from "@/lib/cohorts/types";
 import { formatClockHourMinute, londonWallClockOf } from "@/lib/timezone";
 import type { DepositPanel, DepositPayment, DepositWarning, PanelPlace, SavedCard } from "./panel";

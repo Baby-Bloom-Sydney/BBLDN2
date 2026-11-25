@@ -15,6 +15,7 @@ import {
   PAY_REREAD_TRIES,
   REFUND_REASON_MAX,
   REFUND_REASON_MIN,
+  SESSIONLESS_HOLD_STALE_SECONDS,
 } from "./constants";
 
 describe("deposit constants", () => {
@@ -38,5 +39,10 @@ describe("deposit constants", () => {
     expect(PAY_REREAD_TRIES).toBe(3);
     expect(PAY_REREAD_DELAY_MS).toBe(1000);
     expect(EMAIL_MAX).toBe(320);
+  });
+
+  it("a sessionless hold is the gone press's after 60 seconds — well past every re-read of a double tap", () => {
+    expect(SESSIONLESS_HOLD_STALE_SECONDS).toBe(60);
+    expect(SESSIONLESS_HOLD_STALE_SECONDS * 1000).toBeGreaterThan(PAY_REREAD_TRIES * PAY_REREAD_DELAY_MS);
   });
 });

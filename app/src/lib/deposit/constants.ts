@@ -26,6 +26,12 @@ export const REFUND_REASON_MAX = 500;
 /** A double tap on Pay waits for the first press's session: this many re-reads, this far apart (plan 03 §3). */
 export const PAY_REREAD_TRIES = 3;
 export const PAY_REREAD_DELAY_MS = 1000;
+/**
+ * Pay finds her live hold still with no session after those re-reads. Made longer ago than this (its start is
+ * `hold_expires_at` − `HOLD_MINUTES`), the press that made it is gone: Pay releases it and holds once more, rather
+ * than answer "try again soon" until the hold lapses (code review M1).
+ */
+export const SESSIONLESS_HOLD_STALE_SECONDS = 60;
 
 /** The longest email address stored or shown (amendment 18, deposit_links.last_emailed_to). */
 export const EMAIL_MAX = 320;

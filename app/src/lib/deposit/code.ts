@@ -5,11 +5,20 @@
  *   invalid page (brief 03 §3 parent 8).
  * - `depositCodeFrom` only writes bytes it is given. The randomness is the server's (`randomBytes(32)` in
  *   `links.ts`), so this file stays pure and client-safe: no node crypto and no Node-only byte helpers.
+ * - `isUuid` / `UUID_RE` — the one uuid check of `src/lib/deposit` (row and user ids). Any version and variant, as
+ *   Postgres's uuid type allows; zod's `z.uuid()` (`@/lib/calls/zod-parts`) is stricter, so it isn't used here.
  *
  * BB-wave2-231126/03-build, 2026-11-25.
  */
 
 import { DEPOSIT_CODE_BYTES, DEPOSIT_CODE_LENGTH } from "./constants";
+
+/** 8-4-4-4-12 hex digits, either case. */
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isUuid(value: unknown): value is string {
+  return typeof value === "string" && UUID_RE.test(value);
+}
 
 const CODE_RE = new RegExp(`^[A-Za-z0-9_-]{${DEPOSIT_CODE_LENGTH}}$`);
 const BASE64URL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";

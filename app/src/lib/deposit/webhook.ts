@@ -6,7 +6,7 @@
  *
  * - The money and the place are ONE database step (`deposit_record_card_payment`), with the amount `dfy-webhook`
  *   computed from `amount_total` (never metadata) and the session's customer.
- *   recorded → "applied" (a refused place is logged by status: 02's warnings box lists her);
+ *   recorded → "applied" (a refused place is logged with its status as the code: 02's warnings box lists her);
  *   already_recorded → "ignored" (a replay changes nothing); duplicate → "applied" (the first deposit unchanged, the
  *   duplicate kept for BAI); invalid / error → THROW, so the route records the event unresolved. A malformed session
  *   also throws: a paid session is never silently dropped.
@@ -18,18 +18,17 @@
  * BB-wave2-231126/03-build, 2026-11-25.
  */
 
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
 import { z } from "zod";
-import { logFailure } from "@/lib/cohorts/db";
+import { logFailure, type AdminClient } from "@/lib/cohorts/db";
 import type { DfyLinkOutcome } from "@/lib/payments/dfy-webhook";
 import { getStripeClient } from "@/lib/stripe/client";
+import { UUID_RE } from "./code";
 import { recordCardPayment } from "./record";
 
 /** The one status rule, re-exported so `dfy-webhook.ts` needs a single import. */
 export { keepStatusFor } from "./record";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SESSION_ID_RE = /^cs_[A-Za-z0-9_]{1,252}$/;
 
 /** What `dfy-webhook.ts` already verified and computed for this session. */
@@ -63,7 +62,7 @@ function customerOf(session: Stripe.Checkout.Session): string | null {
 }
 
 /** Brief 07's saved card: brand, last four and expiry only — never more card data. Logs; never throws. */
-async function saveCard(admin: SupabaseClient, parentUserId: string, customerId: string | null, paymentIntentId: string): Promise<void> {
+async function saveCard(admin: AdminClient, parentUserId: string, customerId: string | null, paymentIntentId: string): Promise<void> {
   if (customerId === null) {
     logFailure("deposit card save", { code: "no_customer" });
     return;
@@ -98,7 +97,7 @@ async function saveCard(admin: SupabaseClient, parentUserId: string, customerId:
 
 /** A paid brief 03 session: the deposit and the place in one step, then the card. */
 export async function recordDepositLinkPayment(
-  admin: SupabaseClient,
+  admin: AdminClient,
   session: Stripe.Checkout.Session,
   facts: DepositPaymentFacts,
 ): Promise<DfyLinkOutcome> {
@@ -121,10 +120,13 @@ export async function recordDepositLinkPayment(
     case "duplicate":
       return "applied";
     case "recorded":
-      if (result.place.status !== "taken") console.error("[deposit-webhook] deposit recorded without a place", { status: result.place.status });
+      if (result.place.status !== "taken") logFailure("deposit webhook place", { code: result.place.status });
       await saveCard(admin, facts.userId, customerId, facts.paymentIntentId);
       return "applied";
-    default:
-      throw new Error(`[deposit-webhook] deposit_record_card_payment answered ${result.status}`);
+    default: {
+      // exhaustive: a new status in CardPaymentResult fails this assignment at compile time
+      const failed: "invalid" | "error" = result.status;
+      throw new Error(`[deposit-webhook] deposit_record_card_payment answered ${failed}`);
+    }
   }
 }

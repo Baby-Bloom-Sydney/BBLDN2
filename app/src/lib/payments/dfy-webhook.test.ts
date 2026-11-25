@@ -293,10 +293,10 @@ describe("handleDfyLinkCompleted — brief 03 deposit-link sessions (plan 03 row
     expect(writesTo(f, "family_saved_cards")).toHaveLength(0);
   });
 
-  it("the place refused → still applied, logged by status", async () => {
+  it("the place refused → still applied, logged with its status as the code", async () => {
     const f = with03({ status: "recorded", place: "hold_not_found" });
     expect(await handleDfyLinkCompleted(f.client, session03())).toBe("applied");
-    expect(log).toHaveBeenCalledWith(expect.any(String), { status: "hold_not_found" });
+    expect(log).toHaveBeenCalledWith(expect.any(String), { code: "hold_not_found" });
   });
 
   it("an RPC error → throws (the existing contract: the route records the event unresolved)", async () => {

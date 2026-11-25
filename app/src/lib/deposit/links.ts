@@ -2,9 +2,11 @@
  * BAI's deposit-link operations (plan 03 §3 "Link"; brief 03 §3 admin 3–4). 03b's admin actions call these after
  * `proveAdmin()`; the parent's page calls `stampLinkOpened` with her `DepositParentProof`.
  *
- * - One open link per family, with a stable code: `getOrCreateOpenLink` returns the open link as it is (the same
- *   code, and the target it was made with), and mints a new 32-byte code only when none is open. A concurrent press
- *   that inserted first hits amendment 18's one-open-per-family index (23505): this re-reads and returns that link.
+ * - One open link per family, with a stable code: `getOrCreateOpenLink` mints a new 32-byte code only when none is
+ *   open. An open link made for the target asked for (and the same goodwill pin) → `ok`. One made for another target
+ *   or pin → `target_differs` with that link unchanged: never `ok`, so 03b decides (send it as is, or cancel and send
+ *   again). A concurrent press that inserted first hits amendment 18's one-open-per-family index (23505): this
+ *   re-reads and answers for that link the same way.
  * - `cancelOpenLink` ends the open link; the next get-or-create mints a new code.
  * - Every admin operation checks `isAdminProof` and its input before any read. Reads are single rows
  *   (`maybeSingle`). Failures are logged by error code only — never a deposit code, an address or a message.
@@ -19,13 +21,11 @@ import { isAdminProof, type AdminProof } from "@/lib/calls/admin-proof";
 import { logFailure, type AdminClient } from "@/lib/cohorts/db";
 import { isLondonDate } from "@/lib/cohorts/dates";
 import { SITE_URL } from "@/lib/constants";
-import { depositCodeFrom, isDepositCode } from "./code";
+import { depositCodeFrom, isDepositCode, isUuid } from "./code";
 import { DEPOSIT_CODE_BYTES, EMAIL_MAX } from "./constants";
-import { isDepositParentProof, type DepositParentProof } from "./proof";
-import { DEPOSIT_LINK_STATES, DEPOSIT_TARGETS, type DepositLinkState, type DepositTarget } from "./types";
+import { depositLinkRow, isDepositParentProof, type DepositParentProof } from "./proof";
+import type { DepositLinkState, DepositTarget } from "./types";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const isUuid = (v: unknown): v is string => typeof v === "string" && UUID_RE.test(v);
 /** Postgres unique_violation: another open link for the family won the race. */
 const UNIQUE_VIOLATION = "23505";
 const COLUMNS =
@@ -57,25 +57,20 @@ export interface OpenLinkRequest {
 
 export type OpenLinkResult =
   | { readonly status: "ok"; readonly link: DepositLink; readonly created: boolean }
+  /** The family's open link, unchanged, was made for another target or goodwill pin than this request's. */
+  | { readonly status: "target_differs"; readonly link: DepositLink }
   | typeof INVALID
   | typeof ERROR;
 export type CancelLinkResult = { readonly status: "cancelled" | "none" } | typeof INVALID | typeof ERROR;
 export type StampResult = { readonly status: "stamped" | "not_found" } | typeof INVALID | typeof ERROR;
 
-const linkRow = z
-  .object({
-    id: z.string().regex(UUID_RE),
-    parent_user_id: z.string().regex(UUID_RE),
-    code: z.string().refine(isDepositCode),
-    state: z.enum(DEPOSIT_LINK_STATES),
-    target: z.enum(DEPOSIT_TARGETS),
-    goodwill_cohort_start_date: z.string().refine(isLondonDate).nullable(),
-    last_emailed_at: z.string().nullable(),
-    last_emailed_to: z.string().nullable(),
-    last_opened_at: z.string().nullable(),
-    created_at: z.string(),
-  })
-  .refine((r) => (r.target === "goodwill") === (r.goodwill_cohort_start_date !== null));
+const linkRow = depositLinkRow.safeExtend({
+  code: z.string().refine(isDepositCode),
+  last_emailed_at: z.string().nullable(),
+  last_emailed_to: z.string().nullable(),
+  last_opened_at: z.string().nullable(),
+  created_at: z.string(),
+});
 
 const idRows = z.array(z.object({ id: z.string() }));
 
@@ -99,6 +94,12 @@ function toLink(label: string, data: unknown): Parsed<DepositLink> {
 }
 
 const found = (link: DepositLink, created: boolean): OpenLinkResult => Object.freeze({ status: "ok", link, created });
+
+/** The open link found (an earlier send's, or a concurrent press's): `ok` only for this request's target and pin. */
+const existing = (link: DepositLink, req: OpenLinkRequest): OpenLinkResult =>
+  link.target === req.target && link.goodwillStartDate === req.goodwillStartDate
+    ? found(link, false)
+    : Object.freeze({ status: "target_differs", link });
 
 function isValidRequest(req: OpenLinkRequest): boolean {
   if (!isUuid(req.parentUserId)) return false;
@@ -135,13 +136,16 @@ async function insertOpen(proof: AdminProof, admin: AdminClient, req: OpenLinkRe
   return toLink("deposit links insert", data);
 }
 
-/** BAI's send, copy and "Take payment now": the family's one open link, made if there is none. */
+/**
+ * BAI's send, copy and "Take payment now": the family's one open link, made if there is none. An open link for
+ * another target or pin → `target_differs` (that link, unchanged; nothing written).
+ */
 export async function getOrCreateOpenLink(proof: AdminProof, admin: AdminClient, req: OpenLinkRequest): Promise<OpenLinkResult> {
   if (!isAdminProof(proof) || !isValidRequest(req)) return INVALID;
   try {
     const open = await readOpen(admin, req.parentUserId);
     if (!open.ok) return ERROR;
-    if (open.value !== null) return found(open.value, false);
+    if (open.value !== null) return existing(open.value, req);
     const made = await insertOpen(proof, admin, req);
     if (made.ok === true) return found(made.value, true);
     if (made.ok === false) return ERROR;
@@ -151,7 +155,7 @@ export async function getOrCreateOpenLink(proof: AdminProof, admin: AdminClient,
       logFailure("deposit links insert", { code: "conflict_without_open_link" });
       return ERROR;
     }
-    return found(again.value, false);
+    return existing(again.value, req);
   } catch (thrown) {
     logFailure("getOrCreateOpenLink", thrown);
     return ERROR;

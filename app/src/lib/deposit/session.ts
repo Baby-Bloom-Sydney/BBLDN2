@@ -5,7 +5,9 @@
  *
  * - Pay: re-resolve the page state (link, family row, 02's cohorts, her live hold); hold a place; the press that made
  *   the hold creates ONE Checkout session (idempotency key `deposit-session-<holdId>`) and attaches it — a Stripe
- *   failure releases the hold. A second press reuses the first session; a double tap re-reads for it.
+ *   failure releases the hold. A second press reuses the first session; a double tap re-reads for it. A hold still
+ *   without a session after those re-reads, made over `SESSIONLESS_HOLD_STALE_SECONDS` ago, lost its press: it is
+ *   released and Pay runs once more on a NEW hold (so a new idempotency key), at most once a press.
  * - The session: `PRICES.dfy.depositPence` (never input), card only, saved for off-session use (brief 07), metadata on
  *   the session and its payment, ending 31 minutes from now (see `SESSION_MINUTES`).
  * - Back: expire her open session, then release the hold; complete → paid; a Stripe error releases nothing.
@@ -21,15 +23,18 @@ import { PRICES, VAT } from "@/config/prices";
 import { logFailure, type AdminClient } from "@/lib/cohorts/db";
 import { attachHoldSession, holdPlace, releaseHold } from "@/lib/cohorts/places";
 import { findCohorts } from "@/lib/cohorts/read";
+import type { PlaceState } from "@/lib/cohorts/types";
 import { SITE_NAME, SITE_URL } from "@/lib/constants";
 import { customerFor } from "@/lib/payments/stripe-customer";
 import { getStripeClient } from "@/lib/stripe/client";
-import { isDepositCode } from "./code";
-import { CHECKOUT_SESSION_MINUTES, PAY_REREAD_DELAY_MS, PAY_REREAD_TRIES } from "./constants";
+import { isDepositCode, UUID_RE } from "./code";
+import {
+  CHECKOUT_SESSION_MINUTES, HOLD_MINUTES, PAY_REREAD_DELAY_MS, PAY_REREAD_TRIES, SESSIONLESS_HOLD_STALE_SECONDS,
+} from "./constants";
 import { PAGE_COPY } from "./copy";
 import { depositPageState } from "./page-state";
-import { isDepositParentProof, type DepositParentProof } from "./proof";
-import { DEPOSIT_LINK_STATES, DEPOSIT_TARGETS, type DepositPageState } from "./types";
+import { depositLinkRow, isDepositParentProof, type DepositParentProof } from "./proof";
+import type { DepositPageState } from "./types";
 
 /** Stripe takes `expires_at` 30 min–24 h after ITS creation, so 30 computed here can be refused: plan's 30 + 1. */
 const EXPIRY_MARGIN_MINUTES = 1;
@@ -37,7 +42,8 @@ const SESSION_MINUTES = CHECKOUT_SESSION_MINUTES + EXPIRY_MARGIN_MINUTES;
 const SECONDS_PER_MINUTE = 60;
 const MS_PER_SECOND = 1000;
 const SESSION_ID_RE = /^cs_[A-Za-z0-9_]{1,252}$/;
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** `cohort_places.state`: 02's `PlaceState`, every one. */
+const PLACE_STATES = ["held", "hold_released", "taken", "reopened"] as const satisfies readonly PlaceState[];
 
 export type PayResult =
   | { readonly kind: "redirect"; readonly url: string }
@@ -61,16 +67,12 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 
 // ── reads ──
 
-const linkRow = z
-  .object({
-    id: z.string().regex(UUID_RE), parent_user_id: z.string().regex(UUID_RE), code: z.string().refine(isDepositCode),
-    state: z.enum(DEPOSIT_LINK_STATES), target: z.enum(DEPOSIT_TARGETS), goodwill_cohort_start_date: z.string().nullable(),
-  })
-  .refine((r) => (r.target === "goodwill") === (r.goodwill_cohort_start_date !== null));
+/** Proof's one `deposit_links` parser, plus the code (the session's return URLs). */
+const linkRow = depositLinkRow.safeExtend({ code: z.string().refine(isDepositCode) });
 const familyRow = z.object({ id: z.string().min(1), stripe_customer_id: z.string().nullable(), deposit_paid_at: z.string().nullable() });
 const holdRow = z.object({
   id: z.string().regex(UUID_RE), cohort_start_date: z.string().min(1), is_goodwill: z.boolean(),
-  stripe_checkout_session_id: z.string().nullable(), state: z.string(),
+  stripe_checkout_session_id: z.string().nullable(), state: z.enum(PLACE_STATES),
 });
 type LinkRow = z.infer<typeof linkRow>;
 type FamilyRow = z.infer<typeof familyRow>;
@@ -238,6 +240,44 @@ async function awaitFirstSession(admin: AdminClient, proof: DepositParentProof, 
   return TRY_AGAIN_SOON;
 }
 
+/** Made over `SESSIONLESS_HOLD_STALE_SECONDS` ago (its start = expiry − `HOLD_MINUTES`)? An unreadable expiry is not. */
+function isStaleHold(holdExpiresAt: string, now: Date): boolean {
+  const expiresMs = Date.parse(holdExpiresAt);
+  if (Number.isNaN(expiresMs)) return false;
+  const madeMs = expiresMs - HOLD_MINUTES * SECONDS_PER_MINUTE * MS_PER_SECOND;
+  return now.getTime() - madeMs > SESSIONLESS_HOLD_STALE_SECONDS * MS_PER_SECOND;
+}
+
+interface Press {
+  readonly admin: AdminClient;
+  readonly proof: DepositParentProof;
+  readonly resolved: Resolved;
+  readonly state: Extract<DepositPageState, { kind: "bookable" }>;
+  readonly now: Date;
+  readonly wait: (ms: number) => Promise<void>;
+}
+
+/**
+ * Plan §3 Pay steps 2–5. With `mayRecover`, a sessionless hold that outlived the re-reads and is stale lost its press
+ * (code review M1): release it and run these steps ONCE more — a new hold, so a new idempotency key (Stripe refuses a
+ * key reused with other params, and `expires_at` differs per call). If that late press still creates its session, its
+ * attach answers `not_a_hold`, and `createAndAttach` expires that session and releases.
+ */
+async function holdAndPay(press: Press, mayRecover: boolean): Promise<PayResult> {
+  const { admin, proof, resolved, state } = press;
+  const held = await holdPlace(admin, { proof, parentUserId: proof.parentUserId, startDate: state.start, goodwill: state.goodwill });
+  if (held.status === "full") return showState({ kind: held.reason === "being_paid" ? "being_paid" : "full", nextAvailable: resolved.nextAvailable });
+  if (held.status === "already_taken") return showState({ kind: "paid" });
+  if (!held.ok) return TRY_AGAIN;
+  const hold: Hold = { placeId: held.placeId, cohortStartDate: held.cohortStartDate, isGoodwill: held.isGoodwill };
+  if (held.status === "held") return createAndAttach(admin, proof, resolved, hold, press.now);
+  if (held.sessionId) return reuseSession(admin, proof, resolved.link.code, held.placeId, held.sessionId);
+  const waited = await awaitFirstSession(admin, proof, resolved.link.code, held.placeId, press.wait);
+  if (waited.kind !== "try_again_soon" || !mayRecover || !isStaleHold(held.holdExpiresAt, press.now)) return waited;
+  if (!(await release(admin, proof, held.placeId))) return TRY_AGAIN;
+  return holdAndPay(press, false);
+}
+
 /** The parent's Pay (or BAI's on her page, D15). */
 export async function startDepositCheckout(admin: AdminClient, proof: DepositParentProof, now: Date, options: PayOptions = {}): Promise<PayResult> {
   if (!isDepositParentProof(proof)) return INVALID;
@@ -247,14 +287,7 @@ export async function startDepositCheckout(admin: AdminClient, proof: DepositPar
     if (resolved === "error") return TRY_AGAIN;
     const { state } = resolved;
     if (state.kind !== "bookable") return showState(state);
-    const held = await holdPlace(admin, { proof, parentUserId: proof.parentUserId, startDate: state.start, goodwill: state.goodwill });
-    if (held.status === "full") return showState({ kind: held.reason === "being_paid" ? "being_paid" : "full", nextAvailable: resolved.nextAvailable });
-    if (held.status === "already_taken") return showState({ kind: "paid" });
-    if (!held.ok) return TRY_AGAIN;
-    const hold: Hold = { placeId: held.placeId, cohortStartDate: held.cohortStartDate, isGoodwill: held.isGoodwill };
-    if (held.status === "held") return await createAndAttach(admin, proof, resolved, hold, now);
-    if (held.sessionId) return await reuseSession(admin, proof, resolved.link.code, held.placeId, held.sessionId);
-    return await awaitFirstSession(admin, proof, resolved.link.code, held.placeId, options.wait ?? sleep);
+    return await holdAndPay({ admin, proof, resolved, state, now, wait: options.wait ?? sleep }, true);
   } catch (thrown) {
     logFailure("startDepositCheckout", thrown);
     return TRY_AGAIN;

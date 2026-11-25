@@ -3,8 +3,10 @@
  * parent 2–4, §5). The family comes only from the `DepositParentProof` (D15): a non-proof is refused before any read
  * or Stripe call. Pay re-resolves the page state, holds a place, and makes ONE Checkout session per hold (idempotency
  * key `deposit-session-<holdId>`) with the exact §3 parameters — the amount from `PRICES` only. A second press reuses
- * the first session; a double tap waits for it. A Stripe failure releases the hold. Back expires an open session and
- * releases the hold; Done checks the session belongs to this link and parent, and writes nothing.
+ * the first session; a double tap waits for it. A sessionless hold older than `SESSIONLESS_HOLD_STALE_SECONDS` (its
+ * press is gone) is released and held once more, with the new hold's key. A Stripe failure releases the hold. Back
+ * expires an open session and releases the hold; Done checks the session belongs to this link and parent, and writes
+ * nothing.
  */
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
@@ -27,7 +29,9 @@ import { PRICES, VAT } from "@/config/prices";
 import type { CohortView } from "@/lib/cohorts/types";
 import { SITE_NAME, SITE_URL } from "@/lib/constants";
 import { fakeAdmin, type FakeAdmin, type Op } from "@/lib/payments/fake-admin.test-util";
-import { CHECKOUT_SESSION_MINUTES, PAY_REREAD_DELAY_MS, PAY_REREAD_TRIES } from "./constants";
+import {
+  CHECKOUT_SESSION_MINUTES, HOLD_MINUTES, PAY_REREAD_DELAY_MS, PAY_REREAD_TRIES, SESSIONLESS_HOLD_STALE_SECONDS,
+} from "./constants";
 import { PAGE_COPY } from "./copy";
 import { proveDepositCode, type DepositParentProof } from "./proof";
 import { checkDepositDone, returnFromCheckout, startDepositCheckout } from "./session";
@@ -104,6 +108,15 @@ beforeEach(async () => {
 });
 
 const rpcNames = () => fake.rpcCalls.map((c) => c.fn);
+/** cohort_hold_place answers these replies in turn; the last one repeats. */
+const holdReplies = (...replies: Array<Record<string, unknown>>) => {
+  Object.defineProperty(fake.rpcResults, "cohort_hold_place", {
+    configurable: true,
+    get: () => ({ data: replies.length > 1 ? replies.shift() : replies[0], error: null }),
+  });
+};
+/** The hold's expiry for a hold made `ageSeconds` before NOW (its start = expiry − HOLD_MINUTES). */
+const expiresFor = (ageSeconds: number) => new Date(NOW.getTime() + (HOLD_MINUTES * 60 - ageSeconds) * 1000).toISOString();
 const stripeCalls = () => h.create.mock.calls.length + h.retrieve.mock.calls.length + h.expire.mock.calls.length + h.createCustomer.mock.calls.length;
 const pay = () => startDepositCheckout(fake.client, proof, NOW, { wait });
 
@@ -250,6 +263,14 @@ describe("startDepositCheckout — not bookable, or the hold refused", () => {
     ["the hold read", (f: FakeAdmin) => { f.readErrors.cohort_places = { message: "boom", code: "XX000" }; }],
     ["the cohorts", () => { h.findCohorts.mockResolvedValue({ ok: false }); }],
     ["a link row that doesn't fit", (f: FakeAdmin) => { f.reads.deposit_links = linkRow({ code: "short" }); }],
+    // the one deposit_links parser (proof's): a goodwill pin must be a real London date
+    ["a goodwill link whose pin isn't a real date", (f: FakeAdmin) => {
+      f.reads.deposit_links = linkRow({ target: "goodwill", goodwill_cohort_start_date: "2027-02-30" });
+    }],
+    ["a goodwill link whose pin isn't a date at all", (f: FakeAdmin) => {
+      f.reads.deposit_links = linkRow({ target: "goodwill", goodwill_cohort_start_date: "next week" });
+    }],
+    ["her hold row in a state that doesn't exist", () => { ownHold = holdRow({ state: "lost" }); }],
   ])("%s failing → try_again, with no hold", async (_label, arrange) => {
     arrange(fake);
     expect(await pay()).toEqual({ kind: "try_again" });
@@ -368,6 +389,13 @@ describe("startDepositCheckout — a second press reuses the first session", () 
     expect(wait).toHaveBeenCalledTimes(1);
   });
 
+  it("a double tap whose re-read hold is in a state that doesn't exist → try_again, logged as an unexpected row", async () => {
+    existing(null);
+    rereads = [holdRow({ state: "lost" })];
+    expect(await pay()).toEqual({ kind: "try_again" });
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("deposit hold reread"), { code: "unexpected_row" });
+  });
+
   it("the default wait really waits (no injected wait)", async () => {
     vi.useFakeTimers();
     try {
@@ -379,6 +407,80 @@ describe("startDepositCheckout — a second press reuses the first session", () 
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("startDepositCheckout — a sessionless hold whose press is gone (code review M1)", () => {
+  const NEW_HOLD = "c0300000-0000-4000-8000-000000000053";
+  const sessionless = (ageSeconds: number) =>
+    heldReply({ status: "existing_hold", stripe_checkout_session_id: null, hold_expires_at: expiresFor(ageSeconds) });
+  const STALE = sessionless(SESSIONLESS_HOLD_STALE_SECONDS + 1);
+  const FRESH = heldReply({ place_id: NEW_HOLD });
+
+  beforeEach(() => {
+    rereads = Array.from({ length: 2 * PAY_REREAD_TRIES }, () => holdRow());
+  });
+
+  it("older than the threshold → released, held again, ONE session on the new hold's key, attached → its page", async () => {
+    holdReplies(STALE, FRESH);
+    expect(await pay()).toEqual({ kind: "redirect", url: SESSION_URL });
+    expect(rpcNames()).toEqual(["cohort_hold_place", "cohort_release_hold", "cohort_hold_place", "cohort_attach_session"]);
+    expect(fake.rpcCalls[1].args).toEqual({ p_place_id: HOLD, p_parent: PARENT });
+    expect(fake.rpcCalls[2].args).toEqual(fake.rpcCalls[0].args);
+    expect(h.create).toHaveBeenCalledTimes(1);
+    const [params, options] = h.create.mock.calls[0];
+    expect(options).toEqual({ idempotencyKey: `deposit-session-${NEW_HOLD}` });
+    expect(params.metadata.hold_id).toBe(NEW_HOLD);
+    expect(fake.rpcCalls[3].args).toEqual({ p_place_id: NEW_HOLD, p_parent: PARENT, p_session_id: "cs_test_dep51" });
+    expect(wait).toHaveBeenCalledTimes(PAY_REREAD_TRIES);
+  });
+
+  it.each([
+    ["just made", sessionless(0)],
+    ["exactly at the threshold", sessionless(SESSIONLESS_HOLD_STALE_SECONDS)],
+    ["with an expiry that isn't a time", heldReply({ status: "existing_hold", stripe_checkout_session_id: null, hold_expires_at: "soon" })],
+  ])("a sessionless hold %s → try_again_soon, nothing released, no session", async (_label, reply) => {
+    holdReplies(reply, FRESH);
+    expect(await pay()).toEqual({ kind: "try_again_soon" });
+    expect(rpcNames()).toEqual(["cohort_hold_place"]);
+    expect(h.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["refused", { data: { status: "not_a_hold" }, error: null }],
+    ["failing", { data: null, error: { message: "boom", code: "55P03" } }],
+  ])("the release %s → try_again, with no new hold and no session", async (_label, reply) => {
+    holdReplies(STALE, FRESH);
+    fake.rpcResults.cohort_release_hold = reply;
+    expect(await pay()).toEqual({ kind: "try_again" });
+    expect(rpcNames()).toEqual(["cohort_hold_place", "cohort_release_hold"]);
+    expect(stripeCalls()).toBe(0);
+  });
+
+  it("at most one recovery a press: the new hold is sessionless and stale too → try_again_soon, one release", async () => {
+    holdReplies(STALE, STALE);
+    expect(await pay()).toEqual({ kind: "try_again_soon" });
+    expect(rpcNames()).toEqual(["cohort_hold_place", "cohort_release_hold", "cohort_hold_place"]);
+    expect(wait).toHaveBeenCalledTimes(2 * PAY_REREAD_TRIES);
+    expect(h.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["full (being paid)", { status: "full", reason: "being_paid" }, { kind: "state", state: { kind: "being_paid", nextAvailable: "2027-02-08" } }],
+    ["refused", { status: "not_bookable" }, { kind: "try_again" }],
+  ])("the new hold %s → that answer, with no session", async (_label, reply, expected) => {
+    holdReplies(STALE, reply);
+    expect(await pay()).toEqual(expected);
+    expect(h.create).not.toHaveBeenCalled();
+  });
+
+  it("the late first press creates its session after the release: its attach answers not_a_hold → it expires that session and releases", async () => {
+    fake.rpcResults.cohort_attach_session = { data: { status: "not_a_hold" }, error: null };
+    fake.rpcResults.cohort_release_hold = { data: { status: "already_released" }, error: null };
+    expect(await pay()).toEqual({ kind: "try_again" });
+    expect(h.expire).toHaveBeenCalledWith("cs_test_dep51");
+    expect(rpcNames()).toEqual(["cohort_hold_place", "cohort_attach_session", "cohort_release_hold"]);
+    expect(fake.rpcCalls[2].args).toEqual({ p_place_id: HOLD, p_parent: PARENT });
   });
 });
 

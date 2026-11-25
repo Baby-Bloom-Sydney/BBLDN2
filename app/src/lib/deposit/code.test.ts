@@ -6,7 +6,7 @@ import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { depositCodeFrom, isDepositCode } from "./code";
+import { depositCodeFrom, isDepositCode, isUuid, UUID_RE } from "./code";
 import { DEPOSIT_CODE_BYTES, DEPOSIT_CODE_LENGTH } from "./constants";
 
 const VALID = "Ab0_-".repeat(8) + "xyz"; // 43 characters
@@ -72,5 +72,32 @@ describe("isDepositCode", () => {
 
   it.each([[null], [undefined], [43], [{}], [[VALID]]])("rejects a non-string (%j)", (value) => {
     expect(isDepositCode(value)).toBe(false);
+  });
+});
+
+describe("isUuid — the one uuid check of src/lib/deposit (row and user ids, as Postgres writes them)", () => {
+  it.each([
+    ["a v4 id", "b0300000-0000-4000-8000-000000000051"],
+    ["upper case", "B0300000-0000-4000-8000-0000000000AB"],
+    ["any version and variant (Postgres's uuid type checks neither)", "d0300000-0000-0000-0000-000000000001"],
+    ["the nil uuid", "00000000-0000-0000-0000-000000000000"],
+  ])("accepts %s", (_label, value) => {
+    expect(isUuid(value)).toBe(true);
+    expect(UUID_RE.test(value)).toBe(true);
+  });
+
+  it.each([
+    ["no hyphens", "b03000000000400080000000000000051"],
+    ["braces", "{b0300000-0000-4000-8000-000000000051}"],
+    ["one short", "b0300000-0000-4000-8000-00000000005"],
+    ["a non-hex letter", "g0300000-0000-4000-8000-000000000051"],
+    ["a trailing newline", "b0300000-0000-4000-8000-000000000051\n"],
+    ["empty", ""],
+  ])("rejects %s", (_label, value) => {
+    expect(isUuid(value)).toBe(false);
+  });
+
+  it.each([[null], [undefined], [7], [{}]])("rejects a non-string (%j)", (value) => {
+    expect(isUuid(value)).toBe(false);
   });
 });

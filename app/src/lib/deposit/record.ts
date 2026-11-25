@@ -21,10 +21,9 @@ import { isAdminProof, type AdminProof } from "@/lib/calls/admin-proof";
 import { callRpc, logFailure, type AdminClient } from "@/lib/cohorts/db";
 import { isLondonDate } from "@/lib/cohorts/dates";
 import { isLiveSelfServe } from "@/lib/payments/dfy-access";
+import { isUuid } from "./code";
 import { NOTE_MAX, NOTE_MIN, REFUND_REASON_MAX, REFUND_REASON_MIN } from "./constants";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const isUuid = (v: unknown): v is string => typeof v === "string" && UUID_RE.test(v);
 const STRIPE_ID_MAX = 255;
 const isStripeId = (v: unknown): v is string => typeof v === "string" && v.length >= 1 && v.length <= STRIPE_ID_MAX;
 

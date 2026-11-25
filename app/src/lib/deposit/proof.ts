@@ -18,7 +18,7 @@
 import { z } from "zod";
 import { isLondonDate } from "@/lib/cohorts/dates";
 import type { createAdminClient } from "@/lib/supabase/admin";
-import { isDepositCode } from "./code";
+import { isDepositCode, UUID_RE } from "./code";
 import { DEPOSIT_LINK_STATES, DEPOSIT_TARGETS, type VerifiedDepositLink } from "./types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -41,19 +41,23 @@ const issued = new WeakSet<object>();
 const INVALID = Object.freeze({ ok: false, status: "invalid" } as const);
 const ERROR = Object.freeze({ ok: false, status: "error" } as const);
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const LINK_COLUMNS = "id, parent_user_id, state, target, goodwill_cohort_start_date, last_opened_at";
-
-const linkRow = z
+/**
+ * A `deposit_links` row's ids, state and target as amendment 18 constrains them — the ONE parser of that row.
+ * `proof.ts`, `session.ts` and `links.ts` each `safeExtend` it with the other columns they read (zod keeps the
+ * refinement). A goodwill link has a pinned London date that exists; a current link has none.
+ */
+export const depositLinkRow = z
   .object({
     id: z.string().regex(UUID_RE),
     parent_user_id: z.string().regex(UUID_RE),
     state: z.enum(DEPOSIT_LINK_STATES),
     target: z.enum(DEPOSIT_TARGETS),
     goodwill_cohort_start_date: z.string().refine(isLondonDate).nullable(),
-    last_opened_at: z.string().nullable(),
   })
   .refine((r) => (r.target === "goodwill") === (r.goodwill_cohort_start_date !== null));
+
+const LINK_COLUMNS = "id, parent_user_id, state, target, goodwill_cohort_start_date, last_opened_at";
+const linkRow = depositLinkRow.safeExtend({ last_opened_at: z.string().nullable() });
 
 function codeOf(detail: unknown): string {
   if (detail instanceof Error) return detail.name;
