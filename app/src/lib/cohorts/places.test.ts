@@ -11,6 +11,7 @@ vi.mock("@/lib/admin/require-admin", () => ({ requireAdmin: async () => gate.res
 
 import { proveAdmin, type AdminProof } from "@/lib/calls/admin-proof";
 import { fakeAdmin } from "@/lib/payments/fake-admin.test-util";
+import { proveDepositCode, type DepositParentProof } from "@/lib/deposit/proof";
 import {
   attachHoldSession,
   ensureCohort,
@@ -22,6 +23,7 @@ import {
   saveSchedule,
   setCohortPlaces,
   takePlace,
+  type HoldRequest,
 } from "./places";
 
 const PARENT = "b0200000-0000-4000-8000-000000000001";
@@ -37,6 +39,23 @@ beforeEach(async () => {
   proof = p;
 });
 
+// Brief 03 (plan 03 D5): hold, attach and release act for the parent herself, so they need her deposit proof —
+// minted here the only way there is, by proving a deposit code against a link row.
+const CODE = "Ab0_-".repeat(8) + "xyz";
+const OTHER_PARENT = "b0200000-0000-4000-8000-000000000002";
+async function depositProofFor(parent: string): Promise<DepositParentProof> {
+  const links = fakeAdmin({
+    deposit_links: { id: "d0200000-0000-4000-8000-000000000001", parent_user_id: parent, state: "open", target: "current", goodwill_cohort_start_date: null, last_opened_at: null },
+  });
+  const proven = await proveDepositCode(links.client, CODE);
+  if (!proven.ok) throw new Error("no deposit proof");
+  return proven.proof;
+}
+let parentProof: DepositParentProof;
+beforeEach(async () => {
+  parentProof = await depositProofFor(PARENT);
+});
+
 const answering = (fn: string, data: unknown, error: { message: string; code?: string } | null = null) => {
   const f = fakeAdmin();
   f.rpcResults[fn] = { data, error };
@@ -46,7 +65,7 @@ const answering = (fn: string, data: unknown, error: { message: string; code?: s
 describe("holdPlace", () => {
   it("sends the exact parameters with the 30-minute default", async () => {
     const f = answering("cohort_hold_place", { status: "held", place_id: PLACE, cohort_start_date: "2027-02-01", hold_expires_at: EXPIRES, is_goodwill: false });
-    const r = await holdPlace(f.client, { parentUserId: PARENT, startDate: "2027-02-01", goodwill: false });
+    const r = await holdPlace(f.client, { proof: parentProof, parentUserId: PARENT, startDate: "2027-02-01", goodwill: false });
     expect(f.rpcCalls).toEqual([{ fn: "cohort_hold_place", args: { p_parent: PARENT, p_start: "2027-02-01", p_minutes: 30, p_goodwill: false } }]);
     expect(r).toEqual({ ok: true, status: "held", placeId: PLACE, cohortStartDate: "2027-02-01", holdExpiresAt: EXPIRES, isGoodwill: false, sessionId: null });
   });
@@ -56,7 +75,7 @@ describe("holdPlace", () => {
       status: "existing_hold", place_id: PLACE, cohort_start_date: "2027-02-01", hold_expires_at: EXPIRES, is_goodwill: false,
       stripe_checkout_session_id: "cs_1",
     });
-    expect(await holdPlace(f.client, { parentUserId: PARENT, startDate: "2027-02-01", goodwill: false })).toMatchObject({
+    expect(await holdPlace(f.client, { proof: parentProof, parentUserId: PARENT, startDate: "2027-02-01", goodwill: false })).toMatchObject({
       ok: true, status: "existing_hold", sessionId: "cs_1",
     });
   });
@@ -71,26 +90,26 @@ describe("holdPlace", () => {
     [{ status: "invalid" }, { ok: false, status: "invalid" }],
   ])("maps %o", async (data, expected) => {
     const f = answering("cohort_hold_place", data);
-    expect(await holdPlace(f.client, { parentUserId: PARENT, startDate: "2027-02-01", goodwill: false })).toEqual(expected);
+    expect(await holdPlace(f.client, { proof: parentProof, parentUserId: PARENT, startDate: "2027-02-01", goodwill: false })).toEqual(expected);
   });
 
   it("refuses bad input before the database", async () => {
     const f = fakeAdmin();
-    expect(await holdPlace(f.client, { parentUserId: "nope", startDate: "2027-02-01", goodwill: false })).toEqual({ ok: false, status: "invalid" });
-    expect(await holdPlace(f.client, { parentUserId: PARENT, startDate: "2027-02-30", goodwill: false })).toEqual({ ok: false, status: "invalid" });
-    expect(await holdPlace(f.client, { parentUserId: PARENT, startDate: "2027-02-01", goodwill: false, minutes: 61 })).toEqual({ ok: false, status: "invalid" });
+    expect(await holdPlace(f.client, { proof: parentProof, parentUserId: "nope", startDate: "2027-02-01", goodwill: false })).toEqual({ ok: false, status: "invalid" });
+    expect(await holdPlace(f.client, { proof: parentProof, parentUserId: PARENT, startDate: "2027-02-30", goodwill: false })).toEqual({ ok: false, status: "invalid" });
+    expect(await holdPlace(f.client, { proof: parentProof, parentUserId: PARENT, startDate: "2027-02-01", goodwill: false, minutes: 61 })).toEqual({ ok: false, status: "invalid" });
     expect(f.rpcCalls).toHaveLength(0);
   });
 
   it("an RPC error or a malformed reply is `error`, logged with its code only, never thrown", async () => {
     const f = answering("cohort_hold_place", null, { message: "lock timeout on row of Sarah Jones", code: "55P03" });
-    expect(await holdPlace(f.client, { parentUserId: PARENT, startDate: "2027-02-01", goodwill: false })).toEqual({ ok: false, status: "error" });
+    expect(await holdPlace(f.client, { proof: parentProof, parentUserId: PARENT, startDate: "2027-02-01", goodwill: false })).toEqual({ ok: false, status: "error" });
     expect(console.error).toHaveBeenCalledWith("[cohorts] cohort_hold_place failed", { code: "55P03" });
     const g = answering("cohort_hold_place", { status: "held" });
-    expect(await holdPlace(g.client, { parentUserId: PARENT, startDate: "2027-02-01", goodwill: false })).toEqual({ ok: false, status: "error" });
+    expect(await holdPlace(g.client, { proof: parentProof, parentUserId: PARENT, startDate: "2027-02-01", goodwill: false })).toEqual({ ok: false, status: "error" });
     const h = fakeAdmin();
     h.client.rpc = (() => { throw new TypeError("network"); }) as never;
-    expect(await holdPlace(h.client, { parentUserId: PARENT, startDate: "2027-02-01", goodwill: false })).toEqual({ ok: false, status: "error" });
+    expect(await holdPlace(h.client, { proof: parentProof, parentUserId: PARENT, startDate: "2027-02-01", goodwill: false })).toEqual({ ok: false, status: "error" });
     expect(console.error).toHaveBeenCalledWith("[cohorts] cohort_hold_place failed", { code: "TypeError" });
   });
 });
@@ -98,23 +117,65 @@ describe("holdPlace", () => {
 describe("attachHoldSession / releaseHold (03: the Stripe session, the back button)", () => {
   it("attach sends the session; every status maps", async () => {
     const f = answering("cohort_attach_session", { status: "attached", place_id: PLACE });
-    expect(await attachHoldSession(f.client, { placeId: PLACE, parentUserId: PARENT, sessionId: "cs_1" })).toEqual({ ok: true, status: "attached" });
+    expect(await attachHoldSession(f.client, { proof: parentProof, placeId: PLACE, parentUserId: PARENT, sessionId: "cs_1" })).toEqual({ ok: true, status: "attached" });
     expect(f.rpcCalls[0].args).toEqual({ p_place_id: PLACE, p_parent: PARENT, p_session_id: "cs_1" });
     for (const status of ["hold_expired", "session_mismatch", "not_found", "not_a_hold", "invalid"]) {
       const g = answering("cohort_attach_session", { status });
-      expect(await attachHoldSession(g.client, { placeId: PLACE, parentUserId: PARENT, sessionId: "cs_1" })).toEqual({ ok: false, status });
+      expect(await attachHoldSession(g.client, { proof: parentProof, placeId: PLACE, parentUserId: PARENT, sessionId: "cs_1" })).toEqual({ ok: false, status });
     }
-    expect(await attachHoldSession(fakeAdmin().client, { placeId: PLACE, parentUserId: PARENT, sessionId: "" })).toEqual({ ok: false, status: "invalid" });
+    expect(await attachHoldSession(fakeAdmin().client, { proof: parentProof, placeId: PLACE, parentUserId: PARENT, sessionId: "" })).toEqual({ ok: false, status: "invalid" });
   });
 
   it("release is idempotent", async () => {
     const f = answering("cohort_release_hold", { status: "released", place_id: PLACE });
-    expect(await releaseHold(f.client, { placeId: PLACE, parentUserId: PARENT })).toEqual({ ok: true, status: "released" });
+    expect(await releaseHold(f.client, { proof: parentProof, placeId: PLACE, parentUserId: PARENT })).toEqual({ ok: true, status: "released" });
     expect(f.rpcCalls[0].args).toEqual({ p_place_id: PLACE, p_parent: PARENT });
     const g = answering("cohort_release_hold", { status: "already_released", place_id: PLACE });
-    expect(await releaseHold(g.client, { placeId: PLACE, parentUserId: PARENT })).toEqual({ ok: true, status: "already_released" });
+    expect(await releaseHold(g.client, { proof: parentProof, placeId: PLACE, parentUserId: PARENT })).toEqual({ ok: true, status: "already_released" });
     const h = answering("cohort_release_hold", { status: "not_a_hold" });
-    expect(await releaseHold(h.client, { placeId: PLACE, parentUserId: PARENT })).toEqual({ ok: false, status: "not_a_hold" });
+    expect(await releaseHold(h.client, { proof: parentProof, placeId: PLACE, parentUserId: PARENT })).toEqual({ ok: false, status: "not_a_hold" });
+  });
+});
+
+describe("hold, attach and release need the parent's own deposit proof (plan 03 D5)", () => {
+  const ops = (proof: unknown) =>
+    [
+      (c: ReturnType<typeof fakeAdmin>["client"]) =>
+        holdPlace(c, { proof, parentUserId: PARENT, startDate: "2027-02-01", goodwill: false } as unknown as HoldRequest),
+      (c: ReturnType<typeof fakeAdmin>["client"]) =>
+        attachHoldSession(c, { proof, placeId: PLACE, parentUserId: PARENT, sessionId: "cs_1" } as never),
+      (c: ReturnType<typeof fakeAdmin>["client"]) => releaseHold(c, { proof, placeId: PLACE, parentUserId: PARENT } as never),
+    ] as const;
+
+  async function refusedBeforeTheDatabase(proof: unknown): Promise<void> {
+    for (const op of ops(proof)) {
+      const f = fakeAdmin();
+      expect(await op(f.client)).toEqual({ ok: false, status: "invalid" });
+      expect(f.rpcCalls).toHaveLength(0);
+      expect(f.ops).toHaveLength(0);
+    }
+  }
+
+  it("no proof → invalid, with zero RPC calls", async () => {
+    await refusedBeforeTheDatabase(undefined);
+  });
+
+  it("a proof for another parent → invalid, with zero RPC calls", async () => {
+    await refusedBeforeTheDatabase(await depositProofFor(OTHER_PARENT));
+  });
+
+  it("a look-alike, a frozen copy or an admin proof → invalid, with zero RPC calls", async () => {
+    await refusedBeforeTheDatabase({ kind: "deposit_parent_proof", parentUserId: PARENT, linkId: "d0200000-0000-4000-8000-000000000001" });
+    await refusedBeforeTheDatabase(Object.freeze({ ...parentProof }));
+    await refusedBeforeTheDatabase(proof);
+  });
+
+  it("her own proof reaches the database", async () => {
+    for (const op of ops(parentProof)) {
+      const f = fakeAdmin();
+      await op(f.client);
+      expect(f.rpcCalls).toHaveLength(1);
+    }
   });
 });
 
