@@ -112,3 +112,20 @@ export function cohortsEnabled(): boolean {
 export function nannyInvoicesEnabled(): boolean {
   return isOn(process.env.NANNY_INVOICES_ENABLED);
 }
+
+/**
+ * The deposit link (brief 03; plan `BUILD/plans/03-plan.md`). A **launch** switch, set to "true" at switch-on (#14).
+ * It is on only while `COHORTS_ENABLED` is on too: a deposit takes a cohort place.
+ *
+ * While off:
+ * - `/deposit`, `/deposit/<code>` and its done page → `notFound()` before any read; every deposit action refuses
+ *   with `"deposit_disabled"` before any read.
+ * - The family dossier makes no deposit read and keeps today's Deposit preset; `createDfyPaymentLink` behaves as
+ *   today. 02's pre-booked count reads "not connected yet" and 04's pre-book requests are empty.
+ *
+ * Never gated: the webhook step for a session that carries a deposit link (and its card save) — a payment already
+ * made is always recorded. Recorded deposits, saved cards, places and pre-bookings stay while it's off.
+ */
+export function depositLinkEnabled(): boolean {
+  return isOn(process.env.DEPOSIT_LINK_ENABLED) && cohortsEnabled();
+}

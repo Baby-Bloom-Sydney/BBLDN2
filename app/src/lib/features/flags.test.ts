@@ -6,6 +6,8 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { shareLoopEnabled, isShareUnlocked, babysittingEnabled, callBookingEnabled, cohortsEnabled } from "./flags";
 // Brief 06 (BB-wave1-041126/06a-build): its own import line, so later briefs add theirs without a merge conflict.
 import { nannyInvoicesEnabled } from "./flags";
+// Brief 03 (BB-wave2-231126/03-build): its own import line, as above.
+import { depositLinkEnabled } from "./flags";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -163,5 +165,55 @@ describe("nannyInvoicesEnabled() — brief 06 (NANNY_INVOICES_ENABLED)", () => {
     vi.stubEnv("COHORTS_ENABLED", "");
     expect(cohortsEnabled()).toBe(false);
     expect(nannyInvoicesEnabled()).toBe(true);
+  });
+});
+
+describe("depositLinkEnabled() — brief 03 (DEPOSIT_LINK_ENABLED, needs COHORTS_ENABLED)", () => {
+  it.each([
+    ["unset", undefined],
+    ["empty", ""],
+    ["false", "false"],
+    ["TRUE (case matters)", "TRUE"],
+    ["1", "1"],
+    ["a typo", "ture"],
+  ])("off when %s, even with cohorts on", (_label, value) => {
+    vi.stubEnv("COHORTS_ENABLED", "true");
+    vi.stubEnv("DEPOSIT_LINK_ENABLED", value as string);
+    expect(depositLinkEnabled()).toBe(false);
+  });
+
+  it.each([
+    ["unset", undefined],
+    ["empty", ""],
+    ["TRUE", "TRUE"],
+    ["1", "1"],
+  ])("off when DEPOSIT_LINK_ENABLED is \"true\" but COHORTS_ENABLED is %s", (_label, value) => {
+    vi.stubEnv("DEPOSIT_LINK_ENABLED", "true");
+    vi.stubEnv("COHORTS_ENABLED", value as string);
+    expect(depositLinkEnabled()).toBe(false);
+  });
+
+  it("on only when both are the literal \"true\" (trimmed)", () => {
+    vi.stubEnv("DEPOSIT_LINK_ENABLED", " true\n");
+    vi.stubEnv("COHORTS_ENABLED", "true");
+    expect(depositLinkEnabled()).toBe(true);
+  });
+
+  it("is read at call time: flipping either switch between calls flips it", () => {
+    vi.stubEnv("DEPOSIT_LINK_ENABLED", "");
+    vi.stubEnv("COHORTS_ENABLED", "true");
+    expect(depositLinkEnabled()).toBe(false);
+    vi.stubEnv("DEPOSIT_LINK_ENABLED", "true");
+    expect(depositLinkEnabled()).toBe(true);
+    vi.stubEnv("COHORTS_ENABLED", "");
+    expect(depositLinkEnabled()).toBe(false);
+    vi.stubEnv("COHORTS_ENABLED", "true");
+    expect(depositLinkEnabled()).toBe(true);
+  });
+
+  it("does not turn cohorts on by itself", () => {
+    vi.stubEnv("DEPOSIT_LINK_ENABLED", "true");
+    vi.stubEnv("COHORTS_ENABLED", "");
+    expect(cohortsEnabled()).toBe(false);
   });
 });
