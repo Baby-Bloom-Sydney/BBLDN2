@@ -7,10 +7,12 @@
  * - A parent id passed in is the subject, never proof of who acts (04a security review). Operations BAI performs
  *   take an `AdminProof` from `proveAdmin()` (imported from `@/lib/calls/admin-proof`, the module 04's
  *   `contracts.ts` re-exports; `isAdminProof` isn't re-exported there) and record its user as the actor.
- * - Hold, attach, release and convert take a parent id that the CALLER must already have verified — brief 03's
- *   deposit token for the parent herself, the signature-verified Stripe event for convert (brief §5 "These run only
- *   from server code that has already checked an admin or brief 03's deposit token"). How 03 proves that (e.g. a
- *   branded proof like `AdminProof`) is 03's contract to add here; no caller exists yet (security review M1).
+ * - Hold, attach and release act for the parent herself, so each requires a `DepositParentProof` in its request
+ *   (brief 03, plan 03 D5; 02 security review M1). Only `proveDepositCode()` (`@/lib/deposit/proof`) makes one, from
+ *   a verified deposit code, bound to the parent on that code's link; it is branded like `AdminProof`. Without a
+ *   proof issued in this process, or with one for another parent, the operation answers `invalid` before any RPC.
+ *   Convert takes a parent id the caller has already verified: the signature-verified Stripe event (brief §5 "These
+ *   run only from server code that has already checked an admin or brief 03's deposit token").
  * - Results are closed unions. A refusal is its status; an RPC error, a throw or a reply that doesn't fit is
  *   `{ ok: false, status: "error" }`, logged by code. Nothing is thrown, and nothing here talks to Stripe.
  *
@@ -19,6 +21,7 @@
 
 import { z } from "zod";
 import { isAdminProof, type AdminProof } from "@/lib/calls/admin-proof";
+import { isDepositParentProof, type DepositParentProof } from "@/lib/deposit/proof";
 import { HOLD_MINUTES, HOLD_MINUTES_MAX } from "./constants";
 import { belowTakenMessage } from "./copy";
 import { isLondonDate } from "./dates";
@@ -29,6 +32,9 @@ import type { CohortSchedule, PaidBy, PlaceState } from "./types";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v: unknown): v is string => typeof v === "string" && UUID_RE.test(v);
 const isStripeId = (v: unknown): v is string => typeof v === "string" && v.length >= 1 && v.length <= 255;
+/** Brief 03's proof, issued here and for this very parent (plan 03 D5). */
+const provesParent = (proof: unknown, parentUserId: string): boolean =>
+  isDepositParentProof(proof) && proof.parentUserId === parentUserId;
 
 const INVALID = Object.freeze({ ok: false, status: "invalid" } as const);
 const ERROR = Object.freeze({ ok: false, status: "error" } as const);
@@ -85,6 +91,7 @@ const fullReply = z.object({ status: z.literal("full"), reason: fullReason });
 const holdRefusal = refusal(["already_taken", "already_holding", "not_bookable", "not_a_cohort", "invalid"]);
 
 export interface HoldRequest {
+  readonly proof: DepositParentProof;
   readonly parentUserId: string;
   readonly startDate: string;
   readonly goodwill: boolean;
@@ -94,7 +101,7 @@ export interface HoldRequest {
 /** Hold a place for a family (check and hold in one locked step). A second press returns the first hold. */
 export async function holdPlace(admin: AdminClient, req: HoldRequest): Promise<HoldResult> {
   const minutes = req.minutes ?? HOLD_MINUTES;
-  if (!isUuid(req.parentUserId) || !isLondonDate(req.startDate) || typeof req.goodwill !== "boolean"
+  if (!provesParent(req.proof, req.parentUserId) || !isUuid(req.parentUserId) || !isLondonDate(req.startDate) || typeof req.goodwill !== "boolean"
       || !Number.isInteger(minutes) || minutes < 1 || minutes > HOLD_MINUTES_MAX) return INVALID;
   const args = { p_parent: req.parentUserId, p_start: req.startDate, p_minutes: minutes, p_goodwill: req.goodwill };
   return run(admin, "cohort_hold_place", args, (data) =>
@@ -117,9 +124,9 @@ export type AttachResult =
 /** Record the Stripe Checkout session a live hold is for. Idempotent for the same session. */
 export async function attachHoldSession(
   admin: AdminClient,
-  req: { readonly placeId: string; readonly parentUserId: string; readonly sessionId: string },
+  req: { readonly proof: DepositParentProof; readonly placeId: string; readonly parentUserId: string; readonly sessionId: string },
 ): Promise<AttachResult> {
-  if (!isUuid(req.placeId) || !isUuid(req.parentUserId) || !isStripeId(req.sessionId)) return INVALID;
+  if (!provesParent(req.proof, req.parentUserId) || !isUuid(req.placeId) || !isUuid(req.parentUserId) || !isStripeId(req.sessionId)) return INVALID;
   const args = { p_place_id: req.placeId, p_parent: req.parentUserId, p_session_id: req.sessionId };
   return run(admin, "cohort_attach_session", args, (data) =>
     reply<AttachResult>("cohort_attach_session", data, [
@@ -137,9 +144,9 @@ export type ReleaseResult =
 /** Release a family's hold (Stripe back button). Idempotent. */
 export async function releaseHold(
   admin: AdminClient,
-  req: { readonly placeId: string; readonly parentUserId: string },
+  req: { readonly proof: DepositParentProof; readonly placeId: string; readonly parentUserId: string },
 ): Promise<ReleaseResult> {
-  if (!isUuid(req.placeId) || !isUuid(req.parentUserId)) return INVALID;
+  if (!provesParent(req.proof, req.parentUserId) || !isUuid(req.placeId) || !isUuid(req.parentUserId)) return INVALID;
   return run(admin, "cohort_release_hold", { p_place_id: req.placeId, p_parent: req.parentUserId }, (data) =>
     reply<ReleaseResult>("cohort_release_hold", data, [
       via(refusal(["released", "already_released"]), (v) => ({ ok: true, status: v.status })),

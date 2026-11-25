@@ -1,7 +1,8 @@
 /**
- * The 02 ↔ 04 and 02 ↔ 03 seams (plan 02 §8, §12 R1–R2). 04a is merged, so the calls source is wired to 04's own
- * contract: one function, so the cohort sentence and 04's counts line can't disagree. 03 (wave 2) wires the
- * pre-booked source; until then it is null, and the page says "not connected yet" — never a stand-in 0 (§0.12).
+ * The 02 ↔ 04 and 02 ↔ 03 seams (plan 02 §8, §12 R1–R2; plan 03 §8, row A8). 04a is merged, so the calls source is
+ * wired to 04's own contract: one function, so the cohort sentence and 04's counts line can't disagree. 03 wires the
+ * pre-booked source to its open pre-bookings while the deposit switch is on; off, it is null and the page says "not
+ * connected yet". A failed read is null too ("could not be read") — never a stand-in 0 (§0.12).
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -13,11 +14,12 @@ vi.mock("@/lib/calls/contracts", async () => {
 
 import { londonWeekRange } from "@/lib/timezone";
 import { fakeAdmin } from "@/lib/payments/fake-admin.test-util";
-import { callsSentence } from "./copy";
+import { callsSentence, preBookedLine } from "./copy";
 import { callsThisWeekSource, preBookedSource } from "./links";
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
   calls.getCallsToMake.mockReset();
 });
 
@@ -48,8 +50,44 @@ describe("callsThisWeekSource — 04's getCallsToMake(londonWeekRange(now))", ()
   });
 });
 
-describe("preBookedSource — 03 wires it (plan R2)", () => {
-  it("null today", () => {
+describe("preBookedSource — 03's open pre-bookings for one cohort (plan 02 R2; plan 03 §8, A8)", () => {
+  const on = () => {
+    vi.stubEnv("DEPOSIT_LINK_ENABLED", "true");
+    vi.stubEnv("COHORTS_ENABLED", "true");
+  };
+
+  it("null while the deposit switch is off (→ 'Pre-booked calls: not connected yet')", () => {
+    vi.stubEnv("DEPOSIT_LINK_ENABLED", "");
+    vi.stubEnv("COHORTS_ENABLED", "true");
     expect(preBookedSource()).toBeNull();
+    expect(preBookedLine({ kind: "not_connected" })).toBe("Pre-booked calls: not connected yet");
+  });
+
+  it("null with the deposit switch set but cohorts off (the deposit switch needs both)", () => {
+    vi.stubEnv("DEPOSIT_LINK_ENABLED", "true");
+    vi.stubEnv("COHORTS_ENABLED", "");
+    expect(preBookedSource()).toBeNull();
+  });
+
+  it("on: the count of that cohort's open pre-bookings, from 03's records", async () => {
+    on();
+    const fake = fakeAdmin();
+    fake.counts.deposit_prebookings = 3;
+    const source = preBookedSource();
+    expect(source).not.toBeNull();
+    const count = await source!(fake.client, "2027-02-08");
+    expect(count).toBe(3);
+    expect(fake.ops).toEqual([
+      expect.objectContaining({ table: "deposit_prebookings", kind: "select", filters: [["eq", "cohort_start_date", "2027-02-08"], ["eq", "state", "open"]] }),
+    ]);
+    expect(preBookedLine({ kind: "count", count: count! })).toBe("3 pre-booked calls");
+  });
+
+  it("on but the read fails: null comes through (the board shows 'could not be read'), never a stand-in 0", async () => {
+    on();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fake = fakeAdmin();
+    fake.readErrors.deposit_prebookings = { message: "boom", code: "XX000" };
+    expect(await preBookedSource()!(fake.client, "2027-02-08")).toBeNull();
   });
 });

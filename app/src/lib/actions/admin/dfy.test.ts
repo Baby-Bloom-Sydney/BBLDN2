@@ -2,7 +2,7 @@
  * Admin DFY actions — createDfyPaymentLink (brief step 4; cards 5a, M-1 1c) and setFamilyAccess
  * (brief step 7; card 7b, ADR-093). BB-LDN-4c-151026.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PRICES, VAT } from "@/config/prices";
 import { FIRST_WEEK_DISCOUNT_CAP } from "@/config/offer";
 import { fakeAdmin, writesTo, type FakeAdmin } from "@/lib/payments/fake-admin.test-util";
@@ -209,6 +209,45 @@ describe("createDfyPaymentLink", () => {
     h.fake.reads.parent_subscriptions = null;
     h.create.mockRejectedValue(new Error("stripe down"));
     expect(await createDfyPaymentLink(PARENT, "deposit")).toEqual({ success: false, error: "stripe_error" });
+  });
+});
+
+// Brief 03 (BB-wave2-231126/03-build, plan 03 row A3): while the deposit link is on, the old Deposit preset is
+// refused before any read or Stripe call; Balance and Custom are exactly as with it off.
+describe("createDfyPaymentLink while the deposit link is on", () => {
+  const depositLinkOn = () => {
+    vi.stubEnv("COHORTS_ENABLED", "true");
+    vi.stubEnv("DEPOSIT_LINK_ENABLED", "true");
+  };
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("deposit → use_deposit_link, before any read, write or Stripe call", async () => {
+    depositLinkOn();
+    h.fake.reads.parent_subscriptions = sub({ deposit_paid_at: null });
+    expect(await createDfyPaymentLink(PARENT, "deposit")).toEqual({ success: false, error: "use_deposit_link" });
+    expect(h.fake.ops).toHaveLength(0);
+    expect(h.create).not.toHaveBeenCalled();
+    expect(h.createCustomer).not.toHaveBeenCalled();
+  });
+
+  it("balance-after-week-1 and custom behave exactly as with it off (same result, same Stripe params)", async () => {
+    const runs = [
+      ["balance-after-week-1", { firstWeekWagesPence: 30_000 }],
+      ["custom", { customPence: 12_345 }],
+    ] as const;
+    for (const [preset, opts] of runs) {
+      vi.unstubAllEnvs();
+      h.create.mockClear();
+      const off = await createDfyPaymentLink(PARENT, preset, opts);
+      const offParams = h.create.mock.calls[0][0];
+      depositLinkOn();
+      h.create.mockClear();
+      const on = await createDfyPaymentLink(PARENT, preset, opts);
+      expect(on).toEqual(off);
+      expect(on.success).toBe(true);
+      expect(h.create).toHaveBeenCalledTimes(1);
+      expect(h.create.mock.calls[0][0]).toEqual(offParams);
+    }
   });
 });
 

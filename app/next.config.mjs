@@ -18,6 +18,8 @@ const nextConfig = {
     COHORTS_ENABLED: process.env.COHORTS_ENABLED ?? "",
     // Brief 06: the nanny invoice generator is off unless NANNY_INVOICES_ENABLED is "true"; the nanny chrome and admin navs read it.
     NANNY_INVOICES_ENABLED: process.env.NANNY_INVOICES_ENABLED ?? "",
+    // Brief 03: the deposit link is off unless DEPOSIT_LINK_ENABLED is "true" (and COHORTS_ENABLED); the admin panel reads it.
+    DEPOSIT_LINK_ENABLED: process.env.DEPOSIT_LINK_ENABLED ?? "",
   },
   typescript: {
     // strict: build fails on TS errors
