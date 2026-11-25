@@ -16,7 +16,13 @@ import { APP_LOCALE, SITE_NAME } from "@/lib/constants";
 import { EMAIL_MAX, HOLD_MINUTES } from "./constants";
 import type { CohortView } from "@/lib/cohorts/types";
 import { formatClockHourMinute, londonWallClockOf } from "@/lib/timezone";
-import type { DepositPanel, DepositPayment, DepositWarning, PanelPlace, SavedCard } from "./panel";
+import type { ClientDepositPanel, ClientDepositPayment, DepositWarning, PanelPlace, SavedCard } from "./panel";
+import type { DepositTarget } from "./types";
+import { REFUND_REASON_MIN } from "./constants";
+import type {
+  CancelDepositLinkResult, CopyDepositLinkResult, MarkDepositPaidResult, RecordDepositBankRefundResult, SendDepositLinkResult,
+  TakeDepositPaymentNowResult,
+} from "@/app/admin/users/[userId]/subscription/deposit-actions";
 
 const PENCE_PER_POUND = 100;
 
@@ -88,9 +94,10 @@ export function maskEmail(email: unknown): string {
 }
 
 // ── The admin panel's words (brief 03 §3 Admin 1–7; plan 03 row A5) ──────────────────────────────────────────────
-// Pure functions of `readDepositPanel`'s view model (`./panel`, imported for its types only, so this file stays
-// client-safe). Amounts are what she paid, formatted at run time (`penceAmount`; never written); dates are 02's
-// "3 Feb" / "Mon 1 Feb"; times are on the London clock; emails are masked. Placeholders BAI edits (Q4).
+// Pure functions of `readDepositPanel`'s view model as the client block gets it (`toClientPanel`; the server's panel
+// fits too), from `./panel`, imported for its types only, so this file stays client-safe. Amounts are what she paid,
+// formatted at run time (`penceAmount`; never written); dates are 02's "3 Feb" / "Mon 1 Feb"; times are on the
+// London clock; emails are masked. Placeholders BAI edits (Q4).
 
 /** Any amount in pence, written as `depositAmount()` writes the deposit: whole pounds without pence, else with. */
 export function penceAmount(pence: number): string {
@@ -137,7 +144,7 @@ const twoDigits = (n: number): string => String(n % 100).padStart(2, "0");
 export const savedCardWords = (card: SavedCard): string =>
   `${brandWords(card.brand)} •••• ${card.last4} (${twoDigits(card.expMonth)}/${twoDigits(card.expYear)})`;
 
-function paidHead(payment: DepositPayment): string {
+function paidHead(payment: ClientDepositPayment): string {
   const paid = payment.pence === null ? "Paid" : `Paid ${penceAmount(payment.pence)}`;
   const day = formatDayMonth(payment.paidAt);
   if (payment.method === "card") return `${paid} by card, ${day}`;
@@ -145,7 +152,7 @@ function paidHead(payment: DepositPayment): string {
   return `${paid}, ${day} (old payment link)`;
 }
 
-function cardPart(payment: DepositPayment, card: SavedCard | null): string {
+function cardPart(payment: ClientDepositPayment, card: SavedCard | null): string {
   if (card !== null) return `Card saved ${savedCardWords(card)}`;
   return payment.method === "card" ? PANEL_COPY.cardNotRecorded : PANEL_COPY.noCardSaved;
 }
@@ -154,7 +161,7 @@ const cohortPart = (place: PanelPlace | null): string | null =>
   place?.state === "taken" ? `Cohort ${formatCohortShort(place.cohortStartDate)}${place.isGoodwill ? " (goodwill)" : ""}` : null;
 
 /** The state line: "Not paid" · "Paid <amount> by card, 3 Feb · Card saved Visa •••• 4242 (12/30) · Cohort Mon 1 Feb" · … */
-export function depositStateLine(panel: DepositPanel): string {
+export function depositStateLine(panel: ClientDepositPanel): string {
   const { payment } = panel;
   if (payment === null) return PANEL_COPY.notPaid;
   if (payment.refundedAt !== null) return `Refunded ${formatDayMonth(payment.refundedAt)}`;
@@ -162,7 +169,7 @@ export function depositStateLine(panel: DepositPanel): string {
 }
 
 /** "Pre-booked for Mon 8 Feb"; null when she hasn't pre-booked. */
-export function prebookedLine(panel: DepositPanel): string | null {
+export function prebookedLine(panel: ClientDepositPanel): string | null {
   const { prebooking } = panel;
   if (prebooking === null) return null;
   return prebooking.cohortStartDate === null ? "Pre-booked (no cohort set up yet)" : `Pre-booked for ${formatCohortShort(prebooking.cohortStartDate)}`;
@@ -176,7 +183,7 @@ function sentAt(at: string, today: string): string {
 }
 
 /** "Sent 14:02 to s•••@gmail.com" (brief §0.1); a goodwill link names its cohort. */
-export function linkLine(panel: DepositPanel): string {
+export function linkLine(panel: ClientDepositPanel): string {
   const { link } = panel;
   if (link === null) return PANEL_COPY.noLink;
   const to = link.lastEmailedTo === null ? "" : ` to ${maskEmail(link.lastEmailedTo)}`;
@@ -185,7 +192,7 @@ export function linkLine(panel: DepositPanel): string {
 }
 
 /** A second press of Email asks first: "Sent at 14:02. Send again?" (brief §3 Admin 3); null when never sent. */
-export function sendAgainQuestion(panel: DepositPanel): string | null {
+export function sendAgainQuestion(panel: ClientDepositPanel): string | null {
   const at = panel.link?.lastEmailedAt ?? null;
   return at === null ? null : `Sent at ${sentAt(at, panel.today)}. Send again?`;
 }
@@ -196,7 +203,91 @@ const WARNING_WORDS: Readonly<Record<DepositWarning, string>> = Object.freeze({
 });
 
 /** The panel's warnings (brief §3 Admin 7), in the view model's order. */
-export const depositWarningLines = (panel: DepositPanel): readonly string[] => panel.warnings.map((w) => WARNING_WORDS[w]);
+export const depositWarningLines = (panel: ClientDepositPanel): readonly string[] => panel.warnings.map((w) => WARNING_WORDS[w]);
 
 /** The goodwill choice (brief §3 Admin 2): "Next cohort, goodwill (Mon 8 Feb · 5 left)". */
 export const goodwillChoiceLabel = (next: CohortView): string => `Next cohort, goodwill (${formatCohortShort(next.start)} · ${next.left} left)`;
+
+// ── The panel's actions (plan 03 row B3; brief 03 §3 Admin 2–6): prompts, choices, dialogs and refusals ─────────────
+// Beside `PANEL_COPY`, which 03a froze. Placeholders BAI edits (Q4); no amount in any of them.
+// BB-wave2-231126/03-build, 2026-11-25.
+
+/** The block's and the dialogs' words. The cancel question never promises to close a payment page (03a LOW-4). */
+export const PANEL_ACTION_COPY = Object.freeze({
+  heading: "Deposit",
+  targetLegend: "Cohort for this deposit",
+  sendAgain: "Send again",
+  notNow: "Not now",
+  sendAsIs: "Send as is",
+  replaceAndSend: "Cancel and send again",
+  copyAsIs: "Copy as is",
+  replaceAndCopy: "Cancel and copy a new one",
+  cancelQuestion: "Cancel this link? It stops working, but a payment page already open can still be paid.",
+  cancelConfirm: "Yes, cancel link",
+  noOpenLink: "There was no open link to cancel.",
+  linkLabel: "Deposit link",
+  copy: "Copy",
+  openPaymentPage: "Open the payment page",
+  /** Before the "Open the payment page" link, when the new tab may not have opened (03b review React L1). */
+  openPaymentPageLead: "If it didn't open:",
+  markPaidDescription: "Records the deposit as paid and takes the place in one step.",
+  noteLabel: "Note",
+  noteHint: "Required, for example: transfer ref JONES.",
+  bankRefundDescription: "Stamps the refund and re-opens the place. Card refunds are made in Stripe.",
+  reasonLabel: "Reason",
+  reasonHint: `Required, at least ${REFUND_REASON_MIN} characters.`,
+  confirm: "Confirm",
+  back: "Back",
+  genericError: "Something went wrong. Try again.",
+} as const);
+
+/** The server's "already sent" time (a stale page), asked the same way as `sendAgainQuestion`. */
+export const sendAgainQuestionAt = (at: string, today: string): string => `Sent at ${sentAt(at, today)}. Send again?`;
+
+function openTargetWords(target: DepositTarget, goodwillStartDate: string | null): string {
+  if (target === "current") return "the current cohort";
+  return goodwillStartDate === null ? "a goodwill cohort" : `the goodwill cohort ${formatCohortShort(goodwillStartDate)}`;
+}
+
+/** `target_differs`: names the open link's target; BAI then sends it as is, or cancels it and makes a new one. */
+export const targetDiffersLine = (openTarget: DepositTarget, openGoodwillStartDate: string | null): string =>
+  `The open link is for ${openTargetWords(openTarget, openGoodwillStartDate)}. Use it as it is, or cancel it and make a new one?`;
+
+type DepositActionResult =
+  | SendDepositLinkResult
+  | CopyDepositLinkResult
+  | TakeDepositPaymentNowResult
+  | CancelDepositLinkResult
+  | MarkDepositPaidResult
+  | RecordDepositBankRefundResult;
+
+/** Every code B2's six actions can answer (contract-03b), read off their result types (03b review TS M1). */
+export type DepositActionCode = Extract<DepositActionResult, { readonly ok: false }>["error"];
+
+/** The refusals shown as a plain line: all but the two the block asks about instead (a second send, another target). */
+export type DepositRefusalCode = Exclude<DepositActionCode, "confirm_resend" | "target_differs">;
+
+/** Every refusal's line. A `Record` of the derived codes: a new code the actions answer fails to compile until it's here. */
+export const ACTION_ERROR_COPY: Readonly<Record<DepositRefusalCode, string>> = Object.freeze({
+  deposit_disabled: "Deposit links are switched off.",
+  not_admin: "Only an admin can do this. Sign in again.",
+  invalid: "That didn't look right. Reload the page and try again.",
+  error: PANEL_ACTION_COPY.genericError,
+  already_paid: PANEL_COPY.alreadyPaid,
+  goodwill_not_offered: "Goodwill isn't on offer now. Reload the page.",
+  no_email: "This family has no email address. Copy the link instead.",
+  email_failed: PANEL_COPY.emailFailed,
+  cohort_full: PANEL_COPY.cohortFull,
+  being_paid: "The last place is being paid for right now. Try again later.",
+  not_bookable: "This cohort can't take a deposit now.",
+  not_a_cohort: "That cohort isn't set up.",
+  already_taken: "This family already has a place.",
+  not_bank_transfer: "This deposit wasn't paid by bank transfer.",
+  already_refunded: "The deposit is already refunded.",
+});
+
+/** Looked up in a Map, so no object key (`constructor`, `__proto__`) is ever read as a code. */
+const ACTION_ERROR_LINES: ReadonlyMap<string, string> = new Map(Object.entries(ACTION_ERROR_COPY));
+
+/** A refusal's line; a code the table doesn't know at run time (a newer server) gets the generic line, never the code. */
+export const depositActionErrorLine = (code: DepositRefusalCode): string => ACTION_ERROR_LINES.get(code) ?? PANEL_ACTION_COPY.genericError;

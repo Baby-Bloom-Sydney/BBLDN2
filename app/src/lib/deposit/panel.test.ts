@@ -342,3 +342,58 @@ describe("readDepositPanel — any failed read fails the panel (never a wrong st
     expect(await readDepositPanel(proof, fake.client, PARENT, NOW)).toEqual({ ok: false, status: "error" });
   });
 });
+
+// ── The client view (03b review M1; BB-wave2-231126/03-build, 2026-11-25) ─────────────────────────────────────────────
+import { sendAgainQuestion } from "./copy";
+import { toClientPanel } from "./panel";
+
+describe("toClientPanel — what the admin page hands its client block", () => {
+  async function both() {
+    const read = await readDepositPanel(proof, fake.client, PARENT, NOW);
+    const view = toClientPanel(read);
+    if (!read.ok || !view.ok) throw new Error("expected a panel");
+    return { full: read.value, view: view.value, whole: view };
+  }
+
+  it("no link code, no payment intent id, the address masked — nothing else changes", async () => {
+    const { full, view } = await both();
+    const text = JSON.stringify(view);
+    expect(text).not.toContain(CODE);
+    expect(text).not.toMatch(/pi_/);
+    expect(text).not.toContain("sarah@gmail.com");
+    expect(view.link).toEqual({
+      target: "current",
+      goodwillStartDate: null,
+      createdAt: "2027-02-03T08:59:00.000Z",
+      lastEmailedAt: "2027-02-03T09:02:00.000Z",
+      lastEmailedTo: "s•••@gmail.com",
+    });
+    expect(view.payment).toEqual({ pence: PRICE, paidAt: "2027-02-03T09:00:00.000Z", refundedAt: null, method: "card" });
+    const { link: _link, payment: _payment, ...rest } = full;
+    expect(view).toEqual({ ...rest, link: view.link, payment: view.payment });
+  });
+
+  it("the panel's words are the same from the client view", async () => {
+    fake.reads.parent_subscriptions = null;
+    const { full, view } = await both();
+    for (const words of [depositStateLine, linkLine, prebookedLine, depositWarningLines, sendAgainQuestion] as const) {
+      expect(words(view)).toEqual(words(full));
+    }
+    expect(linkLine(view)).toBe("Sent 09:02 to s•••@gmail.com");
+  });
+
+  it("a goodwill link never emailed: its pin kept, no address; no link and no payment stay null; frozen", async () => {
+    fake.reads.deposit_links = link({ target: "goodwill", goodwill_cohort_start_date: "2027-02-08", last_emailed_at: null, last_emailed_to: null });
+    const { view, whole } = await both();
+    expect(view.link).toEqual({ target: "goodwill", goodwillStartDate: "2027-02-08", createdAt: "2027-02-03T08:59:00.000Z", lastEmailedAt: null, lastEmailedTo: null });
+    for (const part of [whole, view, view.link, view.payment]) expect(Object.isFrozen(part)).toBe(true);
+    fake.reads.deposit_links = null;
+    fake.reads.parent_subscriptions = null;
+    expect((await both()).view).toMatchObject({ link: null, payment: null });
+  });
+
+  it("a failed read passes through as it is", () => {
+    expect(toClientPanel({ ok: false, status: "error" })).toEqual({ ok: false, status: "error" });
+    expect(toClientPanel({ ok: false, status: "invalid" })).toEqual({ ok: false, status: "invalid" });
+  });
+});

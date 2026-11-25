@@ -13,6 +13,9 @@ import { wagesPenceFromSnapshot } from "@/lib/payments/dfy-access";
 import { cumulativeSpendPence } from "@/app/admin/subscriptions/types";
 import { cohortsEnabled } from "@/lib/features/flags";
 import { readCurrentCohortSummary } from "@/lib/cohorts/read";
+import { depositLinkEnabled } from "@/lib/features/flags";
+import { proveAdmin } from "@/lib/calls/admin-proof";
+import { readDepositPanel, toClientPanel } from "@/lib/deposit/panel";
 
 /**
  * `/admin/users/[userId]/subscription` — full subscription dossier.
@@ -97,6 +100,10 @@ export default async function AdminUserSubscriptionPage({
   const cohort = cohortsEnabled()
     ? await readCurrentCohortSummary(admin, new Date())
     : null;
+  // Brief 03: the family's deposit panel — read only while DEPOSIT_LINK_ENABLED (with COHORTS_ENABLED) is on, with an
+  // admin proof (no proof → no read, and the panel stays as today).
+  const depositProof = depositLinkEnabled() ? await proveAdmin() : null;
+  const deposit = depositProof ? toClientPanel(await readDepositPanel(depositProof, admin, params.userId, new Date())) : null;
 
   const sub = subRes.data;
   const childrenBase = childrenRes.data ?? [];
@@ -235,6 +242,7 @@ export default async function AdminUserSubscriptionPage({
         sub={sub}
         placementWagesPence={placementWagesPence}
         cohort={cohort}
+        deposit={deposit}
       />
 
       <SubscriptionStatsGrid
