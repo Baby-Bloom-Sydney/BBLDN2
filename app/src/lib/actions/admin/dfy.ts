@@ -30,6 +30,8 @@ import { PRICES, VAT } from "@/config/prices";
 import { PAYMENT_LINK_PRESETS, type PaymentLinkPreset } from "@/config/offer";
 import { SITE_NAME, SITE_URL } from "@/lib/constants";
 import { balanceAfterWeek1Pence, wagesPenceFromSnapshot } from "@/lib/payments/dfy-access";
+import { customerFor } from "@/lib/payments/stripe-customer";
+import { depositLinkEnabled } from "@/lib/features/flags";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Stripe's ceiling for one amount in the smallest unit (8 digits). */
@@ -83,35 +85,6 @@ async function snapshotWagesPence(admin: Admin, placementId: string | null): Pro
   return wagesPenceFromSnapshot(data?.weekly_hours, data?.hourly_rate);
 }
 
-/**
- * The Stripe customer every link is minted on (4-w5fix, W5-M3). Reuses the row's; else creates one with the
- * parent's email (idempotent per parent for Stripe's 24 h key window, so a double click mints one customer)
- * and stores it on the row — never over an existing id. A failed store throws: no link without a traceable
- * customer.
- */
-async function customerFor(
-  admin: Admin,
-  parentUserId: string,
-  sub: SubRow | null,
-  email: string | null,
-): Promise<string> {
-  if (sub?.stripe_customer_id) return sub.stripe_customer_id;
-  const customer = await getStripeClient().customers.create(
-    { ...(email ? { email } : {}), metadata: { user_id: parentUserId } },
-    { idempotencyKey: `dfy-customer-${parentUserId}` },
-  );
-  if (sub) {
-    const { error } = await admin
-      .from("parent_subscriptions")
-      .update({ stripe_customer_id: customer.id })
-      .eq("id", sub.id)
-      .is("stripe_customer_id", null);
-    // A concurrent mint that stored first matches zero rows here; the idempotency key gave it this same customer.
-    if (error) throw new Error(`customer store failed: ${error.message}`);
-  }
-  return customer.id;
-}
-
 const isWholePence = (n: unknown): n is number =>
   typeof n === "number" && Number.isInteger(n) && n > 0 && n <= STRIPE_MAX_AMOUNT;
 
@@ -151,6 +124,8 @@ export async function createDfyPaymentLink(
   if (!(PAYMENT_LINK_PRESETS as readonly string[]).includes(preset)) {
     return { success: false, error: "invalid_preset" };
   }
+  // Brief 03: while the deposit link is on, a deposit is taken only through it (plan 03 row A3).
+  if (preset === "deposit" && depositLinkEnabled()) return { success: false, error: "use_deposit_link" };
 
   try {
     const admin = createAdminClient();
