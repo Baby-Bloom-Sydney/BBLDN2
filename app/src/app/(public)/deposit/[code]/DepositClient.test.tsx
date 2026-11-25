@@ -31,6 +31,7 @@ vi.mock("./PrebookPanel", () => ({
 }));
 
 import { PRICES } from "@/config/prices";
+import { SITE_URL } from "@/lib/constants";
 import { bookableIntro, depositAmount, PAGE_COPY, payButtonLabel, placeHeading } from "@/lib/deposit/copy";
 import type { DepositPageState } from "@/lib/deposit/types";
 import { DepositClient } from "./DepositClient";
@@ -126,6 +127,13 @@ describe("DepositClient — each state's words", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 
+  it("the pre-book panel can move focus to the page heading", () => {
+    draw({ kind: "full", nextAvailable: null });
+    const onFocusHeading = h.panels[0].onFocusHeading as () => void;
+    act(() => onFocusHeading());
+    expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
+  });
+
   it("the pre-book panel can turn the page into the invalid page (a link cancelled meanwhile)", async () => {
     draw({ kind: "full", nextAvailable: null });
     const onInvalid = h.panels[0].onInvalid as () => void;
@@ -209,5 +217,127 @@ describe("DepositClient — Pay", () => {
     await screen.findByRole("alert");
     await user.click(payButton());
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("DepositClient — the server's state wins (03c review H1: router.refresh after not_offered)", () => {
+  it("new props from the server replace what the page shows, even after Pay showed another state", async () => {
+    h.payDeposit.mockResolvedValue({ ok: true, kind: "state", state: { kind: "full", nextAvailable: null } });
+    const user = userEvent.setup();
+    const view = draw();
+    await user.click(payButton());
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(PAGE_COPY.full));
+    // The refresh renders the page again: a NEW state object from the server, here bookable once more.
+    view.rerender(<DepositClient code={CODE} initialState={{ ...BOOKABLE }} firstName="Sarah" prebooked={false} />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(placeHeading("2027-02-01"));
+    expect(payButton()).toBeEnabled();
+  });
+
+  it("a new paid state from the server shows paid", () => {
+    const view = draw({ kind: "full", nextAvailable: null });
+    view.rerender(<DepositClient code={CODE} initialState={{ kind: "paid" }} firstName={null} prebooked={false} />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(PAGE_COPY.paid);
+  });
+
+  it("a re-render with the same state object (no new server state) keeps what Pay showed", async () => {
+    h.payDeposit.mockResolvedValue({ ok: true, kind: "state", state: { kind: "paid" } });
+    const user = userEvent.setup();
+    const view = draw(BOOKABLE);
+    await user.click(payButton());
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(PAGE_COPY.paid));
+    view.rerender(<DepositClient code={CODE} initialState={BOOKABLE} firstName="Sarah" prebooked={false} />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(PAGE_COPY.paid);
+  });
+});
+
+describe("DepositClient — focus follows a change of state (03c review M3)", () => {
+  it("not on the first render", () => {
+    draw();
+    expect(screen.getByRole("heading", { level: 1 })).not.toHaveFocus();
+  });
+
+  it.each([
+    [{ kind: "full", nextAvailable: null }],
+    [{ kind: "paid" }],
+  ] as const)("Pay → %o: focus on the new heading", async (state) => {
+    h.payDeposit.mockResolvedValue({ ok: true, kind: "state", state });
+    const user = userEvent.setup();
+    draw();
+    await user.click(payButton());
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveFocus());
+  });
+
+  it("Pay → invalid: focus on the invalid page's heading", async () => {
+    h.payDeposit.mockResolvedValue({ ok: false, error: "invalid" });
+    const user = userEvent.setup();
+    draw();
+    await user.click(payButton());
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(PAGE_COPY.invalid));
+    expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
+  });
+});
+
+describe("DepositClient — back from Stripe through the browser's cache (03c review H2)", () => {
+  async function payAndLeave() {
+    h.payDeposit.mockResolvedValue({ ok: true, kind: "redirect", url: SESSION_URL });
+    const user = userEvent.setup();
+    const view = draw();
+    await user.click(payButton());
+    await waitFor(() => expect(assign).toHaveBeenCalledWith(SESSION_URL));
+    expect(payButton()).toBeDisabled();
+    return { user, view };
+  }
+  const pageshow = (persisted: boolean) => act(() => {
+    window.dispatchEvent(Object.assign(new Event("pageshow"), { persisted }));
+  });
+
+  it("a page restored from the cache (pageshow, persisted) gets Pay back: not pending, no line", async () => {
+    const { user } = await payAndLeave();
+    pageshow(true);
+    expect(payButton()).toBeEnabled();
+    expect(payButton()).not.toHaveAttribute("aria-busy", "true");
+    expect(screen.queryByRole("alert")).toBeNull();
+    await user.click(payButton());
+    expect(h.payDeposit).toHaveBeenCalledTimes(2);
+  });
+
+  it("a fresh pageshow (not from the cache) changes nothing", async () => {
+    await payAndLeave();
+    pageshow(false);
+    expect(payButton()).toBeDisabled();
+  });
+
+  it("the listener goes with the page", async () => {
+    const remove = vi.spyOn(window, "removeEventListener");
+    const { view } = await payAndLeave();
+    view.unmount();
+    expect(remove).toHaveBeenCalledWith("pageshow", expect.any(Function));
+    remove.mockRestore();
+  });
+});
+
+describe("DepositClient — Pay leaves only for Stripe's page or this site's own done page (03c review L)", () => {
+  it.each([
+    "https://evil.example/c/pay/cs_test_1",
+    "http://checkout.stripe.com/c/pay/cs_test_1",
+    "https://checkout.stripe.com.evil.example/c/pay",
+    "javascript:alert(1)",
+  ])("%s → try again, no navigation", async (url) => {
+    h.payDeposit.mockResolvedValue({ ok: true, kind: "redirect", url });
+    const user = userEvent.setup();
+    draw();
+    await user.click(payButton());
+    expect(await screen.findByRole("alert")).toHaveTextContent(PAGE_COPY.tryAgain);
+    expect(assign).not.toHaveBeenCalled();
+    expect(payButton()).toBeEnabled();
+  });
+
+  it("a session already complete → 03a's own done page on this site", async () => {
+    const done = `${SITE_URL}/deposit/${CODE}/done?session=cs_test_done1`;
+    h.payDeposit.mockResolvedValue({ ok: true, kind: "redirect", url: done });
+    const user = userEvent.setup();
+    draw();
+    await user.click(payButton());
+    await waitFor(() => expect(assign).toHaveBeenCalledWith(done));
   });
 });

@@ -10,9 +10,8 @@
  */
 
 import { PRICES } from "@/config/prices";
-import { dayWords } from "@/lib/calls/slot-words";
 import { slotAtLine } from "@/lib/calls/copy";
-import { slotWords } from "@/lib/calls/slot-words";
+import { dayWords, slotWords } from "@/lib/calls/slot-words";
 import { formatCohortShort, formatDayMonth, isLondonDate } from "@/lib/cohorts/dates";
 import { APP_LOCALE, SITE_NAME } from "@/lib/constants";
 import { EMAIL_MAX, HOLD_MINUTES } from "./constants";

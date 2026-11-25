@@ -8,7 +8,7 @@ import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FakeAdmin } from "@/lib/payments/fake-admin.test-util";
 
-const h = vi.hoisted(() => ({ fake: null as FakeAdmin | null, clients: 0, notFound: vi.fn(), readDepositDone: vi.fn() }));
+const h = vi.hoisted(() => ({ fake: null as FakeAdmin | null, clients: 0, clientThrows: false, notFound: vi.fn(), readDepositDone: vi.fn() }));
 vi.mock("next/navigation", () => ({
   notFound: () => {
     h.notFound();
@@ -18,6 +18,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => {
     h.clients += 1;
+    if (h.clientThrows) throw new Error("no credentials");
     return h.fake!.client;
   },
 }));
@@ -48,6 +49,7 @@ beforeEach(() => {
   vi.stubEnv("COHORTS_ENABLED", "true");
   h.fake = fakeAdmin({ deposit_links: linkRow() });
   h.clients = 0;
+  h.clientThrows = false;
   h.notFound.mockReset();
   h.readDepositDone.mockReset();
   h.readDepositDone.mockResolvedValue({ result: "paid", cohortStartDate: "2027-02-01" });
@@ -113,7 +115,21 @@ describe("/deposit/<code>/done — the three outcomes", () => {
     h.readDepositDone.mockResolvedValue({ result: "not_paid", cohortStartDate: null });
     await show();
     expect(heading()).toHaveTextContent(PAGE_COPY.doneNotPaid);
-    expect(screen.getByRole("link", { name: PAGE_MORE_COPY.doneBackLink })).toHaveAttribute("href", `/deposit/${CODE}`);
+    const back = screen.getByRole("link", { name: PAGE_MORE_COPY.doneBackLink });
+    expect(back).toHaveAttribute("href", `/deposit/${CODE}`);
+    // shadcn's Button, as the link (asChild): its own size and focus ring, the page's violet
+    expect(back.className).toMatch(/h-11/);
+    expect(back.className).toMatch(/focus-visible:ring-2/);
+    expect(back.className).toMatch(/bg-violet-600/);
+  });
+
+  it.each([
+    ["the done check", () => { h.readDepositDone.mockRejectedValue(new Error("stripe down")); }],
+    ["the admin client", () => { h.clientThrows = true; }],
+  ])("%s throws → the try-again line", async (_label, arrange) => {
+    arrange();
+    await show();
+    expect(heading()).toHaveTextContent(PAGE_COPY.tryAgain);
   });
 
   it.each(["foreign", "invalid"] as const)("%s → the invalid page", async (result) => {

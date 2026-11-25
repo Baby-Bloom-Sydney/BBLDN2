@@ -71,7 +71,7 @@ export interface ButtonBooking {
 
 /** A thrown value's code, or its name: never its message, which can carry an address. */
 function failureCode(thrown: unknown): string {
-  const code = typeof thrown === "object" && thrown !== null ? (thrown as { readonly code?: unknown }).code : undefined;
+  const code = typeof thrown === "object" && thrown !== null && "code" in thrown ? thrown.code : undefined;
   if (typeof code === "string" || typeof code === "number") return String(code);
   return thrown instanceof Error ? thrown.name : typeof thrown;
 }

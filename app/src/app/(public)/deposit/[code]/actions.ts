@@ -187,19 +187,58 @@ export async function holdPrebookTime(code: unknown, startsAt: unknown): Promise
   });
 }
 
+const HOLD_COLUMNS = "id, parent_user_id, status, purpose, starts_at, cancel_reason";
+const holdRow = z.object({
+  parent_user_id: z.string(),
+  status: z.string(),
+  purpose: z.string(),
+  starts_at: z.string().refine((at) => !Number.isNaN(Date.parse(at))),
+  cancel_reason: z.string().nullable(),
+});
+
+/**
+ * Before 04's confirm (03c review L5: amendment 19's `call_confirm_hold` doesn't check purpose): her hold must be hers,
+ * a cohort pre-book on her pre-booked day, and held — or already booked under this key (a retry after a lost reply,
+ * which 04 replays). One bounded row by its id and her id. Null = go on; otherwise the refusal.
+ */
+async function holdRefusal(gate: PrebookDay, holdId: string): Promise<PrebookCallRefusal | null> {
+  const { data, error } = await gate.admin.from("call_bookings").select(HOLD_COLUMNS)
+    .eq("id", holdId).eq("parent_user_id", gate.proof.parentUserId).maybeSingle();
+  if (error) {
+    logFailure("deposit prebook hold read", error);
+    return "error";
+  }
+  if (data === null) return "not_yours";
+  const row = holdRow.safeParse(data);
+  if (!row.success) {
+    logFailure("deposit prebook hold read", { code: "unexpected_row" });
+    return "error";
+  }
+  const hold = row.data;
+  if (hold.parent_user_id !== gate.proof.parentUserId) return "not_yours";
+  if (hold.status === "cancelled" && hold.cancel_reason === "hold_expired") return "hold_expired";
+  if (hold.status !== "held" && hold.status !== "booked") return "invalid";
+  return hold.purpose === "cohort_prebook" && londonDateOf(hold.starts_at) === gate.londonDate ? null : "invalid";
+}
+
 /** Her booking id on her pre-booking. The call already stands, so a failure is logged, not answered. */
 async function attachQuietly(gate: PrebookDay, callBookingId: string): Promise<void> {
   const attached = await attachPrebookingCall(gate.admin, gate.proof, { prebookingId: gate.prebookingId, callBookingId });
   if (!attached.ok) logFailure("deposit prebook call attach", { code: attached.status });
 }
 
-/** "Confirm time": 04's confirm of her hold (its id is the idempotency key), then the booking on her pre-booking. */
+/**
+ * "Confirm time": her hold checked (`holdRefusal`), then 04's confirm (its id is the idempotency key), then the booking
+ * on her pre-booking.
+ */
 export async function confirmPrebookTime(code: unknown, holdId: unknown): Promise<PrebookCallResult<PrebookBooked>> {
   return guarded<PrebookCallResult<PrebookBooked>>("confirmPrebookTime", ERROR, async () => {
     const hold = parsed(holdIdInput, holdId);
     const gate = await prebookGate(code);
     if (!gate.ok) return gate;
     if (hold === null) return INVALID;
+    const refused = await holdRefusal(gate, hold);
+    if (refused !== null) return { ok: false, error: refused };
     const confirmed = await confirmHoldForParent({ ...herself(gate.proof), holdId: hold, idempotencyKey: hold });
     if (!confirmed.ok) return { ok: false, error: refusalOf(confirmed.error) };
     const { bookingId, startsAt } = confirmed.value;

@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { logFailure } from "@/lib/cohorts/db";
 import { donePaid, PAGE_COPY, PAGE_MORE_COPY } from "@/lib/deposit/copy";
 import { proveDepositCode } from "@/lib/deposit/proof";
 import { readDepositDone } from "@/lib/deposit/session";
@@ -27,8 +29,18 @@ interface PageProps {
   readonly searchParams: Readonly<Record<string, string | string[] | undefined>>;
 }
 
-export default async function DepositDonePage({ params, searchParams }: PageProps) {
+export default async function DepositDonePage(props: PageProps) {
   if (!depositLinkEnabled()) notFound();
+  try {
+    return await donePage(props);
+  } catch (thrown) {
+    logFailure("deposit done page", thrown); // by name only
+    return <DepositTryAgain />;
+  }
+}
+
+/** After the switch: the code, then the done check. Any throw becomes the try-again line (03c review L). */
+async function donePage({ params, searchParams }: PageProps) {
   const admin = createAdminClient();
   const proven = await proveDepositCode(admin, params.code);
   if (!proven.ok) return proven.status === "invalid" ? <InvalidDepositLink /> : <DepositTryAgain />;
@@ -37,12 +49,9 @@ export default async function DepositDonePage({ params, searchParams }: PageProp
   if (done.result !== "not_paid") return <InvalidDepositLink />;
   return (
     <DepositNotice heading={PAGE_COPY.doneNotPaid}>
-      <Link
-        href={`/deposit/${params.code}`}
-        className="inline-flex h-11 w-full items-center justify-center rounded-md bg-violet-600 px-4 text-sm font-medium text-white hover:bg-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
-      >
-        {PAGE_MORE_COPY.doneBackLink}
-      </Link>
+      <Button asChild size="lg" className="w-full bg-violet-600 text-base hover:bg-violet-700">
+        <Link href={`/deposit/${params.code}`}>{PAGE_MORE_COPY.doneBackLink}</Link>
+      </Button>
     </DepositNotice>
   );
 }

@@ -10,14 +10,19 @@
  * - **call on**: "We'll call you on Monday 8 February to confirm your place." (04 off, or no free time that day);
  * - **in touch**: "We'll be in touch to arrange your place." (no next cohort set up).
  * No place is held (02 Q6). Already pre-booked (she came back, e.g. from the call email's button, D8) → it opens at
- * once. Test ids: `deposit-prebook` (the button), `deposit-prebook-picker`, `deposit-prebook-line`,
- * `deposit-prebook-booked`.
+ * once.
  *
- * BB-wave2-231126/03-build, 2026-11-25.
+ * Accessibility (03c review M3): the changing lines (call on, in touch, booked) live in ONE polite status region that
+ * is mounted from the start, so each is announced. After her press, focus goes to the picker's heading (the picker)
+ * or to the page heading (a line); once booked, to the page heading — never on a page load. A picker action that
+ * throws is a plain failure; `invalid` (the link or the pre-booking gone) turns the page into the invalid page.
+ *
+ * Test ids: `deposit-prebook` (the button), `deposit-prebook-picker`, `deposit-prebook-status` (the live region),
+ * `deposit-prebook-line` / `deposit-prebook-booked` (its box, by what it says). BB-wave2-231126/03-build, 2026-11-25.
  */
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MutableRefObject, type RefObject } from "react";
 import { CalendarClock, CheckCircle2, Loader2 } from "lucide-react";
 import { SlotPicker, type PickerResult, type SlotPickerActions } from "@/components/calls/SlotPicker";
 import { Button } from "@/components/ui/button";
@@ -39,12 +44,20 @@ export interface PrebookPanelProps {
   readonly prebooked: boolean;
   /** The link stopped working meanwhile (cancelled, or the switch went off): the page becomes the invalid page. */
   readonly onInvalid: () => void;
+  /** Move focus to the page's heading (after a line, or once booked). */
+  readonly onFocusHeading: () => void;
 }
 
-/** The switch going off mid-pick is, for the picker, a plain failure (its own codes have no such case). */
-async function forPicker<T>(run: () => Promise<PrebookCallResult<T>>): Promise<PickerResult<T>> {
-  const result = await run();
+/** A picker action's answer as 04's picker takes it: a throw or the switch is a plain failure; `invalid` → the page. */
+async function forPicker<T>(run: () => Promise<PrebookCallResult<T>>, onInvalid: () => void): Promise<PickerResult<T>> {
+  let result: PrebookCallResult<T>;
+  try {
+    result = await run();
+  } catch {
+    return { ok: false, error: "error" };
+  }
   if (result.ok) return result;
+  if (result.error === "invalid") onInvalid();
   return { ok: false, error: result.error === "deposit_disabled" ? "error" : result.error };
 }
 
@@ -56,35 +69,42 @@ async function settledNext(code: string): Promise<PrebookNextResult> {
   }
 }
 
-function Line({ text, testId }: { readonly text: string; readonly testId: string }) {
+/** The one live region: always mounted; its words (and its box) change. Empty → visually hidden, no room taken. */
+function StatusLine({ text, booked }: { readonly text: string | null; readonly booked: boolean }) {
+  const shown = text !== null;
+  const box = booked ? "border-green-200 bg-green-50" : "border-violet-200 bg-violet-50";
+  const words = booked ? "text-sm font-medium text-green-800" : "text-sm text-violet-900";
+  const Icon = booked ? CheckCircle2 : CalendarClock;
   return (
-    <div role="status" data-testid={testId} className="flex items-start gap-3 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3">
-      <CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-violet-600" aria-hidden="true" />
-      <p className="text-sm text-violet-900">{text}</p>
+    <div
+      data-testid={shown ? (booked ? "deposit-prebook-booked" : "deposit-prebook-line") : undefined}
+      className={shown ? `flex items-start gap-3 rounded-lg border px-4 py-3 ${box}` : "contents"}
+    >
+      {shown && <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${booked ? "text-green-600" : "text-violet-600"}`} aria-hidden="true" />}
+      <p role="status" aria-live="polite" data-testid="deposit-prebook-status" className={shown ? words : "sr-only"}>
+        {text ?? ""}
+      </p>
     </div>
   );
 }
 
-function Booked({ line }: { readonly line: string }) {
-  return (
-    <div role="status" data-testid="deposit-prebook-booked" className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
-      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" aria-hidden="true" />
-      <p className="text-sm font-medium text-green-800">{line}</p>
-    </div>
-  );
+interface DayPickerProps {
+  readonly code: string;
+  readonly londonDate: string;
+  readonly initialDays: readonly SlotDay[];
+  readonly onBooked: (line: string) => void;
+  readonly onInvalid: () => void;
 }
 
 /** 04's picker for her one pre-booked day, wired to 03's actions with the code. */
-function DayPicker({ code, londonDate, initialDays }: { readonly code: string; readonly londonDate: string; readonly initialDays: readonly SlotDay[] }) {
+function DayPicker({ code, londonDate, initialDays, onBooked, onInvalid }: DayPickerProps) {
   const [days, setDays] = useState<readonly SlotDay[] | null>(initialDays);
-  const [booked, setBooked] = useState<string | null>(null);
-  if (booked !== null) return <Booked line={booked} />;
   const actions: SlotPickerActions<PrebookBooked> = {
-    hold: (startsAt) => forPicker(() => holdPrebookTime(code, startsAt)),
+    hold: (startsAt) => forPicker(() => holdPrebookTime(code, startsAt), onInvalid),
     // The hold id is the idempotency key (the server's): a double press of Confirm replays the first answer.
-    confirm: (hold) => forPicker(() => confirmPrebookTime(code, hold.holdId)),
+    confirm: (hold) => forPicker(() => confirmPrebookTime(code, hold.holdId), onInvalid),
     reload: async () => {
-      const fresh = await reloadPrebookTimes(code);
+      const fresh = await forPicker(() => reloadPrebookTimes(code), onInvalid);
       setDays(fresh.ok ? fresh.value : null);
       return fresh.ok ? fresh.value : null;
     },
@@ -95,17 +115,17 @@ function DayPicker({ code, londonDate, initialDays }: { readonly code: string; r
       <SlotPicker
         days={days}
         actions={actions}
-        onConfirmed={(value) => setBooked(value.line)}
+        onConfirmed={(value) => onBooked(value.line)}
         copy={{ heading: prebookPickHeading(londonDate), noTimes: callOn, loadFailed: callOn }}
       />
     </div>
   );
 }
 
-function ViewOf({ code, view }: { readonly code: string; readonly view: PrebookView }) {
-  if (view.kind === "picker") return <DayPicker code={code} londonDate={view.londonDate} initialDays={view.days} />;
-  if (view.kind === "call_on") return <Line text={prebookCallLine(view.date)} testId="deposit-prebook-line" />;
-  return <Line text={PAGE_COPY.prebookNoCohort} testId="deposit-prebook-line" />;
+/** A line view's words; null for the picker (it has its own). */
+function lineOf(view: PrebookView | null): string | null {
+  if (view === null || view.kind === "picker") return null;
+  return view.kind === "call_on" ? prebookCallLine(view.date) : PAGE_COPY.prebookNoCohort;
 }
 
 /** The button's press: records, then hands back the view; a refusal moves the page on or shows "Try again." */
@@ -131,8 +151,8 @@ function usePrebook(code: string, onInvalid: () => void) {
   return { view, pending, message, record };
 }
 
-export function PrebookPanel({ code, prebooked, onInvalid }: PrebookPanelProps) {
-  const { view, pending, message, record } = usePrebook(code, onInvalid);
+/** Opens at once when she has pre-booked already (once, even under strict mode's double effect). */
+function useOpenIfPrebooked(prebooked: boolean, record: () => Promise<void>) {
   const recordRef = useRef(record);
   recordRef.current = record;
   const opened = useRef(false);
@@ -141,26 +161,66 @@ export function PrebookPanel({ code, prebooked, onInvalid }: PrebookPanelProps) 
     opened.current = true;
     void recordRef.current();
   }, [prebooked]);
-  if (view !== null) return <ViewOf code={code} view={view} />;
+}
+
+interface FocusAfter {
+  readonly root: RefObject<HTMLDivElement>;
+  readonly view: PrebookView | null;
+  readonly booked: string | null;
+  readonly pressed: MutableRefObject<boolean>;
+  readonly onFocusHeading: () => void;
+}
+
+/** After her press only: the picker's heading, or the page heading for a line; once booked, the page heading. */
+function useFocusAfter({ root, view, booked, pressed, onFocusHeading }: FocusAfter) {
+  const focusHeading = useRef(onFocusHeading);
+  focusHeading.current = onFocusHeading;
+  useEffect(() => {
+    if (view === null || !pressed.current) return;
+    if (view.kind !== "picker") return focusHeading.current();
+    root.current?.querySelector<HTMLElement>("[data-testid='deposit-prebook-picker'] h2")?.focus();
+  }, [view, pressed, root]);
+  useEffect(() => {
+    if (booked !== null) focusHeading.current();
+  }, [booked]);
+}
+
+export function PrebookPanel({ code, prebooked, onInvalid, onFocusHeading }: PrebookPanelProps) {
+  const { view, pending, message, record } = usePrebook(code, onInvalid);
+  const [booked, setBooked] = useState<string | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const pressed = useRef(false);
+  useOpenIfPrebooked(prebooked, record);
+  useFocusAfter({ root, view, booked, pressed, onFocusHeading });
+  const press = () => {
+    pressed.current = true;
+    void record();
+  };
   return (
-    <div className="flex flex-col gap-4">
-      {message !== null && (
+    <div ref={root} className="flex flex-col gap-4">
+      <StatusLine text={booked ?? lineOf(view)} booked={booked !== null} />
+      {view?.kind === "picker" && booked === null && (
+        <DayPicker code={code} londonDate={view.londonDate} initialDays={view.days} onBooked={setBooked} onInvalid={onInvalid} />
+      )}
+      {view === null && message !== null && (
         <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {message}
         </p>
       )}
-      <Button
-        type="button"
-        size="lg"
-        data-testid="deposit-prebook"
-        className="w-full bg-violet-600 text-base hover:bg-violet-700"
-        disabled={pending}
-        aria-busy={pending}
-        onClick={record}
-      >
-        {pending && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
-        {PAGE_COPY.prebookButton}
-      </Button>
+      {view === null && (
+        <Button
+          type="button"
+          size="lg"
+          data-testid="deposit-prebook"
+          className="w-full bg-violet-600 text-base hover:bg-violet-700"
+          disabled={pending}
+          aria-busy={pending}
+          onClick={press}
+        >
+          {pending && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
+          {PAGE_COPY.prebookButton}
+        </Button>
+      )}
     </div>
   );
 }

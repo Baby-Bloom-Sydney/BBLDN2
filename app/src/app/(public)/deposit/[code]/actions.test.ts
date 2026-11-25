@@ -72,6 +72,10 @@ const linkRow = (over: Record<string, unknown> = {}) => ({
 const prebooking = (over: Record<string, unknown> = {}) => ({
   id: PREBOOKING, parentUserId: PARENT, cohortStartDate: NEXT, callBookingId: null, createdAt: "2027-02-02T10:00:00+00:00", ...over,
 });
+/** 04's call_bookings row for her hold: hers, held, a cohort pre-book, on her pre-booked day. */
+const holdRow = (over: Record<string, unknown> = {}) => ({
+  id: HOLD, parent_user_id: PARENT, status: "held", purpose: "cohort_prebook", starts_at: "2027-02-08T10:00:00+00:00", cancel_reason: null, ...over,
+});
 const SLOTS = [{ startsAt: AT_10, endsAt: AT_1030 }];
 const DAYS = groupSlotGridByDay({ dates: [NEXT], slots: SLOTS.map((s) => ({ ...s, free: true })) });
 const page = (state: Record<string, unknown>) => ({ kind: "ok", state, firstName: "Sarah" });
@@ -99,7 +103,7 @@ beforeEach(() => {
   vi.stubEnv("DEPOSIT_LINK_ENABLED", "true");
   vi.stubEnv("COHORTS_ENABLED", "true");
   vi.stubEnv("CALL_BOOKING_ENABLED", "true");
-  h.fake = fakeAdmin({ deposit_links: linkRow() });
+  h.fake = fakeAdmin({ deposit_links: linkRow(), call_bookings: holdRow() });
   h.clients = 0;
   h.clientThrows = false;
   for (const fn of [h.startDepositCheckout, h.readDepositPage, h.recordPrebooking, h.readOpenPrebooking, h.attachPrebookingCall, h.getFreeSlots, h.holdSlotForParent, h.confirmHoldForParent]) fn.mockReset();
@@ -334,6 +338,54 @@ describe("confirmPrebookTime — 04's confirm, then the booking id on her pre-bo
     h.confirmHoldForParent.mockResolvedValue({ ok: false, error: "hold_expired" });
     expect(await confirmPrebookTime(CODE, HOLD)).toEqual({ ok: false, error: "hold_expired" });
     expect(h.attachPrebookingCall).not.toHaveBeenCalled();
+  });
+
+  it("reads the hold first, by its id and her id only (one bounded row)", async () => {
+    await confirmPrebookTime(CODE, HOLD);
+    const read = h.fake!.ops.find((o) => o.table === "call_bookings");
+    expect(read?.kind).toBe("select");
+    expect(read?.filters).toEqual(expect.arrayContaining([["eq", "id", HOLD], ["eq", "parent_user_id", PARENT]]));
+  });
+
+  it("a hold that isn't hers (or isn't there) → not_yours, before 04 is asked", async () => {
+    h.fake!.reads.call_bookings = null;
+    expect(await confirmPrebookTime(CODE, HOLD)).toEqual({ ok: false, error: "not_yours" });
+    h.fake!.reads.call_bookings = holdRow({ parent_user_id: OTHER_PARENT });
+    expect(await confirmPrebookTime(CODE, HOLD)).toEqual({ ok: false, error: "not_yours" });
+    expect(h.confirmHoldForParent).not.toHaveBeenCalled();
+  });
+
+  it("a first-call hold (19's confirm doesn't check purpose) or a hold on another day → invalid, before 04 is asked", async () => {
+    h.fake!.reads.call_bookings = holdRow({ purpose: "first_call" });
+    expect(await confirmPrebookTime(CODE, HOLD)).toEqual({ ok: false, error: "invalid" });
+    h.fake!.reads.call_bookings = holdRow({ starts_at: "2027-02-09T10:00:00+00:00" });
+    expect(await confirmPrebookTime(CODE, HOLD)).toEqual({ ok: false, error: "invalid" });
+    expect(h.confirmHoldForParent).not.toHaveBeenCalled();
+  });
+
+  it("a hold that ran out → hold_expired; cancelled or done otherwise → invalid; nothing confirmed", async () => {
+    h.fake!.reads.call_bookings = holdRow({ status: "cancelled", cancel_reason: "hold_expired" });
+    expect(await confirmPrebookTime(CODE, HOLD)).toEqual({ ok: false, error: "hold_expired" });
+    for (const over of [{ status: "cancelled", cancel_reason: "parent" }, { status: "done" }, { status: "no_answer" }]) {
+      h.fake!.reads.call_bookings = holdRow(over);
+      expect(await confirmPrebookTime(CODE, HOLD)).toEqual({ ok: false, error: "invalid" });
+    }
+    expect(h.confirmHoldForParent).not.toHaveBeenCalled();
+  });
+
+  it("her own hold already booked by this key (a retry after a lost reply) goes to 04, which replays it", async () => {
+    h.fake!.reads.call_bookings = holdRow({ status: "booked" });
+    h.confirmHoldForParent.mockResolvedValue({ ok: true, value: { kind: "booked", bookingId: HOLD, startsAt: AT_10, replay: true } });
+    expect(await confirmPrebookTime(CODE, HOLD)).toMatchObject({ ok: true, value: { bookingId: HOLD } });
+  });
+
+  it("the hold can't be read, or reads oddly → error, nothing confirmed", async () => {
+    h.fake!.readErrors.call_bookings = { message: "boom", code: "XX000" };
+    expect(await confirmPrebookTime(CODE, HOLD)).toEqual({ ok: false, error: "error" });
+    h.fake!.readErrors.call_bookings = undefined;
+    h.fake!.reads.call_bookings = holdRow({ starts_at: "soon" });
+    expect(await confirmPrebookTime(CODE, HOLD)).toEqual({ ok: false, error: "error" });
+    expect(h.confirmHoldForParent).not.toHaveBeenCalled();
   });
 
   it("no open pre-booking → invalid, nothing confirmed", async () => {

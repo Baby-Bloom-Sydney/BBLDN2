@@ -12,6 +12,7 @@ import type { FakeAdmin } from "@/lib/payments/fake-admin.test-util";
 const h = vi.hoisted(() => ({
   fake: null as FakeAdmin | null,
   clients: 0,
+  clientThrows: false,
   seq: [] as string[],
   notFound: vi.fn(),
   stampLinkOpened: vi.fn(),
@@ -29,6 +30,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => {
     h.clients += 1;
+    if (h.clientThrows) throw new Error("no credentials for sarah@gmail.com");
     return h.fake!.client;
   },
 }));
@@ -83,6 +85,7 @@ beforeEach(() => {
   vi.stubEnv("COHORTS_ENABLED", "true");
   h.fake = fakeAdmin({ deposit_links: linkRow() });
   h.clients = 0;
+  h.clientThrows = false;
   h.seq = [];
   h.clientProps = [];
   for (const fn of [h.notFound, h.stampLinkOpened, h.returnFromCheckout, h.readDepositPage, h.readOpenPrebooking]) fn.mockReset();
@@ -198,6 +201,24 @@ describe("/deposit/<code> — a valid view", () => {
     h.readDepositPage.mockResolvedValue({ kind: "ok", state: { kind: "paid" }, firstName: null });
     await show();
     expect(h.readOpenPrebooking).not.toHaveBeenCalled();
+  });
+});
+
+describe("/deposit/<code> — a throw is the try-again line, never an error page (03c review L)", () => {
+  it.each([
+    ["the admin client", () => { h.clientThrows = true; }],
+    ["the pre-booking read", () => {
+      h.readDepositPage.mockResolvedValue({ kind: "ok", state: { kind: "full", nextAvailable: null }, firstName: null });
+      h.readOpenPrebooking.mockRejectedValue(new Error("read failed for sarah@gmail.com"));
+    }],
+    ["the page read", () => { h.readDepositPage.mockRejectedValue(new TypeError("boom")); }],
+    ["Back", () => { h.returnFromCheckout.mockRejectedValue(new Error("stripe down")); }],
+  ])("%s throws → try again, logged by name only", async (_label, arrange) => {
+    arrange();
+    await show(CODE, { cancelled: "1" });
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(PAGE_COPY.tryAgain);
+    expect(screen.queryByTestId("deposit-client")).toBeNull();
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("sarah@gmail.com");
   });
 });
 

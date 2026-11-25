@@ -40,12 +40,14 @@ interface NoticeProps {
   readonly children?: ReactNode;
 }
 
-/** A heading line, its decorative mark, and what follows it. */
+/** A heading line, its decorative mark, and what follows it. The heading takes focus when the client page moves to it. */
 export function DepositNotice({ heading, tone = "neutral", children }: NoticeProps) {
   return (
     <DepositShell>
       {TONE_ICON[tone]}
-      <h1 className="text-xl font-semibold leading-snug text-slate-900 sm:text-2xl">{heading}</h1>
+      <h1 tabIndex={-1} className="text-xl font-semibold leading-snug text-slate-900 focus:outline-none sm:text-2xl">
+        {heading}
+      </h1>
       {children}
     </DepositShell>
   );

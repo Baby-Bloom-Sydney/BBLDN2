@@ -55,8 +55,18 @@ async function hasPrebooked(admin: AdminClient, proof: DepositParentProof, state
   return open.ok && open.value !== null;
 }
 
-export default async function DepositCodePage({ params, searchParams }: PageProps) {
+export default async function DepositCodePage(props: PageProps) {
   if (!depositLinkEnabled()) notFound();
+  try {
+    return await depositPage(props);
+  } catch (thrown) {
+    logFailure("deposit page", thrown); // by name only; the page never errors out with the code in it
+    return <DepositTryAgain />;
+  }
+}
+
+/** Steps 2–5, after the switch. Any throw becomes the try-again line (03c review L). */
+async function depositPage({ params, searchParams }: PageProps) {
   const admin = createAdminClient();
   const proven = await proveDepositCode(admin, params.code);
   if (!proven.ok) return proven.status === "invalid" ? <InvalidDepositLink /> : <DepositTryAgain />;
