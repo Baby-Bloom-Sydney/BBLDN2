@@ -154,7 +154,7 @@ function cardPart(payment: DepositPayment, card: SavedCard | null): string {
 const cohortPart = (place: PanelPlace | null): string | null =>
   place?.state === "taken" ? `Cohort ${formatCohortShort(place.cohortStartDate)}${place.isGoodwill ? " (goodwill)" : ""}` : null;
 
-/** The state line: "Not paid" · "Paid £150 by card, 3 Feb · Card saved Visa •••• 4242 (12/30) · Cohort Mon 1 Feb" · … */
+/** The state line: "Not paid" · "Paid <amount> by card, 3 Feb · Card saved Visa •••• 4242 (12/30) · Cohort Mon 1 Feb" · … */
 export function depositStateLine(panel: DepositPanel): string {
   const { payment } = panel;
   if (payment === null) return PANEL_COPY.notPaid;
