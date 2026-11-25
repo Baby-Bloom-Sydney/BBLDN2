@@ -6,12 +6,18 @@
  * `ADMIN_EMAIL`, else `SENDERS.admin`.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SENDERS } from "@/lib/constants";
+import { SENDERS, SITE_URL } from "@/lib/constants";
+import { depositLinkUrl } from "@/lib/deposit/links";
+import { buildCallBookingCancelledEmail } from "@/lib/email/templates/call-booking-cancelled";
+import { buildCallBookingChangedEmail } from "@/lib/email/templates/call-booking-changed";
+import { buildCallBookingConfirmationEmail } from "@/lib/email/templates/call-booking-confirmation";
+import { CALL_PAGE_URL } from "@/lib/email/templates/call-email-parts";
 import { fakeAdmin } from "@/lib/payments/fake-admin.test-util";
-import { callsTo, fakeCallsRepo } from "./fake-calls-repo.test-util";
+import { bookingRow, callsTo, fakeCallsRepo } from "./fake-calls-repo.test-util";
 import type { CallEmailSend } from "./mailer";
-import { createCallNoticeSender, notifyCall, sendCallNotice, type CallNotice } from "./notify";
+import { createCallNoticeSender, notifyCall, sendCallNotice, type CallNotice, type OpenDepositCodeReader } from "./notify";
 import { CALL_SETTINGS_DEFAULTS } from "./settings";
+import type { CallPurpose } from "./types";
 
 const h = vi.hoisted(() => ({ client: null as unknown, send: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => h.client }));
@@ -203,5 +209,168 @@ describe("sendCallNotice — the default sender", () => {
     h.send.mockResolvedValue({ success: true, messageId: "dry-run" });
     await sendCallNotice(NOTICE);
     expect(h.send.mock.calls.map(([m]) => m.emailType)).toEqual(["call_booking_confirmation", "admin_call_booked"]);
+  });
+});
+
+// ── Plan 03 C3 (D8), add-only: a pre-booked family's "Change or cancel" button opens her deposit page ─────────────
+// first_call → today's emails, byte for byte. cohort_prebook with an open link → `/deposit/<code>`; with none, a
+// failed read, or the switch off → today's call page. Label and copy unchanged; the cancel email is untouched.
+
+const CODE = "Ab0_-".repeat(8) + "xyz";
+const FROM = "2027-02-08T10:30:00.000Z";
+const PARAMS = { firstName: "Jane", callerNumber: CALLER, startsAt: NOTICE.startsAt };
+const MOVED: CallNotice = { ...NOTICE, kind: "moved", fromStartsAt: FROM };
+const ONE_LINK: OpenDepositCodeReader = async () => ({ ok: true, value: CODE });
+const TODAY_CONFIRMATION = () => buildCallBookingConfirmationEmail(PARAMS).html;
+
+/** A sender over her contact, one booking of this purpose (none for null) and the given open-link reader. */
+function d8Sender(purpose: CallPurpose | null, read: OpenDepositCodeReader = ONE_LINK, seed: Parameters<typeof fakeCallsRepo>[0] = {}) {
+  const bookings = purpose === null ? [] : [bookingRow({ id: NOTICE.bookingId, parentUserId: PARENT, startsAt: NOTICE.startsAt, purpose })];
+  const fake = fakeCallsRepo({ contacts: [JANE], settings: { ...CALL_SETTINGS_DEFAULTS, callerNumber: CALLER }, bookings, ...seed });
+  const send = vi.fn<CallEmailSend>(async () => ({ success: true, messageId: "m-1" }));
+  const readCode = vi.fn(read);
+  return { fake, send, readCode, notice: createCallNoticeSender({ repo: fake.repo, send, readOpenDepositCode: readCode }) };
+}
+
+const htmlOf = (send: ReturnType<typeof d8Sender>["send"], emailType: string) => mails(send).find((m) => m.emailType === emailType)?.html;
+
+describe("the button's href (plan 03 C3, D8)", () => {
+  beforeEach(() => {
+    vi.stubEnv("ADMIN_EMAIL", "ops@example.test");
+    vi.stubEnv("COHORTS_ENABLED", "true");
+    vi.stubEnv("DEPOSIT_LINK_ENABLED", "true");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("first_call → today's confirmation and change emails, byte for byte; her deposit link is never read", async () => {
+    const s = d8Sender("first_call");
+    await s.notice(NOTICE);
+    await s.notice(MOVED);
+    expect(htmlOf(s.send, "call_booking_confirmation")).toBe(TODAY_CONFIRMATION());
+    expect(htmlOf(s.send, "call_booking_changed")).toBe(buildCallBookingChangedEmail({ ...PARAMS, fromStartsAt: FROM }).html);
+    expect(s.readCode).not.toHaveBeenCalled();
+  });
+
+  it("cohort_prebook with an open link → both buttons open her /deposit/<code>; label, copy and the admin email as before", async () => {
+    const s = d8Sender("cohort_prebook");
+    await s.notice(NOTICE);
+    await s.notice(MOVED);
+    const href = depositLinkUrl(CODE);
+    expect(href).toBe(`${SITE_URL}/deposit/${CODE}`);
+    expect(htmlOf(s.send, "call_booking_confirmation")).toBe(buildCallBookingConfirmationEmail({ ...PARAMS, href }).html);
+    expect(htmlOf(s.send, "call_booking_changed")).toBe(buildCallBookingChangedEmail({ ...PARAMS, fromStartsAt: FROM, href }).html);
+    expect(htmlOf(s.send, "call_booking_confirmation")).not.toContain(CALL_PAGE_URL);
+    expect(htmlOf(s.send, "call_booking_confirmation")).toContain(">Change or cancel</a>");
+    expect(htmlOf(s.send, "admin_call_booked")).not.toContain("/deposit/");
+    expect(s.readCode.mock.calls).toEqual([[PARENT], [PARENT]]);
+    expect(callsTo(s.fake, "readBookingsForParents")[0].args).toEqual([[PARENT]]);
+  });
+
+  it("cohort_prebook with no open link → today's call page", async () => {
+    const s = d8Sender("cohort_prebook", async () => ({ ok: true, value: null }));
+    await s.notice(NOTICE);
+    expect(htmlOf(s.send, "call_booking_confirmation")).toBe(TODAY_CONFIRMATION());
+    expect(s.readCode).toHaveBeenCalledTimes(1);
+  });
+
+  it("cohort_prebook, the link read failing or throwing → today's call page, logged by code only, never the code value", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const failed = d8Sender("cohort_prebook", async () => ({ ok: false }));
+    await failed.notice(NOTICE);
+    const thrown = d8Sender("cohort_prebook", async () => {
+      throw Object.assign(new Error(`no link ${CODE}`), { code: "XX000" });
+    });
+    await thrown.notice(NOTICE);
+    for (const s of [failed, thrown]) expect(htmlOf(s.send, "call_booking_confirmation")).toBe(TODAY_CONFIRMATION());
+    expect(log).toHaveBeenCalledWith("[calls/notify] deposit link read failed", { bookingId: NOTICE.bookingId, code: "read_failed" });
+    expect(log).toHaveBeenCalledWith("[calls/notify] deposit link read failed", { bookingId: NOTICE.bookingId, code: "XX000" });
+    expect(JSON.stringify(log.mock.calls)).not.toContain(CODE);
+  });
+
+  it("a reader answering something other than a deposit code → today's call page, never a malformed link", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const s = d8Sender("cohort_prebook", async () => ({ ok: true, value: "../admin" }));
+    await s.notice(NOTICE);
+    expect(htmlOf(s.send, "call_booking_confirmation")).toBe(TODAY_CONFIRMATION());
+    expect(log).toHaveBeenCalledWith("[calls/notify] deposit link read failed", { bookingId: NOTICE.bookingId, code: "not_a_code" });
+  });
+
+  it("her booking not found, or its read failing → today's call page; her link is never read", async () => {
+    const missing = d8Sender(null);
+    await missing.notice(NOTICE);
+    const failing = d8Sender("cohort_prebook", ONE_LINK, { failing: ["readBookingsForParents"] });
+    await failing.notice(NOTICE);
+    for (const s of [missing, failing]) {
+      expect(htmlOf(s.send, "call_booking_confirmation")).toBe(TODAY_CONFIRMATION());
+      expect(s.readCode).not.toHaveBeenCalled();
+    }
+  });
+
+  it.each(["DEPOSIT_LINK_ENABLED", "COHORTS_ENABLED"])("%s off → today's call page, with no booking or link read", async (flag) => {
+    vi.stubEnv(flag, "");
+    const s = d8Sender("cohort_prebook");
+    await s.notice(NOTICE);
+    await s.notice(MOVED);
+    expect(htmlOf(s.send, "call_booking_confirmation")).toBe(TODAY_CONFIRMATION());
+    expect(htmlOf(s.send, "call_booking_changed")).toBe(buildCallBookingChangedEmail({ ...PARAMS, fromStartsAt: FROM }).html);
+    expect(callsTo(s.fake, "readBookingsForParents")).toEqual([]);
+    expect(s.readCode).not.toHaveBeenCalled();
+  });
+
+  it("a cancel → its email as before, with no booking or link read", async () => {
+    const s = d8Sender("cohort_prebook");
+    await s.notice({ ...NOTICE, kind: "cancelled" });
+    expect(htmlOf(s.send, "call_booking_cancelled")).toBe(buildCallBookingCancelledEmail(PARAMS).html);
+    expect(callsTo(s.fake, "readBookingsForParents")).toEqual([]);
+    expect(s.readCode).not.toHaveBeenCalled();
+  });
+
+  it("her booking read throwing → the email still goes, with today's call page; logged by code only", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const fake = fakeCallsRepo({ contacts: [JANE], settings: { ...CALL_SETTINGS_DEFAULTS, callerNumber: CALLER } });
+    const repo = { ...fake.repo, readBookingsForParents: async () => Promise.reject(new TypeError("jane@example.com")) };
+    const send = vi.fn<CallEmailSend>(async () => ({ success: true, messageId: "m-1" }));
+    await createCallNoticeSender({ repo, send, readOpenDepositCode: ONE_LINK })(NOTICE);
+    expect(htmlOf(send, "call_booking_confirmation")).toBe(TODAY_CONFIRMATION());
+    expect(log).toHaveBeenCalledWith("[calls/notify] booking read failed", { bookingId: NOTICE.bookingId, code: "TypeError" });
+    expect(JSON.stringify(log.mock.calls)).not.toContain("jane@example.com");
+  });
+
+  it("a sender built without a reader → today's call page, with no booking read", async () => {
+    const fake = fakeCallsRepo({
+      contacts: [JANE],
+      settings: { ...CALL_SETTINGS_DEFAULTS, callerNumber: CALLER },
+      bookings: [bookingRow({ id: NOTICE.bookingId, parentUserId: PARENT, startsAt: NOTICE.startsAt, purpose: "cohort_prebook" })],
+    });
+    const send = vi.fn<CallEmailSend>(async () => ({ success: true, messageId: "m-1" }));
+    await createCallNoticeSender({ repo: fake.repo, send })(NOTICE);
+    expect(htmlOf(send, "call_booking_confirmation")).toBe(TODAY_CONFIRMATION());
+    expect(callsTo(fake, "readBookingsForParents")).toEqual([]);
+  });
+
+  it("the default sender reads her booking and her open link through the service-role client", async () => {
+    const f = fakeAdmin({
+      user_profiles: [{ user_id: PARENT, first_name: "Jane", last_name: "Smith", email: "jane@example.com", mobile_number: null, is_test_user: false }],
+      call_bookings: [
+        {
+          id: NOTICE.bookingId, parent_user_id: PARENT, position_id: null, starts_at: "2027-02-09T14:00:00+00:00",
+          ends_at: "2027-02-09T14:30:00+00:00", status: "booked", purpose: "cohort_prebook", booked_by_kind: "parent",
+          hold_expires_at: null, booked_at: "2027-02-04T10:01:00+00:00", moved_at: null, moved_from_starts_at: null,
+          cancelled_at: null, cancel_reason: null, closed_at: null, created_at: "2027-02-04T10:00:00+00:00",
+        },
+      ],
+      deposit_links: {
+        id: "d0300000-0000-4000-8000-000000000011", parent_user_id: PARENT, code: CODE, state: "open", target: "current",
+        goodwill_cohort_start_date: null, last_emailed_at: null, last_emailed_to: null, last_opened_at: null,
+        created_at: "2027-01-25T10:00:00+00:00",
+      },
+    });
+    h.client = f.client;
+    h.send.mockReset();
+    h.send.mockResolvedValue({ success: true, messageId: "dry-run" });
+    await sendCallNotice(NOTICE);
+    const toHer = h.send.mock.calls.map(([m]) => m).find((m) => m.emailType === "call_booking_confirmation");
+    expect(toHer?.html).toContain(`href="${depositLinkUrl(CODE)}"`);
+    expect(f.ops.find((o) => o.table === "deposit_links")?.filters).toEqual([["eq", "parent_user_id", PARENT], ["eq", "state", "open"]]);
   });
 });

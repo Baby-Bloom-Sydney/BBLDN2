@@ -13,6 +13,8 @@ import type { EmailTemplate } from "./types";
 export interface CallBookingChangedParams extends ParentCallEmailParams {
   readonly startsAt: string;
   readonly fromStartsAt: string;
+  /** The "Change or cancel" button; the call page when absent. Plan 03 C3 (D8): a pre-booked family's deposit page. */
+  readonly href?: string;
 }
 
 export function buildCallBookingChangedEmail(params: CallBookingChangedParams): EmailTemplate {
@@ -23,7 +25,7 @@ export function buildCallBookingChangedEmail(params: CallBookingChangedParams): 
     html: callEmailShell({
       heading: "Your call has moved",
       paragraphs: parentParagraphs(params, [`${bookedLine(words)}.`, `It was ${from.day} at ${from.time}.`]),
-      button: { label: "Change or cancel", href: CALL_PAGE_URL },
+      button: { label: "Change or cancel", href: params.href ?? CALL_PAGE_URL },
       audience: "parent",
     }),
   };
