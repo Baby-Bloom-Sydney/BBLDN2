@@ -35,6 +35,11 @@ describe("Record refund (bank transfer)", () => {
     expect(screen.getByRole("dialog")).toHaveClass("max-w-md", "max-h-[90vh]", "overflow-y-auto");
   });
 
+  it("the title leaves room for the close button at 320 px (03b proof finding)", async () => {
+    await openDialog();
+    expect(screen.getByRole("heading", { name: "Record refund (bank transfer)" })).toHaveClass("pr-8");
+  });
+
   it("the trigger follows the block's pending state", () => {
     render(<BankRefundDialog parentUserId={PARENT} disabled />);
     expect(screen.getByRole("button", { name: "Record refund (bank transfer)" })).toBeDisabled();

@@ -40,6 +40,11 @@ describe("Mark deposit paid (bank transfer)", () => {
     expect(screen.getByRole("dialog")).toHaveClass("max-w-md", "max-h-[90vh]", "overflow-y-auto");
   });
 
+  it("the title leaves room for the close button at 320 px (03b proof finding)", async () => {
+    await openDialog();
+    expect(screen.getByRole("heading", { name: "Mark deposit paid (bank transfer)" })).toHaveClass("pr-8");
+  });
+
   it("the trigger follows the block's pending state", () => {
     render(<MarkPaidDialog parentUserId={PARENT} cohorts={NO_GOODWILL} disabled />);
     expect(screen.getByRole("button", { name: "Mark deposit paid (bank transfer)" })).toBeDisabled();

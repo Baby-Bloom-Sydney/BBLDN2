@@ -42,7 +42,7 @@ export function BankRefundDialog(props: BankRefundDialogProps) {
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{PANEL_COPY.bankRefundButton}</DialogTitle>
+          <DialogTitle className="pr-8">{PANEL_COPY.bankRefundButton}</DialogTitle>
           <DialogDescription>{PANEL_ACTION_COPY.bankRefundDescription}</DialogDescription>
         </DialogHeader>
         <div className="space-y-1">

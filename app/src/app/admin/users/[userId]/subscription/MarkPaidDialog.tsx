@@ -51,7 +51,7 @@ export function MarkPaidDialog(props: MarkPaidDialogProps) {
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{PANEL_COPY.markPaidButton}</DialogTitle>
+          <DialogTitle className="pr-8">{PANEL_COPY.markPaidButton}</DialogTitle>
           <DialogDescription>{PANEL_ACTION_COPY.markPaidDescription}</DialogDescription>
         </DialogHeader>
         <TargetChoice cohorts={props.cohorts} value={m.choice} onChange={m.setChoice} disabled={m.pending} />
