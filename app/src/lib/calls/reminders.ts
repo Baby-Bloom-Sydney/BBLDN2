@@ -17,6 +17,7 @@
  * wrote it sends; a failed send releases its own claim so the next run tries again. Nothing here throws.
  *
  * Server-only, not `"use server"`. BB-wave1-041126/04b-build, 2026-11-04.
+ * The reminder's button follows `notify.ts`'s `callButtonHref` (plan 03 C3, D8). BB-wave2-231126/03-build, 2026-11-25.
  */
 
 import { sendEmail } from "@/lib/email/resend";
@@ -27,6 +28,7 @@ import { buildCallReminderEmail } from "@/lib/email/templates/call-reminder";
 import { callBookingEnabled } from "@/lib/features/flags";
 import { CALL_BOOKING_DISABLED, defaultCallsDeps, type CallsDeps } from "./deps";
 import { firstNameOf, mailAdmin, mailParent, parentNameOf, type CallEmailSend } from "./mailer";
+import { callButtonHref, readOpenDepositCode, type OpenDepositCodeReader } from "./notify";
 import { createReminderRepo, type ReminderKind, type ReminderRepo, type ReminderWindow } from "./repo";
 import { everBooked, occupiesSlot } from "./status";
 import { bookedCallsToMake, loadFamilyFacts, selectToCall, type FamilyFacts, type ToCallFamily } from "./to-call";
@@ -35,6 +37,8 @@ import type { CallBooking, CallSettings, CallsResult, ParentContact } from "./ty
 export interface ReminderDeps extends CallsDeps {
   readonly reminders: ReminderRepo;
   readonly send: CallEmailSend;
+  /** Plan 03 C3 (D8): a pre-booked cohort call's reminder button opens her deposit page. Absent → the call page. */
+  readonly readOpenDepositCode?: OpenDepositCodeReader;
 }
 
 export interface PassCount {
@@ -61,7 +65,7 @@ type Outcome = "sent" | "failed" | "skipped";
 type SendThunk = () => Promise<boolean>;
 
 export function defaultReminderDeps(): ReminderDeps {
-  return { ...defaultCallsDeps(), reminders: createReminderRepo(), send: sendEmail };
+  return { ...defaultCallsDeps(), reminders: createReminderRepo(), send: sendEmail, readOpenDepositCode };
 }
 
 const tally = (outcomes: readonly Outcome[]): PassCount => ({
@@ -127,8 +131,12 @@ async function parentPass(settings: CallSettings, now: Date, deps: ReminderDeps)
       console.error("[calls/reminders] parent reminder: no contact", { bookingId: b.id });
       return null;
     }
-    const template = buildCallReminderEmail({ firstName: firstNameOf(contact), callerNumber: settings.callerNumber, startsAt: b.startsAt });
-    return () => mailParent(deps.send, contact, template, CALL_EMAIL_TYPES.reminder);
+    const params = { firstName: firstNameOf(contact), callerNumber: settings.callerNumber, startsAt: b.startsAt };
+    return async () => {
+      // Plan 03 C3 (D8): never throws; the call page unless it's a pre-booked cohort call with an open link.
+      const href = await callButtonHref({ parentUserId: b.parentUserId, bookingId: b.id, purpose: b.purpose }, deps.readOpenDepositCode);
+      return mailParent(deps.send, contact, buildCallReminderEmail({ ...params, href }), CALL_EMAIL_TYPES.reminder);
+    };
   });
 }
 
