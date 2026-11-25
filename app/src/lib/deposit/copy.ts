@@ -17,6 +17,8 @@ import { EMAIL_MAX, HOLD_MINUTES } from "./constants";
 import type { CohortView } from "@/lib/cohorts/types";
 import { formatClockHourMinute, londonWallClockOf } from "@/lib/timezone";
 import type { DepositPanel, DepositPayment, DepositWarning, PanelPlace, SavedCard } from "./panel";
+import type { DepositTarget } from "./types";
+import { REFUND_REASON_MIN } from "./constants";
 
 const PENCE_PER_POUND = 100;
 
@@ -200,3 +202,68 @@ export const depositWarningLines = (panel: DepositPanel): readonly string[] => p
 
 /** The goodwill choice (brief §3 Admin 2): "Next cohort, goodwill (Mon 8 Feb · 5 left)". */
 export const goodwillChoiceLabel = (next: CohortView): string => `Next cohort, goodwill (${formatCohortShort(next.start)} · ${next.left} left)`;
+
+// ── The panel's actions (plan 03 row B3; brief 03 §3 Admin 2–6): prompts, choices, dialogs and refusals ─────────────
+// Beside `PANEL_COPY`, which 03a froze. Placeholders BAI edits (Q4); no amount in any of them.
+// BB-wave2-231126/03-build, 2026-11-25.
+
+/** The block's and the dialogs' words. The cancel question never promises to close a payment page (03a LOW-4). */
+export const PANEL_ACTION_COPY = Object.freeze({
+  heading: "Deposit",
+  targetLegend: "Cohort for this deposit",
+  sendAgain: "Send again",
+  notNow: "Not now",
+  sendAsIs: "Send as is",
+  replaceAndSend: "Cancel and send again",
+  copyAsIs: "Copy as is",
+  replaceAndCopy: "Cancel and copy a new one",
+  cancelQuestion: "Cancel this link? It stops working, but a payment page already open can still be paid.",
+  cancelConfirm: "Yes, cancel link",
+  noOpenLink: "There was no open link to cancel.",
+  linkLabel: "Deposit link",
+  copy: "Copy",
+  openPaymentPage: "Open the payment page",
+  markPaidDescription: "Records the deposit as paid and takes the place in one step.",
+  noteLabel: "Note",
+  noteHint: "Required, for example: transfer ref JONES.",
+  bankRefundDescription: "Stamps the refund and re-opens the place. Card refunds are made in Stripe.",
+  reasonLabel: "Reason",
+  reasonHint: `Required, at least ${REFUND_REASON_MIN} characters.`,
+  confirm: "Confirm",
+  back: "Back",
+  genericError: "Something went wrong. Try again.",
+} as const);
+
+/** The server's "already sent" time (a stale page), asked the same way as `sendAgainQuestion`. */
+export const sendAgainQuestionAt = (at: string, today: string): string => `Sent at ${sentAt(at, today)}. Send again?`;
+
+function openTargetWords(target: DepositTarget, goodwillStartDate: string | null): string {
+  if (target === "current") return "the current cohort";
+  return goodwillStartDate === null ? "a goodwill cohort" : `the goodwill cohort ${formatCohortShort(goodwillStartDate)}`;
+}
+
+/** `target_differs`: names the open link's target; BAI then sends it as is, or cancels it and makes a new one. */
+export const targetDiffersLine = (openTarget: DepositTarget, openGoodwillStartDate: string | null): string =>
+  `The open link is for ${openTargetWords(openTarget, openGoodwillStartDate)}. Use it as it is, or cancel it and make a new one?`;
+
+/** Every refusal B2's actions can answer (contract-03b), as a plain line. A Map: no object key is ever a code. */
+const ACTION_ERROR_WORDS: ReadonlyMap<string, string> = new Map([
+  ["deposit_disabled", "Deposit links are switched off."],
+  ["not_admin", "Only an admin can do this. Sign in again."],
+  ["invalid", "That didn't look right. Reload the page and try again."],
+  ["error", PANEL_ACTION_COPY.genericError],
+  ["already_paid", PANEL_COPY.alreadyPaid],
+  ["goodwill_not_offered", "Goodwill isn't on offer now. Reload the page."],
+  ["no_email", "This family has no email address. Copy the link instead."],
+  ["email_failed", PANEL_COPY.emailFailed],
+  ["cohort_full", PANEL_COPY.cohortFull],
+  ["being_paid", "The last place is being paid for right now. Try again later."],
+  ["not_bookable", "This cohort can't take a deposit now."],
+  ["not_a_cohort", "That cohort isn't set up."],
+  ["already_taken", "This family already has a place."],
+  ["not_bank_transfer", "This deposit wasn't paid by bank transfer."],
+  ["already_refunded", "The deposit is already refunded."],
+]);
+
+/** A refusal's line; a code not listed gets the generic line, never the code. */
+export const depositActionErrorLine = (code: string): string => ACTION_ERROR_WORDS.get(code) ?? PANEL_ACTION_COPY.genericError;

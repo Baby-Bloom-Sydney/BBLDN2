@@ -362,3 +362,82 @@ describe("the panel's words", () => {
     expect(Object.isFrozen(PANEL_COPY)).toBe(true);
   });
 });
+
+// ── The panel's action words (plan 03 row B3; BB-wave2-231126/03-build, 2026-11-25) ─────────────────────────────────
+import {
+  depositActionErrorLine,
+  PANEL_ACTION_COPY,
+  sendAgainQuestionAt,
+  targetDiffersLine,
+} from "./copy";
+
+describe("the panel's action words (row B3)", () => {
+  it("the server's 'already sent' time asks the same question, on the London clock", () => {
+    expect(sendAgainQuestionAt("2027-06-01T13:02:00.000Z", "2027-06-01")).toBe("Sent at 14:02. Send again?");
+    expect(sendAgainQuestionAt("2027-02-01T18:30:00.000Z", "2027-02-03")).toBe("Sent at 1 Feb 18:30. Send again?");
+  });
+
+  it("target_differs names the open link's target, and offers both ways", () => {
+    expect(targetDiffersLine("current", null)).toBe(
+      "The open link is for the current cohort. Use it as it is, or cancel it and make a new one?",
+    );
+    expect(targetDiffersLine("goodwill", "2027-02-08")).toBe(
+      "The open link is for the goodwill cohort Mon 8 Feb. Use it as it is, or cancel it and make a new one?",
+    );
+    expect(targetDiffersLine("goodwill", null)).toBe(
+      "The open link is for a goodwill cohort. Use it as it is, or cancel it and make a new one?",
+    );
+  });
+
+  it("the cancel question never promises to close a payment page already open (03a handoff, LOW-4)", () => {
+    expect(PANEL_ACTION_COPY.cancelQuestion).toBe(
+      "Cancel this link? It stops working, but a payment page already open can still be paid.",
+    );
+    expect(PANEL_ACTION_COPY.cancelQuestion).not.toMatch(/clos|stops? (the )?payment|can't be paid|cannot be paid/i);
+  });
+
+  it.each([
+    ["cohort_full", "This cohort is full"],
+    ["already_paid", "The deposit is already paid."],
+    ["email_failed", "Email didn't send. Copy the link instead."],
+    ["deposit_disabled", "Deposit links are switched off."],
+    ["not_admin", "Only an admin can do this. Sign in again."],
+    ["invalid", "That didn't look right. Reload the page and try again."],
+    ["error", "Something went wrong. Try again."],
+    ["goodwill_not_offered", "Goodwill isn't on offer now. Reload the page."],
+    ["no_email", "This family has no email address. Copy the link instead."],
+    ["being_paid", "The last place is being paid for right now. Try again later."],
+    ["not_bookable", "This cohort can't take a deposit now."],
+    ["not_a_cohort", "That cohort isn't set up."],
+    ["already_taken", "This family already has a place."],
+    ["not_bank_transfer", "This deposit wasn't paid by bank transfer."],
+    ["already_refunded", "The deposit is already refunded."],
+  ])("the refusal %s → %s", (code, line) => {
+    expect(depositActionErrorLine(code)).toBe(line);
+  });
+
+  it("an unknown code (or an object key) → the generic line, never the code itself", () => {
+    expect(depositActionErrorLine("something_new")).toBe("Something went wrong. Try again.");
+    expect(depositActionErrorLine("constructor")).toBe("Something went wrong. Try again.");
+    expect(depositActionErrorLine("__proto__")).toBe("Something went wrong. Try again.");
+  });
+
+  it("the action words, frozen; no amount written in any of them", () => {
+    expect(Object.isFrozen(PANEL_ACTION_COPY)).toBe(true);
+    for (const words of Object.values(PANEL_ACTION_COPY)) expect(words).not.toMatch(new RegExp(`${POUND}\\d`));
+    expect(PANEL_ACTION_COPY).toMatchObject({
+      sendAgain: "Send again",
+      notNow: "Not now",
+      sendAsIs: "Send as is",
+      replaceAndSend: "Cancel and send again",
+      copyAsIs: "Copy as is",
+      replaceAndCopy: "Cancel and copy a new one",
+      cancelConfirm: "Yes, cancel link",
+      noOpenLink: "There was no open link to cancel.",
+      openPaymentPage: "Open the payment page",
+      confirm: "Confirm",
+      back: "Back",
+      genericError: "Something went wrong. Try again.",
+    });
+  });
+});

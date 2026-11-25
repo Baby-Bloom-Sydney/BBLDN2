@@ -18,6 +18,8 @@ import type { UserData } from "@/app/admin/users/page";
 import type { ParentSubscriptionRow } from "./page";
 import { panelLine } from "@/lib/cohorts/copy";
 import type { CurrentCohortSummary } from "@/lib/cohorts/types";
+import type { DepositPanelResult } from "@/lib/deposit/panel";
+import { DepositBlock } from "./DepositBlock";
 
 interface Props {
   parentUserData: UserData | null;
@@ -28,6 +30,8 @@ interface Props {
   placementWagesPence?: number | null;
   /** Brief 02 — the current cohort, read only while COHORTS_ENABLED is on (absent/null = no line). */
   cohort?: CurrentCohortSummary | null;
+  /** Brief 03 — the deposit panel, read only while DEPOSIT_LINK_ENABLED is on (absent/null = the panel as today). */
+  deposit?: DepositPanelResult | null;
 }
 
 /** Top-of-page parent + nanny tiles with quick-access drawer buttons
@@ -40,6 +44,7 @@ export function SubscriptionDetailHeader({
   sub,
   placementWagesPence = null,
   cohort = null,
+  deposit = null,
 }: Props) {
   const [drawerUser, setDrawerUser] = useState<UserData | null>(null);
 
@@ -106,6 +111,7 @@ export function SubscriptionDetailHeader({
           sub={sub}
           placementWagesPence={placementWagesPence}
           cohort={cohort}
+          deposit={deposit}
         />
       )}
 
@@ -231,11 +237,13 @@ function DfyPanel({
   sub,
   placementWagesPence,
   cohort,
+  deposit,
 }: {
   parentUserId: string;
   sub: ParentSubscriptionRow | null;
   placementWagesPence: number | null;
   cohort: CurrentCohortSummary | null;
+  deposit: DepositPanelResult | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -291,6 +299,8 @@ function DfyPanel({
     });
 
   const override = sub?.access_toggled_on ?? null;
+  // Brief 03: while the deposit block shows, it replaces the Deposit preset (the server refuses that preset too).
+  const presets = deposit ? PAYMENT_LINK_PRESETS.filter((p) => p !== "deposit") : PAYMENT_LINK_PRESETS;
 
   return (
     <Card className="mt-3">
@@ -311,6 +321,7 @@ function DfyPanel({
             {panelLine(cohort)}
           </p>
         )}
+        {deposit && <DepositBlock parentUserId={parentUserId} deposit={deposit} />}
 
         {sub && (
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm md:grid-cols-4">
@@ -346,7 +357,7 @@ function DfyPanel({
             </label>
           </div>
           <div className="flex flex-wrap gap-2">
-            {PAYMENT_LINK_PRESETS.map((preset) => {
+            {presets.map((preset) => {
               const pence = preview[preset];
               const blocked =
                 pending ||
