@@ -89,7 +89,7 @@ describe("readUnmatched", () => {
 
 describe("readDetails", () => {
   it("details by sid, in chunks of 100", async () => {
-    const sids = Array.from({ length: 150 }, (_, i) => `CA${i}`);
+    const sids = Array.from({ length: 150 }, (_, i) => "CA".concat(String(i)));
     const f = fakeAdmin({ justcall_calls: (op: Op) => (op.filters.find(([k]) => k === "in")?.[2] as string[]).slice(0, 2).map((sid) => callRow(sid, { notes: "wants Tuesdays" })) });
     const result = await createJustCallAdminRepo({ client: f.client }).readDetails(sids);
     expect(f.ops).toHaveLength(2);
