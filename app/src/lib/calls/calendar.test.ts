@@ -287,7 +287,8 @@ describe("calendar-limits — what the client forms show, with no zod in the bro
 
   it("every /admin/calls file the browser loads takes run-time imports only from zod-free call modules (review round 1)", () => {
     const dir = join(__dirname, "../../app/admin/calls");
-    const SERVER_ONLY = new Set(["page.tsx", "actions.ts"]);
+    // the "use server" files and the server page; brief 05's actions file is one (05a-2)
+    const SERVER_ONLY = new Set(["page.tsx", "actions.ts", "justcall-actions.ts"]);
     const ALLOWED = new Set(["calendar-limits", "copy", "dashboard-row", "outcomes", "weekday"]);
     const files = readdirSync(dir).filter((f) => /\.tsx?$/.test(f) && !/\.test\.|test-util/.test(f) && !SERVER_ONLY.has(f));
     expect(files.length).toBeGreaterThan(10);
