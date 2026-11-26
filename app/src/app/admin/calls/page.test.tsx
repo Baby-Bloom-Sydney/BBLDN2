@@ -191,3 +191,29 @@ describe("/admin/calls — the Calendar tab (04c-2)", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Next 7 days (London time)" })).toBeInTheDocument();
   });
 });
+
+/**
+ * Brief 05 §0.11–§0.12, plan §9 row 1 (05a-2): with JustCall logging off, /admin/calls is today's tree exactly. The
+ * snapshots were taken at `1e79240`, before 05a-2 changed any file; React's generated ids are normalised so the
+ * snapshot doesn't depend on test order.
+ */
+describe("/admin/calls — today's tree while JustCall logging is off", () => {
+  const tree = () => document.body.innerHTML.replace(/:r[0-9a-z]+:/g, ":r:");
+
+  it.each([
+    ["switch unset", ""],
+    ["switch on, call booking's on too, but logging isn't 'true'", "TRUE"],
+  ])("the Calls tab (%s)", async (_label, logging) => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    vi.stubEnv("JUSTCALL_WEBHOOK_ENABLED", logging);
+    render(await AdminCallsPage({}));
+    expect(tree()).toMatchSnapshot();
+  });
+
+  it("her drawer", async () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    vi.stubEnv("JUSTCALL_WEBHOOK_ENABLED", "");
+    render(await AdminCallsPage({ searchParams: { openCall: AVA } }));
+    expect(tree()).toMatchSnapshot();
+  });
+});
