@@ -3,6 +3,10 @@
  * set, a link to change or cancel; escaped name; nothing says free.
  */
 import { describe, expect, it } from "vitest";
+import { bookedLine } from "@/lib/calls/copy";
+import { slotWords } from "@/lib/calls/slot-words";
+import { itTakesAButtonHref } from "./button-href.test-util";
+import { CALL_PAGE_URL, callEmailShell, parentParagraphs } from "./call-email-parts";
 import { buildCallReminderEmail } from "./call-reminder";
 
 const base = { firstName: "Jane", startsAt: "2027-02-09T14:00:00.000Z", callerNumber: "+447700900123" };
@@ -33,4 +37,20 @@ describe("no 'London time' in the parent's email (W14)", () => {
     const { subject, html } = buildCallReminderEmail(base);
     expect(`${subject} ${html}`).not.toMatch(/London/);
   });
+});
+
+// Plan 03 C3 (D8): an optional button href. Without one, today's email, byte for byte.
+describe("the button's href (plan 03 C3, D8)", () => {
+  it("no href → today's email, byte for byte: the button opens the call page", () => {
+    expect(buildCallReminderEmail(base).html).toBe(
+      callEmailShell({
+        heading: "A reminder about your call",
+        paragraphs: parentParagraphs(base, [`${bookedLine(slotWords(base.startsAt))}.`, "If that time no longer suits, you can change or cancel it."]),
+        button: { label: "Change or cancel", href: CALL_PAGE_URL },
+        audience: "parent",
+      }),
+    );
+  });
+
+  itTakesAButtonHref(buildCallReminderEmail, base);
 });

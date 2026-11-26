@@ -39,6 +39,7 @@ const PATH_DENY_PREFIXES = [
   "/admin", // admin surfaces have their own chrome
   "/_next/", // framework internals
   "/auth/", // implementation of login/logout, not the visible /login page
+  "/deposit", // one family's private deposit page, reached only from BAI's email (plan 03 C2, D12)
 ];
 
 const PATH_DENY_EXACT = new Set<string>([

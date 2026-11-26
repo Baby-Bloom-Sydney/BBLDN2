@@ -10,7 +10,8 @@
  */
 
 import { PRICES } from "@/config/prices";
-import { dayWords } from "@/lib/calls/slot-words";
+import { slotAtLine } from "@/lib/calls/copy";
+import { dayWords, slotWords } from "@/lib/calls/slot-words";
 import { formatCohortShort, formatDayMonth, isLondonDate } from "@/lib/cohorts/dates";
 import { APP_LOCALE, SITE_NAME } from "@/lib/constants";
 import { EMAIL_MAX, HOLD_MINUTES } from "./constants";
@@ -291,3 +292,21 @@ const ACTION_ERROR_LINES: ReadonlyMap<string, string> = new Map(Object.entries(A
 
 /** A refusal's line; a code the table doesn't know at run time (a newer server) gets the generic line, never the code. */
 export const depositActionErrorLine = (code: DepositRefusalCode): string => ACTION_ERROR_LINES.get(code) ?? PANEL_ACTION_COPY.genericError;
+
+// ── The parent page's remaining words (plan 03 row C1; brief 03 §3 parent 4–5) ───────────────────────────────────
+// Beside `PAGE_COPY`, which 03a froze. Placeholders BAI edits (Q4); no amount in any of them.
+// BB-wave2-231126/03-build, 2026-11-25.
+
+export const PAGE_MORE_COPY = Object.freeze({
+  /** The done page's link back to `/deposit/<code>` when the payment isn't in yet. */
+  doneBackLink: "Back to your deposit page",
+} as const);
+
+/** The pre-book picker's heading: "Pick a time on Monday 8 February for us to call you". */
+export const prebookPickHeading = (date: string): string => `Pick a time on ${dayOf(date)} for us to call you`;
+
+/** Once she confirms a pre-book call time: "We'll call you on Monday 8 February at 10:00 to confirm your place." */
+export function prebookBookedLine(startsAt: string): string {
+  if (Number.isNaN(Date.parse(startsAt))) return "We'll call you to confirm your place.";
+  return `We'll call you on ${slotAtLine(slotWords(startsAt))} to confirm your place.`;
+}

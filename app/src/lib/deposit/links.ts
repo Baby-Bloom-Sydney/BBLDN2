@@ -18,7 +18,7 @@
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { isAdminProof, type AdminProof } from "@/lib/calls/admin-proof";
-import { logFailure, type AdminClient } from "@/lib/cohorts/db";
+import { dbOk, DB_FAILED, logFailure, type AdminClient, type DbResult } from "@/lib/cohorts/db";
 import { isLondonDate } from "@/lib/cohorts/dates";
 import { SITE_URL } from "@/lib/constants";
 import { depositCodeFrom, isDepositCode, isUuid } from "./code";
@@ -231,4 +231,20 @@ export async function stampLinkOpened(admin: AdminClient, proof: DepositParentPr
 export function depositLinkUrl(code: string): string {
   if (!isDepositCode(code)) throw new RangeError("not a deposit code");
   return `${SITE_URL}/deposit/${code}`;
+}
+
+/**
+ * 04's call emails (plan 03 C3, D8; add-only): the code of the family's open link, so a pre-booked family's "Change
+ * or cancel" button opens her deposit page. Null when none is open, or for an id that isn't a uuid (no read). Not ok
+ * when the read failed, logged by error code only — never the code. One bounded read, as `getOrCreateOpenLink`'s.
+ */
+export async function readOpenLinkCode(admin: AdminClient, parentUserId: string): Promise<DbResult<string | null>> {
+  if (!isUuid(parentUserId)) return dbOk(null);
+  try {
+    const open = await readOpen(admin, parentUserId);
+    return open.ok ? dbOk(open.value?.code ?? null) : DB_FAILED;
+  } catch (thrown) {
+    logFailure("readOpenLinkCode", thrown);
+    return DB_FAILED;
+  }
 }

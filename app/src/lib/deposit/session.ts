@@ -35,6 +35,7 @@ import { PAGE_COPY } from "./copy";
 import { depositPageState } from "./page-state";
 import { depositLinkRow, isDepositParentProof, type DepositParentProof } from "./proof";
 import type { DepositPageState } from "./types";
+import { isLondonDate } from "@/lib/cohorts/dates";
 
 /** Stripe takes `expires_at` 30 min–24 h after ITS creation, so 30 computed here can be refused: plan's 30 + 1. */
 const EXPIRY_MARGIN_MINUTES = 1;
@@ -327,4 +328,64 @@ export async function checkDepositDone(proof: DepositParentProof, sessionId: unk
   const ours = metadata.link_kind === "deposit" && metadata.deposit_link_id === proof.linkId && session.client_reference_id === proof.parentUserId;
   if (!ours) return "foreign";
   return session.payment_status === "paid" ? "paid" : "not_paid";
+}
+
+// ── The parent page's reads (plan 03 row C1; 03c, add-only) ──────────────────────────────────────────────────────
+// Both take the page's `DepositParentProof`, never a login, and write nothing. BB-wave2-231126/03-build, 2026-11-25.
+
+/** What `/deposit/<code>` shows: the state from 03a's own resolver (above), and her first name for the greeting. */
+export type DepositPageRead =
+  | { readonly kind: "ok"; readonly state: DepositPageState; readonly firstName: string | null }
+  | { readonly kind: "invalid" | "error" };
+
+/** The done page's answer, with the cohort of the place the paid session holds or took (null when none is found). */
+export interface DepositDoneRead {
+  readonly result: DoneResult;
+  readonly cohortStartDate: string | null;
+}
+
+const READ_INVALID: DepositPageRead = Object.freeze({ kind: "invalid" });
+const READ_ERROR: DepositPageRead = Object.freeze({ kind: "error" });
+const firstNameRow = z.object({ first_name: z.string().nullable() });
+const donePlaceRow = z.object({ cohort_start_date: z.string().refine(isLondonDate) });
+
+/** Her first name, trimmed; null when she has none or it can't be read (the page then says "Hello."). */
+async function readFirstName(admin: AdminClient, parentUserId: string): Promise<string | null> {
+  const row = await readOne("deposit first name read", firstNameRow,
+    admin.from("user_profiles").select("first_name").eq("user_id", parentUserId).maybeSingle());
+  const name = row?.first_name?.trim() ?? "";
+  return name === "" ? null : name;
+}
+
+/** The parent page's server read: the link, the family row, 02's cohorts and her live hold (`resolve`), and her name. */
+export async function readDepositPage(admin: AdminClient, proof: DepositParentProof, now: Date): Promise<DepositPageRead> {
+  if (!isDepositParentProof(proof)) return READ_INVALID;
+  try {
+    const [resolved, firstName] = await Promise.all([resolve(admin, proof, now), readFirstName(admin, proof.parentUserId)]);
+    if (resolved === "invalid") return READ_INVALID;
+    if (resolved === "error") return READ_ERROR;
+    return Object.freeze({ kind: "ok", state: resolved.state, firstName });
+  } catch (thrown) {
+    logFailure("readDepositPage", thrown);
+    return READ_ERROR;
+  }
+}
+
+/** The cohort of her place for this session (`stripe_checkout_session_id` is unique), held or taken. */
+async function donePlaceStart(admin: AdminClient, proof: DepositParentProof, sessionId: string): Promise<string | null> {
+  try {
+    const place = await readOne("deposit done place read", donePlaceRow,
+      admin.from("cohort_places").select("cohort_start_date").eq("stripe_checkout_session_id", sessionId).eq("parent_user_id", proof.parentUserId).maybeSingle());
+    return place?.cohort_start_date ?? null;
+  } catch (thrown) {
+    logFailure("deposit done place read", thrown);
+    return null;
+  }
+}
+
+/** The done page's read: 03a's `checkDepositDone`, then — only when paid — her place's cohort. Writes nothing. */
+export async function readDepositDone(admin: AdminClient, proof: DepositParentProof, sessionId: unknown): Promise<DepositDoneRead> {
+  const result = await checkDepositDone(proof, sessionId);
+  if (result !== "paid" || typeof sessionId !== "string") return Object.freeze({ result, cohortStartDate: null });
+  return Object.freeze({ result, cohortStartDate: await donePlaceStart(admin, proof, sessionId) });
 }

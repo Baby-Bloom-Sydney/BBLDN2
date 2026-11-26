@@ -16,7 +16,7 @@ import { SITE_URL } from "@/lib/constants";
 import { fakeAdmin, writesTo, type FakeAdmin, type Op } from "@/lib/payments/fake-admin.test-util";
 import { isDepositCode } from "./code";
 import { EMAIL_MAX } from "./constants";
-import { cancelOpenLink, depositLinkUrl, getOrCreateOpenLink, stampLinkOpened, stampLinkSent } from "./links";
+import { cancelOpenLink, depositLinkUrl, getOrCreateOpenLink, readOpenLinkCode, stampLinkOpened, stampLinkSent } from "./links";
 import { proveDepositCode, type DepositParentProof } from "./proof";
 
 const ADMIN = "a0300000-0000-4000-8000-000000000031";
@@ -315,5 +315,48 @@ describe("depositLinkUrl", () => {
   it("refuses anything that isn't a deposit code", () => {
     expect(() => depositLinkUrl("short")).toThrow(RangeError);
     expect(() => depositLinkUrl(`${CODE}/../admin`)).toThrow(RangeError);
+  });
+});
+
+// Plan 03 C3 (D8), add-only: 04's call emails read the family's open link so a pre-booked family's button opens it.
+describe("readOpenLinkCode — 04's call emails (D8)", () => {
+  it("an open link → its code, from one bounded read", async () => {
+    fake.reads.deposit_links = linkRow({ last_emailed_to: "sarah@example.com" });
+    expect(await readOpenLinkCode(fake.client, PARENT)).toEqual({ ok: true, value: CODE });
+    expect(fake.ops).toHaveLength(1);
+    expect(fake.ops[0]).toMatchObject({ table: "deposit_links", kind: "select" });
+    expect(fake.ops[0].filters).toEqual([["eq", "parent_user_id", PARENT], ["eq", "state", "open"]]);
+  });
+
+  it("no open link → null; nothing written", async () => {
+    fake.reads.deposit_links = null;
+    expect(await readOpenLinkCode(fake.client, PARENT)).toEqual({ ok: true, value: null });
+    expect(fake.ops.filter((o) => o.kind !== "select")).toEqual([]);
+  });
+
+  it("a parent that isn't a uuid → null with zero database calls", async () => {
+    expect(await readOpenLinkCode(fake.client, "nope")).toEqual({ ok: true, value: null });
+    expect(fake.ops).toHaveLength(0);
+  });
+
+  it("a read error → not ok, logged by its code and never the message", async () => {
+    fake.readErrors.deposit_links = { message: "secret detail", code: "XX000" };
+    expect(await readOpenLinkCode(fake.client, PARENT)).toEqual({ ok: false });
+    expect(logged()).toContain("XX000");
+    expect(logged()).not.toContain("secret detail");
+  });
+
+  it("a row that doesn't fit → not ok; the row's code is never logged", async () => {
+    fake.reads.deposit_links = linkRow({ state: "lost" });
+    expect(await readOpenLinkCode(fake.client, PARENT)).toEqual({ ok: false });
+    expect(logged()).toContain("unexpected_row");
+    expect(logged()).not.toContain(CODE);
+  });
+
+  it("a throw → not ok, logged by its name", async () => {
+    const broken = { from: () => { throw new TypeError("kaput"); } } as unknown as FakeAdmin["client"];
+    expect(await readOpenLinkCode(broken, PARENT)).toEqual({ ok: false });
+    expect(logged()).toContain("TypeError");
+    expect(logged()).not.toContain("kaput");
   });
 });

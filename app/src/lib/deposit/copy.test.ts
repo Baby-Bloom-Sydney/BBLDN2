@@ -464,3 +464,28 @@ describe("the panel's action words (row B3)", () => {
     });
   });
 });
+
+// ── 03c: the parent page's remaining words (plan 03 row C1; brief 03 §3 parent 4–5). BB-wave2-231126/03-build. ──
+import { PAGE_MORE_COPY, prebookBookedLine, prebookPickHeading } from "./copy";
+
+describe("the parent page's remaining words (03c)", () => {
+  it("the done page's way back, frozen, with no amount", () => {
+    expect(Object.isFrozen(PAGE_MORE_COPY)).toBe(true);
+    expect(PAGE_MORE_COPY.doneBackLink).toBe("Back to your deposit page");
+    for (const words of Object.values(PAGE_MORE_COPY)) expect(words).not.toMatch(new RegExp(`${POUND}\\d`));
+  });
+
+  it("the pre-book picker names the cohort's opening day as the picker legend reads it", () => {
+    expect(prebookPickHeading("2027-02-08")).toBe("Pick a time on Monday 8 February for us to call you");
+  });
+
+  it("a confirmed pre-book call names its London day and time", () => {
+    // 10:00 UTC on 8 Feb is 10:00 in London (GMT); in summer the London clock is an hour ahead
+    expect(prebookBookedLine("2027-02-08T10:00:00.000Z")).toBe("We'll call you on Monday 8 February at 10:00 to confirm your place.");
+    expect(prebookBookedLine("2027-06-07T09:30:00.000Z")).toBe("We'll call you on Monday 7 June at 10:30 to confirm your place.");
+  });
+
+  it("a time that isn't one never breaks the line", () => {
+    expect(prebookBookedLine("not a time")).toBe("We'll call you to confirm your place.");
+  });
+});

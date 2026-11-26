@@ -18,6 +18,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { CookieConsentBanner } from "@/components/legal/CookieConsentBanner";
 import { MiniFooter } from "@/components/layout/MiniFooter";
 import Script from "next/script";
+import { SENTRY_SCRUB_OPTIONS } from "@/lib/deposit/sentry-scrub";
 
 const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === "true";
 const isProd = process.env.NODE_ENV === "production";
@@ -120,6 +121,7 @@ export default function RootLayout({
                   Sentry.init({
                     dsn: "https://0a45d54c5424e8f1ee27c7143617571f@o4511097907904512.ingest.us.sentry.io/4511097920225280",
                     tracesSampleRate: 0.1,
+                    ${SENTRY_SCRUB_OPTIONS},
                   });
                 }
               `}

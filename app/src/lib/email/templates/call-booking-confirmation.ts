@@ -12,6 +12,8 @@ import type { EmailTemplate } from "./types";
 
 export interface CallBookingConfirmationParams extends ParentCallEmailParams {
   readonly startsAt: string;
+  /** The "Change or cancel" button; the call page when absent. Plan 03 C3 (D8): a pre-booked family's deposit page. */
+  readonly href?: string;
 }
 
 export function buildCallBookingConfirmationEmail(params: CallBookingConfirmationParams): EmailTemplate {
@@ -21,7 +23,7 @@ export function buildCallBookingConfirmationEmail(params: CallBookingConfirmatio
     html: callEmailShell({
       heading: "Your call is booked",
       paragraphs: parentParagraphs(params, [`${bookedLine(words)}.`, "Need a different time? You can change or cancel it until the call starts."]),
-      button: { label: "Change or cancel", href: CALL_PAGE_URL },
+      button: { label: "Change or cancel", href: params.href ?? CALL_PAGE_URL },
       audience: "parent",
     }),
   };

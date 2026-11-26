@@ -12,6 +12,8 @@ import type { EmailTemplate } from "./types";
 
 export interface CallReminderParams extends ParentCallEmailParams {
   readonly startsAt: string;
+  /** The "Change or cancel" button; the call page when absent. Plan 03 C3 (D8): a pre-booked family's deposit page. */
+  readonly href?: string;
 }
 
 export function buildCallReminderEmail(params: CallReminderParams): EmailTemplate {
@@ -21,7 +23,7 @@ export function buildCallReminderEmail(params: CallReminderParams): EmailTemplat
     html: callEmailShell({
       heading: "A reminder about your call",
       paragraphs: parentParagraphs(params, [`${bookedLine(words)}.`, "If that time no longer suits, you can change or cancel it."]),
-      button: { label: "Change or cancel", href: CALL_PAGE_URL },
+      button: { label: "Change or cancel", href: params.href ?? CALL_PAGE_URL },
       audience: "parent",
     }),
   };

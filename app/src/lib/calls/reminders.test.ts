@@ -10,12 +10,15 @@
  * is skipped. Fixed clock: Thu 4 Feb 2027 10:00 London (GMT).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { depositLinkUrl } from "@/lib/deposit/links";
+import { buildCallReminderEmail } from "@/lib/email/templates/call-reminder";
 import { bookingRow, entryRow, fakeCallsRepo, type FakeCallsState } from "./fake-calls-repo.test-util";
 import type { CallEmailSend } from "./mailer";
+import type { OpenDepositCodeReader } from "./notify";
 import type { ReminderKind, ReminderRepo } from "./repo";
 import { runCallReminders, type ReminderDeps } from "./reminders";
 import { CALL_SETTINGS_DEFAULTS } from "./settings";
-import type { CallBooking, CallsResult, ParentContact, ScopeParent } from "./types";
+import type { CallBooking, CallPurpose, CallsResult, ParentContact, ScopeParent } from "./types";
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -411,5 +414,53 @@ describe("two runs at once (review F8c)", () => {
     await Promise.all([runCallReminders(deps), runCallReminders(deps)]);
     expect(attempts).toEqual({ parent: 2, admin: 2, nudge: 2 });
     expect([...s.sentTypes()].sort()).toEqual(["admin_call_reminder", "call_not_booked", "call_reminder"]);
+  });
+});
+
+// Plan 03 C3 (D8), add-only: the reminder's "Change or cancel" button follows notify.ts's rule — a pre-booked cohort
+// call opens her /deposit/<code> while she has an open link; anything else, today's reminder, byte for byte.
+describe("the reminder's button (plan 03 C3, D8)", () => {
+  const START = T0 + 3 * DAY;
+  const CODE = "Ab0_-".repeat(8) + "xyz";
+  const PARAMS = { firstName: "Jane", callerNumber: CALL_SETTINGS_DEFAULTS.callerNumber, startsAt: iso(START) };
+  const TODAY = () => buildCallReminderEmail(PARAMS).html;
+
+  beforeEach(() => {
+    vi.stubEnv("COHORTS_ENABLED", "true");
+    vi.stubEnv("DEPOSIT_LINK_ENABLED", "true");
+  });
+
+  /** One reminder run at T−24 h for a booking of this purpose; the reminder's html. */
+  async function reminderHtml(purpose: CallPurpose, read?: OpenDepositCodeReader) {
+    const s = setup({ bookings: [booked(START, 3 * DAY, { purpose })] });
+    s.at(START - DAY);
+    await runCallReminders(read === undefined ? s.deps : { ...s.deps, readOpenDepositCode: read });
+    return s.send.mock.calls.map(([m]) => m).find((m) => m.emailType === "call_reminder")?.html;
+  }
+
+  it("a first call → today's reminder, byte for byte; her link is never read", async () => {
+    const read = vi.fn<OpenDepositCodeReader>(async () => ({ ok: true, value: CODE }));
+    expect(await reminderHtml("first_call", read)).toBe(TODAY());
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("a pre-booked cohort call with an open link → the button opens her /deposit/<code>", async () => {
+    const read = vi.fn<OpenDepositCodeReader>(async () => ({ ok: true, value: CODE }));
+    expect(await reminderHtml("cohort_prebook", read)).toBe(buildCallReminderEmail({ ...PARAMS, href: depositLinkUrl(CODE) }).html);
+    expect(read.mock.calls).toEqual([[JANE]]);
+  });
+
+  it("no open link, a failed read, or no reader → today's reminder", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await reminderHtml("cohort_prebook", async () => ({ ok: true, value: null }))).toBe(TODAY());
+    expect(await reminderHtml("cohort_prebook", async () => ({ ok: false }))).toBe(TODAY());
+    expect(await reminderHtml("cohort_prebook")).toBe(TODAY());
+  });
+
+  it("the switch off → today's reminder, with no link read", async () => {
+    vi.stubEnv("DEPOSIT_LINK_ENABLED", "");
+    const read = vi.fn<OpenDepositCodeReader>(async () => ({ ok: true, value: CODE }));
+    expect(await reminderHtml("cohort_prebook", read)).toBe(TODAY());
+    expect(read).not.toHaveBeenCalled();
   });
 });

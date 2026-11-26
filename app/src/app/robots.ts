@@ -25,6 +25,9 @@ export default function robots(): MetadataRoute.Robots {
           '/brandkit1',
           '/bb/test',
           '/nanny/profiletest',
+          // One family's private deposit page, reached only from BAI's email; its layout also says
+          // `robots: { index: false }`. Plan 03 C2.
+          '/deposit',
         ],
       },
       {

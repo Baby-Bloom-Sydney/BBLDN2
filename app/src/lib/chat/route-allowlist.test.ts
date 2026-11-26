@@ -31,6 +31,7 @@ describe("route-allowlist — getRouteAllowlist", () => {
       expect(p.startsWith("/admin")).toBe(false);
       expect(p.startsWith("/_next/")).toBe(false);
       expect(p.startsWith("/auth/")).toBe(false);
+      expect(p.startsWith("/deposit")).toBe(false); // plan 03 C2, D12: one family's private page
       expect(p).not.toBe("/nanny/profiletest");
       expect(p).not.toBe("/ui");
       expect(p).not.toBe("/ui2");
