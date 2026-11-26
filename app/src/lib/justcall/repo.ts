@@ -102,10 +102,21 @@ export const ID_CHUNK = 100;
 const MAX_ERROR_CHARS = 300;
 const EVENT_COLUMNS = "id, event_type, call_sid, justcall_id, request_id, request_timestamp, outcome";
 
+/** A database message can echo a value (a key, an id, a number): logged with those removed, and capped (security review M1, 05a-2). */
+const LOGGED_MESSAGE_CHARS = 160;
+function loggable(message: string): string {
+  return message
+    .replace(/\([^()]*\)=\([^()]*\)/g, "(…)=(…)")
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "…")
+    .replace(/\bCA[A-Za-z0-9_-]{6,}/g, "…")
+    .replace(/\+?\d[\d ]{5,}\d/g, "…")
+    .slice(0, LOGGED_MESSAGE_CHARS);
+}
+
 export function logFailure(label: string, detail: unknown): void {
   const record = typeof detail === "object" && detail !== null ? (detail as Record<string, unknown>) : {};
   const code = typeof record.code === "string" ? record.code : undefined;
-  const message = detail instanceof Error ? detail.name : typeof record.message === "string" ? record.message : typeof detail;
+  const message = detail instanceof Error ? detail.name : typeof record.message === "string" ? loggable(record.message) : typeof detail;
   console.error(`[justcall/repo] ${label} failed`, { code, message });
 }
 
