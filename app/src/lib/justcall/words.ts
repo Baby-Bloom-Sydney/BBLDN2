@@ -44,7 +44,6 @@ export const JUSTCALL_COPY = Object.freeze({
   attachTitle: "Attach this call to a family",
   attachSearchLabel: "Family name or mobile",
   search: "Search",
-  searching: "Searching…",
   noFamilyFound: "No family found.",
   searchHint: "Type at least 2 letters of a name, or a mobile.",
   attachAction: (name: string) => `Attach to ${name}`,
