@@ -14,6 +14,8 @@
  * `call_record_outcome`); the page refreshes through `onSaved`.
  *
  * Brief 05's "after call" hook: `prefill` (what JustCall knows), `extraReadOnly` (shown above the chips), `onSaved`.
+ * 05a-2 (plan 05 D2; BB-wave2-231126/05-build): an optional `save` takes the same payload in place of 04's action (a
+ * JustCall call saves through `justcall_save_outcome`) and answers the refusal's line; without it, today's save.
  */
 
 import { useId, useRef, useState, type ReactNode } from "react";
@@ -31,6 +33,20 @@ export interface OutcomePrefill {
   readonly note?: string;
 }
 
+/** What a save sends: 04's action's input. */
+export interface OutcomePayload {
+  readonly parentUserId: string;
+  readonly bookingId: string | null;
+  readonly result: CallResultCode | null;
+  readonly outcome: CallOutcomeCode | null;
+  readonly note: string | null;
+  readonly callBackDate: string | null;
+  readonly callBackTime: string | null;
+}
+
+/** A save: the entry it wrote, or the refusal as one line. */
+export type OutcomeSave = (payload: OutcomePayload) => Promise<{ readonly ok: true; readonly entryId: string } | { readonly ok: false; readonly line: string }>;
+
 export interface OutcomeFormProps {
   readonly parentUserId: string;
   /** Her booked call, closed by the outcome; null when she has none. */
@@ -38,7 +54,15 @@ export interface OutcomeFormProps {
   readonly prefill?: OutcomePrefill;
   readonly extraReadOnly?: ReactNode;
   readonly onSaved?: (entryId: string) => void;
+  /** Brief 05 (D2): saves in place of 04's action. */
+  readonly save?: OutcomeSave;
 }
+
+/** Today's save: 04's action, its refusal in 04's words. */
+const recordOutcome: OutcomeSave = async (payload) => {
+  const saved = await recordCallOutcomeAction(payload);
+  return saved.ok ? { ok: true, entryId: saved.value.entryId } : { ok: false, line: adminErrorLine(saved.error) };
+};
 
 const GREEN = "bg-green-50 text-green-700 ring-green-200";
 const SLATE = "bg-slate-50 text-slate-600 ring-slate-200";
@@ -119,7 +143,7 @@ function useOutcomeState(prefill: OutcomePrefill | undefined) {
 type OutcomeState = ReturnType<typeof useOutcomeState>;
 
 /** What goes to the server: the outcome only where it is allowed, the call-back only with Call back later. */
-function payload(parentUserId: string, bookingId: string | null, s: OutcomeState) {
+function payload(parentUserId: string, bookingId: string | null, s: OutcomeState): OutcomePayload {
   const outcome = s.outcome === "stop_calling" || s.result === "answered" ? s.outcome : null;
   const callBack = outcome === "call_back_later" && s.callBackDate !== "" && s.callBackTime !== "";
   return {
@@ -172,7 +196,7 @@ function Chips({ s, pending }: { readonly s: OutcomeState; readonly pending: boo
  * One save per press (review round 2 M3): under React 18 an async transition's `pending` clears before the action
  * settles, so a ref guards the call and `saving` holds the button until the promise does.
  */
-function useOutcomeSave(parentUserId: string, bookingId: string | null, s: OutcomeState, onSaved?: (entryId: string) => void) {
+function useOutcomeSave(parentUserId: string, bookingId: string | null, s: OutcomeState, save: OutcomeSave, onSaved?: (entryId: string) => void) {
   const inFlight = useRef(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -184,11 +208,11 @@ function useOutcomeSave(parentUserId: string, bookingId: string | null, s: Outco
     setError(null);
     setStatus("");
     try {
-      const saved = await recordCallOutcomeAction(payload(parentUserId, bookingId, s));
-      if (!saved.ok) return setError(adminErrorLine(saved.error));
+      const saved = await save(payload(parentUserId, bookingId, s));
+      if (!saved.ok) return setError(saved.line);
       s.reset();
       setStatus(ADMIN_COPY.saved);
-      onSaved?.(saved.value.entryId);
+      onSaved?.(saved.entryId);
     } catch {
       setError(adminErrorLine("error"));
     } finally {
@@ -236,9 +260,9 @@ function Footer({ error, status, canSave, saving, onSave }: FooterProps) {
   );
 }
 
-export function OutcomeForm({ parentUserId, bookingId, prefill, extraReadOnly, onSaved }: OutcomeFormProps) {
+export function OutcomeForm({ parentUserId, bookingId, prefill, extraReadOnly, onSaved, save: saveWith = recordOutcome }: OutcomeFormProps) {
   const s = useOutcomeState(prefill);
-  const save = useOutcomeSave(parentUserId, bookingId, s, onSaved);
+  const save = useOutcomeSave(parentUserId, bookingId, s, saveWith, onSaved);
   const headingId = useId();
   // Call back later with only a date or only a time would drop the call-back silently: say so, and wait.
   const halfCallBack = s.result === "answered" && s.outcome === "call_back_later" && (s.callBackDate === "") !== (s.callBackTime === "");
