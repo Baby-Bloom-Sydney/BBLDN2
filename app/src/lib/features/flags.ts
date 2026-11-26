@@ -129,3 +129,18 @@ export function nannyInvoicesEnabled(): boolean {
 export function depositLinkEnabled(): boolean {
   return isOn(process.env.DEPOSIT_LINK_ENABLED) && cohortsEnabled();
 }
+
+/**
+ * JustCall call logging (brief 05 §8; plan `BUILD/plans/05-plan.md`, PR 05a-1). On only while `CALL_BOOKING_ENABLED`
+ * is on too: every logged call is an attempt in 04's call log. **Server only** — not inlined in `next.config.mjs`; the
+ * webhook route and 04's server readers are the only callers.
+ *
+ * While off:
+ * - `/api/webhooks/justcall` → 404 before it reads anything, so no JustCall API request leaves the app.
+ * - Later PRs (05a-2): no Unmatched list, no JustCall words in History; `/admin/calls` is today's.
+ *
+ * Never gated: nothing. A call made while it's off is never received; JustCall keeps its own log.
+ */
+export function justcallWebhookEnabled(): boolean {
+  return isOn(process.env.JUSTCALL_WEBHOOK_ENABLED) && callBookingEnabled();
+}
