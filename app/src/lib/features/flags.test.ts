@@ -2,12 +2,16 @@
  * Unit 5b (BB-LDN-5b-151026) — the feature hide switches (P-23, Stage 5). `SHARE_LOOP_ENABLED` is off unless the
  * env var is the literal "true" (trimmed); while off, everything the share loop gated counts as unlocked.
  */
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { shareLoopEnabled, isShareUnlocked, babysittingEnabled, callBookingEnabled, cohortsEnabled } from "./flags";
 // Brief 06 (BB-wave1-041126/06a-build): its own import line, so later briefs add theirs without a merge conflict.
 import { nannyInvoicesEnabled } from "./flags";
 // Brief 03 (BB-wave2-231126/03-build): its own import line, as above.
 import { depositLinkEnabled } from "./flags";
+// Brief 05 (BB-wave2-231126/05-build): its own import line, as above.
+import { justcallWebhookEnabled } from "./flags";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -215,5 +219,59 @@ describe("depositLinkEnabled() — brief 03 (DEPOSIT_LINK_ENABLED, needs COHORTS
     vi.stubEnv("DEPOSIT_LINK_ENABLED", "true");
     vi.stubEnv("COHORTS_ENABLED", "");
     expect(cohortsEnabled()).toBe(false);
+  });
+});
+
+describe("justcallWebhookEnabled() — brief 05 (JUSTCALL_WEBHOOK_ENABLED, needs CALL_BOOKING_ENABLED)", () => {
+  it.each([
+    ["unset", undefined],
+    ["empty", ""],
+    ["false", "false"],
+    ["TRUE (case matters)", "TRUE"],
+    ["1", "1"],
+    ["a typo", "ture"],
+  ])("off when %s, even with call booking on", (_label, value) => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    vi.stubEnv("JUSTCALL_WEBHOOK_ENABLED", value as string);
+    expect(justcallWebhookEnabled()).toBe(false);
+  });
+
+  it.each([
+    ["unset", undefined],
+    ["empty", ""],
+    ["TRUE", "TRUE"],
+    ["1", "1"],
+  ])("off when JUSTCALL_WEBHOOK_ENABLED is \"true\" but CALL_BOOKING_ENABLED is %s", (_label, value) => {
+    vi.stubEnv("JUSTCALL_WEBHOOK_ENABLED", "true");
+    vi.stubEnv("CALL_BOOKING_ENABLED", value as string);
+    expect(justcallWebhookEnabled()).toBe(false);
+  });
+
+  it("on only when both are the literal \"true\" (trimmed)", () => {
+    vi.stubEnv("JUSTCALL_WEBHOOK_ENABLED", " true\n");
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    expect(justcallWebhookEnabled()).toBe(true);
+  });
+
+  it("is read at call time: flipping either switch between calls flips it", () => {
+    vi.stubEnv("JUSTCALL_WEBHOOK_ENABLED", "");
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    expect(justcallWebhookEnabled()).toBe(false);
+    vi.stubEnv("JUSTCALL_WEBHOOK_ENABLED", "true");
+    expect(justcallWebhookEnabled()).toBe(true);
+    vi.stubEnv("CALL_BOOKING_ENABLED", "");
+    expect(justcallWebhookEnabled()).toBe(false);
+  });
+
+  it("does not turn call booking on by itself", () => {
+    vi.stubEnv("JUSTCALL_WEBHOOK_ENABLED", "true");
+    vi.stubEnv("CALL_BOOKING_ENABLED", "");
+    expect(callBookingEnabled()).toBe(false);
+  });
+
+  it("is server only: next.config.mjs does not inline it", () => {
+    const config = readFileSync(path.resolve(__dirname, "../../../next.config.mjs"), "utf8");
+    expect(config).not.toContain("JUSTCALL_WEBHOOK_ENABLED");
+    expect(config).not.toContain("JUSTCALL_API");
   });
 });
