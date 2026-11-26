@@ -6,8 +6,9 @@
  * the rule at `src/lib/invite/mint.ts:1-9`). Callers gate it: the route checks the switch and the signature first, and
  * every write takes a `VerifiedJustCallEvent` or (05a-2) an `AdminProof` upstream.
  *
- * - The ledger: one insert per delivery (a unique violation is a redelivery → `duplicate`), then its outcome. The
- *   replay reads one row or every `unresolved` row.
+ * - The ledger: one insert per delivery (a unique violation is a redelivery → `duplicate`), then its outcome. A
+ *   redelivery reads its row by the key; the replay reads one row, or every `unresolved` row and every row still in
+ *   flight 10 minutes after it arrived.
  * - Parents by mobile (R7): profiles with exactly that E.164 mobile, then `user_roles.role = 'parent'` only.
  * - Writes to calls and attempts go only through amendment 20's functions (`.rpc()`), which take 19's lock, refuse with
  *   a status and log `call.outcome_recorded` in the same transaction.
@@ -67,13 +68,16 @@ export interface SaveOutcomeInput {
   readonly actorUserId: string;
 }
 export type SaveRefusal = "invalid" | "not_yours" | "not_found" | "booked_call_exists";
-export type AttachRefusal = "invalid" | "not_found" | "not_unmatched" | "not_a_parent";
+export type AttachRefusal = "invalid" | "not_found" | "not_unmatched" | "not_a_parent" | "not_yours";
 export type DismissRefusal = "invalid" | "not_found" | "not_unmatched";
 
 export interface JustCallRepo {
   insertEvent(row: NewEventRow): Promise<RepoResult<{ readonly id: string }, "error" | "duplicate">>;
   finishEvent(id: string, outcome: EventOutcome, code: string | null): Promise<RepoResult<true>>;
   readEvent(id: string): Promise<RepoResult<StoredEvent | null>>;
+  /** The delivery with this de-duplication key (amendment 20's unique key). */
+  readEventByKey(callSid: string, eventType: string, requestTimestamp: string): Promise<RepoResult<StoredEvent | null>>;
+  /** Rows `unresolved`, and rows still in flight 10 minutes after they arrived, oldest first. */
   readUnresolvedEvents(): Promise<RepoResult<readonly StoredEvent[]>>;
   readonly parentsByMobile: ParentsByMobile;
   recordCall(input: RecordCallInput): Promise<RepoResult<RecordedCall, "error" | "invalid">>;
@@ -166,7 +170,11 @@ function parsed<T>(label: string, schema: z.ZodType<T>, data: unknown): RepoResu
   return FAILED;
 }
 
-function ledgerQueries(db: Db): Pick<JustCallRepo, "insertEvent" | "finishEvent" | "readEvent" | "readUnresolvedEvents"> {
+const insertedRow = z.object({ id: z.string() });
+/** A row still in flight this long after it arrived was dropped mid-dispatch; the replay picks it up (review code M1). */
+const IN_FLIGHT_STALE_MS = 10 * 60 * 1000;
+
+function ledgerWrites(db: Db): Pick<JustCallRepo, "insertEvent" | "finishEvent"> {
   const table = () => db().from("justcall_webhook_events");
   return {
     insertEvent: (row) =>
@@ -184,8 +192,7 @@ function ledgerQueries(db: Db): Pick<JustCallRepo, "insertEvent" | "finishEvent"
           .maybeSingle()) as DbReply;
         if (error?.code === "23505") return { ok: false, error: "duplicate" } as const;
         if (error) return (logFailure("insertEvent", error), FAILED);
-        const id = (data as { id?: unknown } | null)?.id;
-        return typeof id === "string" ? ok({ id }) : (logFailure("insertEvent", { message: "no row back" }), FAILED);
+        return parsed("insertEvent", insertedRow, data);
       }),
     finishEvent: (id, outcome, code) =>
       guarded("finishEvent", async () => {
@@ -199,16 +206,31 @@ function ledgerQueries(db: Db): Pick<JustCallRepo, "insertEvent" | "finishEvent"
           .eq("id", id)) as DbReply;
         return error ? (logFailure("finishEvent", error), FAILED) : ok(true as const);
       }),
-    readEvent: (id) =>
-      guarded("readEvent", async () => {
-        const { data, error } = (await table().select(EVENT_COLUMNS).eq("id", id).maybeSingle()) as DbReply;
-        if (error) return (logFailure("readEvent", error), FAILED);
-        return data === null ? ok(null) : parsed("readEvent", eventRow, data);
-      }),
+  };
+}
+
+function ledgerReads(db: Db, now: () => Date): Pick<JustCallRepo, "readEvent" | "readEventByKey" | "readUnresolvedEvents"> {
+  const table = () => db().from("justcall_webhook_events").select(EVENT_COLUMNS);
+  const one = async (label: string, query: PromiseLike<DbReply>): Promise<RepoResult<StoredEvent | null>> => {
+    const { data, error } = await query;
+    if (error) return (logFailure(label, error), FAILED);
+    return data === null ? ok(null) : parsed(label, eventRow, data);
+  };
+  return {
+    readEvent: (id) => guarded("readEvent", () => one("readEvent", table().eq("id", id).maybeSingle())),
+    readEventByKey: (callSid, eventType, requestTimestamp) =>
+      guarded("readEventByKey", () =>
+        one("readEventByKey", table().eq("call_sid", callSid).eq("event_type", eventType).eq("request_timestamp", requestTimestamp).maybeSingle()),
+      ),
     readUnresolvedEvents: () =>
       guarded("readUnresolvedEvents", async () => {
+        const staleBefore = new Date(now().getTime() - IN_FLIGHT_STALE_MS).toISOString();
         const read = await allPages("readUnresolvedEvents", (from, to) =>
-          table().select(EVENT_COLUMNS).eq("outcome", "unresolved").order("received_at", { ascending: true }).order("id", { ascending: true }).range(from, to),
+          table()
+            .or(`outcome.eq.unresolved,and(outcome.is.null,received_at.lt."${staleBefore}")`)
+            .order("received_at", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, to),
         );
         return read.ok ? parsed("readUnresolvedEvents", z.array(eventRow), read.value) : read;
       }),
@@ -246,6 +268,8 @@ function parentQueries(db: Db): Pick<JustCallRepo, "parentsByMobile"> {
   };
 }
 
+const statusOnly = z.object({ status: z.string() });
+
 async function callRpc<T, E extends string>(
   db: Db,
   fn: string,
@@ -253,14 +277,16 @@ async function callRpc<T, E extends string>(
   schema: z.ZodType<T>,
   refusals: readonly E[],
 ): Promise<RepoResult<T, E | "error">> {
+  const refusal = z.object({ status: z.enum(refusals as [E, ...E[]]) });
   return guarded(fn, async () => {
     const { data, error } = (await db().rpc(fn, args)) as DbReply;
     if (error) return (logFailure(fn, error), FAILED);
-    const status = typeof data === "object" && data !== null ? (data as { status?: unknown }).status : undefined;
-    if (typeof status === "string" && (refusals as readonly string[]).includes(status)) return { ok: false, error: status as E };
+    const refused = refusal.safeParse(data);
+    if (refused.success) return { ok: false, error: refused.data.status };
     const result = schema.safeParse(data);
     if (result.success) return ok(result.data);
-    logFailure(fn, { message: `unexpected result (status: ${typeof status === "string" ? status : "none"})` });
+    const status = statusOnly.safeParse(data);
+    logFailure(fn, { message: `unexpected result (status: ${status.success ? status.data.status : "none"})` });
     return FAILED;
   });
 }
@@ -295,7 +321,7 @@ function writers(db: Db): Pick<JustCallRepo, "recordCall" | "saveOutcome" | "att
       }, saveReply, ["invalid", "not_yours", "not_found", "booked_call_exists"] as const),
     attachCall: (callSid, parentUserId, actorUserId) =>
       callRpc(db, "justcall_attach_call", { p_sid: callSid, p_parent: parentUserId, p_actor: actorUserId }, attachReply,
-        ["invalid", "not_found", "not_unmatched", "not_a_parent"] as const),
+        ["invalid", "not_found", "not_unmatched", "not_a_parent", "not_yours"] as const),
     dismissCall: (callSid, actorUserId) =>
       callRpc(db, "justcall_dismiss_call", { p_sid: callSid, p_actor: actorUserId }, dismissReply,
         ["invalid", "not_found", "not_unmatched"] as const),
@@ -305,6 +331,7 @@ function writers(db: Db): Pick<JustCallRepo, "recordCall" | "saveOutcome" | "att
 export interface JustCallRepoOptions {
   /** Defaults to the service-role client, created on first use. */
   readonly client?: SupabaseClient;
+  readonly now?: () => Date;
 }
 
 export function createJustCallRepo(options: JustCallRepoOptions = {}): JustCallRepo {
@@ -313,5 +340,6 @@ export function createJustCallRepo(options: JustCallRepoOptions = {}): JustCallR
     client ??= createAdminClient();
     return client;
   };
-  return Object.freeze({ ...ledgerQueries(db), ...parentQueries(db), ...writers(db) });
+  const now = options.now ?? (() => new Date());
+  return Object.freeze({ ...ledgerWrites(db), ...ledgerReads(db, now), ...parentQueries(db), ...writers(db) });
 }

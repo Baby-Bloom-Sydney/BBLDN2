@@ -19,7 +19,7 @@ const event = (over: { eventType?: string; callSid?: string } = {}) =>
 
 const CALL: JustCallCall = {
   callSid: "CAtest0001", justcallId: "1786000001", contactNumber: "447700900517", justcallNumber: "447700900990",
-  agentEmail: "admin+b05-agent@babybloomnannies.co.uk", callDate: "2027-02-09", callTime: "14:03:00",
+  agentEmail: "agent@example.test", callDate: "2027-02-09", callTime: "14:03:00",
   direction: "Outgoing", type: "Answered", disposition: null, notes: null, durationSeconds: 372,
 };
 

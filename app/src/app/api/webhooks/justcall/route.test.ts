@@ -12,10 +12,11 @@ import {
   HER_NUMBER, TEST_KEY, TEST_SECRET, TEST_SID, TEST_WEBHOOK_URL, apiCall, docsTimestamp, signedRequest, webhookBody,
 } from "@/lib/justcall/webhook-fixture.test-util";
 
-const h = vi.hoisted(() => ({ fake: null as null | { client: unknown }, created: 0 }));
+const h = vi.hoisted(() => ({ fake: null as null | { client: unknown }, created: 0, throwOnCreate: false }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => {
     h.created += 1;
+    if (h.throwOnCreate) throw new Error("Missing Supabase admin credentials");
     return h.fake?.client;
   },
 }));
@@ -46,6 +47,7 @@ beforeEach(() => {
   f.rpcResults.justcall_record_call = { data: { status: "applied", entry_id: ENTRY, entry_created: true, matched: true }, error: null };
   h.fake = f;
   h.created = 0;
+  h.throwOnCreate = false;
   fetchMock = vi.fn();
   apiAnswers(200);
   vi.stubGlobal("fetch", fetchMock);
@@ -67,6 +69,18 @@ const nothingWritten = () => {
   expect(f.rpcCalls).toEqual([]);
 };
 const allLogged = () => JSON.stringify(logs);
+/** The ledger insert answers with this error; its reads and updates behave as the fake's settings say. */
+function ledgerInsertFails(error: { message: string; code?: string }) {
+  const original = f.client.from.bind(f.client);
+  (f.client as unknown as { from: (t: string) => unknown }).from = (table: string) => {
+    const chain = original(table) as unknown as Record<string, unknown>;
+    if (table !== "justcall_webhook_events") return chain;
+    return { ...chain, insert: () => ({ select: () => ({ maybeSingle: async () => ({ data: null, error }) }) }) };
+  };
+}
+const storedRow = (outcome: string | null) => ({
+  id: "event-1", event_type: "call.completed", call_sid: TEST_SID, justcall_id: "1786000001", request_id: "01HTESTREQUEST", request_timestamp: "x", outcome,
+});
 
 describe("route module", () => {
   it("runs on Node, dynamic, and answers POST only", () => {
@@ -192,18 +206,46 @@ describe("7. a type 05 doesn't act on", () => {
 });
 
 describe("8. a redelivery", () => {
-  it("the ledger's unique key refuses it → 200, applied once (§9 row 9)", async () => {
-    f.writeErrors.justcall_webhook_events = { message: "duplicate key", code: "23505" };
+  it.each(["applied", "ignored", null])("of a row %s (null: in flight) → 200, applied once (§9 row 9)", async (outcome) => {
+    ledgerInsertFails({ message: "duplicate key", code: "23505" });
+    f.reads.justcall_webhook_events = storedRow(outcome);
     const response = await post(signed());
     expect(response.status).toBe(200);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(f.rpcCalls).toEqual([]);
   });
 
+  it("of a row left unresolved → applied again and finished, so JustCall's retry after our 500 works (review TS H1)", async () => {
+    ledgerInsertFails({ message: "duplicate key", code: "23505" });
+    f.reads.justcall_webhook_events = storedRow("unresolved");
+    const response = await post(signed());
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(f.rpcCalls).toHaveLength(1);
+    const finish = f.ops.find((o) => o.table === "justcall_webhook_events" && o.kind === "update");
+    expect(finish).toMatchObject({ filters: [["eq", "id", "event-1"]], payload: { outcome: "applied" } });
+  });
+
+  it("a redelivery whose row can't be read → 500, nothing applied", async () => {
+    ledgerInsertFails({ message: "duplicate key", code: "23505" });
+    f.readErrors.justcall_webhook_events = { message: "boom" };
+    expect((await post(signed())).status).toBe(500);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("a ledger that can't be written → 500, nothing applied", async () => {
     f.writeErrors.justcall_webhook_events = { message: "boom", code: "XX000" };
     expect((await post(signed())).status).toBe(500);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("no database client (service-role settings missing) → 500, logged by name, nothing thrown (review TS M3)", async () => {
+    h.throwOnCreate = true;
+    const response = await post(signed());
+    expect(response.status).toBe(500);
+    expect(await response.text()).toBe("Error");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(allLogged()).toContain("[justcall/repo] insertEvent failed");
   });
 });
 
@@ -271,15 +313,26 @@ describe("9. dispatch", () => {
     expect(ledgerFinish()).toMatchObject({ outcome: "unresolved", processing_error: "record_failed" });
   });
 
-  it("an outcome that can't be written still answers by the outcome", async () => {
-    f.writeErrors.justcall_webhook_events = undefined;
+  it("an outcome that can't be written still answers by the outcome, and says so in the log (review code M2)", async () => {
+    let finishes = 0;
     const original = f.client.from.bind(f.client);
     (f.client as unknown as { from: (t: string) => unknown }).from = (table: string) => {
       const chain = original(table) as unknown as Record<string, unknown>;
-      return table === "justcall_webhook_events" ? { ...chain, update: () => ({ eq: async () => ({ data: null, error: { message: "boom" } }) }) } : chain;
+      if (table !== "justcall_webhook_events") return chain;
+      return { ...chain, update: () => ({ eq: async () => ((finishes += 1), { data: null, error: { message: "boom" } }) }) };
     };
     expect((await post(signed())).status).toBe(200);
-    expect(allLogged()).toContain("outcome");
+    expect(finishes).toBe(1);
+    expect(f.rpcCalls).toHaveLength(1);
+    expect(allLogged()).toContain("the outcome could not be written");
+  });
+
+  it("the stored body keeps no number, notes or URL query (plan §10; security review M1)", async () => {
+    vi.stubEnv("JUSTCALL_WEBHOOK_URL", BYPASS_URL);
+    await post(signed(webhookBody({ webhookUrl: BYPASS_URL, data: { notes: "private note" } })));
+    const stored = JSON.stringify(ledgerInserts()[0]?.payload);
+    expect(stored).not.toMatch(new RegExp(`${HER_NUMBER}|447700900990|private note|test-bypass-not-real`));
+    expect(stored).toContain(TEST_SID);
   });
 });
 

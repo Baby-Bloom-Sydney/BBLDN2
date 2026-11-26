@@ -90,10 +90,14 @@ describe("verifyJustCallDelivery", () => {
     expect(event).toMatchObject({ eventType: "call.completed", callSid: "CAtest0001", justcallId: "1786000001", requestId: "01HTESTREQUEST", requestTimestamp: STAMP, source: "webhook" });
   });
 
-  it("compares the signature in constant time", () => {
+  it("compares the URL and the signature in constant time (the preview URL holds the bypass value; security review L4)", () => {
     const before = crypto.compares;
     verifyJustCallDelivery(envelope(), signed(envelope()), config, NOW);
-    expect(crypto.compares).toBe(before + 1);
+    expect(crypto.compares).toBe(before + 2);
+    const wrong = envelope({ webhookUrl: "https://elsewhere.example.test/hook" });
+    const at = crypto.compares;
+    verifyJustCallDelivery(wrong, signed(wrong), config, NOW);
+    expect(crypto.compares).toBe(at + 1);
   });
 
   it.each([

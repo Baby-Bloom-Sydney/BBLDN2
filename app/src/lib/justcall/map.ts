@@ -5,7 +5,8 @@
  * - **Type → 04 result (R3),** matched case-insensitively with spaces collapsed:
  *     outgoing Answered → answered; Unanswered, Busy → no_answer; Abandoned before ringing, Failed → not an attempt;
  *     incoming Answered → answered; Missed, Voicemail, Abandoned before ringing → not an attempt;
- *     anything else → unknown (the ledger says `ignored`, naming the type, and keeps the row for a replay).
+ *     anything else → unknown (the ledger says `ignored`, naming the type in its error column, so the gap shows;
+ *     nothing is written for that call until the table knows the type).
  *   04's `voicemail` and `wrong_number` are BAI's own picks; JustCall can't know them.
  * - **Start (R6):** `call_date` + `call_time` are UTC; the attempt's time is that instant.
  * - Stored text is clipped to amendment 20's limits by character (never splitting one).

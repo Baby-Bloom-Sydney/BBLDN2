@@ -2,7 +2,9 @@
  * The JustCall replay (plan 05 §5 A10, R9; brief §3 edges: "the JustCall API is down → the event stays unresolved for
  * a manual replay, the same as Stripe"). Run by hand, **on BAI's word only**, through `scripts/justcall-replay.ts`.
  *
- * - `--id=<ledger row id>` re-applies one row; `--unresolved` re-applies every `unresolved` row, oldest first.
+ * - `--id=<ledger row id>` re-applies one row not yet finished; `--unresolved` re-applies every `unresolved` row and
+ *   every row still in flight 10 minutes after it arrived, oldest first. A row already applied or ignored is left as
+ *   it is (counted "not replayed").
  * - Each row is re-issued from the ledger as a verified event and goes through the same idempotent path as the webhook
  *   (`apply.ts` → `justcall_record_call`, one entry per call_sid), then its outcome is written back.
  * - Refused while the logging switch is off: no JustCall request leaves the app (brief §0.12).
@@ -91,7 +93,9 @@ export async function runReplayCli(
 ): Promise<number> {
   const target = parseReplayArgs(argv);
   if (target === null) return (print(USAGE), 2);
-  if (!justcallWebhookEnabled()) return (print("justcall-replay: refused — JustCall logging is switched off"), 2);
+  if (!justcallWebhookEnabled()) {
+    return (print("justcall-replay: refused — JUSTCALL_WEBHOOK_ENABLED and CALL_BOOKING_ENABLED must both be exported as \"true\""), 2);
+  }
   const config = readJustCallConfig();
   if (!config.ok) return (print(`justcall-replay: refused — missing settings: ${config.missing.join(", ")}`), 2);
   const result = await replayJustCallEvents(target, makeDeps(config.value));

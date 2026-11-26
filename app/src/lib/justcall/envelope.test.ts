@@ -41,6 +41,12 @@ describe("readBoundedBody", () => {
     expect(s.pulled()).toBeLessThan(5);
   });
 
+  it("a stream that fails while it is read → unreadable", async () => {
+    const failing = new ReadableStream({ pull(c) { c.error(new Error("socket closed")); } }, { highWaterMark: 0 });
+    const request = new Request("http://localhost/x", { method: "POST", body: failing, duplex: "half" } as RequestInit);
+    expect(await readBoundedBody(request)).toEqual({ ok: false, reason: "unreadable" });
+  });
+
   it("an empty body is an empty string", async () => {
     expect(await readBoundedBody(new Request("http://localhost/x", { method: "POST" }))).toEqual({ ok: true, text: "" });
   });

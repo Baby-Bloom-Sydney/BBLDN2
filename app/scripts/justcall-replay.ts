@@ -6,8 +6,10 @@
  * entry per call), paced under JustCall's rate limit. It prints counts only. Refused while
  * `JUSTCALL_WEBHOOK_ENABLED` (or `CALL_BOOKING_ENABLED`) is off, or a JustCall setting is missing.
  *
- * Env (names only): NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, CALL_BOOKING_ENABLED,
- * JUSTCALL_WEBHOOK_ENABLED, JUSTCALL_API_KEY, JUSTCALL_API_SECRET, JUSTCALL_WEBHOOK_URL.
+ * Env (names only), **exported in the shell** — no .env file is read, so it never reaches a database by accident:
+ * NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, CALL_BOOKING_ENABLED, JUSTCALL_WEBHOOK_ENABLED,
+ * JUSTCALL_API_KEY, JUSTCALL_API_SECRET, JUSTCALL_WEBHOOK_URL. Values come from the keychain or Vercel, never typed on
+ * the command line.
  *
  * Run:
  *   npx tsx scripts/justcall-replay.ts --id=<ledger row id>

@@ -3,7 +3,8 @@
  * signature covers no call data, so the route re-reads the call by its sid and writes only this answer.
  *
  * - `GET https://api.justcall.io/v2.1/calls/{call_sid}` (the API takes the numeric id or the sid), header
- *   `Authorization: <key>:<secret>`, `no-store`, an 8-second timeout. One request per event (Team plan: 30 a minute).
+ *   `Authorization: <key>:<secret>`, `no-store`, no redirects, one 8-second timeout over the request and the body, a
+ *   1 MB body cap. One request per event (Team plan: 30 a minute). An answer it doesn't read is released.
  * - zod over the fields used only (recordings, AI fields and the contact's name are never read — brief §5 "Not
  *   stored"); the call may be top-level or wrapped in `data` (one object, or a one-item list) — `[unverified]`, L4.
  * - 404 → `not_found` (the ledger says `ignored`). 429, any other status, a network failure, the timeout, a body that
@@ -14,10 +15,13 @@
  */
 
 import { z } from "zod";
+import { readCappedStream } from "./envelope";
 import { CALL_SID_PATTERN } from "./types";
 
 export const JUSTCALL_API_BASE = "https://api.justcall.io/v2.1";
 export const API_TIMEOUT_MS = 8_000;
+/** A call object is a few kilobytes; anything past this is not one (security review L6). */
+export const MAX_API_BODY_BYTES = 1024 * 1024;
 
 /** The fields 05 uses, as JustCall sent them (strings trimmed; blanks → null). */
 export interface JustCallCall {
@@ -96,12 +100,25 @@ const unavailable = (code: string): GetCallResult => {
   return { ok: false, error: "unavailable", code };
 };
 
-async function readBody(response: Response): Promise<unknown> {
+const isTimeout = (name: string): boolean => name === "TimeoutError" || name === "AbortError";
+
+/** The answer's JSON, read under the same timeout and a size cap (review TS M2): a call, or why there isn't one. */
+async function readCall(response: Response): Promise<JustCallCall | { readonly code: string }> {
+  if (response.body === null) return { code: "api_shape" };
+  const read = await readCappedStream(response.body, MAX_API_BODY_BYTES);
+  if (!read.ok) return { code: read.reason === "too_large" ? "api_too_large" : isTimeout(read.errorName) ? "api_timeout" : "api_network" };
+  let body: unknown;
   try {
-    return await response.json();
+    body = JSON.parse(read.text);
   } catch {
-    return undefined;
+    return { code: "api_shape" };
   }
+  return parseCall(body) ?? { code: "api_shape" };
+}
+
+/** Free the connection of an answer that isn't read. */
+async function release(response: Response): Promise<void> {
+  await response.body?.cancel().catch(() => undefined);
 }
 
 /** The call with this sid, as JustCall's API answers it now. Never throws. */
@@ -113,16 +130,18 @@ export async function getCall(callSid: string, deps: ApiDeps): Promise<GetCallRe
       method: "GET",
       headers: { Authorization: `${deps.config.apiKey}:${deps.config.apiSecret}`, Accept: "application/json" },
       cache: "no-store",
+      // the key travels in a header: never follow a redirect with it (security review L6)
+      redirect: "error",
       signal: AbortSignal.timeout(deps.timeoutMs ?? API_TIMEOUT_MS),
     });
   } catch (thrown) {
     const name = thrown instanceof Error || thrown instanceof DOMException ? thrown.name : typeof thrown;
-    return unavailable(name === "TimeoutError" || name === "AbortError" ? "api_timeout" : "api_network");
+    return unavailable(isTimeout(name) ? "api_timeout" : "api_network");
   }
-  if (response.status === 404) return { ok: false, error: "not_found" };
-  if (response.status !== 200) return unavailable(`api_${response.status}`);
-  const call = parseCall(await readBody(response));
-  if (call === null) return unavailable("api_shape");
+  if (response.status === 404) return (await release(response), { ok: false, error: "not_found" });
+  if (response.status !== 200) return (await release(response), unavailable(`api_${response.status}`));
+  const call = await readCall(response);
+  if ("code" in call) return unavailable(call.code);
   if (call.callSid !== callSid) return unavailable("api_sid_mismatch");
   return { ok: true, value: call };
 }

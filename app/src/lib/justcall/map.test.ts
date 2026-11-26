@@ -9,7 +9,7 @@ import { directionOf, mapCall, mapType, startedAtOf } from "./map";
 
 const CALL: JustCallCall = {
   callSid: "CAtest0001", justcallId: "1786000001", contactNumber: "447700900517", justcallNumber: "447700900990",
-  agentEmail: "admin+b05-agent@babybloomnannies.co.uk", callDate: "2027-02-09", callTime: "14:03:00",
+  agentEmail: "agent@example.test", callDate: "2027-02-09", callTime: "14:03:00",
   direction: "Outgoing", type: "Answered", disposition: null, notes: null, durationSeconds: 372,
 };
 
@@ -107,7 +107,7 @@ describe("mapCall", () => {
       value: {
         callSid: "CAtest0001", justcallId: "1786000001", direction: "outgoing", type: "Answered", mappedResult: "answered",
         durationSeconds: 372, startedAt: "2027-02-09T14:03:00.000Z", contactNumber: "447700900517",
-        justcallNumber: "447700900990", agentEmail: "admin+b05-agent@babybloomnannies.co.uk", disposition: null, notes: null,
+        justcallNumber: "447700900990", agentEmail: "agent@example.test", disposition: null, notes: null,
       },
     });
   });

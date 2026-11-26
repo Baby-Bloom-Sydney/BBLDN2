@@ -4,10 +4,11 @@
  * is answered 200 without running twice; the row then ends `applied`, `ignored` or `unresolved` with a short code.
  *
  * - Only a `VerifiedJustCallEvent` is recorded: nothing reaches the ledger before the signature check.
- * - The stored body is the parsed body (the route caps it at 256 KB) with the `webhook_url` query and fragment removed,
- *   so the preview's protection-bypass value is never stored (plan D11, §10).
- * - The replay (R9, BAI's word only) reads a row back and re-issues it as a verified event from the ledger — only a
- *   verified delivery ever created one — then runs it through the same idempotent path.
+ * - The stored body is the envelope only (`storedBody`): no phone number, notes or URL query is kept (plan §10, D11).
+ * - A redelivery of a row left `unresolved` is applied again (`retryOfUnresolved`), so JustCall's own retry heals it.
+ * - The replay (R9, BAI's word only) reads a row back — unresolved, or still in flight 10 minutes on — and re-issues it
+ *   as a verified event from the ledger (only a verified delivery ever created one), then runs it through the same
+ *   idempotent path. A row already applied or ignored is not replayed.
  *
  * BB-wave2-231126/05-build, 2026-11-26.
  */
@@ -29,11 +30,28 @@ function withoutQuery(url: string): string {
   }
 }
 
-/** The body as stored: the `webhook_url` query and fragment removed, everything else as JustCall sent it. */
-export function storedBody(body: unknown): unknown {
-  if (typeof body !== "object" || body === null || Array.isArray(body)) return body;
-  const url = (body as { readonly webhook_url?: unknown }).webhook_url;
-  return typeof url === "string" ? { ...body, webhook_url: withoutQuery(url) } : body;
+const MAX_STORED_TEXT = 200;
+const plainText = (value: unknown): string | null =>
+  typeof value === "string" && value.length <= MAX_STORED_TEXT ? value : typeof value === "number" && Number.isSafeInteger(value) ? String(value) : null;
+const asRecord = (value: unknown): Readonly<Record<string, unknown>> | null =>
+  typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Readonly<Record<string, unknown>>) : null;
+
+/**
+ * The body as stored: the envelope only — request id, url id, type, the URL without its query or fragment, and the
+ * call's id and sid (plan §10: no number, key or URL query in the stored body; security review M1). The replay needs
+ * no more: every fact written is re-read from JustCall's API (R8), and no caller-shaped JSON is kept.
+ */
+export function storedBody(body: unknown): Readonly<Record<string, unknown>> {
+  const b = asRecord(body);
+  const data = asRecord(b?.data);
+  const url = b?.webhook_url;
+  return {
+    request_id: plainText(b?.request_id),
+    url_id: plainText(b?.url_id),
+    type: plainText(b?.type),
+    webhook_url: typeof url === "string" ? withoutQuery(url) : null,
+    data: data === null ? null : { call_sid: plainText(data.call_sid), id: plainText(data.id) },
+  };
 }
 
 export async function beginEvent(event: VerifiedJustCallEvent, body: unknown, repo: LedgerRepo): Promise<BeginResult> {
@@ -60,14 +78,16 @@ export async function finishEvent(id: string, result: ApplyResult, repo: LedgerR
 
 export type ReplayableEvent =
   | { readonly ok: true; readonly event: VerifiedJustCallEvent }
-  | { readonly ok: false; readonly error: "not_found" | "error" };
+  | { readonly ok: false; readonly error: "not_found" | "finished" | "error" };
 
-/** A stored delivery, re-issued for the replay. */
+/** A stored delivery not yet finished (unresolved, or still in flight), re-issued for the replay. */
 export async function replayableEvent(id: string, repo: LedgerRepo): Promise<ReplayableEvent> {
   const read = await repo.readEvent(id);
   if (!read.ok) return { ok: false, error: "error" };
   if (read.value === null) return { ok: false, error: "not_found" };
   const row = read.value;
+  // a row already applied or ignored keeps the outcome it was given (review TS L10)
+  if (row.outcome === "applied" || row.outcome === "ignored") return { ok: false, error: "finished" };
   return {
     ok: true,
     event: issueVerifiedJustCallEvent({
@@ -86,4 +106,17 @@ export async function unresolvedEventIds(
 ): Promise<{ readonly ok: true; readonly value: readonly string[] } | { readonly ok: false }> {
   const read = await repo.readUnresolvedEvents();
   return read.ok ? { ok: true, value: read.value.map((row) => row.id) } : { ok: false };
+}
+
+export type RetryCheck = { readonly kind: "retry"; readonly id: string } | { readonly kind: "done" } | { readonly kind: "error" };
+
+/**
+ * A redelivery (the same sid, type and request timestamp) of a row left `unresolved` is applied again under that row,
+ * so JustCall's retry after our 500 heals it (reviews TS H1, code M1, security M2). A row applied, ignored or still in
+ * flight is done: answered 200, applied once.
+ */
+export async function retryOfUnresolved(event: VerifiedJustCallEvent, repo: Pick<JustCallRepo, "readEventByKey">): Promise<RetryCheck> {
+  const read = await repo.readEventByKey(event.callSid, event.eventType, event.requestTimestamp);
+  if (!read.ok || read.value === null) return { kind: "error" };
+  return read.value.outcome === "unresolved" ? { kind: "retry", id: read.value.id } : { kind: "done" };
 }

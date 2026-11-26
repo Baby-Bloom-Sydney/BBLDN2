@@ -116,6 +116,25 @@ describe("the ledger", () => {
     expect(await createJustCallRepo({ client: f.client }).readEvent(EVENT_ID)).toEqual({ ok: false, error: "error" });
   });
 
+  it("reads one delivery by its de-duplication key", async () => {
+    const f = fakeAdmin({ justcall_webhook_events: storedRow({ outcome: null }) });
+    const result = await createJustCallRepo({ client: f.client }).readEventByKey(SID, "call.completed", "2027-02-09 14:03:00");
+    expect(result).toMatchObject({ ok: true, value: { id: EVENT_ID, outcome: null } });
+    expect(f.ops[0].filters).toEqual(expect.arrayContaining([["eq", "call_sid", SID], ["eq", "event_type", "call.completed"], ["eq", "request_timestamp", "2027-02-09 14:03:00"]]));
+  });
+
+  it("an inserted row back without a string id → error", async () => {
+    const f = fakeAdmin();
+    f.writeResults.justcall_webhook_events = { id: 7 };
+    expect(await createJustCallRepo({ client: f.client }).insertEvent(row)).toEqual({ ok: false, error: "error" });
+  });
+
+  it("the replay's list: unresolved rows, and rows still in flight 10 minutes after they arrived (reviews TS H1, code M1)", async () => {
+    const f = fakeAdmin({ justcall_webhook_events: [] });
+    await createJustCallRepo({ client: f.client, now: () => new Date("2027-02-09T14:30:00.000Z") }).readUnresolvedEvents();
+    expect(f.ops[0].filters).toEqual(expect.arrayContaining([["or", 'outcome.eq.unresolved,and(outcome.is.null,received_at.lt."2027-02-09T14:20:00.000Z")', undefined]]));
+  });
+
   it("reads every unresolved row, page by page, oldest first", async () => {
     const pages = (op: Op) => {
       const range = op.filters.find(([kind]) => kind === "range");
@@ -125,7 +144,7 @@ describe("the ledger", () => {
     const f = fakeAdmin({ justcall_webhook_events: pages });
     const result = await createJustCallRepo({ client: f.client }).readUnresolvedEvents();
     expect(result.ok && result.value.length).toBe(501);
-    expect(f.ops[0].filters).toEqual(expect.arrayContaining([["eq", "outcome", "unresolved"], ["order", "received_at", { ascending: true }], ["range", 0, 499]]));
+    expect(f.ops[0].filters).toEqual(expect.arrayContaining([["order", "received_at", { ascending: true }], ["range", 0, 499]]));
   });
 
   it("fails closed on a page longer than asked, or past the cap", async () => {
@@ -173,7 +192,7 @@ describe("parentsByMobile", () => {
 const CALL = {
   callSid: SID, justcallId: "1786000001", direction: "outgoing" as const, type: "Answered", mappedResult: "answered" as const,
   durationSeconds: 372, startedAt: "2027-02-09T14:03:00.000Z", contactNumber: "447700900517", justcallNumber: "447700900990",
-  agentEmail: "admin+b05-agent@babybloomnannies.co.uk", disposition: null, notes: "wants Tuesdays",
+  agentEmail: "agent@example.test", disposition: null, notes: "wants Tuesdays",
 };
 
 function repoReturning(fn: string, data: unknown, error: { message: string; code?: string } | null = null) {
@@ -191,7 +210,7 @@ describe("recordCall → justcall_record_call", () => {
       args: {
         p_sid: SID, p_justcall_id: "1786000001", p_parent: PARENT, p_match_note: null, p_direction: "outgoing", p_type: "Answered",
         p_mapped_result: "answered", p_duration: 372, p_started_at: "2027-02-09T14:03:00.000Z", p_contact: "447700900517",
-        p_our_number: "447700900990", p_agent: "admin+b05-agent@babybloomnannies.co.uk", p_disposition: null, p_notes: "wants Tuesdays",
+        p_our_number: "447700900990", p_agent: "agent@example.test", p_disposition: null, p_notes: "wants Tuesdays",
       },
     }]);
   });
@@ -248,7 +267,7 @@ describe("the writers 05a-2 uses", () => {
     expect(f.rpcCalls[0]).toEqual({ fn: "justcall_attach_call", args: { p_sid: SID, p_parent: OTHER, p_actor: ADMIN } });
   });
 
-  it.each(["invalid", "not_found", "not_unmatched", "not_a_parent"])("attachCall refusal %s", async (status) => {
+  it.each(["invalid", "not_found", "not_unmatched", "not_a_parent", "not_yours"])("attachCall refusal %s", async (status) => {
     const { repo } = repoReturning("justcall_attach_call", { status });
     expect(await repo.attachCall(SID, OTHER, ADMIN)).toEqual({ ok: false, error: status });
   });

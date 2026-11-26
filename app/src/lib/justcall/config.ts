@@ -38,11 +38,14 @@ function usable(name: JustCallEnvName, value: string): boolean {
   return name === "JUSTCALL_WEBHOOK_URL" ? isHttpsUrl(value) : true;
 }
 
+const read = (name: JustCallEnvName): string => process.env[name]?.trim() ?? "";
+
 export function readJustCallConfig(): JustCallConfigResult {
-  const values = Object.fromEntries(JUSTCALL_ENV_NAMES.map((name) => [name, process.env[name]?.trim() ?? ""])) as Record<
-    JustCallEnvName,
-    string
-  >;
+  const values: Readonly<Record<JustCallEnvName, string>> = {
+    JUSTCALL_API_KEY: read("JUSTCALL_API_KEY"),
+    JUSTCALL_API_SECRET: read("JUSTCALL_API_SECRET"),
+    JUSTCALL_WEBHOOK_URL: read("JUSTCALL_WEBHOOK_URL"),
+  };
   const missing = JUSTCALL_ENV_NAMES.filter((name) => !usable(name, values[name]));
   if (missing.length > 0) return { ok: false, missing };
   return {

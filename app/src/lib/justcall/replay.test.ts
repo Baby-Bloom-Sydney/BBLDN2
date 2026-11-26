@@ -88,6 +88,13 @@ describe("replayJustCallEvents", () => {
     expect(finished).toEqual([[ID_1, "applied", null], [ID_2, "unresolved", "api_500"]]);
   });
 
+  it.each(["applied", "ignored"] as const)("a row already %s is not replayed and keeps its outcome (review TS L10)", async (outcome) => {
+    const { deps, getCall, finished } = fakeDeps({ rows: [{ ...row(ID_1, "CAone"), outcome }] });
+    expect(await replayJustCallEvents({ kind: "one", id: ID_1 }, deps)).toEqual({ ok: true, counts: { rows: 1, applied: 0, ignored: 0, unresolved: 0, notReplayed: 1 } });
+    expect(getCall).not.toHaveBeenCalled();
+    expect(finished).toEqual([]);
+  });
+
   it("an id that isn't there, or an outcome that can't be written, is counted as not replayed", async () => {
     const missing = fakeDeps();
     expect(await replayJustCallEvents({ kind: "one", id: "e0500000-0000-4000-8000-000000000009" }, missing.deps)).toEqual({ ok: true, counts: { rows: 1, applied: 0, ignored: 0, unresolved: 0, notReplayed: 1 } });
@@ -141,12 +148,13 @@ describe("runReplayCli", () => {
     expect(lines.join(" ")).not.toContain("test-key-not-real");
   });
 
-  it("switched off → exit 2", async () => {
+  it("switched off → exit 2, naming the two switches (the script reads exported env only; review code M3)", async () => {
     vi.stubEnv("CALL_BOOKING_ENABLED", "");
     const { deps } = fakeDeps();
     const lines: string[] = [];
     expect(await runReplayCli(["--unresolved"], (l) => lines.push(l), () => deps)).toBe(2);
-    expect(lines.join(" ")).toContain("switched off");
+    expect(lines.join(" ")).toContain("JUSTCALL_WEBHOOK_ENABLED");
+    expect(lines.join(" ")).toContain("CALL_BOOKING_ENABLED");
   });
 
   it("a failed list read → exit 1", async () => {

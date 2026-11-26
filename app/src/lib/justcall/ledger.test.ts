@@ -4,7 +4,7 @@
  * stored row is re-issued as a verified event for the replay.
  */
 import { describe, expect, it, vi } from "vitest";
-import { beginEvent, finishEvent, replayableEvent, storedBody, unresolvedEventIds } from "./ledger";
+import { beginEvent, finishEvent, replayableEvent, retryOfUnresolved, storedBody, unresolvedEventIds } from "./ledger";
 import type { JustCallRepo } from "./repo";
 import { issueVerifiedJustCallEvent, isVerifiedJustCallEvent } from "./verified";
 
@@ -25,15 +25,24 @@ function repo(over: Partial<JustCallRepo> = {}) {
   } as unknown as JustCallRepo;
 }
 
-describe("storedBody", () => {
-  it("removes the webhook_url query and keeps everything else", () => {
-    expect(storedBody(BODY)).toEqual({ ...BODY, webhook_url: URL_OURS });
+describe("storedBody (plan §10: no number, key or URL query in the stored body; security review M1)", () => {
+  it("keeps only the envelope: request id, url id, type, the URL without its query, and the call's id and sid", () => {
+    const stored = storedBody({ ...BODY, url_id: "u-1", data: { ...BODY.data, id: 1786000001, notes: "private" } });
+    expect(stored).toEqual({ request_id: "01HTEST", url_id: "u-1", type: "call.completed", webhook_url: URL_OURS, data: { call_sid: "CAtest0001", id: "1786000001" } });
+    expect(JSON.stringify(stored)).not.toMatch(/447700900517|private|placeholder/);
   });
 
-  it("removes a fragment too, and leaves a body with no URL as it is", () => {
-    expect(storedBody({ webhook_url: `${URL_OURS}#x`, type: "t" })).toEqual({ webhook_url: URL_OURS, type: "t" });
-    expect(storedBody({ type: "t" })).toEqual({ type: "t" });
-    expect(storedBody({ webhook_url: "not a url", type: "t" })).toEqual({ webhook_url: "[removed]", type: "t" });
+  it("removes a fragment too; a body with no data or no URL stores nulls", () => {
+    expect(storedBody({ webhook_url: `${URL_OURS}#x`, type: "t" })).toEqual({ request_id: null, url_id: null, type: "t", webhook_url: URL_OURS, data: null });
+    expect(storedBody({ type: "t" })).toEqual({ request_id: null, url_id: null, type: "t", webhook_url: null, data: null });
+    expect(storedBody({ webhook_url: "not a url", type: "t" })).toMatchObject({ webhook_url: "[removed]" });
+  });
+
+  it("stores nothing it can't name: arrays, nested objects and long strings become null", () => {
+    expect(storedBody(["x"])).toEqual({ request_id: null, url_id: null, type: null, webhook_url: null, data: null });
+    expect(storedBody({ type: { nested: true }, request_id: "r".repeat(300), data: { call_sid: ["x"] } })).toEqual({
+      request_id: null, url_id: null, type: null, webhook_url: null, data: { call_sid: null, id: null },
+    });
   });
 });
 
@@ -43,7 +52,7 @@ describe("beginEvent", () => {
     expect(await beginEvent(EVENT, BODY, r)).toEqual({ kind: "new", id: "event-1" });
     expect(r.insertEvent).toHaveBeenCalledWith({
       requestId: "01HTEST", eventType: "call.completed", callSid: "CAtest0001", justcallId: "1786000001",
-      requestTimestamp: "2027-02-09 14:03:00", rawBody: { ...BODY, webhook_url: URL_OURS },
+      requestTimestamp: "2027-02-09 14:03:00", rawBody: storedBody(BODY),
     });
   });
 
@@ -88,6 +97,16 @@ describe("the replay's reads", () => {
     expect(event).toMatchObject({ eventType: "call.updated", callSid: "CAtest0001", requestTimestamp: "1801000000", source: "ledger" });
   });
 
+  it.each(["applied", "ignored"] as const)("a row already %s is not replayed (its outcome stays as written)", async (outcome) => {
+    const r = repo({ readEvent: vi.fn(async () => ({ ok: true as const, value: { ...STORED, outcome } })) });
+    expect(await replayableEvent("event-1", r)).toEqual({ ok: false, error: "finished" });
+  });
+
+  it("a row still in flight (no outcome) is replayed", async () => {
+    const r = repo({ readEvent: vi.fn(async () => ({ ok: true as const, value: { ...STORED, outcome: null } })) });
+    expect((await replayableEvent("event-1", r)).ok).toBe(true);
+  });
+
   it("an unknown id → not_found; a failed read → error", async () => {
     expect(await replayableEvent("nope", repo())).toEqual({ ok: false, error: "not_found" });
     const failing = repo({ readEvent: vi.fn(async () => ({ ok: false as const, error: "error" as const })) });
@@ -99,5 +118,29 @@ describe("the replay's reads", () => {
     expect(await unresolvedEventIds(r)).toEqual({ ok: true, value: ["event-1", "event-2"] });
     const failing = repo({ readUnresolvedEvents: vi.fn(async () => ({ ok: false as const, error: "error" as const })) });
     expect(await unresolvedEventIds(failing)).toEqual({ ok: false });
+  });
+});
+
+describe("retryOfUnresolved (a redelivery of a row left unresolved is applied again; reviews TS H1, code M1, security M2)", () => {
+  const stored = (outcome: "applied" | "ignored" | "unresolved" | null) => ({
+    id: "event-1", eventType: "call.completed", callSid: "CAtest0001", justcallId: "1786000001", requestId: "01HTEST", requestTimestamp: "2027-02-09 14:03:00", outcome,
+  });
+
+  it("finds the stored row by the delivery's key; unresolved → retry it", async () => {
+    const readEventByKey = vi.fn(async () => ({ ok: true as const, value: stored("unresolved") }));
+    expect(await retryOfUnresolved(EVENT, repo({ readEventByKey } as Partial<JustCallRepo>))).toEqual({ kind: "retry", id: "event-1" });
+    expect(readEventByKey).toHaveBeenCalledWith("CAtest0001", "call.completed", "2027-02-09 14:03:00");
+  });
+
+  it.each(["applied", "ignored", null] as const)("a row %s (or in flight) → nothing to do", async (outcome) => {
+    const readEventByKey = vi.fn(async () => ({ ok: true as const, value: stored(outcome) }));
+    expect(await retryOfUnresolved(EVENT, repo({ readEventByKey } as Partial<JustCallRepo>))).toEqual({ kind: "done" });
+  });
+
+  it("no row, or a failed read → error", async () => {
+    const none = vi.fn(async () => ({ ok: true as const, value: null }));
+    expect(await retryOfUnresolved(EVENT, repo({ readEventByKey: none } as Partial<JustCallRepo>))).toEqual({ kind: "error" });
+    const failing = vi.fn(async () => ({ ok: false as const, error: "error" as const }));
+    expect(await retryOfUnresolved(EVENT, repo({ readEventByKey: failing } as Partial<JustCallRepo>))).toEqual({ kind: "error" });
   });
 });

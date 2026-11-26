@@ -10,7 +10,8 @@
  * 2. the version is `v1`;
  * 3. the timestamp reads as UTC in either form — `"YYYY-MM-DD HH:MM:SS"` (the docs' example) or an integer (seconds,
  *    or milliseconds; the docs' header table says `int`) — and is within ±5 minutes of now (D10);
- * 4. the body's `webhook_url` is exactly `JUSTCALL_WEBHOOK_URL` (on a preview that includes the bypass query, D11);
+ * 4. the body's `webhook_url` is exactly `JUSTCALL_WEBHOOK_URL` (on a preview that includes the bypass query, D11),
+ *    compared in constant time;
  * 5. the signature matches, compared in constant time on digests of equal length (the `invoices/cron-proof.ts` way).
  * Every refusal is the route's 401 with nothing written; the reason is for the log only.
  *
@@ -67,17 +68,24 @@ export function requestTimeMs(raw: string): number | null {
 
 const digest = (value: string): Buffer => createHash("sha256").update(value, "utf8").digest();
 
-function signatureMatches(sent: string, expected: string): boolean {
-  return timingSafeEqual(digest(sent.trim().toLowerCase()), digest(expected));
+/** Equal strings, compared without a timing difference (on digests of equal length). */
+function sameText(a: string, b: string): boolean {
+  return timingSafeEqual(digest(a), digest(b));
 }
 
-/** Steps 1–3: the headers, the version and the window. */
-function checkHeaders(headers: SignedHeaders, nowMs: number): SignatureRefusal | null {
-  if (!headers.signature || !headers.version || !headers.timestamp) return "missing_header";
-  if (headers.version.trim() !== SIGNATURE_VERSION) return "bad_version";
-  const at = requestTimeMs(headers.timestamp);
+interface PresentHeaders {
+  readonly signature: string;
+  readonly timestamp: string;
+}
+
+/** Steps 1–3: the headers, the version and the window; the two values the rest needs, narrowed. */
+function checkHeaders(headers: SignedHeaders, nowMs: number): PresentHeaders | SignatureRefusal {
+  const { signature, version, timestamp } = headers;
+  if (!signature || !version || !timestamp) return "missing_header";
+  if (version.trim() !== SIGNATURE_VERSION) return "bad_version";
+  const at = requestTimeMs(timestamp);
   if (at === null) return "bad_timestamp";
-  return Math.abs(nowMs - at) > SIGNATURE_WINDOW_MS ? "outside_window" : null;
+  return Math.abs(nowMs - at) > SIGNATURE_WINDOW_MS ? "outside_window" : { signature, timestamp };
 }
 
 /**
@@ -90,12 +98,13 @@ export function verifyJustCallDelivery(
   config: { readonly apiSecret: string; readonly webhookUrl: string },
   nowMs: number,
 ): DeliveryCheck {
-  const refused = checkHeaders(headers, nowMs);
-  if (refused !== null) return { ok: false, reason: refused };
-  if (envelope.webhookUrl !== config.webhookUrl) return { ok: false, reason: "wrong_url" };
-  const timestamp = headers.timestamp as string;
-  const expected = justCallSignature(config.apiSecret, envelope.webhookUrl, envelope.type, timestamp);
-  if (!signatureMatches(headers.signature as string, expected)) return { ok: false, reason: "bad_signature" };
+  const present = checkHeaders(headers, nowMs);
+  if (typeof present === "string") return { ok: false, reason: present };
+  // the URL may hold the preview's bypass value, so it too is compared in constant time (security review L4)
+  if (!sameText(envelope.webhookUrl, config.webhookUrl)) return { ok: false, reason: "wrong_url" };
+  const { signature, timestamp } = present;
+  const expected = justCallSignature(config.apiSecret, config.webhookUrl, envelope.type, timestamp);
+  if (!sameText(signature.trim().toLowerCase(), expected)) return { ok: false, reason: "bad_signature" };
   if (envelope.callSid === null) return { ok: true, event: null };
   return {
     ok: true,

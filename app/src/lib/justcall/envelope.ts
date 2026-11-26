@@ -23,22 +23,37 @@ export type EnvelopeParse =
 
 const TOO_LARGE: BodyRead = Object.freeze({ ok: false, reason: "too_large" });
 
-async function readCapped(stream: ReadableStream<Uint8Array>, max: number): Promise<BodyRead> {
+export type StreamRead =
+  | { readonly ok: true; readonly text: string }
+  | { readonly ok: false; readonly reason: "too_large" }
+  | { readonly ok: false; readonly reason: "unreadable"; readonly errorName: string };
+
+/** A stream's text, stopping as soon as it passes `max` bytes; a stream that fails is `unreadable` (with its error's name). */
+export async function readCappedStream(stream: ReadableStream<Uint8Array>, max: number): Promise<StreamRead> {
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > max) {
-      await reader.cancel().catch(() => undefined);
-      return TOO_LARGE;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > max) {
+        await reader.cancel().catch(() => undefined);
+        return { ok: false, reason: "too_large" };
+      }
+      chunks.push(value);
     }
-    chunks.push(value);
+  } catch (thrown) {
+    await reader.cancel().catch(() => undefined);
+    return { ok: false, reason: "unreadable", errorName: thrown instanceof Error || thrown instanceof DOMException ? thrown.name : typeof thrown };
   }
   const bytes = new Uint8Array(total);
-  chunks.reduce((offset, chunk) => (bytes.set(chunk, offset), offset + chunk.byteLength), 0);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
   return { ok: true, text: new TextDecoder().decode(bytes) };
 }
 
@@ -46,11 +61,8 @@ export async function readBoundedBody(request: Request, max: number = MAX_BODY_B
   const declared = Number(request.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > max) return TOO_LARGE;
   if (request.body === null) return { ok: true, text: "" };
-  try {
-    return await readCapped(request.body, max);
-  } catch {
-    return { ok: false, reason: "unreadable" };
-  }
+  const read = await readCappedStream(request.body, max);
+  return read.ok || read.reason === "too_large" ? read : { ok: false, reason: "unreadable" };
 }
 
 const shortText = (max: number) =>

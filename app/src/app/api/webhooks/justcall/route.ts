@@ -10,9 +10,10 @@
  *   5. Signature, version, ±5-minute window or `webhook_url` wrong → 401, nothing written (`signature.ts`).
  *   6. No call in it (JustCall's validation ping when a URL is saved) → 200, nothing written.
  *   7. A type 05 doesn't act on → 200, the ledger row `ignored`.
- *   8. A redelivery (same `call_sid`, type and request timestamp) → 200, applied once (`ledger.ts`).
- *   9. Dispatch (`apply.ts`: the API re-read, map, match, record) → 200, or 500 when `unresolved` so the row waits for
- *      a replay (R9) and JustCall may retry.
+ *   8. A redelivery (same `call_sid`, type and request timestamp) → 200, applied once (`ledger.ts`) — unless its row
+ *      was left `unresolved`: then it is applied again under that row, so JustCall's own retry heals it.
+ *   9. Dispatch (`apply.ts`: the API re-read, map, match, record) → 200, or 500 when `unresolved`, so JustCall retries;
+ *      the row also waits for the replay by hand (R9).
  * Responses carry no detail. Logs carry the step, the type and the outcome code — never a number, a key, the secret or
  * the URL's query. The route has no session: `src/lib/supabase/middleware.ts` protects only `/nanny`, `/parent` and
  * `/admin`, as the Stripe webhook needs.
@@ -25,8 +26,8 @@ import { justcallWebhookEnabled } from "@/lib/features/flags";
 import { applyJustCallEvent, defaultApplyDeps } from "@/lib/justcall/apply";
 import { readJustCallConfig, type JustCallConfig } from "@/lib/justcall/config";
 import { parseEnvelope, readBoundedBody } from "@/lib/justcall/envelope";
-import { beginEvent, finishEvent } from "@/lib/justcall/ledger";
-import { createJustCallRepo } from "@/lib/justcall/repo";
+import { beginEvent, finishEvent, retryOfUnresolved } from "@/lib/justcall/ledger";
+import { createJustCallRepo, type JustCallRepo } from "@/lib/justcall/repo";
 import { verifyJustCallDelivery } from "@/lib/justcall/signature";
 import { isHandledEventType, type SignedHeaders } from "@/lib/justcall/types";
 import type { VerifiedJustCallEvent } from "@/lib/justcall/verified";
@@ -47,20 +48,27 @@ function signedHeadersOf(request: Request): SignedHeaders {
   };
 }
 
-/** Steps 7–9, for a verified delivery that names a call. */
-async function dispatch(event: VerifiedJustCallEvent, body: unknown, config: JustCallConfig): Promise<NextResponse> {
-  const repo = createJustCallRepo();
-  const begun = await beginEvent(event, body, repo);
-  if (begun.kind === "duplicate") return reply(200, "OK");
-  if (begun.kind === "error") return reply(500, "Error");
+/** Step 9 for one ledger row: apply (a type 05 doesn't act on is `ignored`), write the outcome, answer by it. */
+async function applyAndFinish(id: string, event: VerifiedJustCallEvent, config: JustCallConfig, repo: JustCallRepo): Promise<NextResponse> {
   const result = isHandledEventType(event.eventType)
     ? await applyJustCallEvent(event, defaultApplyDeps(config, repo))
     : { outcome: "ignored" as const, code: "unhandled_type" };
-  if (!(await finishEvent(begun.id, result, repo))) {
+  if (!(await finishEvent(id, result, repo))) {
     console.error(`${TAG} the outcome could not be written; the row stays in flight`, { outcome: result.outcome });
   }
   console.info(`${TAG} event`, { type: event.eventType, outcome: result.outcome, code: result.code });
   return result.outcome === "unresolved" ? reply(500, "Error") : reply(200, "OK");
+}
+
+/** Steps 7–9, for a verified delivery that names a call. A redelivery of a row left unresolved is applied again. */
+async function dispatch(event: VerifiedJustCallEvent, body: unknown, config: JustCallConfig): Promise<NextResponse> {
+  const repo = createJustCallRepo();
+  const begun = await beginEvent(event, body, repo);
+  if (begun.kind === "new") return applyAndFinish(begun.id, event, config, repo);
+  if (begun.kind === "error") return reply(500, "Error");
+  const retry = await retryOfUnresolved(event, repo);
+  if (retry.kind === "retry") return applyAndFinish(retry.id, event, config, repo);
+  return retry.kind === "done" ? reply(200, "OK") : reply(500, "Error");
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -89,5 +97,11 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
   if (check.event === null) return reply(200, "OK");
 
-  return dispatch(check.event, parsed.body, config.value);
+  try {
+    return await dispatch(check.event, parsed.body, config.value);
+  } catch (thrown) {
+    // every module below answers closed results; this is the last guard, so nothing leaves as Next's bare 500
+    console.error(`${TAG} dispatch failed`, { name: thrown instanceof Error ? thrown.name : typeof thrown });
+    return reply(500, "Error");
+  }
 }
