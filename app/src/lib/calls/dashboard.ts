@@ -18,9 +18,16 @@
  * is null (the page says so, or shows no banner), and the rest still stand.
  *
  * BB-wave1-041126/04c1-build, 2026-11-05.
+ *
+ * Brief 05 (05a-2, plan 05 D4; BB-wave2-231126/05-build): with JustCall logging on, one more read — the details of the
+ * History entries made through JustCall — gives those rows 05's words ("JustCall · Outgoing · Answered · 6 min 12 s")
+ * and `{callSid, needsOutcome}`. With logging off the source makes no read and History is today's; a source that fails
+ * leaves 04's words and never fails the page. So unsetting the switches undoes 05 here (plan §8 A).
  */
 
 import { callBookingEnabled } from "@/lib/features/flags";
+import { justcallAttemptsFor } from "@/lib/justcall/admin";
+import type { JustCallAttempt } from "@/lib/justcall/types";
 import { londonWeekRange } from "@/lib/timezone";
 import { isAdminProof, type AdminProof } from "./admin-proof";
 import { getFreeSlots } from "./booking";
@@ -79,6 +86,8 @@ export interface HistoryRowView {
   readonly note: string | null;
   readonly by: string | null;
   readonly tags: readonly CallTag[];
+  /** Brief 05, with logging on: a call made through JustCall. */
+  readonly justcall?: { readonly callSid: string; readonly needsOutcome: boolean };
 }
 
 export interface FreeTimeBanner {
@@ -98,13 +107,34 @@ export interface CallsDashboard {
   readonly history: readonly HistoryRowView[] | null;
 }
 
+/** Brief 05's words for the attempts made through JustCall, by entry id (empty with logging off). */
+export type JustCallAttemptsSource = (proof: AdminProof, entries: readonly CallLogEntry[]) => Promise<ReadonlyMap<string, JustCallAttempt>>;
+
 export interface DashboardDeps extends CallsDeps {
   readonly reads: DashboardReads;
   readonly cohortLine: (now: Date) => Promise<CohortLine | null>;
+  /** Brief 05 (D4); without it, 04's words. */
+  readonly justcallAttempts?: JustCallAttemptsSource;
 }
 
 export function defaultDashboardDeps(): DashboardDeps {
-  return { ...defaultCallsDeps(), reads: createDashboardReads(), cohortLine: readCurrentCohortLine };
+  return {
+    ...defaultCallsDeps(),
+    reads: createDashboardReads(),
+    cohortLine: readCurrentCohortLine,
+    justcallAttempts: (proof, entries) => justcallAttemptsFor(proof, entries),
+  };
+}
+
+/** Brief 05's words for these entries; none when there is no source, nothing to read, or the source fails. */
+export async function justcallAttemptsOf(deps: DashboardDeps, proof: AdminProof, entries: readonly CallLogEntry[]): Promise<ReadonlyMap<string, JustCallAttempt>> {
+  if (deps.justcallAttempts === undefined || !entries.some((e) => e.justcallCallId !== null)) return new Map();
+  try {
+    return await deps.justcallAttempts(proof, entries);
+  } catch (thrown) {
+    console.error("[calls/dashboard] JustCall words failed; 04's words stand", { name: thrown instanceof Error ? thrown.name : typeof thrown });
+    return new Map();
+  }
 }
 
 const ok = <T>(value: T): CallsResult<T> => ({ ok: true, value });
@@ -183,7 +213,7 @@ async function rowFacts(rows: readonly WhoIsNextRow[], deps: DashboardDeps): Pro
   return ok({ blocks: blocks.value, details: details.value });
 }
 
-function historyRow(entry: CallLogEntry, contacts: readonly ParentContact[]): HistoryRowView {
+function historyRow(entry: CallLogEntry, contacts: readonly ParentContact[], justcall?: JustCallAttempt): HistoryRowView {
   const family = contacts.find((c) => c.userId === entry.parentUserId) ?? null;
   const recorder = entry.recordedBy === null ? null : contacts.find((c) => c.userId === entry.recordedBy) ?? null;
   return {
@@ -191,21 +221,25 @@ function historyRow(entry: CallLogEntry, contacts: readonly ParentContact[]): Hi
     parentUserId: entry.parentUserId,
     when: londonLabel(entry.occurredAt),
     name: contactWords(family).name,
-    what: attemptWords(entry),
+    what: justcall?.what ?? attemptWords(entry),
     note: entry.note,
     by: recorder === null ? null : contactWords(recorder).name,
     tags: tagsOf({ blockedOver: false, overdue: false, cohortPrebook: false, test: family?.isTestUser === true }),
+    ...(justcall === undefined ? {} : { justcall: { callSid: justcall.callSid, needsOutcome: justcall.needsOutcome } }),
   };
 }
 
 /** The last outcomes with the family's and the recorder's names; null if they can't be read. */
-async function historyRows(deps: DashboardDeps): Promise<readonly HistoryRowView[] | null> {
+async function historyRows(proof: AdminProof, deps: DashboardDeps): Promise<readonly HistoryRowView[] | null> {
   const recent = await deps.repo.readRecentLogEntries(HISTORY_LIMIT);
   if (!recent.ok) return null;
   const ids = unique(recent.value.flatMap((e) => (e.recordedBy === null ? [e.parentUserId] : [e.parentUserId, e.recordedBy])));
-  const contacts = ids.length === 0 ? ok<readonly ParentContact[]>([]) : await deps.repo.readContacts(ids);
+  const [contacts, justcall] = await Promise.all([
+    ids.length === 0 ? ok<readonly ParentContact[]>([]) : deps.repo.readContacts(ids),
+    justcallAttemptsOf(deps, proof, recent.value),
+  ]);
   if (!contacts.ok) return null;
-  return recent.value.map((e) => historyRow(e, contacts.value));
+  return recent.value.map((e) => historyRow(e, contacts.value, justcall.get(e.id)));
 }
 
 async function freeCount(deps: DashboardDeps): Promise<{ readonly count: number | null; readonly windowDays: number | null }> {
@@ -243,7 +277,7 @@ export async function loadCallsDashboard(proof: AdminProof, deps: DashboardDeps 
     getWhoIsNext(proof, deps),
     getCallsToMake(londonWeekRange(now), deps),
     freeCount(deps),
-    historyRows(deps),
+    historyRows(proof, deps),
     deps.cohortLine(now),
   ]);
   if (!who.ok) return who;
