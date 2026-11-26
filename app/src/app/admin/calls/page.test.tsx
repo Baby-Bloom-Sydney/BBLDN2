@@ -19,6 +19,8 @@ const h = vi.hoisted(() => ({
   calendar: null as unknown,
   calendarCalls: 0,
   search: "",
+  unmatched: null as unknown,
+  unmatchedCalls: [] as unknown[],
 }));
 vi.mock("next/navigation", () => ({
   notFound: () => {
@@ -52,6 +54,18 @@ vi.mock("@/lib/calls/admin-calls", async (importOriginal) => ({
     return h.calendar;
   },
 }));
+vi.mock("@/lib/justcall/admin", () => ({
+  listUnmatched: async (proof: unknown) => {
+    h.unmatchedCalls.push(proof);
+    return h.unmatched;
+  },
+}));
+vi.mock("./justcall-actions", () => ({
+  saveJustCallOutcomeAction: vi.fn(),
+  attachJustCallAction: vi.fn(),
+  dismissJustCallAction: vi.fn(),
+  searchFamiliesForCallAction: vi.fn(),
+}));
 vi.mock("./actions", () => ({
   holdCallForFamily: vi.fn(),
   confirmCallForFamily: vi.fn(),
@@ -79,6 +93,8 @@ beforeEach(() => {
   h.calendar = { ok: true, value: CALENDAR };
   h.calendarCalls = 0;
   h.search = "";
+  h.unmatched = { ok: true, value: { total: 1, calls: [{ callSid: "CAun0001", number: "+44 (0) 7700 900 599", when: "Tue 9 Feb, 14:03 (London time)", direction: "Outgoing", result: "Answered", duration: "6 min 12 s", reason: "No family with this number" }] } };
+  h.unmatchedCalls = [];
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 afterEach(() => {
@@ -215,5 +231,49 @@ describe("/admin/calls — today's tree while JustCall logging is off", () => {
     vi.stubEnv("JUSTCALL_WEBHOOK_ENABLED", "");
     render(await AdminCallsPage({ searchParams: { openCall: AVA } }));
     expect(tree()).toMatchSnapshot();
+  });
+});
+
+describe("/admin/calls — JustCall logging on (05a-2, plan §5 B7)", () => {
+  it("logging off → the Unmatched list is never read (the snapshots above are today's tree)", async () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    vi.stubEnv("JUSTCALL_WEBHOOK_ENABLED", "");
+    render(await AdminCallsPage({}));
+    expect(h.unmatchedCalls).toEqual([]);
+    expect(screen.queryByText(/Unmatched JustCall calls/)).toBeNull();
+  });
+
+  it("logging on, call booking off → 404, nothing read", async () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "");
+    vi.stubEnv("JUSTCALL_WEBHOOK_ENABLED", "true");
+    await expect(AdminCallsPage({})).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(h.unmatchedCalls).toEqual([]);
+  });
+
+  it("logging on → the Unmatched list is read once with the admin's proof, alongside the rest, and shown in the Calls tab", async () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    vi.stubEnv("JUSTCALL_WEBHOOK_ENABLED", "true");
+    render(await AdminCallsPage({}));
+    expect(h.unmatchedCalls).toHaveLength(1);
+    expect(h.unmatchedCalls[0]).toMatchObject({ kind: "admin_proof" });
+    expect(screen.getByRole("heading", { level: 2, name: "Unmatched JustCall calls (1)" })).toBeInTheDocument();
+    expect(screen.getByText("Calls still to make this week: 4 (2 booked · 2 not booked)")).toBeInTheDocument();
+  });
+
+  it("logging on, not an admin → 404 before the list is read", async () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    vi.stubEnv("JUSTCALL_WEBHOOK_ENABLED", "true");
+    h.gate = { userId: "", error: "Not authorized — admin role required" };
+    await expect(AdminCallsPage({})).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(h.unmatchedCalls).toEqual([]);
+  });
+
+  it("the Unmatched read failed → that section says so; the page stands", async () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    vi.stubEnv("JUSTCALL_WEBHOOK_ENABLED", "true");
+    h.unmatched = { ok: false, error: "error" };
+    render(await AdminCallsPage({}));
+    expect(screen.getByRole("alert")).toHaveTextContent("The JustCall calls could not be read — reload to try again.");
+    expect(screen.getByText("Calls still to make this week: 4 (2 booked · 2 not booked)")).toBeInTheDocument();
   });
 });
