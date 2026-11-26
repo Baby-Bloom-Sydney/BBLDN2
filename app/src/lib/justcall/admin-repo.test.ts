@@ -47,7 +47,7 @@ describe("readUnmatched", () => {
     });
     expect(f.ops[0].filters).toEqual(expect.arrayContaining([
       ["is", "parent_user_id", null], ["is", "dismissed_at", null], ["not", "mapped_result", "is"],
-      ["order", "started_at", { ascending: false }], ["limit", 100, undefined],
+      ["order", "started_at", { ascending: false }], ["range", 0, 99],
     ]));
   });
 
@@ -82,7 +82,7 @@ describe("readUnmatched", () => {
   it("a row that doesn't fit, or more rows than asked → error", async () => {
     const bad = fakeAdmin({ justcall_calls: [callRow("CA1", { direction: "sideways" })] });
     expect(await createJustCallAdminRepo({ client: bad.client }).readUnmatched(100)).toEqual({ ok: false, error: "error" });
-    const many = fakeAdmin({ justcall_calls: [callRow("CA1"), callRow("CA2"), callRow("CA3")] });
+    const many = fakeAdmin({ justcall_calls: [callRow("CA1"), callRow("CA2"), callRow("CA3")], call_log_entries: [] });
     expect(await createJustCallAdminRepo({ client: many.client }).readUnmatched(2)).toEqual({ ok: false, error: "error" });
   });
 });
@@ -133,7 +133,7 @@ describe("searchParents", () => {
   it("by one name: first or last name starting with it", async () => {
     const f = fakeAdmin({ user_profiles: [], user_roles: [] });
     await createJustCallAdminRepo({ client: f.client }).searchParents({ kind: "name", first: "ava", last: null });
-    expect(f.ops[0].filters).toEqual(expect.arrayContaining([["or", "first_name.ilike.ava%,last_name.ilike.ava%", undefined], ["limit", 50, undefined]]));
+    expect(f.ops[0].filters).toEqual(expect.arrayContaining([["or", "first_name.ilike.ava%,last_name.ilike.ava%", undefined], ["range", 0, 49]]));
   });
 
   it("by two names: first name starts with the first, last name with the last", async () => {
@@ -157,5 +157,44 @@ describe("searchParents", () => {
     await createJustCallAdminRepo({ client: f.client }).searchParents({ kind: "mobile", e164: "+447700900517" });
     await createJustCallAdminRepo({ client: f.client }).searchParents({ kind: "name", first: "ava", last: null });
     expect(JSON.stringify(errors)).not.toMatch(/7700900517|ava/i);
+  });
+});
+
+describe("the bounded reads, after the code and TypeScript reviews", () => {
+  it("the parent search reads on past a page of non-parents, until it has 10 parents (review M1)", async () => {
+    const page = (op: Op) => {
+      const from = Number(op.filters.find(([k]) => k === "range")?.[1]);
+      return from === 0
+        ? Array.from({ length: 50 }, (_, i) => ({ user_id: `nanny-${i}`, first_name: "Ma", last_name: `Nanny ${i}`, mobile_number: null }))
+        : [{ user_id: P1, first_name: "Mary", last_name: "Parent", mobile_number: null }];
+    };
+    const f = fakeAdmin({ user_profiles: page, user_roles: (op: Op) => ((op.filters.find(([k]) => k === "in")?.[2] as string[]).includes(P1) ? [{ user_id: P1 }] : []) });
+    const result = await createJustCallAdminRepo({ client: f.client }).searchParents({ kind: "name", first: "ma", last: null });
+    expect(result).toEqual({ ok: true, value: [{ userId: P1, firstName: "Mary", lastName: "Parent", mobile: null }] });
+    expect(f.ops.filter((o) => o.table === "user_profiles")).toHaveLength(2);
+  });
+
+  it("the parent search stops at its page cap and answers what it found", async () => {
+    const f = fakeAdmin({ user_profiles: () => Array.from({ length: 50 }, (_, i) => ({ user_id: `n-${i}`, first_name: "Ma", last_name: "X", mobile_number: null })), user_roles: [] });
+    expect(await createJustCallAdminRepo({ client: f.client }).searchParents({ kind: "name", first: "ma", last: null })).toEqual({ ok: true, value: [] });
+    expect(f.ops.filter((o) => o.table === "user_profiles").length).toBeLessThanOrEqual(10);
+  });
+
+  it("Unmatched reads on when a sid with an entry is left out, so the newest calls still fill the page (review M2)", async () => {
+    const page = (op: Op) => {
+      const from = Number(op.filters.find(([k]) => k === "range")?.[1]);
+      return from === 0 ? [callRow("CA1"), callRow("CA2")] : [callRow("CA3")];
+    };
+    const f = fakeAdmin({ justcall_calls: page, call_log_entries: (op: Op) => ((op.filters.find(([k]) => k === "in")?.[2] as string[]).includes("CA2") ? [{ justcall_call_id: "CA2" }] : []) });
+    f.counts.justcall_calls = 3;
+    const result = await createJustCallAdminRepo({ client: f.client }).readUnmatched(2);
+    expect(result.ok && result.value.calls.map((c) => c.callSid)).toEqual(["CA1", "CA3"]);
+    expect(result.ok && result.value.total).toBe(2);
+  });
+
+  it("details for more than 500 sids fail closed (security review L6)", async () => {
+    const f = fakeAdmin({ justcall_calls: [] });
+    expect(await createJustCallAdminRepo({ client: f.client }).readDetails(Array.from({ length: 501 }, (_, i) => "CA".concat(String(i))))).toEqual({ ok: false, error: "error" });
+    expect(f.ops).toEqual([]);
   });
 });
