@@ -40,3 +40,78 @@ export interface ApplyResult {
   readonly outcome: EventOutcome;
   readonly code: string | null;
 }
+
+// ── 05a-2: the admin views and the actions' refusals (BB-wave2-231126/05-build) ──────────────────────────────────
+
+/** One JustCall call's details as 05's admin reads give them (amendment 20 `justcall_calls`). */
+export interface JustCallDetails {
+  readonly callSid: string;
+  readonly direction: "incoming" | "outgoing";
+  readonly justcallType: string | null;
+  readonly mappedResult: "answered" | "no_answer" | null;
+  readonly durationSeconds: number | null;
+  readonly startedAt: string;
+  readonly notes: string | null;
+  readonly disposition: string | null;
+}
+
+/** A call that matched no family, or several: Unmatched until BAI attaches or dismisses it. */
+export interface UnmatchedCall extends JustCallDetails {
+  readonly contactNumber: string | null;
+  readonly matchNote: "none" | "several";
+}
+
+/** An Unmatched call in words, for the list on /admin/calls. */
+export interface UnmatchedCallView {
+  readonly callSid: string;
+  readonly number: string;
+  /** "Tue 9 Feb, 14:03 (London time)" */
+  readonly when: string;
+  readonly direction: string;
+  readonly result: string;
+  readonly duration: string;
+  readonly reason: string;
+}
+
+export interface UnmatchedList {
+  readonly calls: readonly UnmatchedCallView[];
+  /** Every Unmatched call, the shown ones included (the list shows the newest 100). */
+  readonly total: number;
+}
+
+/** A family found by Attach to family's search. */
+export interface ParentChoice {
+  readonly parentUserId: string;
+  readonly name: string;
+  /** "+44 (0) 7700 900 517", or null with no mobile on file. */
+  readonly mobile: string | null;
+}
+
+/** What 04's readers add to an attempt made through JustCall (with logging on). */
+export interface JustCallAttempt {
+  readonly callSid: string;
+  /** Answered, made by the webhook, no outcome yet: BAI's words are still to come. */
+  readonly needsOutcome: boolean;
+  /** "JustCall · Outgoing · Answered — outcome needed · 6 min 12 s" */
+  readonly what: string;
+  /** JustCall's own notes and disposition, one line each. */
+  readonly lines: readonly string[];
+  /** "JustCall · Outgoing · 6 min 12 s · Ref CA…", read-only above the outcome form. */
+  readonly summary: string;
+}
+
+/** The JustCall actions' closed refusal codes (`justcall_disabled`: the logging switch is off). */
+export type JustCallActionError =
+  | "justcall_disabled"
+  | "not_authorized"
+  | "invalid"
+  | "not_found"
+  | "not_yours"
+  | "not_unmatched"
+  | "not_a_parent"
+  | "booked_call_exists"
+  | "error";
+
+export type JustCallActionResult<T> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly error: JustCallActionError };
