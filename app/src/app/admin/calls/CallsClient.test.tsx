@@ -219,3 +219,23 @@ describe("CallsClient — review round 1 (04c-2: React M1, M2, L8)", () => {
     expect(screen.getByRole("tablist", { name: "Calls and calendar" })).toBeInTheDocument();
   });
 });
+
+describe("CallsClient — brief 05's slots (05a-2, D1, D4)", () => {
+  it("callsTabExtra is drawn in the Calls tab, after History", () => {
+    render(<CallsClient dashboard={DASHBOARD} openCallId={null} panel={null} panelFailed={false} callsTabExtra={<section aria-label="Extra">Unmatched here</section>} />);
+    const callsPanel = screen.getByRole("tabpanel", { name: "Calls" });
+    const extra = within(callsPanel).getByRole("region", { name: "Extra" });
+    const history = within(callsPanel).getByRole("heading", { level: 2, name: /History/ });
+    expect(history.compareDocumentPosition(extra) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("callsTabExtra still shows when the calls couldn't be read", () => {
+    render(<CallsClient dashboard={null} openCallId={null} panel={null} panelFailed={false} callsTabExtra={<p>Unmatched here</p>} />);
+    expect(screen.getByText("Unmatched here")).toBeInTheDocument();
+  });
+
+  it("renderAttemptAction reaches the drawer's attempts", () => {
+    render(<CallsClient dashboard={DASHBOARD} openCallId={AVA} panel={PANEL} panelFailed={false} renderAttemptAction={(a) => <span>{`slot ${a.key}`}</span>} />);
+    expect(within(screen.getByRole("dialog")).getByText("slot e1")).toBeInTheDocument();
+  });
+});
