@@ -16,8 +16,8 @@ import { UnmatchedCalls } from "./UnmatchedCalls";
 const LIST: UnmatchedList = {
   total: 2,
   calls: [
-    { callSid: "CAun0001", number: "+44 (0) 7700 900 599", when: "Tue 9 Feb, 14:03 (London time)", direction: "Outgoing", result: "Answered", duration: "6 min 12 s", reason: "No family with this number" },
-    { callSid: "CAun0002", number: "+44 (0) 7700 900 123", when: "Tue 9 Feb, 15:00 (London time)", direction: "Incoming", result: "No answer", duration: "—", reason: "Number on more than one family" },
+    { callSid: "CAun0001", number: "+44 (0) 7700 900 599", when: "Tue 9 Feb, 14:03 (London time)", direction: "Outgoing", result: "Answered", duration: "6 min 12 s", reason: "No family with this number", resultCode: "answered", matchNote: "none" },
+    { callSid: "CAun0002", number: "+44 (0) 7700 900 123", when: "Tue 9 Feb, 15:00 (London time)", direction: "Incoming", result: "No answer", duration: "—", reason: "Number on more than one family", resultCode: "no_answer", matchNote: "several" },
   ],
 };
 
@@ -53,6 +53,7 @@ describe("UnmatchedCalls", () => {
     expect(screen.getByText("None right now.")).toBeInTheDocument();
     rerender(<UnmatchedCalls list={null} onChanged={vi.fn()} />);
     expect(screen.getByRole("alert")).toHaveTextContent("The JustCall calls could not be read — reload to try again.");
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(/^Unmatched JustCall calls$/);
   });
 
   it("more than shown → 'Showing the newest 100.'", () => {
@@ -75,6 +76,37 @@ describe("UnmatchedCalls", () => {
     expect(h.dismissJustCallAction).toHaveBeenCalledWith({ callSid: "CAun0001" });
     expect(onChanged).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("status")).toHaveTextContent("Dismissed.");
+  });
+
+  it("focus (review H1): to the question's Dismiss when asked; back to the row's Dismiss on Keep; to the heading once dismissed", async () => {
+    const user = userEvent.setup();
+    render(<UnmatchedCalls list={LIST} onChanged={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Dismiss: +44 (0) 7700 900 599" }));
+    const question = screen.getByRole("group", { name: "Dismiss this call? It leaves the list.: +44 (0) 7700 900 599" });
+    expect(within(question).getByRole("button", { name: "Dismiss" })).toHaveFocus();
+    await user.click(within(question).getByRole("button", { name: "Keep" }));
+    expect(screen.getByRole("button", { name: "Dismiss: +44 (0) 7700 900 599" })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Dismiss: +44 (0) 7700 900 599" }));
+    await user.click(within(screen.getByRole("group")).getByRole("button", { name: "Dismiss" }));
+    expect(screen.getByRole("heading", { level: 2 })).toHaveFocus();
+  });
+
+  it("a dismissed call leaves the table at once, before the refresh lands (review L10)", async () => {
+    const user = userEvent.setup();
+    render(<UnmatchedCalls list={LIST} onChanged={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Dismiss: +44 (0) 7700 900 599" }));
+    await user.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText("+44 (0) 7700 900 599")).toBeNull();
+    expect(screen.getByText("+44 (0) 7700 900 123")).toBeInTheDocument();
+  });
+
+  it("while a dismiss is in flight every row's buttons wait (TS review L)", async () => {
+    const user = userEvent.setup();
+    h.dismissJustCallAction.mockImplementation(() => new Promise(() => {}));
+    render(<UnmatchedCalls list={LIST} onChanged={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Dismiss: +44 (0) 7700 900 599" }));
+    await user.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.getByRole("button", { name: "Attach to family: +44 (0) 7700 900 123" })).toBeDisabled();
   });
 
   it("a dismiss refused shows its line, and nothing refreshes", async () => {

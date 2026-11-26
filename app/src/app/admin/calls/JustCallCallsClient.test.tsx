@@ -30,12 +30,13 @@ const jc = vi.hoisted(() => ({
 vi.mock("./justcall-actions", () => jc);
 
 import type { FamilyPanel } from "@/lib/calls/family-panel";
+import type { UnmatchedList } from "@/lib/justcall/types";
 import { JustCallCallsClient } from "./JustCallCallsClient";
 import { AVA, DASHBOARD, PANEL } from "./calls-fixtures.test-util";
 
-const UNMATCHED = {
+const UNMATCHED: UnmatchedList = {
   total: 1,
-  calls: [{ callSid: "CAun0001", number: "+44 (0) 7700 900 599", when: "Tue 9 Feb, 14:03 (London time)", direction: "Outgoing", result: "Answered", duration: "6 min 12 s", reason: "No family with this number" }],
+  calls: [{ callSid: "CAun0001", number: "+44 (0) 7700 900 599", when: "Tue 9 Feb, 14:03 (London time)", direction: "Outgoing", result: "Answered", duration: "6 min 12 s", reason: "No family with this number", resultCode: "answered", matchNote: "none" }],
 };
 const WITH_JUSTCALL: FamilyPanel = {
   ...PANEL,
@@ -81,7 +82,7 @@ describe("JustCallCallsClient", () => {
     render(<JustCallCallsClient dashboard={DASHBOARD} openCallId={AVA} panel={WITH_JUSTCALL} panelFailed={false} unmatched={UNMATCHED} />);
     const drawer = screen.getByRole("dialog");
     expect(within(drawer).getByText("JustCall notes: wants Tuesdays")).toBeInTheDocument();
-    await user.click(within(drawer).getByRole("button", { name: "Add outcome" }));
+    await user.click(within(drawer).getByRole("button", { name: "Add outcome: Tue 9 Feb, 14:03 (London time)" }));
     const forms = within(drawer).getAllByRole("button", { name: "Save outcome" });
     await user.click(forms[forms.length - 1]);
     expect(jc.saveJustCallOutcomeAction).toHaveBeenCalledWith(expect.objectContaining({ parentUserId: AVA, bookingId: PANEL.booking?.bookingId, callSid: "CAtest0001", result: "answered" }));

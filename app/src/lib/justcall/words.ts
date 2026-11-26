@@ -47,6 +47,9 @@ export const JUSTCALL_COPY = Object.freeze({
   noFamilyFound: "No family found.",
   searchHint: "Type at least 2 letters of a name, or a mobile.",
   attachAction: (name: string) => `Attach to ${name}`,
+  chooseFamily: "Choose a family",
+  familiesFound: (n: number) => (n === 1 ? "1 family found." : `${n} families found.`),
+  outcomeSaved: "Outcome saved.",
   attached: "Attached.",
   dismissed: "Dismissed.",
   addOutcome: "Add outcome",
@@ -145,5 +148,7 @@ export function unmatchedView(call: UnmatchedCall): UnmatchedCallView {
     result: call.mappedResult === null ? "—" : resultLabel(call.mappedResult),
     duration: durationWords(call.durationSeconds) ?? "—",
     reason: unmatchedReason(call.matchNote),
+    resultCode: call.mappedResult,
+    matchNote: call.matchNote,
   };
 }

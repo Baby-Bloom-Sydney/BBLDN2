@@ -5,19 +5,21 @@
  * BB-wave2-231126/05-build.
  *
  * "Unmatched JustCall calls (3)": a captioned table, as 04's lists — number, London time, direction, result, length,
- * why it is Unmatched (`StatusBadge`: the result answered green / no answer slate; no family grey, more than one
- * amber) — with **Attach to family** (a dialog: search, pick, confirm) and **Dismiss** (asked once: Dismiss or Keep).
- * The table scrolls sideways on a narrow screen. A change refreshes the page (`onChanged`); its outcome is one status
- * or alert line. Only calls with a result are listed, the newest 100 (the server's rule).
+ * why it is Unmatched (`StatusBadge`, toned from the codes: answered green, no answer slate; no family grey, more than
+ * one amber) — with **Attach to family** (a dialog: search, pick, confirm) and **Dismiss** (asked once: Dismiss or Keep).
+ * The table scrolls sideways on a narrow screen. Only calls with a result are listed, the newest 100 (the server's rule).
+ *
+ * After the React review: focus goes to the question's Dismiss when it is asked, back to the row's Dismiss on Keep, and
+ * to the heading once a call is dismissed or attached (its row leaves the table at once, before the refresh lands);
+ * while one change is in flight every row's buttons wait; a new change clears the last one's line.
  */
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { dismissJustCallAction } from "@/app/admin/calls/justcall-actions";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ADMIN_COPY } from "@/lib/calls/copy";
-import { resultLabel } from "@/lib/calls/outcomes";
 import type { UnmatchedCallView, UnmatchedList } from "@/lib/justcall/types";
 import { JUSTCALL_COPY, justcallErrorLine, unmatchedHeading } from "@/lib/justcall/words";
 import { AttachDialog } from "./AttachDialog";
@@ -37,12 +39,11 @@ const COLUMNS = [
   JUSTCALL_COPY.colReason,
 ] as const;
 
-const resultTone = (result: string) => (result === resultLabel("answered") ? "active" : "unattempted");
-const reasonTone = (reason: string) => (reason === JUSTCALL_COPY.reasonSeveral ? "pending" : "inactive");
-
 interface RowActionsProps {
   readonly call: UnmatchedCallView;
   readonly confirming: boolean;
+  /** Focus this row's Dismiss when it is drawn (after Keep). */
+  readonly refocus: boolean;
   readonly busy: boolean;
   readonly onAttach: () => void;
   readonly onAsk: () => void;
@@ -50,51 +51,78 @@ interface RowActionsProps {
   readonly onDismiss: () => void;
 }
 
-function RowActions({ call, confirming, busy, onAttach, onAsk, onKeep, onDismiss }: RowActionsProps) {
-  if (confirming) {
-    return (
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-slate-700">{JUSTCALL_COPY.dismissConfirm}</span>
-        <Button type="button" size="sm" variant="destructive" onClick={onDismiss} disabled={busy}>
-          {JUSTCALL_COPY.dismiss}
-        </Button>
-        <Button type="button" size="sm" variant="outline" onClick={onKeep} disabled={busy}>
-          {JUSTCALL_COPY.keep}
-        </Button>
-      </div>
-    );
-  }
+function DismissQuestion({ call, busy, onDismiss, onKeep }: Pick<RowActionsProps, "call" | "busy" | "onDismiss" | "onKeep">) {
+  const yes = useRef<HTMLButtonElement>(null);
+  useEffect(() => yes.current?.focus(), []);
+  return (
+    <div role="group" aria-label={`${JUSTCALL_COPY.dismissConfirm}: ${call.number}`} className="flex flex-wrap items-center gap-2">
+      <span className="text-xs text-slate-700">{JUSTCALL_COPY.dismissConfirm}</span>
+      <Button ref={yes} type="button" size="sm" variant="destructive" onClick={onDismiss} disabled={busy}>
+        {JUSTCALL_COPY.dismiss}
+      </Button>
+      <Button type="button" size="sm" variant="outline" onClick={onKeep} disabled={busy}>
+        {JUSTCALL_COPY.keep}
+      </Button>
+    </div>
+  );
+}
+
+function RowActions({ call, confirming, refocus, busy, onAttach, onAsk, onKeep, onDismiss }: RowActionsProps) {
+  const dismissButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (refocus && !confirming) dismissButton.current?.focus();
+  }, [refocus, confirming]);
+  if (confirming) return <DismissQuestion call={call} busy={busy} onDismiss={onDismiss} onKeep={onKeep} />;
   return (
     <div className="flex flex-wrap gap-2">
-      <Button type="button" size="sm" variant="outline" onClick={onAttach} aria-label={`${JUSTCALL_COPY.attach}: ${call.number}`}>
+      <Button type="button" size="sm" variant="outline" onClick={onAttach} disabled={busy} aria-label={`${JUSTCALL_COPY.attach}: ${call.number}`}>
         {JUSTCALL_COPY.attach}
       </Button>
-      <Button type="button" size="sm" variant="ghost" onClick={onAsk} aria-label={`${JUSTCALL_COPY.dismiss}: ${call.number}`}>
+      <Button ref={dismissButton} type="button" size="sm" variant="ghost" onClick={onAsk} disabled={busy} aria-label={`${JUSTCALL_COPY.dismiss}: ${call.number}`}>
         {JUSTCALL_COPY.dismiss}
       </Button>
     </div>
   );
 }
 
-/** Dismiss, one at a time: ask, then the action; the outcome as one line. */
-function useDismiss(onChanged: () => void) {
+/** The list's changes: one at a time, their outcome as one line, a call gone from the table once it is handled. */
+function useUnmatchedChanges(onChanged: () => void, focusHeading: () => void) {
   const inFlight = useRef(false);
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [refocus, setRefocus] = useState<string | null>(null);
+  const [gone, setGone] = useState<ReadonlySet<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const start = () => {
+    setError(null);
+    setStatus("");
+  };
+  const handled = (callSid: string, line: string) => {
+    setGone((before) => new Set([...before, callSid]));
+    setStatus(line);
+    onChanged();
+  };
+  const ask = (callSid: string) => {
+    start();
+    setRefocus(null);
+    setConfirming(callSid);
+  };
+  const keep = () => {
+    setRefocus(confirming);
+    setConfirming(null);
+  };
   const dismiss = async (callSid: string) => {
     if (inFlight.current) return;
     inFlight.current = true;
     setBusy(true);
-    setError(null);
-    setStatus("");
+    start();
     try {
       const done = await dismissJustCallAction({ callSid });
       if (!done.ok) return setError(justcallErrorLine(done.error));
       setConfirming(null);
-      setStatus(JUSTCALL_COPY.dismissed);
-      onChanged();
+      handled(callSid, JUSTCALL_COPY.dismissed);
+      focusHeading();
     } catch {
       setError(justcallErrorLine("error"));
     } finally {
@@ -102,10 +130,12 @@ function useDismiss(onChanged: () => void) {
       setBusy(false);
     }
   };
-  return { confirming, setConfirming, busy, status, setStatus, error, dismiss };
+  return { confirming, refocus, gone, busy, status, error, start, handled, ask, keep, dismiss };
 }
 
-function CallsTable({ calls, d, onAttach }: { readonly calls: readonly UnmatchedCallView[]; readonly d: ReturnType<typeof useDismiss>; readonly onAttach: (call: UnmatchedCallView) => void }) {
+type Changes = ReturnType<typeof useUnmatchedChanges>;
+
+function CallsTable({ calls, c, onAttach }: { readonly calls: readonly UnmatchedCallView[]; readonly c: Changes; readonly onAttach: (call: UnmatchedCallView) => void }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
       <Table>
@@ -121,27 +151,28 @@ function CallsTable({ calls, d, onAttach }: { readonly calls: readonly Unmatched
           </TableRow>
         </TableHeader>
         <TableBody>
-          {calls.map((c) => (
-            <TableRow key={c.callSid} className="align-top">
-              <TableCell className="whitespace-nowrap font-medium text-slate-900">{c.number}</TableCell>
-              <TableCell className="whitespace-nowrap text-slate-700">{c.when}</TableCell>
-              <TableCell className="text-slate-700">{c.direction}</TableCell>
+          {calls.map((call) => (
+            <TableRow key={call.callSid} className="align-top">
+              <TableCell className="whitespace-nowrap font-medium text-slate-900">{call.number}</TableCell>
+              <TableCell className="whitespace-nowrap text-slate-700">{call.when}</TableCell>
+              <TableCell className="text-slate-700">{call.direction}</TableCell>
               <TableCell>
-                <StatusBadge variant={resultTone(c.result)}>{c.result}</StatusBadge>
+                <StatusBadge variant={call.resultCode === "answered" ? "active" : "unattempted"}>{call.result}</StatusBadge>
               </TableCell>
-              <TableCell className="whitespace-nowrap text-slate-700">{c.duration}</TableCell>
+              <TableCell className="whitespace-nowrap text-slate-700">{call.duration}</TableCell>
               <TableCell>
-                <StatusBadge variant={reasonTone(c.reason)}>{c.reason}</StatusBadge>
+                <StatusBadge variant={call.matchNote === "several" ? "pending" : "inactive"}>{call.reason}</StatusBadge>
               </TableCell>
               <TableCell>
                 <RowActions
-                  call={c}
-                  confirming={d.confirming === c.callSid}
-                  busy={d.busy}
-                  onAttach={() => onAttach(c)}
-                  onAsk={() => d.setConfirming(c.callSid)}
-                  onKeep={() => d.setConfirming(null)}
-                  onDismiss={() => void d.dismiss(c.callSid)}
+                  call={call}
+                  confirming={c.confirming === call.callSid}
+                  refocus={c.refocus === call.callSid}
+                  busy={c.busy}
+                  onAttach={() => onAttach(call)}
+                  onAsk={() => c.ask(call.callSid)}
+                  onKeep={c.keep}
+                  onDismiss={() => void c.dismiss(call.callSid)}
                 />
               </TableCell>
             </TableRow>
@@ -152,39 +183,49 @@ function CallsTable({ calls, d, onAttach }: { readonly calls: readonly Unmatched
   );
 }
 
+function Body({ list, c, onAttach }: { readonly list: UnmatchedList | null; readonly c: Changes; readonly onAttach: (call: UnmatchedCallView) => void }) {
+  if (list === null) {
+    return (
+      <p role="alert" className="text-sm text-amber-700">
+        {JUSTCALL_COPY.unmatchedFailed}
+      </p>
+    );
+  }
+  const calls = list.calls.filter((call) => !c.gone.has(call.callSid));
+  if (calls.length === 0) return <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">{ADMIN_COPY.sectionEmpty}</p>;
+  return <CallsTable calls={calls} c={c} onAttach={onAttach} />;
+}
+
 export function UnmatchedCalls({ list, onChanged }: UnmatchedCallsProps) {
   const headingId = useId();
-  const d = useDismiss(onChanged);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const c = useUnmatchedChanges(onChanged, () => heading.current?.focus());
   const [attaching, setAttaching] = useState<UnmatchedCallView | null>(null);
+  const hiddenHere = list === null ? 0 : list.calls.filter((call) => c.gone.has(call.callSid)).length;
+  const attach = (call: UnmatchedCallView) => {
+    c.start();
+    setAttaching(call);
+  };
   const attached = () => {
+    if (attaching !== null) c.handled(attaching.callSid, JUSTCALL_COPY.attached);
     setAttaching(null);
-    d.setStatus(JUSTCALL_COPY.attached);
-    onChanged();
   };
   return (
     <section aria-labelledby={headingId} className="mt-6 space-y-2">
-      <h2 id={headingId} className="text-sm font-semibold text-slate-900">
-        {unmatchedHeading(list?.total ?? 0)}
+      <h2 id={headingId} ref={heading} tabIndex={-1} className="text-sm font-semibold text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500">
+        {list === null ? JUSTCALL_COPY.unmatchedTitle : unmatchedHeading(Math.max(0, list.total - hiddenHere))}
       </h2>
-      {list === null ? (
-        <p role="alert" className="text-sm text-amber-700">
-          {JUSTCALL_COPY.unmatchedFailed}
-        </p>
-      ) : list.calls.length === 0 ? (
-        <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">{ADMIN_COPY.sectionEmpty}</p>
-      ) : (
-        <CallsTable calls={list.calls} d={d} onAttach={setAttaching} />
-      )}
+      <Body list={list} c={c} onAttach={attach} />
       {list !== null && list.total > list.calls.length && <p className="text-xs text-slate-500">{JUSTCALL_COPY.unmatchedMore}</p>}
-      {d.error && (
+      {c.error && (
         <p role="alert" className="rounded bg-red-50 px-2 py-1 text-xs text-red-700">
-          {d.error}
+          {c.error}
         </p>
       )}
-      <p role="status" className={d.status ? "text-xs text-green-700" : "sr-only"}>
-        {d.status}
+      <p role="status" className={c.status ? "text-xs text-green-700" : "sr-only"}>
+        {c.status}
       </p>
-      <AttachDialog call={attaching} onClose={() => setAttaching(null)} onAttached={attached} />
+      <AttachDialog call={attaching} onClose={() => setAttaching(null)} onAttached={attached} focusAfterAttach={() => heading.current?.focus()} />
     </section>
   );
 }

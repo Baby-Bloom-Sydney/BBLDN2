@@ -19,23 +19,17 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { proveAdmin, type AdminProof } from "@/lib/calls/admin-proof";
 import { CLOCK_PATTERN } from "@/lib/calls/calendar";
-import { CALL_OUTCOMES, CALL_RESULTS, checkOutcome } from "@/lib/calls/outcomes";
-import type { CallOutcomeCode, CallResultCode } from "@/lib/calls/types";
+import { checkOutcome } from "@/lib/calls/outcomes";
 import { justcallWebhookEnabled } from "@/lib/features/flags";
-import { attachCall, dismissCall, saveJustCallOutcome, searchParentsForAttach } from "@/lib/justcall/admin";
-import { CALL_SID_PATTERN, type JustCallActionResult, type ParentChoice } from "@/lib/justcall/types";
+import { ATTACH_INPUT, DISMISS_INPUT, SAVE_FIELDS, attachCall, dismissCall, saveJustCallOutcome, searchParentsForAttach } from "@/lib/justcall/admin";
+import type { JustCallActionResult, ParentChoice } from "@/lib/justcall/types";
 import { localToUTC, wallClockExists } from "@/lib/timezone";
 
 const PAGE = "/admin/calls";
 
-const sid = z.string().regex(CALL_SID_PATTERN);
 const saveInput = z
   .strictObject({
-    parentUserId: z.uuid(),
-    bookingId: z.uuid().nullable(),
-    callSid: sid,
-    result: z.enum(CALL_RESULTS as [CallResultCode, ...CallResultCode[]]).nullable(),
-    outcome: z.enum(CALL_OUTCOMES as [CallOutcomeCode, ...CallOutcomeCode[]]).nullable(),
+    ...SAVE_FIELDS,
     note: z
       .string()
       .max(2000)
@@ -47,8 +41,6 @@ const saveInput = z
   .refine((i) => ((i.callBackDate ?? null) === null) === ((i.callBackTime ?? null) === null))
   .refine((i) => (i.callBackDate ?? null) === null || i.outcome === "call_back_later")
   .refine(checkOutcome);
-const attachInput = z.strictObject({ callSid: sid, parentUserId: z.uuid() });
-const dismissInput = z.strictObject({ callSid: sid });
 const searchInput = z.strictObject({ query: z.string().max(100) });
 
 type Gate<T> = { readonly ok: true; readonly proof: AdminProof; readonly input: T } | { readonly ok: false; readonly error: "justcall_disabled" | "not_authorized" | "invalid" };
@@ -96,14 +88,14 @@ export async function saveJustCallOutcomeAction(input: unknown): Promise<JustCal
 
 /** An Unmatched call onto a family (brief §0.9). */
 export async function attachJustCallAction(input: unknown): Promise<JustCallActionResult<{ readonly entryCreated: boolean }>> {
-  const g = await gate(attachInput, input);
+  const g = await gate(ATTACH_INPUT, input);
   if (!g.ok) return g;
   return run(() => attachCall(g.proof, g.input), true);
 }
 
 /** An Unmatched call off the list. */
 export async function dismissJustCallAction(input: unknown): Promise<JustCallActionResult<{ readonly replay: boolean }>> {
-  const g = await gate(dismissInput, input);
+  const g = await gate(DISMISS_INPUT, input);
   if (!g.ok) return g;
   return run(() => dismissCall(g.proof, g.input), true);
 }

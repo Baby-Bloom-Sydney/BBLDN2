@@ -43,15 +43,17 @@ describe("JustCallAttemptAction", () => {
     render(<JustCallAttemptAction attempt={done} family={FAMILY} onSaved={vi.fn()} />);
     expect(screen.getByText("JustCall notes: wants Tuesdays")).toBeInTheDocument();
     expect(screen.getByText("JustCall disposition: Link sent")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Add outcome" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Add outcome/ })).toBeNull();
   });
 
   it("outcome needed → Add outcome opens 04's form: Answered chosen, the JustCall line read-only", async () => {
     const user = userEvent.setup();
     render(<JustCallAttemptAction attempt={NEEDS} family={FAMILY} onSaved={vi.fn()} />);
-    const add = screen.getByRole("button", { name: "Add outcome" });
+    const add = screen.getByRole("button", { name: "Add outcome: Tue 9 Feb, 14:03 (London time)" });
     expect(add).toHaveAttribute("aria-expanded", "false");
+    expect(add).not.toHaveAttribute("aria-controls");
     await user.click(add);
+    expect(document.getElementById(add.getAttribute("aria-controls") ?? "")).not.toBeNull();
     expect(add).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("button", { name: "Answered" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("JustCall · Outgoing · 6 min 12 s · Ref CAtest0001")).toBeInTheDocument();
@@ -61,7 +63,7 @@ describe("JustCallAttemptAction", () => {
     const user = userEvent.setup();
     const onSaved = vi.fn();
     render(<JustCallAttemptAction attempt={NEEDS} family={FAMILY} onSaved={onSaved} />);
-    await user.click(screen.getByRole("button", { name: "Add outcome" }));
+    await user.click(screen.getByRole("button", { name: "Add outcome: Tue 9 Feb, 14:03 (London time)" }));
     await user.click(screen.getByRole("button", { name: "Link sent" }));
     await user.click(screen.getByRole("button", { name: "Save outcome" }));
     expect(h.saveJustCallOutcomeAction).toHaveBeenCalledWith({
@@ -69,16 +71,28 @@ describe("JustCallAttemptAction", () => {
     });
     expect(h.recordCallOutcomeAction).not.toHaveBeenCalled();
     expect(onSaved).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: "Add outcome" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("button", { name: "Add outcome: Tue 9 Feb, 14:03 (London time)" })).toHaveAttribute("aria-expanded", "false");
   });
 
   it("a refusal shows its line and keeps the form open", async () => {
     const user = userEvent.setup();
     h.saveJustCallOutcomeAction.mockResolvedValue({ ok: false, error: "not_yours" });
     render(<JustCallAttemptAction attempt={NEEDS} family={FAMILY} onSaved={vi.fn()} />);
-    await user.click(screen.getByRole("button", { name: "Add outcome" }));
+    await user.click(screen.getByRole("button", { name: "Add outcome: Tue 9 Feb, 14:03 (London time)" }));
     await user.click(screen.getByRole("button", { name: "Save outcome" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("That call belongs to another family — reload to see it.");
     expect(screen.getByRole("button", { name: "Save outcome" })).toBeInTheDocument();
+  });
+});
+
+describe("JustCallAttemptAction — after a save (review M5)", () => {
+  it("says Saved. in a status line that stays, and moves focus to it", async () => {
+    const user = userEvent.setup();
+    render(<JustCallAttemptAction attempt={NEEDS} family={FAMILY} onSaved={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: /Add outcome/ }));
+    await user.click(screen.getByRole("button", { name: "Save outcome" }));
+    const status = await screen.findByText("Outcome saved.");
+    expect(status.closest("[role=status]")).not.toBeNull();
+    expect(status.closest("[tabindex='-1']")).toHaveFocus();
   });
 });

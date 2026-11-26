@@ -71,6 +71,9 @@ export interface UnmatchedCallView {
   readonly result: string;
   readonly duration: string;
   readonly reason: string;
+  /** The codes behind `result` and `reason`, for the badges' tones (never matched on display words). */
+  readonly resultCode: "answered" | "no_answer" | null;
+  readonly matchNote: "none" | "several";
 }
 
 export interface UnmatchedList {

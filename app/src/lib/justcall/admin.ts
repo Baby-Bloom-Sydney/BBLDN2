@@ -61,15 +61,20 @@ export interface JustCallSaveInput {
 }
 
 const sid = z.string().regex(CALL_SID_PATTERN);
-const attachInput = z.strictObject({ callSid: sid, parentUserId: z.uuid() });
-const dismissInput = z.strictObject({ callSid: sid });
+/** The inputs `justcall-actions.ts` parses too (one definition; the reviews' shared-schema point). */
+export const ATTACH_INPUT = z.strictObject({ callSid: sid, parentUserId: z.uuid() });
+export const DISMISS_INPUT = z.strictObject({ callSid: sid });
+/** A save's fields both sides share; the action adds the typed call-back date and time and trims the note. */
+export const SAVE_FIELDS = {
+  parentUserId: z.uuid(),
+  bookingId: z.uuid().nullable(),
+  callSid: sid,
+  result: z.enum(CALL_RESULTS).nullable(),
+  outcome: z.enum(CALL_OUTCOMES).nullable(),
+} as const;
 const saveInput = z
   .strictObject({
-    parentUserId: z.uuid(),
-    bookingId: z.uuid().nullable(),
-    callSid: sid,
-    result: z.enum(CALL_RESULTS as [CallResultCode, ...CallResultCode[]]).nullable(),
-    outcome: z.enum(CALL_OUTCOMES as [CallOutcomeCode, ...CallOutcomeCode[]]).nullable(),
+    ...SAVE_FIELDS,
     note: z.string().max(2000).nullable(),
     callBackAt: z.iso.datetime({ offset: true }).nullable(),
   })
@@ -136,7 +141,7 @@ export async function justcallAttemptsFor(
 export async function attachCall(proof: AdminProof, input: unknown, deps: AdminDeps = defaultAdminDeps()): Promise<JustCallActionResult<{ readonly entryCreated: boolean }>> {
   const shut = gate(proof);
   if (shut) return shut;
-  const parsed = attachInput.safeParse(input);
+  const parsed = ATTACH_INPUT.safeParse(input);
   if (!parsed.success) return INVALID;
   const attached = await deps.repo.attachCall(parsed.data.callSid, parsed.data.parentUserId, proof.userId);
   return attached.ok ? { ok: true, value: { entryCreated: attached.value.entryCreated } } : refused(attached.error);
@@ -145,7 +150,7 @@ export async function attachCall(proof: AdminProof, input: unknown, deps: AdminD
 export async function dismissCall(proof: AdminProof, input: unknown, deps: AdminDeps = defaultAdminDeps()): Promise<JustCallActionResult<{ readonly replay: boolean }>> {
   const shut = gate(proof);
   if (shut) return shut;
-  const parsed = dismissInput.safeParse(input);
+  const parsed = DISMISS_INPUT.safeParse(input);
   if (!parsed.success) return INVALID;
   const dismissed = await deps.repo.dismissCall(parsed.data.callSid, proof.userId);
   return dismissed.ok ? { ok: true, value: dismissed.value } : refused(dismissed.error);

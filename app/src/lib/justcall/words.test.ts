@@ -118,9 +118,11 @@ describe("the Unmatched list's words", () => {
       result: "Answered",
       duration: "6 min 12 s",
       reason: "No family with this number",
+      resultCode: "answered",
+      matchNote: "none",
     });
     expect(unmatchedView({ ...DETAILS, mappedResult: "no_answer", durationSeconds: null, contactNumber: null, matchNote: "several" })).toMatchObject({
-      number: "Unknown number", result: "No answer", duration: "—", reason: "Number on more than one family",
+      number: "Unknown number", result: "No answer", duration: "—", reason: "Number on more than one family", resultCode: "no_answer", matchNote: "several",
     });
   });
 });

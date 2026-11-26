@@ -16,7 +16,9 @@ const h = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/admin/require-admin", () => ({ requireAdmin: h.requireAdmin }));
 vi.mock("next/cache", () => ({ revalidatePath: h.revalidatePath }));
-vi.mock("@/lib/justcall/admin", () => ({
+// The schemas are the real ones (shared with admin.ts); the operations are fakes.
+vi.mock("@/lib/justcall/admin", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/justcall/admin")>()),
   saveJustCallOutcome: h.saveJustCallOutcome,
   attachCall: h.attachCall,
   dismissCall: h.dismissCall,

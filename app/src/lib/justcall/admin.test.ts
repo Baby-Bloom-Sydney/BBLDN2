@@ -95,7 +95,7 @@ describe("listUnmatched", () => {
     const { d, adminRepo } = deps();
     expect(await listUnmatched(proof, d)).toEqual({ ok: true, value: { total: 1, calls: [{
       callSid: "CAun0001", number: "+44 (0) 7700 900 599", when: "Tue 9 Feb, 14:03 (London time)", direction: "Outgoing",
-      result: "Answered", duration: "6 min 12 s", reason: "No family with this number",
+      result: "Answered", duration: "6 min 12 s", reason: "No family with this number", resultCode: "answered", matchNote: "none",
     }] } });
     expect(adminRepo.readUnmatched).toHaveBeenCalledWith(UNMATCHED_LIMIT);
     expect(UNMATCHED_LIMIT).toBe(100);
