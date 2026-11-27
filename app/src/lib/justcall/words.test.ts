@@ -16,6 +16,11 @@ import {
   unmatchedHeading,
   unmatchedReason,
   unmatchedView,
+  afterCallLine,
+  callFallbackReason,
+  callPhaseWord,
+  DIALER_COPY,
+  dialerSignInLine,
 } from "./words";
 
 const DETAILS: JustCallDetails = {
@@ -146,5 +151,42 @@ describe("justcallErrorLine", () => {
     expect(JUSTCALL_COPY.attach).toBe("Attach to family");
     expect(JUSTCALL_COPY.dismiss).toBe("Dismiss");
     expect(JUSTCALL_COPY.addOutcome).toBe("Add outcome");
+  });
+});
+
+describe("the dialer's words (05b; brief §0.1, §3.1–3.8)", () => {
+  it("the sign-in line for each state", () => {
+    expect(dialerSignInLine("loading", null)).toBe("JustCall is loading…");
+    expect(dialerSignInLine("signed_out", null)).toBe("Sign in to JustCall");
+    expect(dialerSignInLine("signed_in", "agent@example.test")).toBe("JustCall: signed in as agent@example.test");
+    expect(dialerSignInLine("signed_in", null)).toBe("JustCall: signed in");
+    expect(dialerSignInLine("failed", null)).toBe("JustCall didn't load — reload the page to try again.");
+    expect(dialerSignInLine("off", null)).toBe("");
+  });
+
+  it("the call's phase: Ringing, On call, Ended; nothing when idle", () => {
+    expect(["ringing", "on_call", "ended", "idle"].map((k) => callPhaseWord(k as "ringing" | "on_call" | "ended" | "idle"))).toEqual(["Ringing", "On call", "Ended", null]);
+  });
+
+  it("why Call falls back to the phone link — or null when it can dial (or the dialer isn't here at all)", () => {
+    expect(callFallbackReason("loading", false)).toBe("JustCall is still loading");
+    expect(callFallbackReason("signed_out", false)).toBe("Sign in to JustCall to call from here");
+    expect(callFallbackReason("failed", false)).toBe("JustCall didn't load");
+    expect(callFallbackReason("signed_in", true)).toBe("On a call");
+    expect(callFallbackReason("signed_in", false)).toBeNull();
+    expect(callFallbackReason("off", false)).toBeNull();
+  });
+
+  it("the after-call line: JustCall, the direction, the length, the reference", () => {
+    expect(afterCallLine({ outbound: true, seconds: 372, callSid: "CAab12" })).toBe("JustCall · Outgoing · 6 min 12 s · Ref CAab12");
+    expect(afterCallLine({ outbound: false, seconds: 0, callSid: "CAin1" })).toBe("JustCall · Incoming · 0 s · Ref CAin1");
+  });
+
+  it("the page's lines", () => {
+    expect(DIALER_COPY.phone).toBe("On a phone, use the JustCall app — your calls still log here");
+    expect(DIALER_COPY.callNext).toBe("Call next");
+    expect(DIALER_COPY.noOneLeft).toBe("No one left to call right now.");
+    expect(DIALER_COPY.saveAndCallNext).toBe("Save and call next");
+    expect(DIALER_COPY.call).toBe("Call");
   });
 });
