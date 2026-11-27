@@ -5,7 +5,7 @@ import { proveAdmin } from "@/lib/calls/admin-proof";
 import { ADMIN_COPY } from "@/lib/calls/copy";
 import { loadCallsDashboard } from "@/lib/calls/dashboard";
 import { loadFamilyPanel } from "@/lib/calls/family-panel";
-import { callBookingEnabled, justcallWebhookEnabled } from "@/lib/features/flags";
+import { callBookingEnabled, justcallEnabled, justcallWebhookEnabled } from "@/lib/features/flags";
 import { listUnmatched } from "@/lib/justcall/admin";
 import { CallsClient } from "./CallsClient";
 import { JustCallCallsClient } from "./JustCallCallsClient";
@@ -24,6 +24,9 @@ import { JustCallCallsClient } from "./JustCallCallsClient";
  * booking too), the Unmatched JustCall calls are read alongside, after the proof, and the page renders
  * `JustCallCallsClient` (04's client with 05's two slots). With it off: no JustCall read, and `CallsClient` exactly as
  * today (`page.test.tsx`'s snapshots).
+ *
+ * 05b (plan D1): `JustCallCallsClient` is picked when either JustCall switch is on — `JUSTCALL_ENABLED` brings the
+ * dialer, Call next and the after-call form; the Unmatched list is still read only with logging on. Both off: today's.
  */
 export const dynamic = "force-dynamic";
 
@@ -45,6 +48,7 @@ export default async function AdminCallsPage({ searchParams }: AdminCallsPagePro
   if (!proof) notFound();
   const openCallId = openCallParam(searchParams);
   const logging = justcallWebhookEnabled();
+  const dialer = justcallEnabled();
   const [dashboard, panel, calendar, unmatched] = await Promise.all([
     loadCallsDashboard(proof),
     openCallId ? loadFamilyPanel(proof, openCallId) : Promise.resolve(null),
@@ -63,7 +67,11 @@ export default async function AdminCallsPage({ searchParams }: AdminCallsPagePro
     <div className="mx-auto max-w-7xl px-4 py-10">
       <h1 className="text-2xl font-bold text-slate-900">{ADMIN_COPY.pageHeading}</h1>
       <p className="mt-1 text-sm text-slate-500">{`${ADMIN_COPY.pageIntro} ${ADMIN_COPY.londonNote}`}</p>
-      {logging ? <JustCallCallsClient {...client} unmatched={unmatched?.ok ? unmatched.value : null} /> : <CallsClient {...client} />}
+      {logging || dialer ? (
+        <JustCallCallsClient {...client} logging={logging} dialer={dialer} unmatched={unmatched?.ok ? unmatched.value : null} />
+      ) : (
+        <CallsClient {...client} />
+      )}
     </div>
   );
 }
