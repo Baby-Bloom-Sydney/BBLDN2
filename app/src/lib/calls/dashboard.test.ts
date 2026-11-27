@@ -329,3 +329,24 @@ describe("a row (brief §0.9)", () => {
     expect(await loadCallsDashboard(PROOF, deps)).toEqual({ ok: false, error: "error" });
   });
 });
+
+describe("History with JustCall logging on (brief 05 §0.5–§0.6; 05a-2, D4)", () => {
+  const JC = entryRow({ parentUserId: id(8), occurredAt: "2027-02-03T16:00:00.000Z", result: "answered", method: "justcall", source: "justcall", justcallCallId: "CAtest0001" });
+  const words = { callSid: "CAtest0001", needsOutcome: true, what: "JustCall · Outgoing · Answered — outcome needed · 6 min 12 s", lines: [], summary: "JustCall · Outgoing · 6 min 12 s · Ref CAtest0001" };
+
+  it("a JustCall entry reads in 05's words and carries its sid and whether an outcome is needed", async () => {
+    const justcallAttempts = vi.fn(async () => new Map([[JC.id, words]]));
+    const { board: b } = await board({ entries: [JC] }, { justcallAttempts });
+    expect(b.history?.[0]).toMatchObject({ what: words.what, justcall: { callSid: "CAtest0001", needsOutcome: true } });
+    expect(justcallAttempts).toHaveBeenCalledWith(PROOF, [JC]);
+  });
+
+  it("without the source, or when it fails, History is 04's words and the page stands", async () => {
+    const { board: plain } = await board({ entries: [JC] });
+    expect(plain.history?.[0]).toEqual(expect.objectContaining({ what: "Answered" }));
+    expect(plain.history?.[0]).not.toHaveProperty("justcall");
+    const { board: failed } = await board({ entries: [JC] }, { justcallAttempts: vi.fn(async () => { throw new Error("socket"); }) });
+    expect(failed.history?.[0]?.what).toBe("Answered");
+    expect(failed.overdue.length + failed.upcoming.length + failed.notBooked.length).toBeGreaterThan(0);
+  });
+});

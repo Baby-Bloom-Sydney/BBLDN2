@@ -12,9 +12,13 @@
  * so a refresh keeps it and the switch costs no server read. The Calendar panel stays mounted while hidden, so a
  * half-typed block or week of hours survives a look at the Calls tab (React M2). Each tab says when its own read
  * failed, so a failed calls read never hides the Calendar (and the reverse).
+ *
+ * 05a-2 (plan 05 D1, D4; BB-wave2-231126/05-build): two optional slots for brief 05's client wrapper — `callsTabExtra`
+ * (drawn in the Calls tab after its sections: the Unmatched JustCall calls) and `renderAttemptAction` (passed to the
+ * drawer, under each past attempt). Without them the page is today's.
  */
 
-import { type MouseEvent, useEffect, useRef, useState, useTransition } from "react";
+import { type MouseEvent, type ReactNode, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,6 +30,7 @@ import type { FamilyPanel } from "@/lib/calls/family-panel";
 import { AlertLine } from "../cohorts/parts";
 import { defaultCallControl, type RenderCallControl } from "./CallRowParts";
 import { CallRowPanel } from "./CallRowPanel";
+import type { RenderAttemptAction } from "./CallRowPanelParts";
 import { CalendarTab } from "./CalendarTab";
 import { CallsTab } from "./CallsTab";
 
@@ -44,6 +49,10 @@ export interface CallsClientProps {
   readonly panel: FamilyPanel | null;
   readonly panelFailed: boolean;
   readonly renderCallControl?: RenderCallControl;
+  /** Brief 05 (D1): drawn in the Calls tab after its sections. */
+  readonly callsTabExtra?: ReactNode;
+  /** Brief 05 (D4): drawn under each past attempt in the drawer. */
+  readonly renderAttemptAction?: RenderAttemptAction;
 }
 
 function PanelLoading() {
@@ -137,9 +146,10 @@ interface PageTabsProps {
   readonly calendar: CalendarView | null;
   readonly onOpen: (parentUserId: string) => void;
   readonly renderCallControl: RenderCallControl;
+  readonly callsTabExtra?: ReactNode;
 }
 
-function PageTabs({ tab, dashboard, calendar, onOpen, renderCallControl }: PageTabsProps) {
+function PageTabs({ tab, dashboard, calendar, onOpen, renderCallControl, callsTabExtra }: PageTabsProps) {
   return (
     <Tabs value={tab.tab} onValueChange={tab.choose} className="space-y-6">
       <TabsList aria-label={ADMIN_COPY.tabsLabel}>
@@ -148,6 +158,7 @@ function PageTabs({ tab, dashboard, calendar, onOpen, renderCallControl }: PageT
       </TabsList>
       <TabsContent value="calls">
         {dashboard ? <CallsTab dashboard={dashboard} onOpen={onOpen} renderCallControl={renderCallControl} /> : <AlertLine>{ADMIN_COPY.loadFailed}</AlertLine>}
+        {callsTabExtra}
       </TabsContent>
       <TabsContent value="calendar" forceMount hidden={tab.tab !== "calendar"}>
         <CalendarTab calendar={calendar} />
@@ -156,21 +167,30 @@ function PageTabs({ tab, dashboard, calendar, onOpen, renderCallControl }: PageT
   );
 }
 
-export function CallsClient({ dashboard, calendar = null, openCallId, panel, panelFailed, renderCallControl = defaultCallControl }: CallsClientProps) {
+export function CallsClient({
+  dashboard,
+  calendar = null,
+  openCallId,
+  panel,
+  panelFailed,
+  renderCallControl = defaultCallControl,
+  callsTabExtra,
+  renderAttemptAction,
+}: CallsClientProps) {
   const drawer = useDrawer(openCallId);
   const pageTab = usePageTab();
   const ready = panel !== null && panel.parentUserId === drawer.shown;
   const failed = panelFailed && drawer.shown === openCallId;
   return (
     <div className="mt-6" onClickCapture={drawer.noteClick}>
-      <PageTabs tab={pageTab} dashboard={dashboard} calendar={calendar} onOpen={drawer.open} renderCallControl={renderCallControl} />
+      <PageTabs tab={pageTab} dashboard={dashboard} calendar={calendar} onOpen={drawer.open} renderCallControl={renderCallControl} callsTabExtra={callsTabExtra} />
       <Sheet open={drawer.wanted !== null} onOpenChange={(isOpen) => !isOpen && drawer.close()}>
         {/* [&>button]:z-20 — the Sheet's own close button stays above the drawer's sticky header. */}
         <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-2xl [&>button]:z-20" onCloseAutoFocus={drawer.restoreFocus}>
           <SheetTitle className="sr-only">{ready ? `${ADMIN_COPY.panelBooking}: ${panel.contact.name}` : ADMIN_COPY.panelBooking}</SheetTitle>
           <SheetDescription className="sr-only">{ADMIN_COPY.pageIntro}</SheetDescription>
           {ready ? (
-            <CallRowPanel key={panel.parentUserId} panel={panel} renderCallControl={renderCallControl} onChanged={drawer.refresh} />
+            <CallRowPanel key={panel.parentUserId} panel={panel} renderCallControl={renderCallControl} onChanged={drawer.refresh} renderAttemptAction={renderAttemptAction} />
           ) : failed ? (
             <div className="p-4 pr-12">
               <AlertLine>{ADMIN_COPY.familyFailed}</AlertLine>

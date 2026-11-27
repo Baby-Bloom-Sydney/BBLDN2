@@ -169,3 +169,40 @@ describe("OutcomeForm — brief 05's hook", () => {
     expect(screen.getByText("Call lasted 4 minutes")).toBeInTheDocument();
   });
 });
+
+describe("OutcomeForm — brief 05's save (05a-2, D2)", () => {
+  it("a `save` prop gets the same payload instead of 04's action; its line shows on a refusal", async () => {
+    const user = userEvent.setup();
+    const save = vi.fn().mockResolvedValueOnce({ ok: false, line: "That call belongs to another family — reload to see it." });
+    render(<OutcomeForm parentUserId={AVA} bookingId={BOOKING} save={save} prefill={{ result: "answered" }} />);
+    await user.click(chip("Link sent"));
+    await user.click(save_());
+    expect(save).toHaveBeenCalledWith({ parentUserId: AVA, bookingId: BOOKING, result: "answered", outcome: "link_sent", note: null, callBackDate: null, callBackTime: null });
+    expect(actions.recordCallOutcomeAction).not.toHaveBeenCalled();
+    expect(await screen.findByRole("alert")).toHaveTextContent("That call belongs to another family — reload to see it.");
+    expect(chip("Link sent")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("a `save` that lands: the form clears, says Saved., and calls onSaved with the entry", async () => {
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+    const save = vi.fn().mockResolvedValue({ ok: true, entryId: "e-9" });
+    render(<OutcomeForm parentUserId={AVA} bookingId={null} save={save} onSaved={onSaved} prefill={{ result: "answered" }} />);
+    await user.click(save_());
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith("e-9"));
+    expect(screen.getByRole("status")).toHaveTextContent("Saved.");
+    expect(chip("Answered")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("a `save` that throws is a refusal, never a stuck form", async () => {
+    const user = userEvent.setup();
+    render(<OutcomeForm parentUserId={AVA} bookingId={null} save={vi.fn().mockRejectedValue(new Error("x"))} prefill={{ result: "answered" }} />);
+    await user.click(save_());
+    expect(await screen.findByRole("alert")).toHaveTextContent("That didn't save — try again.");
+    expect(save_()).toBeEnabled();
+  });
+});
+
+function save_() {
+  return screen.getByRole("button", { name: "Save outcome" });
+}

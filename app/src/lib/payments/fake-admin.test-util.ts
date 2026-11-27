@@ -20,6 +20,8 @@
  *
  * Add-only again (BB-wave1-041126, 2026-11-09): a write error may carry a `code` and `details`, as PostgREST's do;
  * and `counts[table]`, when set, is the `count` a select answers (`select(…, { count: "exact" })`).
+ *
+ * Add-only again (BB-wave2-231126/05-build, 2026-11-26): `ilike` is recorded like the other filters.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -88,7 +90,7 @@ export function fakeAdmin(reads: Record<string, unknown> = {}): FakeAdmin {
         return builder;
       };
     }
-    for (const f of ["or", "gt", "range", "not"]) {
+    for (const f of ["or", "gt", "range", "not", "ilike"]) {
       builder[f] = (col: string, val: unknown) => {
         op.filters.push([f, col, val]);
         return builder;

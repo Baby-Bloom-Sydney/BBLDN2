@@ -285,3 +285,14 @@ describe("the writers 05a-2 uses", () => {
     expect(await repo.dismissCall(SID, ADMIN)).toEqual({ ok: false, error: status });
   });
 });
+
+describe("failure logs (security review M1)", () => {
+  it("a database message is logged without ids, sids or numbers, and capped", async () => {
+    const f = fakeAdmin();
+    f.rpcResults.justcall_record_call = { data: null, error: { code: "23505", message: `duplicate key: Key (call_sid)=(CAabcdef0123456789) for parent ${PARENT} and +447700900517 ${"x".repeat(400)}` } };
+    await createJustCallRepo({ client: f.client }).recordCall({ ...CALL, parentUserId: PARENT, matchNote: null });
+    const logged = JSON.stringify(errors);
+    expect(logged).toContain("23505");
+    expect(logged).not.toMatch(/CAabcdef0123456789|b0500000|7700900517|x{200}/);
+  });
+});

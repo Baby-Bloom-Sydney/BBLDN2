@@ -107,3 +107,21 @@ describe("CallRowPanel", () => {
     expect(within(block("Every attempt")).getByText("No attempts yet.")).toBeInTheDocument();
   });
 });
+
+describe("CallRowPanel — brief 05's attempt slot (05a-2, D4)", () => {
+  it("renderAttemptAction draws under each attempt, given the attempt and her id and booked call", () => {
+    const renderAttemptAction = vi.fn((attempt: { readonly key: string }) => <button type="button">{`Act on ${attempt.key}`}</button>);
+    render(<CallRowPanel panel={PANEL} renderCallControl={defaultCallControl} onChanged={vi.fn()} renderAttemptAction={renderAttemptAction} />);
+    const items = within(block("Every attempt")).getAllByRole("listitem");
+    expect(within(items[0]).getByRole("button", { name: "Act on e2" })).toBeInTheDocument();
+    expect(within(items[1]).getByRole("button", { name: "Act on e1" })).toBeInTheDocument();
+    expect(renderAttemptAction).toHaveBeenCalledWith(PANEL.attempts[0], { parentUserId: AVA, bookingId: PANEL.booking?.bookingId });
+  });
+
+  it("without it each attempt is drawn as today", () => {
+    const { container: withSlot } = render(<CallRowPanel panel={PANEL} renderCallControl={defaultCallControl} onChanged={vi.fn()} renderAttemptAction={() => null} />);
+    const slotted = within(withSlot).getByRole("region", { name: "Every attempt" }).innerHTML;
+    const { container: today } = render(<CallRowPanel panel={PANEL} renderCallControl={defaultCallControl} onChanged={vi.fn()} />);
+    expect(within(today).getByRole("region", { name: "Every attempt" }).innerHTML.replace(/:r[0-9a-z]+:/g, "")).toBe(slotted.replace(/:r[0-9a-z]+:/g, ""));
+  });
+});

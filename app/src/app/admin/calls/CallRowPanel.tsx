@@ -9,12 +9,15 @@
  * After any write `onChanged` refreshes the page (the server re-reads her). The picker and the form are not remounted
  * by that refresh, so their status lines ("Booked — the family is emailed.", "Saved.") stay; the picker takes the
  * fresh days from its props.
+ *
+ * 05a-2 (plan 05 D4; BB-wave2-231126/05-build): an optional `renderAttemptAction` is passed to `AttemptList` with her id
+ * and booked call; without it the list is today's.
  */
 
 import { ADMIN_COPY } from "@/lib/calls/copy";
 import type { FamilyPanel } from "@/lib/calls/family-panel";
 import { ContactLines, LinksRow, PositionCell, TagBadges, type RenderCallControl } from "./CallRowParts";
-import { AttemptList, PanelBlock } from "./CallRowPanelParts";
+import { AttemptList, PanelBlock, type RenderAttemptAction } from "./CallRowPanelParts";
 import { OnBehalfPicker } from "./OnBehalfPicker";
 import { OutcomeForm } from "./OutcomeForm";
 
@@ -22,6 +25,8 @@ export interface CallRowPanelProps {
   readonly panel: FamilyPanel;
   readonly renderCallControl: RenderCallControl;
   readonly onChanged: () => void;
+  /** Brief 05 (D4): drawn under each past attempt. */
+  readonly renderAttemptAction?: RenderAttemptAction;
 }
 
 function Header({ panel }: { readonly panel: FamilyPanel }) {
@@ -35,8 +40,9 @@ function Header({ panel }: { readonly panel: FamilyPanel }) {
   );
 }
 
-export function CallRowPanel({ panel, renderCallControl, onChanged }: CallRowPanelProps) {
+export function CallRowPanel({ panel, renderCallControl, onChanged, renderAttemptAction }: CallRowPanelProps) {
   const booking = panel.booking;
+  const family = { parentUserId: panel.parentUserId, bookingId: booking?.bookingId ?? null };
   const target = { parentUserId: panel.parentUserId, bookingId: booking?.bookingId ?? null, contact: panel.contact };
   return (
     <div className="flex h-full flex-col">
@@ -59,7 +65,7 @@ export function CallRowPanel({ panel, renderCallControl, onChanged }: CallRowPan
           <p className="text-sm text-slate-700">{panel.deposit}</p>
         </PanelBlock>
         <PanelBlock title={ADMIN_COPY.panelAttempts}>
-          <AttemptList attempts={panel.attempts} />
+          <AttemptList attempts={panel.attempts} renderAction={renderAttemptAction && ((attempt) => renderAttemptAction(attempt, family))} />
         </PanelBlock>
       </div>
     </div>

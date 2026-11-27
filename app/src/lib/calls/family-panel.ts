@@ -8,13 +8,18 @@
  * settings (the Overdue tag) or row data; the deposit and the grid are each optional ("Could not be read", and the picker's load-failed state).
  *
  * BB-wave1-041126/04c1-build, 2026-11-05.
+ *
+ * Brief 05 (05a-2, plan 05 D4; BB-wave2-231126/05-build): with JustCall logging on, an attempt made through JustCall
+ * reads in 05's words and carries them (`justcall`) for the drawer's slot; with logging off, or when that read fails,
+ * the attempts are 04's and the drawer stands.
  */
 
 import { callBookingEnabled } from "@/lib/features/flags";
 import { familySlotGrid } from "./admin-calls";
 import { isAdminProof, type AdminProof } from "./admin-proof";
 import { ADMIN_COPY, depositLine } from "./copy";
-import { defaultDashboardDeps, type DashboardDeps } from "./dashboard";
+import type { JustCallAttempt } from "@/lib/justcall/types";
+import { defaultDashboardDeps, justcallAttemptsOf, type DashboardDeps } from "./dashboard";
 import type { DepositFacts } from "./dashboard-row";
 import {
   attemptWords,
@@ -54,6 +59,8 @@ export interface AttemptView {
   readonly note: string | null;
   readonly by: string | null;
   readonly callBack: string | null;
+  /** Brief 05, with logging on: a call made through JustCall, in 05's words. */
+  readonly justcall?: JustCallAttempt;
 }
 
 export interface FamilyPanel {
@@ -135,14 +142,15 @@ async function recorderNames(entries: readonly CallLogEntry[], deps: DashboardDe
   return contacts.ok ? new Map(contacts.value.map((c) => [c.userId, contactWords(c).name])) : new Map();
 }
 
-function attemptView(entry: CallLogEntry, names: ReadonlyMap<string, string>): AttemptView {
+function attemptView(entry: CallLogEntry, names: ReadonlyMap<string, string>, justcall?: JustCallAttempt): AttemptView {
   return {
     key: entry.id,
     when: londonLabel(entry.occurredAt),
-    what: attemptWords(entry),
+    what: justcall?.what ?? attemptWords(entry),
     note: entry.note,
     by: entry.recordedBy === null ? null : names.get(entry.recordedBy) ?? null,
     callBack: entry.callBackAt === null ? null : `${ADMIN_COPY.callBack} ${londonLabel(entry.callBackAt)}`,
+    ...(justcall === undefined ? {} : { justcall }),
   };
 }
 
@@ -177,7 +185,7 @@ export async function loadFamilyPanel(proof: AdminProof, parentUserId: string, d
   const family = details.value.families.get(parentUserId);
   if (family === undefined) return NOT_FOUND;
   const position = positionSummaryOf(details.value.positions.get(parentUserId) ?? null);
-  const names = await recorderNames(entries, deps);
+  const [names, justcall] = await Promise.all([recorderNames(entries, deps), justcallAttemptsOf(deps, proof, entries)]);
   return ok({
     parentUserId,
     contact: contactWords(contact),
@@ -193,7 +201,7 @@ export async function loadFamilyPanel(proof: AdminProof, parentUserId: string, d
       test: contact?.isTestUser === true,
     }),
     booking: bookingView(booking, deps.now()),
-    attempts: entries.map((e) => attemptView(e, names)),
+    attempts: entries.map((e) => attemptView(e, names, justcall.get(e.id))),
     days: grid.ok ? groupSlotGridByDay(grid.value) : null,
   });
 }

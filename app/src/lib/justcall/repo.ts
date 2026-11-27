@@ -86,30 +86,41 @@ export interface JustCallRepo {
   dismissCall(callSid: string, actorUserId: string): Promise<RepoResult<{ readonly replay: boolean }, "error" | DismissRefusal>>;
 }
 
-type Db = () => SupabaseClient;
-interface DbReply {
+export type Db = () => SupabaseClient;
+export interface DbReply {
   readonly data: unknown;
   readonly error: { readonly message: string; readonly code?: string } | null;
 }
 
-const FAILED = Object.freeze({ ok: false, error: "error" } as const);
-const ok = <T>(value: T): { readonly ok: true; readonly value: T } => ({ ok: true, value });
+export const FAILED = Object.freeze({ ok: false, error: "error" } as const);
+export const ok = <T>(value: T): { readonly ok: true; readonly value: T } => ({ ok: true, value });
 
 /** Rows per request (below PostgREST's 1,000-row cap) and the most pages read before a list fails closed. */
 const PAGE_ROWS = 500;
 const MAX_PAGES = 40;
-const ID_CHUNK = 100;
+export const ID_CHUNK = 100;
 const MAX_ERROR_CHARS = 300;
 const EVENT_COLUMNS = "id, event_type, call_sid, justcall_id, request_id, request_timestamp, outcome";
 
-function logFailure(label: string, detail: unknown): void {
+/** A database message can echo a value (a key, an id, a number): logged with those removed, and capped (security review M1, 05a-2). */
+const LOGGED_MESSAGE_CHARS = 160;
+function loggable(message: string): string {
+  return message
+    .replace(/\([^()]*\)=\([^()]*\)/g, "(…)=(…)")
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "…")
+    .replace(/\bCA[A-Za-z0-9_-]{6,}/g, "…")
+    .replace(/\+?\d[\d ]{5,}\d/g, "…")
+    .slice(0, LOGGED_MESSAGE_CHARS);
+}
+
+export function logFailure(label: string, detail: unknown): void {
   const record = typeof detail === "object" && detail !== null ? (detail as Record<string, unknown>) : {};
   const code = typeof record.code === "string" ? record.code : undefined;
-  const message = detail instanceof Error ? detail.name : typeof record.message === "string" ? record.message : typeof detail;
+  const message = detail instanceof Error ? detail.name : typeof record.message === "string" ? loggable(record.message) : typeof detail;
   console.error(`[justcall/repo] ${label} failed`, { code, message });
 }
 
-async function guarded<R extends RepoResult<unknown, string>>(label: string, op: () => Promise<R>): Promise<R | typeof FAILED> {
+export async function guarded<R extends RepoResult<unknown, string>>(label: string, op: () => Promise<R>): Promise<R | typeof FAILED> {
   try {
     return await op();
   } catch (thrown) {
@@ -163,7 +174,7 @@ const eventRow = z
   );
 const userIdRows = z.array(z.object({ user_id: z.string() })).transform((rows) => rows.map((r) => r.user_id));
 
-function parsed<T>(label: string, schema: z.ZodType<T>, data: unknown): RepoResult<T> {
+export function parsed<T>(label: string, schema: z.ZodType<T>, data: unknown): RepoResult<T> {
   const result = schema.safeParse(data);
   if (result.success) return ok(result.data);
   logFailure(label, { message: "unexpected row shape" });

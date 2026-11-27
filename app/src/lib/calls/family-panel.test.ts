@@ -246,3 +246,24 @@ describe("failures", () => {
     expect(await loadFamilyPanel(PROOF, JANE, deps)).toEqual({ ok: false, error: "error" });
   });
 });
+
+describe("the drawer's attempts with JustCall logging on (brief 05 §0.5–§0.7; 05a-2, D4)", () => {
+  const JC = { ...ENTRIES[1], id: "e0500000-0000-4000-8000-000000000001", method: "justcall", source: "justcall", outcome: null, callBackAt: null, justcallCallId: "CAtest0001" } as const;
+  const words = { callSid: "CAtest0001", needsOutcome: true, what: "JustCall · Outgoing · Answered — outcome needed · 6 min 12 s", lines: ["JustCall notes: wants Tuesdays"], summary: "JustCall · Outgoing · 6 min 12 s · Ref CAtest0001" };
+
+  it("a JustCall attempt reads in 05's words and carries them for the slot", async () => {
+    const justcallAttempts = vi.fn(async () => new Map([[JC.id, words]]));
+    const { deps } = setup({ entries: [ENTRIES[0], JC] }, {}, { justcallAttempts });
+    const got = await loadFamilyPanel(PROOF, JANE, deps);
+    const attempt = got.ok ? got.value.attempts.find((a) => a.key === JC.id) : undefined;
+    expect(attempt).toMatchObject({ what: words.what, justcall: words });
+    expect(got.ok && got.value.attempts.find((a) => a.key === ENTRIES[0].id)).not.toHaveProperty("justcall");
+  });
+
+  it("when the source fails, 04's words and the drawer stands", async () => {
+    const { deps } = setup({ entries: [JC] }, {}, { justcallAttempts: vi.fn(async () => { throw new Error("socket"); }) });
+    const got = await loadFamilyPanel(PROOF, JANE, deps);
+    expect(got.ok && got.value.attempts[0]).toMatchObject({ what: "Answered" });
+    expect(got.ok && got.value.attempts[0]).not.toHaveProperty("justcall");
+  });
+});
