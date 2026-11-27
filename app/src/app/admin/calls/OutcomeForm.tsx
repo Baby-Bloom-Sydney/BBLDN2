@@ -16,6 +16,8 @@
  * Brief 05's "after call" hook: `prefill` (what JustCall knows), `extraReadOnly` (shown above the chips), `onSaved`.
  * 05a-2 (plan 05 D2; BB-wave2-231126/05-build): an optional `save` takes the same payload in place of 04's action (a
  * JustCall call saves through `justcall_save_outcome`) and answers the refusal's line; without it, today's save.
+ * 05b (brief 05 §0.4; BB-wave2-231126/05-build): an optional `saveNext` adds a second button ("Save and call next"):
+ * the same save, then `onSaved` and `onSavedNext` with the entry; a refusal stays on this family. Without it, one Save.
  */
 
 import { useId, useRef, useState, type ReactNode } from "react";
@@ -56,6 +58,13 @@ export interface OutcomeFormProps {
   readonly onSaved?: (entryId: string) => void;
   /** Brief 05 (D2): saves in place of 04's action. */
   readonly save?: OutcomeSave;
+  /** Brief 05 (05b): a second button that saves, then goes on to the next family. */
+  readonly saveNext?: SaveNext;
+}
+
+export interface SaveNext {
+  readonly label: string;
+  readonly onSavedNext: (entryId: string) => void;
 }
 
 /** Today's save: 04's action, its refusal in 04's words. */
@@ -196,12 +205,18 @@ function Chips({ s, pending }: { readonly s: OutcomeState; readonly pending: boo
  * One save per press (review round 2 M3): under React 18 an async transition's `pending` clears before the action
  * settles, so a ref guards the call and `saving` holds the button until the promise does.
  */
-function useOutcomeSave(parentUserId: string, bookingId: string | null, s: OutcomeState, save: OutcomeSave, onSaved?: (entryId: string) => void) {
+interface SaveTo {
+  readonly save: OutcomeSave;
+  readonly onSaved?: (entryId: string) => void;
+  readonly onSavedNext?: (entryId: string) => void;
+}
+
+function useOutcomeSave(parentUserId: string, bookingId: string | null, s: OutcomeState, { save, onSaved, onSavedNext }: SaveTo) {
   const inFlight = useRef(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("");
-  const submit = async () => {
+  const submit = async (next = false) => {
     if (inFlight.current) return;
     inFlight.current = true;
     setSaving(true);
@@ -213,6 +228,7 @@ function useOutcomeSave(parentUserId: string, bookingId: string | null, s: Outco
       s.reset();
       setStatus(ADMIN_COPY.saved);
       onSaved?.(saved.entryId);
+      if (next) onSavedNext?.(saved.entryId);
     } catch {
       setError(adminErrorLine("error"));
     } finally {
@@ -237,10 +253,11 @@ interface FooterProps {
   readonly status: string;
   readonly canSave: boolean;
   readonly saving: boolean;
-  readonly onSave: () => void;
+  readonly onSave: (next?: boolean) => void;
+  readonly nextLabel?: string;
 }
 
-function Footer({ error, status, canSave, saving, onSave }: FooterProps) {
+function Footer({ error, status, canSave, saving, onSave, nextLabel }: FooterProps) {
   return (
     <>
       {error && (
@@ -251,18 +268,23 @@ function Footer({ error, status, canSave, saving, onSave }: FooterProps) {
       <p role="status" className={status ? "text-xs text-green-700" : "sr-only"}>
         {status}
       </p>
-      <div className="flex justify-end">
-        <Button type="button" size="sm" onClick={onSave} disabled={!canSave || saving}>
+      <div className={nextLabel ? "flex flex-wrap justify-end gap-2" : "flex justify-end"}>
+        <Button type="button" size="sm" variant={nextLabel ? "outline" : "default"} onClick={() => onSave()} disabled={!canSave || saving}>
           {saving ? ADMIN_COPY.saving : ADMIN_COPY.save}
         </Button>
+        {nextLabel && (
+          <Button type="button" size="sm" onClick={() => onSave(true)} disabled={!canSave || saving}>
+            {nextLabel}
+          </Button>
+        )}
       </div>
     </>
   );
 }
 
-export function OutcomeForm({ parentUserId, bookingId, prefill, extraReadOnly, onSaved, save: saveWith = recordOutcome }: OutcomeFormProps) {
+export function OutcomeForm({ parentUserId, bookingId, prefill, extraReadOnly, onSaved, save: saveWith = recordOutcome, saveNext }: OutcomeFormProps) {
   const s = useOutcomeState(prefill);
-  const save = useOutcomeSave(parentUserId, bookingId, s, saveWith, onSaved);
+  const save = useOutcomeSave(parentUserId, bookingId, s, { save: saveWith, onSaved, onSavedNext: saveNext?.onSavedNext });
   const headingId = useId();
   // Call back later with only a date or only a time would drop the call-back silently: say so, and wait.
   const halfCallBack = s.result === "answered" && s.outcome === "call_back_later" && (s.callBackDate === "") !== (s.callBackTime === "");
@@ -276,7 +298,7 @@ export function OutcomeForm({ parentUserId, bookingId, prefill, extraReadOnly, o
       <Chips s={s} pending={save.saving} />
       {halfCallBack && <p className="text-xs text-amber-700">{ADMIN_COPY.callBackBoth}</p>}
       <NoteField s={s} disabled={save.saving} />
-      <Footer error={save.error} status={save.status} canSave={canSave} saving={save.saving} onSave={save.submit} />
+      <Footer error={save.error} status={save.status} canSave={canSave} saving={save.saving} onSave={(next) => void save.submit(next)} nextLabel={saveNext?.label} />
     </section>
   );
 }
