@@ -18,8 +18,9 @@
  * drawer, under each past attempt). Without them the page is today's.
  *
  * 05b (plan 05 D2, D6): `afterCall` is passed to the drawer (the form for a call that has just ended); `drawerBeside`
- * opens the drawer beside brief 05's dialer: not modal (no overlay), stopping at the dialer's left edge at `lg`+, and
- * a press or focus inside the dialer (`ignoreOutside`) doesn't close it. Without them the drawer is today's.
+ * opens the drawer beside brief 05's dialer: not modal (no overlay), stopping at the dialer's left edge at `lg`+ (and
+ * never wider than the room left), a press or focus inside the dialer (`ignoreOutside`) doesn't close it, and the open
+ * drawer moving to another family (Call next) puts focus on her name. Without them the drawer is today's.
  */
 
 import { type MouseEvent, type ReactNode, useEffect, useRef, useState, useTransition } from "react";
@@ -76,7 +77,29 @@ function besideProps(beside: DrawerBeside | undefined) {
   const keep = (event: { readonly target: EventTarget | null; preventDefault: () => void }) => {
     if (beside.ignoreOutside(event.target)) event.preventDefault();
   };
-  return { className: `${DRAWER_CLASS} lg:right-[380px]`, onInteractOutside: keep, onFocusOutside: keep };
+  return { className: `${DRAWER_CLASS} lg:right-[380px] lg:max-w-[calc(100vw-380px)]`, onInteractOutside: keep, onFocusOutside: keep };
+}
+
+/**
+ * Beside the dialer: when the open drawer moves to another family (Call next, Save and call next), the old panel and
+ * the focus in it are gone — focus goes to her name (made focusable for that). The first open is Radix's own.
+ */
+function useFocusOnFamilyChange(enabled: boolean, open: boolean, readyId: string | null, content: { readonly current: HTMLElement | null }) {
+  const seen = useRef<string | null>(null);
+  useEffect(() => {
+    if (!open) {
+      seen.current = null;
+      return;
+    }
+    if (readyId === null) return;
+    const before = seen.current;
+    seen.current = readyId;
+    if (!enabled || before === null || before === readyId) return;
+    // Her name as the drawer shows it (the Sheet's own title is an h2 too, read by screen readers only).
+    const name = [...(content.current?.querySelectorAll<HTMLElement>("h2") ?? [])].find((h) => !h.classList.contains("sr-only"));
+    name?.setAttribute("tabindex", "-1");
+    name?.focus();
+  }, [enabled, open, readyId, content]);
 }
 
 function PanelLoading() {
@@ -207,12 +230,14 @@ export function CallsClient({
   const pageTab = usePageTab();
   const ready = panel !== null && panel.parentUserId === drawer.shown;
   const failed = panelFailed && drawer.shown === openCallId;
+  const content = useRef<HTMLDivElement>(null);
+  useFocusOnFamilyChange(drawerBeside !== undefined, drawer.wanted !== null, ready ? panel.parentUserId : null, content);
   return (
     <div className="mt-6" onClickCapture={drawer.noteClick}>
       <PageTabs tab={pageTab} dashboard={dashboard} calendar={calendar} onOpen={drawer.open} renderCallControl={renderCallControl} callsTabExtra={callsTabExtra} />
       <Sheet open={drawer.wanted !== null} onOpenChange={(isOpen) => !isOpen && drawer.close()} modal={drawerBeside === undefined}>
         {/* [&>button]:z-20 — the Sheet's own close button stays above the drawer's sticky header. */}
-        <SheetContent side="right" {...besideProps(drawerBeside)} onCloseAutoFocus={drawer.restoreFocus}>
+        <SheetContent ref={content} side="right" {...besideProps(drawerBeside)} onCloseAutoFocus={drawer.restoreFocus}>
           <SheetTitle className="sr-only">{ready ? `${ADMIN_COPY.panelBooking}: ${panel.contact.name}` : ADMIN_COPY.panelBooking}</SheetTitle>
           <SheetDescription className="sr-only">{ADMIN_COPY.pageIntro}</SheetDescription>
           {ready ? (

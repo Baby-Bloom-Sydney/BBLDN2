@@ -28,7 +28,7 @@ describe("LinksRow", () => {
       </CallLiveContext.Provider>,
     );
     for (const name of NAMES) {
-      const link = screen.getByRole("link", { name });
+      const link = screen.getByRole("link", { name: `${name} (opens in a new tab)` });
       expect(link).toHaveAttribute("target", "_blank");
       expect(link).toHaveAttribute("rel", "noopener noreferrer");
     }
@@ -40,7 +40,7 @@ describe("LinksRow", () => {
         <LinksRow links={{ ...LINKS, position: null }} />
       </CallLiveContext.Provider>,
     );
-    expect(screen.queryByRole("link", { name: "Position" })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Position/ })).toBeNull();
   });
 });
 

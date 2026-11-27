@@ -29,6 +29,7 @@ vi.mock("./actions", () => ({
 import { CallsClient } from "./CallsClient";
 import { CALENDAR } from "./calendar-fixtures.test-util";
 import { AVA, DASHBOARD, FAY, PANEL } from "./calls-fixtures.test-util";
+import type { FamilyPanel } from "@/lib/calls/family-panel";
 
 beforeEach(() => {
   nav.push.mockReset();
@@ -269,5 +270,32 @@ describe("CallsClient — brief 05's dialer (05b, D2, D6)", () => {
     fireEvent.pointerDown(document.body);
     await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/admin/calls", { scroll: false }));
     region.remove();
+  });
+});
+
+describe("CallsClient — beside the dialer, after the reviews (05b)", () => {
+  const BESIDE = { ignoreOutside: () => false };
+  const FAY_PANEL: FamilyPanel = { ...PANEL, parentUserId: FAY, contact: { ...PANEL.contact, name: "Fay Quick" } };
+
+  it("never wider than the room left of the dialer (React M6: 1024–1051 px clipped its left edge)", () => {
+    render(<CallsClient dashboard={DASHBOARD} openCallId={AVA} panel={PANEL} panelFailed={false} drawerBeside={BESIDE} />);
+    expect(drawer()!.className).toContain("lg:max-w-[calc(100vw-380px)]");
+  });
+
+  it("the open drawer moving to another family (Call next) puts focus on her name (React H2)", async () => {
+    await new Promise((r) => setTimeout(r, 0));
+    const { rerender } = render(<CallsClient dashboard={DASHBOARD} openCallId={AVA} panel={PANEL} panelFailed={false} drawerBeside={BESIDE} />);
+    rerender(<CallsClient dashboard={DASHBOARD} openCallId={FAY} panel={FAY_PANEL} panelFailed={false} drawerBeside={BESIDE} />);
+    await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "Fay Quick" })).toHaveFocus());
+  });
+
+  it("today (no dialer): a family change moves no focus, and her name takes no tabindex", async () => {
+    await new Promise((r) => setTimeout(r, 0));
+    const { rerender } = render(<CallsClient dashboard={DASHBOARD} openCallId={AVA} panel={PANEL} panelFailed={false} />);
+    rerender(<CallsClient dashboard={DASHBOARD} openCallId={FAY} panel={FAY_PANEL} panelFailed={false} />);
+    await new Promise((r) => setTimeout(r, 0));
+    const heading = screen.getByRole("heading", { level: 2, name: "Fay Quick" });
+    expect(heading).not.toHaveFocus();
+    expect(heading).not.toHaveAttribute("tabindex");
   });
 });

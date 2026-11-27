@@ -119,8 +119,9 @@ export function NanniesCell({ position }: { readonly position: PositionSummary |
 
 const LINK = "font-medium text-violet-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded-sm";
 
-/** While a call is live: a new tab, cut off from this page (05b). */
+/** While a call is live: a new tab, cut off from this page (05b); its name says so. */
 const NEW_TAB = { target: "_blank", rel: "noopener noreferrer" } as const;
+const NEW_TAB_WORDS = "(opens in a new tab)";
 
 /** Profile · Account · Money · Position (brief §0.9); no Position link without a position. */
 export function LinksRow({ links }: { readonly links: RowLinks }) {
@@ -139,6 +140,8 @@ export function LinksRow({ links }: { readonly links: RowLinks }) {
           : [
               <Link key={label} href={href} className={LINK} {...(live ? NEW_TAB : {})}>
                 {label}
+                {live && " "}
+                {live && <span className="sr-only">{NEW_TAB_WORDS}</span>}
               </Link>,
             ],
       )}
