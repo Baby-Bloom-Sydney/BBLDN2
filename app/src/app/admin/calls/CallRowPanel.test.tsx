@@ -4,7 +4,7 @@
  * behalf), the outcome form, position and nannies, the deposit (read-only), and every past attempt and note. It
  * says the times are London time.
  */
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -19,7 +19,7 @@ vi.mock("./actions", () => actions);
 
 import { defaultCallControl } from "./CallRowParts";
 import { CallRowPanel } from "./CallRowPanel";
-import { AVA, PANEL, POS } from "./calls-fixtures.test-util";
+import { AVA, BOOKING, PANEL, POS } from "./calls-fixtures.test-util";
 
 const block = (title: string) => screen.getByRole("region", { name: title });
 
@@ -123,5 +123,41 @@ describe("CallRowPanel — brief 05's attempt slot (05a-2, D4)", () => {
     const slotted = within(withSlot).getByRole("region", { name: "Every attempt" }).innerHTML;
     const { container: today } = render(<CallRowPanel panel={PANEL} renderCallControl={defaultCallControl} onChanged={vi.fn()} />);
     expect(within(today).getByRole("region", { name: "Every attempt" }).innerHTML.replace(/:r[0-9a-z]+:/g, "")).toBe(slotted.replace(/:r[0-9a-z]+:/g, ""));
+  });
+});
+
+describe("CallRowPanel — brief 05's after-call form (05b, D2)", () => {
+  const form = () => screen.getByRole("region", { name: "Record outcome" });
+
+  it("afterCall is asked with her id and booked call; its form has the JustCall line, its save and Save and call next", async () => {
+    const user = userEvent.setup();
+    const save = vi.fn().mockResolvedValue({ ok: true, entryId: "e-1" });
+    const onSavedNext = vi.fn();
+    const afterCall = vi.fn().mockReturnValue({ key: "CAab12", extraReadOnly: <p>JustCall · Outgoing · 6 min 12 s · Ref CAab12</p>, save, saveNext: { label: "Save and call next", onSavedNext } });
+    render(<CallRowPanel panel={PANEL} renderCallControl={defaultCallControl} onChanged={vi.fn()} afterCall={afterCall} />);
+    expect(afterCall).toHaveBeenCalledWith({ parentUserId: AVA, bookingId: BOOKING });
+    expect(within(form()).getByText("JustCall · Outgoing · 6 min 12 s · Ref CAab12")).toBeInTheDocument();
+    await user.click(within(form()).getByRole("button", { name: "No answer" }));
+    await user.click(within(form()).getByRole("button", { name: "Save and call next" }));
+    await waitFor(() => expect(onSavedNext).toHaveBeenCalledWith("e-1"));
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ parentUserId: AVA, bookingId: BOOKING, result: "no_answer" }));
+    expect(actions.recordCallOutcomeAction).not.toHaveBeenCalled();
+  });
+
+  it("a new call (a new key) gives a fresh form; the same call keeps what was picked", async () => {
+    const user = userEvent.setup();
+    const after = (key: string) => () => ({ key, save: vi.fn() });
+    const { rerender } = render(<CallRowPanel panel={PANEL} renderCallControl={defaultCallControl} onChanged={vi.fn()} afterCall={after("CA1")} />);
+    await user.click(within(form()).getByRole("button", { name: "No answer" }));
+    rerender(<CallRowPanel panel={PANEL} renderCallControl={defaultCallControl} onChanged={vi.fn()} afterCall={after("CA1")} />);
+    expect(within(form()).getByRole("button", { name: "No answer" })).toHaveAttribute("aria-pressed", "true");
+    rerender(<CallRowPanel panel={PANEL} renderCallControl={defaultCallControl} onChanged={vi.fn()} afterCall={after("CA2")} />);
+    expect(within(form()).getByRole("button", { name: "No answer" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("afterCall answering null (not her call) leaves today's form", () => {
+    render(<CallRowPanel panel={PANEL} renderCallControl={defaultCallControl} onChanged={vi.fn()} afterCall={() => null} />);
+    expect(within(form()).queryByText(/JustCall/)).toBeNull();
+    expect(within(form()).queryByRole("button", { name: "Save and call next" })).toBeNull();
   });
 });

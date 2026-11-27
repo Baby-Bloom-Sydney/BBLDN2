@@ -16,6 +16,10 @@
  * 05a-2 (plan 05 D1, D4; BB-wave2-231126/05-build): two optional slots for brief 05's client wrapper — `callsTabExtra`
  * (drawn in the Calls tab after its sections: the Unmatched JustCall calls) and `renderAttemptAction` (passed to the
  * drawer, under each past attempt). Without them the page is today's.
+ *
+ * 05b (plan 05 D2, D6): `afterCall` is passed to the drawer (the form for a call that has just ended); `drawerBeside`
+ * opens the drawer beside brief 05's dialer: not modal (no overlay), stopping at the dialer's left edge at `lg`+, and
+ * a press or focus inside the dialer (`ignoreOutside`) doesn't close it. Without them the drawer is today's.
  */
 
 import { type MouseEvent, type ReactNode, useEffect, useRef, useState, useTransition } from "react";
@@ -29,7 +33,7 @@ import type { CallsDashboard } from "@/lib/calls/dashboard";
 import type { FamilyPanel } from "@/lib/calls/family-panel";
 import { AlertLine } from "../cohorts/parts";
 import { defaultCallControl, type RenderCallControl } from "./CallRowParts";
-import { CallRowPanel } from "./CallRowPanel";
+import { CallRowPanel, type AfterCall } from "./CallRowPanel";
 import type { RenderAttemptAction } from "./CallRowPanelParts";
 import { CalendarTab } from "./CalendarTab";
 import { CallsTab } from "./CallsTab";
@@ -53,6 +57,26 @@ export interface CallsClientProps {
   readonly callsTabExtra?: ReactNode;
   /** Brief 05 (D4): drawn under each past attempt in the drawer. */
   readonly renderAttemptAction?: RenderAttemptAction;
+  /** Brief 05 (D2): the drawer's form for a call that has just ended. */
+  readonly afterCall?: AfterCall;
+  /** Brief 05 (D6): the drawer beside the dialer. */
+  readonly drawerBeside?: DrawerBeside;
+}
+
+/** Brief 05 (D6): what counts as the dialer, where a press or focus leaves the drawer open. */
+export interface DrawerBeside {
+  readonly ignoreOutside: (target: EventTarget | null) => boolean;
+}
+
+const DRAWER_CLASS = "w-full overflow-y-auto p-0 sm:max-w-2xl [&>button]:z-20";
+
+/** The drawer's own props beside the dialer (none today). */
+function besideProps(beside: DrawerBeside | undefined) {
+  if (beside === undefined) return { className: DRAWER_CLASS };
+  const keep = (event: { readonly target: EventTarget | null; preventDefault: () => void }) => {
+    if (beside.ignoreOutside(event.target)) event.preventDefault();
+  };
+  return { className: `${DRAWER_CLASS} lg:right-[380px]`, onInteractOutside: keep, onFocusOutside: keep };
 }
 
 function PanelLoading() {
@@ -176,6 +200,8 @@ export function CallsClient({
   renderCallControl = defaultCallControl,
   callsTabExtra,
   renderAttemptAction,
+  afterCall,
+  drawerBeside,
 }: CallsClientProps) {
   const drawer = useDrawer(openCallId);
   const pageTab = usePageTab();
@@ -184,13 +210,20 @@ export function CallsClient({
   return (
     <div className="mt-6" onClickCapture={drawer.noteClick}>
       <PageTabs tab={pageTab} dashboard={dashboard} calendar={calendar} onOpen={drawer.open} renderCallControl={renderCallControl} callsTabExtra={callsTabExtra} />
-      <Sheet open={drawer.wanted !== null} onOpenChange={(isOpen) => !isOpen && drawer.close()}>
+      <Sheet open={drawer.wanted !== null} onOpenChange={(isOpen) => !isOpen && drawer.close()} modal={drawerBeside === undefined}>
         {/* [&>button]:z-20 — the Sheet's own close button stays above the drawer's sticky header. */}
-        <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-2xl [&>button]:z-20" onCloseAutoFocus={drawer.restoreFocus}>
+        <SheetContent side="right" {...besideProps(drawerBeside)} onCloseAutoFocus={drawer.restoreFocus}>
           <SheetTitle className="sr-only">{ready ? `${ADMIN_COPY.panelBooking}: ${panel.contact.name}` : ADMIN_COPY.panelBooking}</SheetTitle>
           <SheetDescription className="sr-only">{ADMIN_COPY.pageIntro}</SheetDescription>
           {ready ? (
-            <CallRowPanel key={panel.parentUserId} panel={panel} renderCallControl={renderCallControl} onChanged={drawer.refresh} renderAttemptAction={renderAttemptAction} />
+            <CallRowPanel
+              key={panel.parentUserId}
+              panel={panel}
+              renderCallControl={renderCallControl}
+              onChanged={drawer.refresh}
+              renderAttemptAction={renderAttemptAction}
+              afterCall={afterCall}
+            />
           ) : failed ? (
             <div className="p-4 pr-12">
               <AlertLine>{ADMIN_COPY.familyFailed}</AlertLine>
