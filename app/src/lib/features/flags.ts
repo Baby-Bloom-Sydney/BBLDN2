@@ -144,3 +144,18 @@ export function depositLinkEnabled(): boolean {
 export function justcallWebhookEnabled(): boolean {
   return isOn(process.env.JUSTCALL_WEBHOOK_ENABLED) && callBookingEnabled();
 }
+
+/**
+ * The JustCall dialer (brief 05 §8; plan `BUILD/plans/05-plan.md`, PR 05b): the dialer panel, Call buttons that fill it,
+ * Call next and the after-call form on `/admin/calls`. On only while `CALL_BOOKING_ENABLED` is on too. Inlined in
+ * `next.config.mjs`, so the client reads the same switch, and the dialer's code is only built into a build with it on
+ * (`use-justcall-dialer.ts` loads the SDK behind the inlined value). Separate from the logging switch above; the
+ * ratified order turns logging on first (plan §7: A both off, B logging, C dialer).
+ *
+ * While off: no panel, no Call next, no SDK chunk; 04's `tel:` links and manual outcome form, exactly as before.
+ *
+ * Never gated: nothing.
+ */
+export function justcallEnabled(): boolean {
+  return isOn(process.env.JUSTCALL_ENABLED) && callBookingEnabled();
+}

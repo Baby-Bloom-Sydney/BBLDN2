@@ -20,6 +20,8 @@ const nextConfig = {
     NANNY_INVOICES_ENABLED: process.env.NANNY_INVOICES_ENABLED ?? "",
     // Brief 03: the deposit link is off unless DEPOSIT_LINK_ENABLED is "true" (and COHORTS_ENABLED); the admin panel reads it.
     DEPOSIT_LINK_ENABLED: process.env.DEPOSIT_LINK_ENABLED ?? "",
+    // Brief 05 (05b): the JustCall dialer on /admin/calls is off unless JUSTCALL_ENABLED is "true" (and CALL_BOOKING_ENABLED).
+    JUSTCALL_ENABLED: process.env.JUSTCALL_ENABLED ?? "",
   },
   typescript: {
     // strict: build fails on TS errors
