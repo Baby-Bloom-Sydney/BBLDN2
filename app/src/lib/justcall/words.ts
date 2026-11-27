@@ -173,6 +173,9 @@ export const DIALER_COPY = Object.freeze({
   noOneLeft: "No one left to call right now.",
   callNextFailed: "The next family couldn't be found — try again.",
   saveAndCallNext: "Save and call next",
+  notDialled: "Her details are open; the number isn't in the dialer — use the phone link.",
+  openedNext: "Opened the next family to call.",
+  newTab: "(opens in a new tab)",
   stillLoading: "JustCall is still loading",
   signInToCall: "Sign in to JustCall to call from here",
   didNotLoad: "JustCall didn't load",
@@ -211,8 +214,8 @@ export function callFallbackReason(status: DialerStatusWord, live: boolean): str
   return null;
 }
 
-/** The after-call form's read-only line: "JustCall · Outgoing · 6 min 12 s · Ref CAab12". */
-export function afterCallLine(call: { readonly outbound: boolean; readonly seconds: number; readonly callSid: string }): string {
-  const length = durationWords(call.seconds) ?? "0 s";
+/** The after-call form's read-only line: "JustCall · Outgoing · 6 min 12 s · Ref CAab12"; no length while the call is on. */
+export function afterCallLine(call: { readonly outbound: boolean; readonly seconds: number | null; readonly callSid: string }): string {
+  const length = call.seconds === null ? null : (durationWords(call.seconds) ?? "0 s");
   return joined([JUSTCALL_COPY.brand, directionWord(call.outbound ? "outgoing" : "incoming"), length, `${JUSTCALL_COPY.reference} ${call.callSid}`]);
 }

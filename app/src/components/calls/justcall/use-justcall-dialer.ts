@@ -11,7 +11,9 @@
  * instance; StrictMode's second mount, and away-and-back, leave one.
  *
  * What the SDK (1.4.2) doesn't do, done here (ledger B05 §0): it reads every `message` on the page with no origin
- * check, so `guardDialerMessages` stops a dialer-shaped message from any other origin before it; its `destroy()` keeps
+ * check, so `guardDialerMessages` stops a dialer-shaped message from any other origin — or, once the frame exists, from
+ * any window but the frame — before it (a capture listener on `window` runs before the SDK's own at the target, in
+ * current Chrome, Firefox and Safari, and it is added first anyway); its `destroy()` keeps
  * that listener and its own copy of the sign-in callbacks, so a destroyed instance's callbacks are ignored; its
  * `isLoggedIn()` has no time limit, so the check (and the frame's load) is bounded; and every event's fields are
  * checked before they are used.
@@ -22,6 +24,7 @@
 
 import { useEffect, useReducer, useRef } from "react";
 import { CALL_SID_PATTERN } from "@/lib/justcall/types";
+import { DIALER_COPY } from "@/lib/justcall/words";
 
 export const DIALER_MOUNT_ID = "justcall-dialer";
 export const JUSTCALL_ORIGIN = "https://app.justcall.io";
@@ -34,7 +37,7 @@ type DialerSdk = typeof import("@justcall/justcall-dialer-sdk");
 type SdkDialer = InstanceType<DialerSdk["JustCallDialer"]>;
 
 export type DialerStatus = "off" | "loading" | "signed_out" | "signed_in" | "failed";
-interface CallFacts {
+export interface CallFacts {
   readonly callSid: string;
   readonly outbound: boolean;
   /** Her number: who was rung (outgoing) or who rang (incoming); null if the call was never seen ringing. */
@@ -79,6 +82,11 @@ export function callIsLive(call: CallPhase): boolean {
 /** Her number from the call before, when it is the same call. */
 const numberOf = (call: CallPhase, callSid: string): string | null => (call.kind !== "idle" && call.callSid === callSid ? call.number : null);
 
+/** While a call is live, an answer or end for another call is not this call's (a stray or late event). */
+function otherCall(state: DialerState, callSid: string): boolean {
+  return callIsLive(state.call) && state.call.kind !== "idle" && state.call.callSid !== callSid;
+}
+
 function reduce(state: DialerState, action: Action): DialerState {
   switch (action.type) {
     case "off":
@@ -98,10 +106,18 @@ function reduce(state: DialerState, action: Action): DialerState {
     case "ringing":
       return { ...state, call: { kind: "ringing", callSid: action.callSid, outbound: action.outbound, number: action.number } };
     case "answered":
+      if (otherCall(state, action.callSid)) return state;
       return { ...state, call: { kind: "on_call", callSid: action.callSid, outbound: action.outbound, number: numberOf(state.call, action.callSid) } };
     case "ended":
+      if (otherCall(state, action.callSid)) return state;
       return { ...state, call: { kind: "ended", callSid: action.callSid, outbound: action.outbound, number: numberOf(state.call, action.callSid), seconds: action.seconds } };
+    default:
+      return unreachable(action);
   }
+}
+
+function unreachable(action: never): never {
+  throw new Error(`unknown dialer action ${JSON.stringify(action)}`);
 }
 
 const record = (value: unknown): Record<string, unknown> | null => (typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null);
@@ -146,14 +162,22 @@ function loginAction(data: unknown): Action {
 
 const DIALER_EVENTS: ReadonlySet<string> = new Set(["call-ringing", "call-answered", "call-ended", "sms-received", "logged-in-status", "is-logged-in"]);
 
+/** The window of JustCall's frame in the mount, once the SDK has made it. */
+function mountedFrame(): Window | null {
+  return document.getElementById(DIALER_MOUNT_ID)?.querySelector("iframe")?.contentWindow ?? null;
+}
+
 /**
- * Stops a dialer-shaped message (`{name: <a dialer event>}`) from any origin but JustCall's before later listeners —
- * the SDK's among them — see it. Every other message passes. Returns the undo.
+ * Stops a dialer-shaped message (`{name: <a dialer event>}`) before later listeners — the SDK's among them — see it,
+ * unless it comes from JustCall's origin and, once the frame exists (`frame()`), from the frame itself. Every other
+ * message passes. Returns the undo.
  */
-export function guardDialerMessages(target: Window): () => void {
+export function guardDialerMessages(target: Window, frame: () => Window | null = () => null): () => void {
   const guard = (event: MessageEvent) => {
     const name = record(event.data)?.name;
-    if (typeof name === "string" && DIALER_EVENTS.has(name) && event.origin !== JUSTCALL_ORIGIN) event.stopImmediatePropagation();
+    if (typeof name !== "string" || !DIALER_EVENTS.has(name)) return;
+    const ours = frame();
+    if (event.origin !== JUSTCALL_ORIGIN || (ours !== null && event.source !== ours)) event.stopImmediatePropagation();
   };
   target.addEventListener("message", guard, true);
   return () => target.removeEventListener("message", guard, true);
@@ -200,6 +224,7 @@ async function startDialer(session: Session, send: (a: Action) => void, options:
     const dialer = new sdk.JustCallDialer({ dialerId: DIALER_MOUNT_ID, onLogin: (d) => send(loginAction(d)), onLogout: () => send({ type: "logout" }) });
     session.dialer = dialer;
     session.keep(dialer);
+    document.getElementById(DIALER_MOUNT_ID)?.querySelector("iframe")?.setAttribute("title", DIALER_COPY.title);
     listen(dialer, send);
     const loaded = await within(dialer.ready().then(() => true), options.readyMs ?? READY_MS, false);
     if (!session.alive) return;
@@ -224,6 +249,9 @@ function stopDialer(dialer: SdkDialer | null): void {
 export function useJustCallDialer(enabled: boolean, options: DialerOptions = {}): Dialer {
   const [state, send] = useReducer(reduce, OFF);
   const current = useRef<SdkDialer | null>(null);
+  // `dial` reads the latest state, so one taken before a call went live (a callback run after an await) still refuses.
+  const latest = useRef(state);
+  latest.current = state;
   const opts = useRef(options);
   opts.current = options;
   useEffect(() => {
@@ -232,7 +260,7 @@ export function useJustCallDialer(enabled: boolean, options: DialerOptions = {})
     const live = (action: Action) => {
       if (session.alive) send(action);
     };
-    const unguard = guardDialerMessages(window);
+    const unguard = guardDialerMessages(window, mountedFrame);
     send({ type: "start" });
     void startDialer(session, live, opts.current);
     return () => {
@@ -244,7 +272,7 @@ export function useJustCallDialer(enabled: boolean, options: DialerOptions = {})
   }, [enabled]);
   const dial = (number: string): boolean => {
     const dialer = current.current;
-    if (dialer === null || state.status !== "signed_in" || callIsLive(state.call)) return false;
+    if (dialer === null || latest.current.status !== "signed_in" || callIsLive(latest.current.call)) return false;
     try {
       dialer.dialNumber(number);
     } catch (thrown) {

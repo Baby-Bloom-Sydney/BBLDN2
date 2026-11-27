@@ -29,6 +29,8 @@ const sdk = vi.hoisted(() => {
     constructor(props: Props) {
       this.props = props;
       this.readyAt = new Promise((resolve) => (this.openReady = resolve));
+      // As the SDK does: its frame goes inside the element it is given (when the page has one).
+      document.getElementById(props.dialerId)?.appendChild(document.createElement("iframe"));
       instances.push(this);
     }
     ready() {
@@ -62,6 +64,14 @@ const sdk = vi.hoisted(() => {
 vi.mock("@justcall/justcall-dialer-sdk", () => ({ JustCallDialer: sdk.FakeDialer }));
 
 import { callIsLive, DIALER_MOUNT_ID, guardDialerMessages, JUSTCALL_ORIGIN, loadDialerSdk, useJustCallDialer } from "./use-justcall-dialer";
+
+// The fake has the SDK's shape (review: a renamed method or a changed constructor fails tsc here).
+type SdkModule = typeof import("@justcall/justcall-dialer-sdk");
+type SdkInstance = InstanceType<SdkModule["JustCallDialer"]>;
+const asSdk = (): SdkModule => ({ JustCallDialer: sdk.FakeDialer as unknown as SdkModule["JustCallDialer"] }) as SdkModule;
+type SdkShape = Pick<SdkInstance, "on" | "ready" | "isLoggedIn" | "dialNumber" | "unsubscribeAll" | "destroy">;
+const shapeCheck = (fake: InstanceType<typeof sdk.FakeDialer>): SdkShape => fake;
+void shapeCheck;
 
 const live = () => sdk.instances.filter((d) => !d.destroyed);
 const last = () => sdk.instances[sdk.instances.length - 1];
@@ -145,7 +155,7 @@ describe("useJustCallDialer — mounting (§9 row 2)", () => {
   it("StrictMode: mounted twice, loaded twice, one instance", async () => {
     // The loader is handed in here: under StrictMode the two `import()`s run at once, and vitest's mocker then hands
     // the second one the real package (seen while building; webpack has no such step). The lifecycle is what's tested.
-    const load = vi.fn(async () => ({ JustCallDialer: sdk.FakeDialer }) as never);
+    const load = vi.fn(async () => asSdk());
     const wrapper = ({ children }: { readonly children: ReactNode }) => <StrictMode>{children}</StrictMode>;
     renderHook(() => useJustCallDialer(true, { load }), { wrapper });
     await waitFor(() => expect(sdk.instances).toHaveLength(1));
@@ -295,5 +305,53 @@ describe("guardDialerMessages — JustCall's frame only", () => {
     post({ name: "logged-in-status", data: { logged_in: true } }, "https://other.example");
     expect(later).toHaveBeenCalledTimes(1);
     done();
+  });
+});
+
+describe("useJustCallDialer — after the reviews", () => {
+  it("dial reads the latest state: a dial taken before a call went live is refused (TS M1, React M3)", async () => {
+    const { result } = renderHook(() => useJustCallDialer(true));
+    await signIn(true);
+    const before = result.current.dial;
+    act(() => last().emit("call-ringing", { direction: "outbound", from: "x", to: "+447700900111", call_sid: "CAlive" }));
+    expect(before("+447700900123")).toBe(false);
+    expect(last().dialed).toEqual([]);
+  });
+
+  it("while a call is live, an answer or end for another call is ignored", async () => {
+    const { result } = renderHook(() => useJustCallDialer(true));
+    await signIn(true);
+    act(() => last().emit("call-ringing", { direction: "outbound", from: "x", to: "+447700900111", call_sid: "CAlive" }));
+    act(() => last().emit("call-ended", { call_sid: "CAother", direction: "outbound", duration: 4 }));
+    act(() => last().emit("call-answered", { call_sid: "CAother", direction: "outbound", answered_status: "answered" }));
+    expect(result.current.state.call).toMatchObject({ kind: "ringing", callSid: "CAlive" });
+  });
+
+  it("the frame is named, once made (React M5)", async () => {
+    const mount = document.createElement("div");
+    mount.id = DIALER_MOUNT_ID;
+    document.body.appendChild(mount);
+    renderHook(() => useJustCallDialer(true));
+    await waitFor(() => expect(mount.querySelector("iframe")).toHaveAttribute("title", "JustCall dialer"));
+    mount.remove();
+  });
+});
+
+describe("guardDialerMessages — our frame only (security L2)", () => {
+  const post = (data: unknown, origin: string, source: Window | null) => window.dispatchEvent(new MessageEvent("message", { data, origin, source }));
+
+  it("once the frame exists, a dialer-shaped message from JustCall's origin but another window is stopped", () => {
+    const frame = document.createElement("iframe");
+    document.body.appendChild(frame);
+    const unguard = guardDialerMessages(window, () => frame.contentWindow);
+    const later = vi.fn();
+    window.addEventListener("message", later);
+    post({ name: "call-ended", data: {} }, JUSTCALL_ORIGIN, window);
+    expect(later).not.toHaveBeenCalled();
+    post({ name: "call-ended", data: {} }, JUSTCALL_ORIGIN, frame.contentWindow);
+    expect(later).toHaveBeenCalledTimes(1);
+    window.removeEventListener("message", later);
+    unguard();
+    frame.remove();
   });
 });

@@ -180,6 +180,7 @@ describe("the dialer's words (05b; brief §0.1, §3.1–3.8)", () => {
   it("the after-call line: JustCall, the direction, the length, the reference", () => {
     expect(afterCallLine({ outbound: true, seconds: 372, callSid: "CAab12" })).toBe("JustCall · Outgoing · 6 min 12 s · Ref CAab12");
     expect(afterCallLine({ outbound: false, seconds: 0, callSid: "CAin1" })).toBe("JustCall · Incoming · 0 s · Ref CAin1");
+    expect(afterCallLine({ outbound: true, seconds: null, callSid: "CAab12" })).toBe("JustCall · Outgoing · Ref CAab12");
   });
 
   it("the page's lines", () => {
@@ -188,5 +189,8 @@ describe("the dialer's words (05b; brief §0.1, §3.1–3.8)", () => {
     expect(DIALER_COPY.noOneLeft).toBe("No one left to call right now.");
     expect(DIALER_COPY.saveAndCallNext).toBe("Save and call next");
     expect(DIALER_COPY.call).toBe("Call");
+    expect(DIALER_COPY.notDialled).toBe("Her details are open; the number isn't in the dialer — use the phone link.");
+    expect(DIALER_COPY.openedNext).toBe("Opened the next family to call.");
+    expect(DIALER_COPY.newTab).toBe("(opens in a new tab)");
   });
 });
