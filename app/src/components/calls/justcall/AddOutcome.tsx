@@ -28,8 +28,8 @@ export interface JustCallFamily {
   readonly bookingId: string | null;
 }
 
-/** 04's form saving through the JustCall action, its refusal in 05's words. */
-function saveFor(callSid: string): OutcomeSave {
+/** 04's form saving through the JustCall action, its refusal in 05's words — bound to one call. 05b's after-call form uses it too. */
+export function saveFor(callSid: string): OutcomeSave {
   return async (payload) => {
     const saved = await saveJustCallOutcomeAction({ ...payload, callSid });
     return saved.ok ? { ok: true, entryId: saved.value.entryId } : { ok: false, line: justcallErrorLine(saved.error) };
