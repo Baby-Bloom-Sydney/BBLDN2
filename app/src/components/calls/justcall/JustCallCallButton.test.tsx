@@ -27,7 +27,9 @@ function flowWith(state: Partial<DialerState>): DialerFlow {
     call: vi.fn(),
     callNext: vi.fn(),
     nextLine: "",
+    announce: "",
     nextBusy: false,
+    wide: true,
     afterCall: () => null,
   };
 }
@@ -47,7 +49,6 @@ describe("JustCallCallButton", () => {
     ["loading", { status: "loading" }, "JustCall is still loading"],
     ["signed out", { status: "signed_out" }, "Sign in to JustCall to call from here"],
     ["failed", { status: "failed" }, "JustCall didn't load"],
-    ["on a call", { call: { kind: "on_call", callSid: "CAab12", outbound: true, number: "+447700900111" } }, "On a call"],
   ] as const)("%s: the reason, then 04's phone link", (_label, state, reason) => {
     const flow = flowWith(state);
     inFlow(flow, <JustCallCallButton target={TARGET} />);
@@ -76,5 +77,32 @@ describe("JustCallCallButton", () => {
   it("stateless: drawn twice (table and card), both follow the one flow", () => {
     inFlow(flowWith({ status: "signed_out" }), <><JustCallCallButton target={TARGET} /><JustCallCallButton target={TARGET} /></>);
     expect(screen.getAllByText("Sign in to JustCall to call from here")).toHaveLength(2);
+  });
+});
+
+describe("JustCallCallButton — a call goes live (React H2)", () => {
+  it("the same button stays, unavailable and saying why; a press does nothing; no phone link appears", async () => {
+    const user = userEvent.setup();
+    const flow = flowWith({ call: { kind: "on_call", callSid: "CAab12", outbound: true, number: "+447700900111" } });
+    inFlow(flow, <JustCallCallButton target={TARGET} />);
+    const button = screen.getByRole("button", { name: /Call Ava Smith/ });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).not.toBeDisabled();
+    expect(button).toHaveAccessibleDescription("On a call");
+    await user.click(button);
+    expect(flow.call).not.toHaveBeenCalled();
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("pressed and then live: focus stays on it", async () => {
+    const user = userEvent.setup();
+    const idle = flowWith({});
+    const { rerender } = inFlow(idle, <JustCallCallButton target={TARGET} />);
+    await user.click(screen.getByRole("button", { name: /Call Ava Smith/ }));
+    const pressed = screen.getByRole("button", { name: /Call Ava Smith/ });
+    expect(pressed).toHaveFocus();
+    rerender(<DialerFlowContext.Provider value={flowWith({ call: { kind: "ringing", callSid: "CAab12", outbound: true, number: "+447700900517" } })}><JustCallCallButton target={TARGET} /></DialerFlowContext.Provider>);
+    expect(screen.getByRole("button", { name: /Call Ava Smith/ })).toBe(pressed);
+    expect(pressed).toHaveFocus();
   });
 });

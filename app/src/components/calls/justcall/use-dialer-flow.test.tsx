@@ -87,12 +87,30 @@ describe("useDialerFlow — after the call (§9 row 5)", () => {
     return hook;
   }
 
-  it("her drawer: keyed by the call, with 'JustCall · Outgoing · 6 min 12 s · Ref CAab12'", () => {
+  it("her drawer once it ends: 'JustCall · Outgoing · 6 min 12 s · Ref CAab12', Save and call next", () => {
     const { result } = calledThenEnded();
     const form = result.current.afterCall(FAMILY);
-    expect(form).toMatchObject({ key: "CAab12", saveNext: { label: "Save and call next" } });
-    expect(form?.extraReadOnly).toBeTruthy();
+    expect(form).toMatchObject({ saveNext: { label: "Save and call next" } });
     expect(JSON.stringify(form?.extraReadOnly)).toContain("JustCall · Outgoing · 6 min 12 s · Ref CAab12");
+  });
+
+  it("one key for the whole call — dialled, ringing, ended — so nothing typed meanwhile is lost (React H1); a new call, a new key", () => {
+    const hook = flow();
+    act(() => hook.result.current.call({ parentUserId: P1, mobile: "+447700900517" }));
+    const dialled = hook.result.current.afterCall(FAMILY);
+    expect(dialled).toMatchObject({ key: expect.any(String) });
+    expect(dialled?.save).toBeUndefined();
+    h.state = { ...h.state, call: { kind: "ringing", callSid: "CAab12", outbound: true, number: "+447700900517" } };
+    hook.rerender();
+    const ringing = hook.result.current.afterCall(FAMILY);
+    expect(ringing?.key).toBe(dialled?.key);
+    expect(JSON.stringify(ringing?.extraReadOnly)).toContain("JustCall · Outgoing · Ref CAab12");
+    expect(ringing?.save).toBeTypeOf("function");
+    h.state = { ...h.state, call: ended() };
+    hook.rerender();
+    expect(hook.result.current.afterCall(FAMILY)?.key).toBe(dialled?.key);
+    act(() => hook.result.current.call({ parentUserId: P1, mobile: "+447700900517" }));
+    expect(hook.result.current.afterCall(FAMILY)?.key).not.toBe(dialled?.key);
   });
 
   it("its save goes through the JustCall action with the call's sid (method JustCall, R5)", async () => {
@@ -109,15 +127,20 @@ describe("useDialerFlow — after the call (§9 row 5)", () => {
     expect(h.dial).toHaveBeenLastCalledWith("+447700900518");
   });
 
+  it("another family's drawer: nothing", () => {
+    const { result } = calledThenEnded();
+    expect(result.current.afterCall({ parentUserId: P2, bookingId: null })).toBeNull();
+  });
+
   it.each([
-    ["another family's drawer", { parentUserId: P2, bookingId: null }, ended()],
-    ["a call still ringing", FAMILY, { kind: "ringing", callSid: "CAab12", outbound: true, number: "+447700900517" } as CallPhase],
-    ["an incoming call", FAMILY, ended({ outbound: false })],
-    ["a call to another number", FAMILY, ended({ number: "+447700900999" })],
-    ["a call never seen ringing", FAMILY, ended({ number: null })],
-  ])("no after-call form for %s", (_label, family, call) => {
+    ["an incoming call", ended({ outbound: false })],
+    ["a call to another number", ended({ number: "+447700900999" })],
+    ["a call never seen ringing", ended({ number: null })],
+  ])("her drawer, %s: the key only — no JustCall line, 04's save", (_label, call) => {
     const { result } = calledThenEnded(call);
-    expect(result.current.afterCall(family)).toBeNull();
+    const form = result.current.afterCall(FAMILY);
+    expect(form?.save).toBeUndefined();
+    expect(form?.extraReadOnly).toBeUndefined();
   });
 
   it("no after-call form with logging off (its save is logging's)", () => {
@@ -132,10 +155,11 @@ describe("useDialerFlow — after the call (§9 row 5)", () => {
     expect(result.current.afterCall(FAMILY)).toBeNull();
   });
 
-  it("a dial that failed doesn't count as dialled", () => {
+  it("a dial that failed doesn't count as dialled, and says so (React M4)", () => {
     h.dial.mockReturnValue(false);
     const { result } = calledThenEnded();
     expect(result.current.afterCall(FAMILY)).toBeNull();
+    expect(result.current.nextLine).toBe("Her details are open; the number isn't in the dialer — use the phone link.");
   });
 });
 
@@ -188,8 +212,51 @@ describe("useDialerFlow — Call next (§9 row 4)", () => {
   });
 });
 
+describe("useDialerFlow — after the reviews", () => {
+  it("a call that goes live while Call next asks: nothing moves, it says so (TS M1, code L3)", async () => {
+    let answer: (v: unknown) => void = () => {};
+    h.nextFamilyToCallAction.mockImplementation(() => new Promise((r) => (answer = r)));
+    const { result, rerender } = flow();
+    let asked: Promise<void> = Promise.resolve();
+    act(() => {
+      asked = result.current.callNext();
+    });
+    h.state = { ...h.state, call: { kind: "ringing", callSid: "CAin1", outbound: false, number: "+447700900599" } };
+    rerender();
+    await act(async () => {
+      answer({ ok: true, value: { parentUserId: P2, mobile: "+447700900518" } });
+      await asked;
+    });
+    expect(h.push).not.toHaveBeenCalled();
+    expect(h.dial).not.toHaveBeenCalled();
+    expect(result.current.nextLine).toBe("On a call");
+  });
+
+  it("Call next says whom it opened (React H2)", async () => {
+    const { result } = flow();
+    await act(() => result.current.callNext());
+    expect(result.current.nextLine).toBe("");
+    expect(result.current.announce).toMatch(/opened/i);
+  });
+
+  it("the screen narrowing during a call keeps the dialer until it ends (code L4)", () => {
+    const { result, rerender } = renderHook(({ wide }) => useDialerFlow({ enabled: true, wide, logging: true }), { initialProps: { wide: true } });
+    h.state = { ...h.state, call: { kind: "on_call", callSid: "CAab12", outbound: true, number: "+447700900517" } };
+    rerender({ wide: true });
+    rerender({ wide: false });
+    expect(h.enabledWith.at(-1)).toBe(true);
+    expect(result.current.wide).toBe(true);
+    h.state = { ...h.state, call: ended() };
+    rerender({ wide: false });
+    rerender({ wide: false });
+    expect(h.enabledWith.at(-1)).toBe(false);
+    expect(result.current.wide).toBe(false);
+  });
+});
+
 describe("sameNumber", () => {
   it.each([
+    ["+447700900517", "7700900517", true],
     ["+447700900517", "+447700900517", true],
     ["+447700900517", "447700900517", true],
     ["+447700900517", "07700 900517", true],

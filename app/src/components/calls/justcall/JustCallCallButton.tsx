@@ -7,10 +7,12 @@
  * the dialer flow comes from `DialerFlowContext`.
  *   - The dialer signed in and no call live: **Call** — her mobile (E.164) goes into the dialer and her drawer opens.
  *     BAI presses the dialer's green button to place the call.
- *   - Loading, signed out, failed, or on a call: why, then 04's phone link.
+ *   - On a call: the same button stays (so focus stays on it), unavailable (`aria-disabled`), saying "On a call".
+ *   - Loading, signed out or failed: why, then 04's phone link.
  *   - No dialer on this screen (a phone), no flow, or no mobile: 04's control exactly.
  */
 
+import { useId } from "react";
 import { Phone } from "lucide-react";
 import { defaultCallControl, type CallControlTarget } from "@/app/admin/calls/CallRowParts";
 import { Button } from "@/components/ui/button";
@@ -21,10 +23,12 @@ import { callIsLive } from "./use-justcall-dialer";
 
 export function JustCallCallButton({ target }: { readonly target: CallControlTarget }) {
   const flow = useDialerFlowContext();
+  const reasonId = useId();
   const mobile = target.contact.mobile;
   if (flow === null || mobile === null || flow.dialer.state.status === "off") return <>{defaultCallControl(target)}</>;
-  const reason = callFallbackReason(flow.dialer.state.status, callIsLive(flow.dialer.state.call));
-  if (reason !== null) {
+  const live = callIsLive(flow.dialer.state.call);
+  const reason = callFallbackReason(flow.dialer.state.status, live);
+  if (reason !== null && !live) {
     return (
       <span className="inline-flex flex-wrap items-center gap-2">
         <span className="text-xs text-slate-500">{reason}</span>
@@ -34,16 +38,25 @@ export function JustCallCallButton({ target }: { readonly target: CallControlTar
   }
   const e164 = mobile.href.replace(/^tel:/, "");
   return (
-    <Button
-      type="button"
-      size="sm"
-      aria-label={callControlLabel(target.contact.name, mobile.text)}
-      onClick={() => flow.call({ parentUserId: target.parentUserId, mobile: e164 })}
-      className="gap-1.5"
-    >
-      <Phone className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-      {DIALER_COPY.call}
-    </Button>
+    <span className="inline-flex flex-wrap items-center gap-2">
+      <Button
+        type="button"
+        size="sm"
+        aria-label={callControlLabel(target.contact.name, mobile.text)}
+        aria-disabled={live || undefined}
+        aria-describedby={live ? reasonId : undefined}
+        onClick={() => !live && flow.call({ parentUserId: target.parentUserId, mobile: e164 })}
+        className={`gap-1.5 ${live ? "cursor-not-allowed opacity-60" : ""}`}
+      >
+        <Phone className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        {DIALER_COPY.call}
+      </Button>
+      {live && (
+        <span id={reasonId} className="text-xs text-slate-500">
+          {reason}
+        </span>
+      )}
+    </span>
   );
 }
 

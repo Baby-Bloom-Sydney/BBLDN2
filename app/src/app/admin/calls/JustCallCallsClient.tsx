@@ -41,14 +41,20 @@ export interface JustCallCallsClientProps extends Omit<CallsClientProps, "callsT
 
 const BESIDE: DrawerBeside = { ignoreOutside: isInDialer };
 
-/** The dialer around the page: the flow for the controls, "live" for the links, Call next and the panel. */
-function WithDialer({ flow, wide, children }: { readonly flow: DialerFlow; readonly wide: boolean; readonly children: ReactNode }) {
+/**
+ * The dialer around the page: the flow for the controls, "live" for the links, Call next, and the panel — after the
+ * page's content when wide (it is fixed on the right; keyboard order reaches the list first), the phone line before it
+ * when narrow, nothing until the width is known.
+ */
+function WithDialer({ flow, screen, children }: { readonly flow: DialerFlow; readonly screen: boolean | null; readonly children: ReactNode }) {
+  const wide = flow.wide;
   return (
     <DialerFlowContext.Provider value={flow}>
       <CallLiveContext.Provider value={flow.live}>
         <CallNextButton />
-        <DialerPanel wide={wide} state={flow.dialer.state} />
+        {!wide && <DialerPanel wide={screen} state={flow.dialer.state} />}
         <div className={wide ? "lg:pr-[380px]" : undefined}>{children}</div>
+        {wide && <DialerPanel wide state={flow.dialer.state} />}
       </CallLiveContext.Provider>
     </DialerFlowContext.Provider>
   );
@@ -57,8 +63,8 @@ function WithDialer({ flow, wide, children }: { readonly flow: DialerFlow; reado
 export function JustCallCallsClient({ unmatched = null, logging = true, dialer = false, ...props }: JustCallCallsClientProps) {
   const router = useRouter();
   const refresh = () => router.refresh();
-  const wide = useDialerScreen();
-  const flow = useDialerFlow({ enabled: dialer, wide, logging });
+  const screen = useDialerScreen();
+  const flow = useDialerFlow({ enabled: dialer, wide: screen === true, logging });
   const client = (
     <CallsClient
       {...props}
@@ -66,12 +72,12 @@ export function JustCallCallsClient({ unmatched = null, logging = true, dialer =
       renderAttemptAction={logging ? (attempt, family) => <JustCallAttemptAction attempt={attempt} family={family} onSaved={refresh} /> : undefined}
       renderCallControl={dialer ? renderJustCallControl : undefined}
       afterCall={dialer ? flow.afterCall : undefined}
-      drawerBeside={dialer && wide ? BESIDE : undefined}
+      drawerBeside={dialer && flow.wide ? BESIDE : undefined}
     />
   );
   if (!dialer) return client;
   return (
-    <WithDialer flow={flow} wide={wide}>
+    <WithDialer flow={flow} screen={screen}>
       {client}
     </WithDialer>
   );

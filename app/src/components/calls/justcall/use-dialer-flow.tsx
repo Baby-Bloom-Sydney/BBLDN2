@@ -23,7 +23,7 @@ import { nextFamilyToCallAction } from "@/app/admin/calls/justcall-actions";
 import type { AfterCall, AfterCallForm } from "@/app/admin/calls/CallRowPanel";
 import { afterCallLine, DIALER_COPY } from "@/lib/justcall/words";
 import { saveFor } from "./AddOutcome";
-import { callIsLive, useJustCallDialer, type CallPhase, type Dialer } from "./use-justcall-dialer";
+import { callIsLive, useJustCallDialer, type CallPhase, type Dialer, type DialerState } from "./use-justcall-dialer";
 
 const PAGE = "/admin/calls";
 
@@ -36,10 +36,14 @@ export interface CallTarget {
 export interface DialerFlow {
   readonly dialer: Dialer;
   readonly live: boolean;
+  /** The screen counts as wide: it is, or a call is on (narrowing the window mid-call keeps the dialer). */
+  readonly wide: boolean;
   readonly call: (target: CallTarget) => void;
   readonly callNext: () => Promise<void>;
-  /** Call next's last word ("No one left to call right now."), or "". */
+  /** The flow's last word to BAI ("No one left to call right now.", "On a call", the number not dialled), or "". */
   readonly nextLine: string;
+  /** Said to a screen reader only: what Call next opened. */
+  readonly announce: string;
   readonly nextBusy: boolean;
   readonly afterCall: AfterCall;
 }
@@ -50,11 +54,12 @@ export function useDialerFlowContext(): DialerFlow | null {
   return useContext(DialerFlowContext);
 }
 
-/** A number's digits in international form: `+44…`, `44…`, `0044…` and `07…` (UK) all read the same. */
+/** A number's digits in international form: `+44…`, `44…`, `0044…`, `07…` and `7…` (UK) all read the same. */
 function digitsOf(number: string): string {
   const digits = number.replace(/\D/g, "");
   if (digits.startsWith("00")) return digits.slice(2);
   if (digits.startsWith("0") && digits.length === 11) return `44${digits.slice(1)}`;
+  if (digits.startsWith("7") && digits.length === 10) return `44${digits}`;
   return digits;
 }
 
@@ -63,31 +68,56 @@ export function sameNumber(a: string, b: string): boolean {
   return x !== "" && x === digitsOf(b);
 }
 
-function afterCallFor(call: CallPhase, dialed: CallTarget | null, family: Parameters<AfterCall>[0], callNext: () => Promise<void>): AfterCallForm | null {
-  if (call.kind !== "ended" || !call.outbound || call.number === null || dialed === null) return null;
-  if (dialed.parentUserId !== family.parentUserId || !sameNumber(call.number, dialed.mobile)) return null;
+/** The call it dialled for this family. `n` counts the dials, so each new call keys a fresh form. */
+interface Dialled {
+  readonly target: CallTarget;
+  readonly n: number;
+}
+
+/**
+ * Her drawer's form while the call it dialled for her lasts: one key from the dial to the end (nothing typed during the
+ * call is lost), and — once JustCall reports that call, outgoing, to her number — the JustCall line (its length once it
+ * has ended), the save bound to its sid and "Save and call next". Any other family: none.
+ */
+function afterCallFor(call: CallPhase, dialled: Dialled | null, family: Parameters<AfterCall>[0], callNext: () => Promise<void>): AfterCallForm | null {
+  if (dialled === null || dialled.target.parentUserId !== family.parentUserId) return null;
+  const key = `dialled-${dialled.n}`;
+  if (call.kind === "idle" || !call.outbound || call.number === null || !sameNumber(call.number, dialled.target.mobile)) return { key };
+  const seconds = call.kind === "ended" ? call.seconds : null;
   return {
-    key: call.callSid,
-    extraReadOnly: <p className="text-xs text-slate-600">{afterCallLine(call)}</p>,
+    key,
+    extraReadOnly: <p className="text-xs text-slate-600">{afterCallLine({ outbound: true, seconds, callSid: call.callSid })}</p>,
     save: saveFor(call.callSid),
+    // `callNext` catches everything itself, so the promise it returns never rejects.
     saveNext: { label: DIALER_COPY.saveAndCallNext, onSavedNext: () => void callNext() },
   };
 }
 
-function useCallNext(call: (target: CallTarget) => void) {
+interface CallNextParts {
+  /** The latest `call` and dialer state: Call next uses them after its request, not the ones from when it began. */
+  readonly callRef: { readonly current: (target: CallTarget) => void };
+  readonly latest: { readonly current: DialerState };
+  readonly setLine: (line: string) => void;
+  readonly setAnnounce: (line: string) => void;
+}
+
+function useCallNext({ callRef, latest, setLine, setAnnounce }: CallNextParts) {
   const inFlight = useRef(false);
   const [busy, setBusy] = useState(false);
-  const [line, setLine] = useState("");
   const callNext = async () => {
     if (inFlight.current) return;
+    if (callIsLive(latest.current.call)) return setLine(DIALER_COPY.onACall);
     inFlight.current = true;
     setBusy(true);
     setLine("");
+    setAnnounce("");
     try {
       const next = await nextFamilyToCallAction({});
       if (!next.ok) return setLine(DIALER_COPY.callNextFailed);
       if (next.value === null) return setLine(DIALER_COPY.noOneLeft);
-      call(next.value);
+      if (callIsLive(latest.current.call)) return setLine(DIALER_COPY.onACall);
+      callRef.current(next.value);
+      setAnnounce(DIALER_COPY.openedNext);
     } catch (thrown) {
       console.error("[justcall/call-next] the next family couldn't be asked for", { name: thrown instanceof Error ? thrown.name : typeof thrown });
       setLine(DIALER_COPY.callNextFailed);
@@ -96,7 +126,7 @@ function useCallNext(call: (target: CallTarget) => void) {
       setBusy(false);
     }
   };
-  return { callNext, nextLine: line, nextBusy: busy };
+  return { callNext, nextBusy: busy };
 }
 
 export interface DialerFlowOptions {
@@ -110,13 +140,29 @@ export interface DialerFlowOptions {
 
 export function useDialerFlow({ enabled, wide, logging }: DialerFlowOptions): DialerFlow {
   const router = useRouter();
-  const dialer = useJustCallDialer(enabled && wide);
-  const [dialed, setDialed] = useState<CallTarget | null>(null);
+  // Kept through a narrowing window while a call is on (read from the last render; written below, each render).
+  const wasLive = useRef(false);
+  const keepWide = wide || wasLive.current;
+  const dialer = useJustCallDialer(enabled && keepWide);
+  const live = callIsLive(dialer.state.call);
+  wasLive.current = live;
+  const latest = useRef(dialer.state);
+  latest.current = dialer.state;
+  const counter = useRef(0);
+  const [dialled, setDialled] = useState<Dialled | null>(null);
+  const [line, setLine] = useState("");
+  const [announce, setAnnounce] = useState("");
   const call = (target: CallTarget) => {
-    if (dialer.dial(target.mobile)) setDialed(target);
+    if (dialer.dial(target.mobile)) {
+      counter.current += 1;
+      setDialled({ target, n: counter.current });
+      setLine("");
+    } else setLine(DIALER_COPY.notDialled);
     router.push(`${PAGE}?openCall=${encodeURIComponent(target.parentUserId)}`, { scroll: false });
   };
-  const next = useCallNext(call);
-  const afterCall: AfterCall = (family) => (logging ? afterCallFor(dialer.state.call, dialed, family, next.callNext) : null);
-  return { dialer, live: callIsLive(dialer.state.call), call, afterCall, ...next };
+  const callRef = useRef(call);
+  callRef.current = call;
+  const next = useCallNext({ callRef, latest, setLine, setAnnounce });
+  const afterCall: AfterCall = (family) => (logging ? afterCallFor(dialer.state.call, dialled, family, next.callNext) : null);
+  return { dialer, live, wide: keepWide, call, afterCall, nextLine: line, announce, ...next };
 }

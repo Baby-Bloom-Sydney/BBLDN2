@@ -14,6 +14,11 @@ const ringing = { kind: "ringing", callSid: "CAab12", outbound: true, number: "+
 afterEach(() => vi.unstubAllGlobals());
 
 describe("DialerPanel", () => {
+  it("before the screen is known: nothing (no flash of the phone line on a laptop; React M7)", () => {
+    const { container } = render(<DialerPanel wide={null} state={STATE} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it("below lg: the phone line, and no frame's mount", () => {
     render(<DialerPanel wide={false} state={STATE} />);
     expect(screen.getByText("On a phone, use the JustCall app — your calls still log here")).toBeInTheDocument();
@@ -21,11 +26,11 @@ describe("DialerPanel", () => {
     expect(screen.queryByRole("complementary")).toBeNull();
   });
 
-  it("lg and up: a named panel, fixed on the right, 365 px, with the (empty) mount JustCall's frame goes in", () => {
+  it("lg and up: a named panel, fixed on the right, wide enough for the 365 px frame and its border, with the (empty) mount", () => {
     render(<DialerPanel wide state={STATE} />);
     const panel = screen.getByRole("complementary", { name: "JustCall dialer" });
     expect(panel.className).toContain("fixed");
-    expect(panel.className).toContain("w-[365px]");
+    expect(panel.className).toContain("w-[369px]");
     const mount = document.getElementById("justcall-dialer");
     expect(mount).not.toBeNull();
     expect(mount!.childNodes).toHaveLength(0);
@@ -98,5 +103,17 @@ describe("useDialerScreen — (min-width: 1024px)", () => {
     expect(renderHook(() => useDialerScreen()).result.current).toBe(false);
     vi.stubGlobal("matchMedia", undefined);
     expect(renderHook(() => useDialerScreen()).result.current).toBe(false);
+  });
+
+  it("unknown (null) until it has looked", () => {
+    stubMedia(true);
+    const seen: (boolean | null)[] = [];
+    renderHook(() => {
+      const wide = useDialerScreen();
+      seen.push(wide);
+      return wide;
+    });
+    expect(seen[0]).toBeNull();
+    expect(seen.at(-1)).toBe(true);
   });
 });

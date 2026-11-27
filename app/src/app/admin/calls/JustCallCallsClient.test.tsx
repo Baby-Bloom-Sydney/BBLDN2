@@ -164,8 +164,8 @@ describe("JustCallCallsClient — the dialer (05b; §9 rows 1–5)", () => {
     render(<JustCallCallsClient dashboard={DASHBOARD} openCallId={AVA} panel={PANEL} panelFailed={false} unmatched={UNMATCHED} dialer />);
     const drawer = await screen.findByRole("dialog");
     await waitFor(() => expect(drawer.className).toContain("lg:right-[380px]"));
-    expect(within(drawer).getByRole("link", { name: "Money" })).toHaveAttribute("target", "_blank");
-    expect(within(drawer).getByRole("link", { name: "Money" })).toHaveAttribute("rel", "noopener noreferrer");
+    expect(within(drawer).getByRole("link", { name: "Money (opens in a new tab)" })).toHaveAttribute("target", "_blank");
+    expect(within(drawer).getByRole("link", { name: "Money (opens in a new tab)" })).toHaveAttribute("rel", "noopener noreferrer");
   });
 
   it("after the call (row 5): her form has the JustCall line; Save and call next saves with the sid and loads the next family", async () => {
@@ -184,6 +184,14 @@ describe("JustCallCallsClient — the dialer (05b; §9 rows 1–5)", () => {
     await user.click(within(form).getByRole("button", { name: "Save and call next" }));
     await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/admin/calls?openCall=b0400000-0000-4000-8000-000000000666", { scroll: false }));
     expect(jc.saveJustCallOutcomeAction).toHaveBeenCalledWith(expect.objectContaining({ parentUserId: AVA, callSid: "CAab12", result: "no_answer" }));
+  });
+
+  it("the panel comes after the page's content (keyboard order, React L12); nothing before the width is known", async () => {
+    stubScreen(true);
+    render(<JustCallCallsClient dashboard={DASHBOARD} openCallId={null} panel={null} panelFailed={false} unmatched={UNMATCHED} dialer />);
+    const panel = await screen.findByRole("complementary", { name: "JustCall dialer" });
+    const tabs = screen.getByRole("tablist");
+    expect(tabs.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("logging off, dialer on: no Unmatched list, no after-call form (its save is logging's)", async () => {

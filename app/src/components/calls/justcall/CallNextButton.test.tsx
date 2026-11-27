@@ -15,7 +15,9 @@ function flowWith(over: Partial<DialerFlow> = {}): DialerFlow {
     call: vi.fn(),
     callNext: vi.fn().mockResolvedValue(undefined),
     nextLine: "",
+    announce: "",
     nextBusy: false,
+    wide: true,
     afterCall: () => null,
     ...over,
   };
@@ -30,15 +32,33 @@ describe("CallNextButton", () => {
     expect(flow.callNext).toHaveBeenCalledTimes(1);
   });
 
-  it("busy while asking; says so", () => {
-    render(<DialerFlowContext.Provider value={flowWith({ nextBusy: true })}><CallNextButton /></DialerFlowContext.Provider>);
-    expect(screen.getByRole("button", { name: "Call next" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Call next" })).toHaveAttribute("aria-busy", "true");
+  it("busy while asking: unavailable but still focusable (React H2), says so; a press does nothing", async () => {
+    const user = userEvent.setup();
+    const flow = flowWith({ nextBusy: true });
+    render(<DialerFlowContext.Provider value={flow}><CallNextButton /></DialerFlowContext.Provider>);
+    const button = screen.getByRole("button", { name: "Call next" });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button).not.toBeDisabled();
+    await user.click(button);
+    expect(flow.callNext).not.toHaveBeenCalled();
+    expect(screen.getByRole("status")).toHaveTextContent("Finding the next family…");
   });
 
-  it("not while a call is live", () => {
-    render(<DialerFlowContext.Provider value={flowWith({ live: true })}><CallNextButton /></DialerFlowContext.Provider>);
-    expect(screen.getByRole("button", { name: "Call next" })).toBeDisabled();
+  it("not while a call is live: unavailable, saying why", async () => {
+    const user = userEvent.setup();
+    const flow = flowWith({ live: true });
+    render(<DialerFlowContext.Provider value={flow}><CallNextButton /></DialerFlowContext.Provider>);
+    const button = screen.getByRole("button", { name: "Call next" });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAccessibleDescription("On a call");
+    await user.click(button);
+    expect(flow.callNext).not.toHaveBeenCalled();
+  });
+
+  it("what it opened is announced", () => {
+    render(<DialerFlowContext.Provider value={flowWith({ announce: "Opened the next family to call." })}><CallNextButton /></DialerFlowContext.Provider>);
+    expect(screen.getByRole("status")).toHaveTextContent("Opened the next family to call.");
   });
 
   it("its last word is announced", () => {
