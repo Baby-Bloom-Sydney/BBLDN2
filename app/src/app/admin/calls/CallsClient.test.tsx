@@ -29,6 +29,7 @@ vi.mock("./actions", () => ({
 import { CallsClient } from "./CallsClient";
 import { CALENDAR } from "./calendar-fixtures.test-util";
 import { AVA, DASHBOARD, FAY, PANEL } from "./calls-fixtures.test-util";
+import type { FamilyPanel } from "@/lib/calls/family-panel";
 
 beforeEach(() => {
   nav.push.mockReset();
@@ -237,5 +238,64 @@ describe("CallsClient — brief 05's slots (05a-2, D1, D4)", () => {
   it("renderAttemptAction reaches the drawer's attempts", () => {
     render(<CallsClient dashboard={DASHBOARD} openCallId={AVA} panel={PANEL} panelFailed={false} renderAttemptAction={(a) => <span>{`slot ${a.key}`}</span>} />);
     expect(within(screen.getByRole("dialog")).getByText("slot e1")).toBeInTheDocument();
+  });
+});
+
+describe("CallsClient — brief 05's dialer (05b, D2, D6)", () => {
+  it("afterCall reaches her drawer's outcome form", () => {
+    render(<CallsClient dashboard={DASHBOARD} openCallId={AVA} panel={PANEL} panelFailed={false} afterCall={() => ({ key: "CA1", extraReadOnly: <p>Ref CA1</p> })} />);
+    expect(within(screen.getByRole("region", { name: "Record outcome" })).getByText("Ref CA1")).toBeInTheDocument();
+  });
+
+  it("today: a modal drawer with its overlay, flush right", () => {
+    render(<CallsClient dashboard={DASHBOARD} openCallId={AVA} panel={PANEL} panelFailed={false} />);
+    expect(document.querySelector(".bg-black\\/80")).not.toBeNull();
+    expect(drawer()!.className).not.toContain("lg:right-[380px]");
+  });
+
+  it("drawerBeside: no overlay, stops at the dialer's left edge, and a press inside the dialer keeps it open", async () => {
+    const region = document.createElement("div");
+    region.setAttribute("data-testid", "dialer-region");
+    document.body.appendChild(region);
+    // An earlier test's drawer gives focus back one tick after it unmounts; let that land first (it is outside this one).
+    await new Promise((r) => setTimeout(r, 0));
+    render(<CallsClient dashboard={DASHBOARD} openCallId={AVA} panel={PANEL} panelFailed={false} drawerBeside={{ ignoreOutside: (t) => t instanceof Node && region.contains(t) }} />);
+    expect(document.querySelector(".bg-black\\/80")).toBeNull();
+    expect(drawer()!.className).toContain("lg:right-[380px]");
+    await new Promise((r) => setTimeout(r, 0)); // Radix listens for outside presses from the next tick
+    fireEvent.pointerDown(region);
+    fireEvent.focusIn(region);
+    expect(drawer()).not.toBeNull();
+    expect(nav.push).not.toHaveBeenCalled();
+    fireEvent.pointerDown(document.body);
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/admin/calls", { scroll: false }));
+    region.remove();
+  });
+});
+
+describe("CallsClient — beside the dialer, after the reviews (05b)", () => {
+  const BESIDE = { ignoreOutside: () => false };
+  const FAY_PANEL: FamilyPanel = { ...PANEL, parentUserId: FAY, contact: { ...PANEL.contact, name: "Fay Quick" } };
+
+  it("never wider than the room left of the dialer (React M6: 1024–1051 px clipped its left edge)", () => {
+    render(<CallsClient dashboard={DASHBOARD} openCallId={AVA} panel={PANEL} panelFailed={false} drawerBeside={BESIDE} />);
+    expect(drawer()!.className).toContain("lg:max-w-[calc(100vw-380px)]");
+  });
+
+  it("the open drawer moving to another family (Call next) puts focus on her name (React H2)", async () => {
+    await new Promise((r) => setTimeout(r, 0));
+    const { rerender } = render(<CallsClient dashboard={DASHBOARD} openCallId={AVA} panel={PANEL} panelFailed={false} drawerBeside={BESIDE} />);
+    rerender(<CallsClient dashboard={DASHBOARD} openCallId={FAY} panel={FAY_PANEL} panelFailed={false} drawerBeside={BESIDE} />);
+    await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "Fay Quick" })).toHaveFocus());
+  });
+
+  it("today (no dialer): a family change moves no focus, and her name takes no tabindex", async () => {
+    await new Promise((r) => setTimeout(r, 0));
+    const { rerender } = render(<CallsClient dashboard={DASHBOARD} openCallId={AVA} panel={PANEL} panelFailed={false} />);
+    rerender(<CallsClient dashboard={DASHBOARD} openCallId={FAY} panel={FAY_PANEL} panelFailed={false} />);
+    await new Promise((r) => setTimeout(r, 0));
+    const heading = screen.getByRole("heading", { level: 2, name: "Fay Quick" });
+    expect(heading).not.toHaveFocus();
+    expect(heading).not.toHaveAttribute("tabindex");
   });
 });

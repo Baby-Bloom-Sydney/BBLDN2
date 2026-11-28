@@ -206,3 +206,60 @@ describe("OutcomeForm — brief 05's save (05a-2, D2)", () => {
 function save_() {
   return screen.getByRole("button", { name: "Save outcome" });
 }
+
+describe("OutcomeForm — Save and call next (05b, brief §0.4)", () => {
+  const NEXT = "Save and call next";
+
+  it("without `saveNext`: one Save button, as today", () => {
+    render(<OutcomeForm parentUserId={AVA} bookingId={BOOKING} />);
+    expect(screen.queryByRole("button", { name: NEXT })).toBeNull();
+    expect(screen.getAllByRole("button", { name: /^Save/ })).toHaveLength(1);
+  });
+
+  it("a second button saves the same payload, then calls onSaved and onSavedNext with the entry", async () => {
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+    const onSavedNext = vi.fn();
+    const save = vi.fn().mockResolvedValue({ ok: true, entryId: "e-7" });
+    render(<OutcomeForm parentUserId={AVA} bookingId={BOOKING} save={save} onSaved={onSaved} saveNext={{ label: NEXT, onSavedNext }} />);
+    expect(screen.getByRole("button", { name: NEXT })).toBeDisabled();
+    await user.click(chip("No answer"));
+    await user.click(screen.getByRole("button", { name: NEXT }));
+    await waitFor(() => expect(onSavedNext).toHaveBeenCalledWith("e-7"));
+    expect(save).toHaveBeenCalledWith({ parentUserId: AVA, bookingId: BOOKING, result: "no_answer", outcome: null, note: null, callBackDate: null, callBackTime: null });
+    expect(onSaved).toHaveBeenCalledWith("e-7");
+    expect(screen.getByRole("status")).toHaveTextContent("Saved.");
+  });
+
+  it("plain Save never goes on to the next family", async () => {
+    const user = userEvent.setup();
+    const onSavedNext = vi.fn();
+    render(<OutcomeForm parentUserId={AVA} bookingId={null} saveNext={{ label: NEXT, onSavedNext }} prefill={{ result: "answered" }} />);
+    await user.click(save_());
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Saved."));
+    expect(onSavedNext).not.toHaveBeenCalled();
+  });
+
+  it("a refusal stays on this family: its line shows and the next family is not loaded", async () => {
+    const user = userEvent.setup();
+    const onSavedNext = vi.fn();
+    const save = vi.fn().mockResolvedValue({ ok: false, line: "That didn't save — try again." });
+    render(<OutcomeForm parentUserId={AVA} bookingId={null} save={save} saveNext={{ label: NEXT, onSavedNext }} prefill={{ result: "answered" }} />);
+    await user.click(screen.getByRole("button", { name: NEXT }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("That didn't save — try again.");
+    expect(onSavedNext).not.toHaveBeenCalled();
+  });
+
+  it("one save per press across both buttons: while one is in flight both wait", async () => {
+    const user = userEvent.setup();
+    let settle: (v: unknown) => void = () => {};
+    const save = vi.fn().mockImplementation(() => new Promise((r) => (settle = r)));
+    render(<OutcomeForm parentUserId={AVA} bookingId={null} save={save} saveNext={{ label: NEXT, onSavedNext: vi.fn() }} prefill={{ result: "answered" }} />);
+    await user.click(screen.getByRole("button", { name: NEXT }));
+    expect(screen.getByRole("button", { name: NEXT })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: NEXT }));
+    expect(save).toHaveBeenCalledTimes(1);
+    settle({ ok: true, entryId: "e-1" });
+  });
+});

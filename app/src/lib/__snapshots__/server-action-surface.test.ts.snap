@@ -23,6 +23,7 @@ exports[`server action modules > export the reviewed list of actions (adding one
   "app/admin/calls/actions.ts startCallBookingAction",
   "app/admin/calls/justcall-actions.ts attachJustCallAction",
   "app/admin/calls/justcall-actions.ts dismissJustCallAction",
+  "app/admin/calls/justcall-actions.ts nextFamilyToCallAction",
   "app/admin/calls/justcall-actions.ts saveJustCallOutcomeAction",
   "app/admin/calls/justcall-actions.ts searchFamiliesForCallAction",
   "app/admin/cohorts/actions.ts reopenCohortPlace",

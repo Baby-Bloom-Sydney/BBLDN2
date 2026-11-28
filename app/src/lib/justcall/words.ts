@@ -7,8 +7,10 @@
  * - JustCall's notes and disposition are lines of their own (admin only, Q2).
  * - The Unmatched list: the number as dialled (a UK mobile in 04's display form), the London time, why it is Unmatched.
  * - One line per action refusal; the codes 04 shares keep 04's words.
+ * - 05b, the dialer: its sign-in line, the call's phase, why Call falls back to the phone link, and the after-call
+ *   line ("JustCall · Outgoing · 6 min 12 s · Ref CA…").
  *
- * BB-wave2-231126/05-build, 2026-11-26.
+ * BB-wave2-231126/05-build, 2026-11-26 (05b: 2026-11-27).
  */
 
 import { adminErrorLine } from "@/lib/calls/copy";
@@ -151,4 +153,69 @@ export function unmatchedView(call: UnmatchedCall): UnmatchedCallView {
     resultCode: call.mappedResult,
     matchNote: call.matchNote,
   };
+}
+
+/** The dialer's own words (05b; brief §0.1, §3.1–3.8). */
+export const DIALER_COPY = Object.freeze({
+  title: "JustCall dialer",
+  loading: "JustCall is loading…",
+  signIn: "Sign in to JustCall",
+  signedIn: "JustCall: signed in",
+  signedInAs: (who: string) => `JustCall: signed in as ${who}`,
+  failed: "JustCall didn't load — reload the page to try again.",
+  phone: "On a phone, use the JustCall app — your calls still log here",
+  ringing: "Ringing",
+  onCall: "On call",
+  ended: "Ended",
+  call: "Call",
+  callNext: "Call next",
+  finding: "Finding the next family…",
+  noOneLeft: "No one left to call right now.",
+  callNextFailed: "The next family couldn't be found — try again.",
+  saveAndCallNext: "Save and call next",
+  notDialled: "Her details are open; the number isn't in the dialer — use the phone link.",
+  openedNext: "Opened the next family to call.",
+  newTab: "(opens in a new tab)",
+  stillLoading: "JustCall is still loading",
+  signInToCall: "Sign in to JustCall to call from here",
+  didNotLoad: "JustCall didn't load",
+  onACall: "On a call",
+});
+
+type DialerStatusWord = "off" | "loading" | "signed_out" | "signed_in" | "failed";
+
+/** The panel's sign-in line; empty while the dialer is off. */
+export function dialerSignInLine(status: DialerStatusWord, agent: string | null): string {
+  switch (status) {
+    case "loading":
+      return DIALER_COPY.loading;
+    case "signed_out":
+      return DIALER_COPY.signIn;
+    case "signed_in":
+      return agent === null ? DIALER_COPY.signedIn : DIALER_COPY.signedInAs(agent);
+    case "failed":
+      return DIALER_COPY.failed;
+    case "off":
+      return "";
+  }
+}
+
+/** Ringing · On call · Ended; null when there is no call. */
+export function callPhaseWord(kind: "idle" | "ringing" | "on_call" | "ended"): string | null {
+  return kind === "ringing" ? DIALER_COPY.ringing : kind === "on_call" ? DIALER_COPY.onCall : kind === "ended" ? DIALER_COPY.ended : null;
+}
+
+/** Why Call offers the phone link instead; null when the dialer can dial (or isn't on this screen at all). */
+export function callFallbackReason(status: DialerStatusWord, live: boolean): string | null {
+  if (status === "loading") return DIALER_COPY.stillLoading;
+  if (status === "signed_out") return DIALER_COPY.signInToCall;
+  if (status === "failed") return DIALER_COPY.didNotLoad;
+  if (status === "signed_in" && live) return DIALER_COPY.onACall;
+  return null;
+}
+
+/** The after-call form's read-only line: "JustCall · Outgoing · 6 min 12 s · Ref CAab12"; no length while the call is on. */
+export function afterCallLine(call: { readonly outbound: boolean; readonly seconds: number | null; readonly callSid: string }): string {
+  const length = call.seconds === null ? null : (durationWords(call.seconds) ?? "0 s");
+  return joined([JUSTCALL_COPY.brand, directionWord(call.outbound ? "outgoing" : "incoming"), length, `${JUSTCALL_COPY.reference} ${call.callSid}`]);
 }

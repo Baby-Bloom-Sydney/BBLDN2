@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   attachCall: vi.fn(),
   dismissCall: vi.fn(),
   searchParentsForAttach: vi.fn(),
+  nextFamilyToCall: vi.fn(),
 }));
 vi.mock("@/lib/admin/require-admin", () => ({ requireAdmin: h.requireAdmin }));
 vi.mock("next/cache", () => ({ revalidatePath: h.revalidatePath }));
@@ -25,8 +26,10 @@ vi.mock("@/lib/justcall/admin", async (importOriginal) => ({
   searchParentsForAttach: h.searchParentsForAttach,
 }));
 
+vi.mock("@/lib/justcall/next-to-call", () => ({ nextFamilyToCall: h.nextFamilyToCall }));
+
 import * as actions from "./justcall-actions";
-import { attachJustCallAction, dismissJustCallAction, saveJustCallOutcomeAction, searchFamiliesForCallAction } from "./justcall-actions";
+import { attachJustCallAction, dismissJustCallAction, nextFamilyToCallAction, saveJustCallOutcomeAction, searchFamiliesForCallAction } from "./justcall-actions";
 
 const ADMIN = "a0500000-0000-4000-8000-000000000060";
 const P1 = "b0500000-0000-4000-8000-000000000017";
@@ -54,8 +57,8 @@ const calls = [
 ];
 
 describe("the contract, for every action", () => {
-  it("exports only these four async functions", () => {
-    expect(Object.keys(actions).sort()).toEqual(["attachJustCallAction", "dismissJustCallAction", "saveJustCallOutcomeAction", "searchFamiliesForCallAction"]);
+  it("exports only these five async functions", () => {
+    expect(Object.keys(actions).sort()).toEqual(["attachJustCallAction", "dismissJustCallAction", "nextFamilyToCallAction", "saveJustCallOutcomeAction", "searchFamiliesForCallAction"]);
     for (const fn of Object.values(actions)) expect(fn.constructor.name).toBe("AsyncFunction");
   });
 
@@ -152,5 +155,49 @@ describe("attach, dismiss and search", () => {
     h.attachCall.mockRejectedValue(new Error("socket"));
     vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await attachJustCallAction({ callSid: "CAun0001", parentUserId: P1 })).toEqual({ ok: false, error: "error" });
+  });
+});
+
+describe("nextFamilyToCallAction (05b, R11)", () => {
+  beforeEach(() => {
+    vi.stubEnv("JUSTCALL_ENABLED", "true");
+    h.nextFamilyToCall.mockReset().mockResolvedValue({ ok: true, value: { parentUserId: P1, mobile: "+447700900517" } });
+  });
+
+  it("the dialer switch first: off → justcall_disabled before the admin check or any read (logging on or not)", async () => {
+    vi.stubEnv("JUSTCALL_ENABLED", "");
+    expect(await nextFamilyToCallAction({})).toEqual({ ok: false, error: "justcall_disabled" });
+    expect(h.requireAdmin).not.toHaveBeenCalled();
+    expect(h.nextFamilyToCall).not.toHaveBeenCalled();
+  });
+
+  it("works with the dialer on and logging off", async () => {
+    vi.stubEnv("JUSTCALL_WEBHOOK_ENABLED", "");
+    expect(await nextFamilyToCallAction({})).toEqual({ ok: true, value: { parentUserId: P1, mobile: "+447700900517" } });
+  });
+
+  it("not an admin → not_authorized, nothing read", async () => {
+    h.requireAdmin.mockResolvedValue({ userId: null, error: "nope" });
+    expect(await nextFamilyToCallAction({})).toEqual({ ok: false, error: "not_authorized" });
+    expect(h.nextFamilyToCall).not.toHaveBeenCalled();
+  });
+
+  it.each([[{ skip: "x" }], [null], ["{}"], [[]]])("takes an empty object only: %o → invalid", async (input) => {
+    expect(await nextFamilyToCallAction(input)).toEqual({ ok: false, error: "invalid" });
+    expect(h.nextFamilyToCall).not.toHaveBeenCalled();
+  });
+
+  it("asks with the admin's proof; the family or null comes back; nothing is revalidated (a read)", async () => {
+    expect(await nextFamilyToCallAction({})).toEqual({ ok: true, value: { parentUserId: P1, mobile: "+447700900517" } });
+    expect(h.nextFamilyToCall.mock.calls[0][0]).toMatchObject({ userId: ADMIN });
+    h.nextFamilyToCall.mockResolvedValue({ ok: true, value: null });
+    expect(await nextFamilyToCallAction({})).toEqual({ ok: true, value: null });
+    expect(h.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("a throw is error, never a crash", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    h.nextFamilyToCall.mockRejectedValue(new Error("boom"));
+    expect(await nextFamilyToCallAction({})).toEqual({ ok: false, error: "error" });
   });
 });

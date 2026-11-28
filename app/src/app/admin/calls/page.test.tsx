@@ -7,7 +7,7 @@
  * (neither → zero reads); `?tab=calendar` opens it; each tab says when its own read failed.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 
 const h = vi.hoisted(() => ({
   gate: { userId: "a0400000-0000-4000-8000-000000000001", error: null as string | null },
@@ -275,5 +275,56 @@ describe("/admin/calls — JustCall logging on (05a-2, plan §5 B7)", () => {
     render(await AdminCallsPage({}));
     expect(screen.getByRole("alert")).toHaveTextContent("The JustCall calls could not be read — reload to try again.");
     expect(screen.getByText("Calls still to make this week: 4 (2 booked · 2 not booked)")).toBeInTheDocument();
+  });
+});
+
+describe("/admin/calls — the dialer switch (05b, plan D1, §9 row 1)", () => {
+  const tree = () => document.body.innerHTML.replace(/:r[0-9a-z]+:/g, ":r:");
+
+  it.each([
+    ["unset", undefined],
+    ["not the literal 'true'", "TRUE"],
+  ])("dialer %s, logging off → today's tree exactly (the same as with the switch unset)", async (_label, dialer) => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    vi.stubEnv("JUSTCALL_WEBHOOK_ENABLED", "");
+    vi.stubEnv("JUSTCALL_ENABLED", "");
+    render(await AdminCallsPage({ searchParams: { openCall: AVA } }));
+    const today = tree();
+    cleanup();
+    vi.stubEnv("JUSTCALL_ENABLED", dialer as string);
+    render(await AdminCallsPage({ searchParams: { openCall: AVA } }));
+    expect(tree()).toBe(today);
+    expect(screen.queryByRole("button", { name: "Call next" })).toBeNull();
+  });
+
+  it("dialer on, logging off → the JustCall page with Call next; the Unmatched list never read or shown", async () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    vi.stubEnv("JUSTCALL_WEBHOOK_ENABLED", "");
+    vi.stubEnv("JUSTCALL_ENABLED", "true");
+    render(await AdminCallsPage({}));
+    expect(screen.getByRole("button", { name: "Call next" })).toBeInTheDocument();
+    expect(h.unmatchedCalls).toEqual([]);
+    expect(screen.queryByText(/Unmatched JustCall calls/)).toBeNull();
+    expect(screen.getByText("Calls still to make this week: 4 (2 booked · 2 not booked)")).toBeInTheDocument();
+  });
+
+  it("both on → Call next and the Unmatched list (read once)", async () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    vi.stubEnv("JUSTCALL_WEBHOOK_ENABLED", "true");
+    vi.stubEnv("JUSTCALL_ENABLED", "true");
+    render(await AdminCallsPage({}));
+    expect(screen.getByRole("button", { name: "Call next" })).toBeInTheDocument();
+    expect(h.unmatchedCalls).toHaveLength(1);
+    expect(screen.getByRole("heading", { level: 2, name: "Unmatched JustCall calls (1)" })).toBeInTheDocument();
+  });
+
+  it("dialer on, call booking off → 404; not an admin → 404", async () => {
+    vi.stubEnv("JUSTCALL_ENABLED", "true");
+    vi.stubEnv("CALL_BOOKING_ENABLED", "");
+    await expect(AdminCallsPage({})).rejects.toThrow("NEXT_NOT_FOUND");
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    h.gate = { userId: "", error: "Not authorized — admin role required" };
+    await expect(AdminCallsPage({})).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(h.dashboardCalls).toBe(0);
   });
 });

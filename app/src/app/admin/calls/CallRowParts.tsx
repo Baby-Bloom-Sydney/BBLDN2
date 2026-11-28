@@ -7,11 +7,15 @@
  *
  * The Call control is `renderCallControl(row)` — a `tel:` link by default; brief 05 passes its dialer instead.
  * Admin idiom: `StatusBadge` tags, violet-700 links, slate text (brief §7; plan §12 R16).
+ *
+ * 05b (plan 05 §5 PR 05b; BB-wave2-231126/05-build): while brief 05's dialer says a call is live (`CallLiveContext`),
+ * the four links open in a new tab (`rel="noopener noreferrer"`); otherwise today's links.
  */
 
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Phone } from "lucide-react";
+import { useCallLive } from "@/components/calls/call-live-context";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { ADMIN_COPY, callControlLabel } from "@/lib/calls/copy";
 import type { CallRowView } from "@/lib/calls/dashboard";
@@ -115,8 +119,13 @@ export function NanniesCell({ position }: { readonly position: PositionSummary |
 
 const LINK = "font-medium text-violet-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded-sm";
 
+/** While a call is live: a new tab, cut off from this page (05b); its name says so. */
+const NEW_TAB = { target: "_blank", rel: "noopener noreferrer" } as const;
+const NEW_TAB_WORDS = "(opens in a new tab)";
+
 /** Profile · Account · Money · Position (brief §0.9); no Position link without a position. */
 export function LinksRow({ links }: { readonly links: RowLinks }) {
+  const live = useCallLive();
   const all: readonly [string, string | null][] = [
     [ADMIN_COPY.linkProfile, links.profile],
     [ADMIN_COPY.linkAccount, links.account],
@@ -129,8 +138,10 @@ export function LinksRow({ links }: { readonly links: RowLinks }) {
         href === null
           ? []
           : [
-              <Link key={label} href={href} className={LINK}>
+              <Link key={label} href={href} className={LINK} {...(live ? NEW_TAB : {})}>
                 {label}
+                {live && " "}
+                {live && <span className="sr-only">{NEW_TAB_WORDS}</span>}
               </Link>,
             ],
       )}

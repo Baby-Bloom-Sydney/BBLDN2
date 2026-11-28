@@ -10,8 +10,9 @@ import { describe, expect, it } from "vitest";
 
 const DIR = __dirname;
 const LIB = join(__dirname, "../../../lib");
-/** 04's allowed call modules, plus JustCall's words (types.ts is imported as types only). */
-const ALLOWED = new Set(["calls/calendar-limits", "calls/copy", "calls/dashboard-row", "calls/outcomes", "calls/weekday", "justcall/words"]);
+/** 04's allowed call modules, plus JustCall's words and types (both checked below: no zod, no server module). 05b's
+ * dialer reads `CALL_SID_PATTERN` from types at run time. */
+const ALLOWED = new Set(["calls/calendar-limits", "calls/copy", "calls/dashboard-row", "calls/outcomes", "calls/weekday", "justcall/words", "justcall/types"]);
 
 /** The `@/lib/calls/*` and `@/lib/justcall/*` modules a source imports at run time. */
 function runtimeLibImports(source: string): string[] {

@@ -12,6 +12,8 @@ import { nannyInvoicesEnabled } from "./flags";
 import { depositLinkEnabled } from "./flags";
 // Brief 05 (BB-wave2-231126/05-build): its own import line, as above.
 import { justcallWebhookEnabled } from "./flags";
+// Brief 05, PR 05b: its own import line, as above.
+import { justcallEnabled } from "./flags";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -273,5 +275,55 @@ describe("justcallWebhookEnabled() — brief 05 (JUSTCALL_WEBHOOK_ENABLED, needs
     const config = readFileSync(path.resolve(__dirname, "../../../next.config.mjs"), "utf8");
     expect(config).not.toContain("JUSTCALL_WEBHOOK_ENABLED");
     expect(config).not.toContain("JUSTCALL_API");
+  });
+});
+
+describe("justcallEnabled() — brief 05 PR 05b, the dialer (JUSTCALL_ENABLED, needs CALL_BOOKING_ENABLED)", () => {
+  it.each([
+    ["unset", undefined],
+    ["empty", ""],
+    ["false", "false"],
+    ["TRUE (case matters)", "TRUE"],
+    ["1", "1"],
+    ["a typo", "ture"],
+  ])("off when %s, even with call booking on", (_label, value) => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    vi.stubEnv("JUSTCALL_ENABLED", value as string);
+    expect(justcallEnabled()).toBe(false);
+  });
+
+  it.each([
+    ["unset", undefined],
+    ["empty", ""],
+    ["TRUE", "TRUE"],
+  ])("off when JUSTCALL_ENABLED is \"true\" but CALL_BOOKING_ENABLED is %s", (_label, value) => {
+    vi.stubEnv("JUSTCALL_ENABLED", "true");
+    vi.stubEnv("CALL_BOOKING_ENABLED", value as string);
+    expect(justcallEnabled()).toBe(false);
+  });
+
+  it("on only when both are the literal \"true\" (trimmed), read at call time", () => {
+    vi.stubEnv("JUSTCALL_ENABLED", " true\n");
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    expect(justcallEnabled()).toBe(true);
+    vi.stubEnv("CALL_BOOKING_ENABLED", "");
+    expect(justcallEnabled()).toBe(false);
+  });
+
+  it("the two JustCall switches are separate: either one on leaves the other off", () => {
+    vi.stubEnv("CALL_BOOKING_ENABLED", "true");
+    vi.stubEnv("JUSTCALL_ENABLED", "true");
+    vi.stubEnv("JUSTCALL_WEBHOOK_ENABLED", "");
+    expect([justcallEnabled(), justcallWebhookEnabled()]).toEqual([true, false]);
+    vi.stubEnv("JUSTCALL_ENABLED", "");
+    vi.stubEnv("JUSTCALL_WEBHOOK_ENABLED", "true");
+    expect([justcallEnabled(), justcallWebhookEnabled()]).toEqual([false, true]);
+  });
+
+  it("is inlined for the client: next.config.mjs passes JUSTCALL_ENABLED through, and no JustCall secret", () => {
+    const config = readFileSync(path.resolve(__dirname, "../../../next.config.mjs"), "utf8");
+    expect(config).toContain('JUSTCALL_ENABLED: process.env.JUSTCALL_ENABLED ?? ""');
+    expect(config).not.toContain("JUSTCALL_API");
+    expect(config).not.toContain("JUSTCALL_WEBHOOK_URL");
   });
 });
